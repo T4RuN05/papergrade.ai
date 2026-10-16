@@ -240,9 +240,9 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
         </div>
 
         {/* Right: DB Status + Notification Bell + Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Supabase Status Pill */}
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium">
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium mr-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Supabase PostgreSQL • Online</span>
           </div>
@@ -251,18 +251,16 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           <button
             type="button"
             onClick={openDrawer}
-            className="p-2 rounded-md text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
             title="Open Notifications Sidebar"
             aria-label="Open Notifications"
           >
-            <span className="relative inline-flex items-center justify-center">
-              <Bell className="h-4 w-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 left-2.5 flex h-3.5 min-w-3.5 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white shadow-xs ring-2 ring-surface animate-in zoom-in-50">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </span>
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white shadow-xs ring-2 ring-surface animate-in zoom-in-50 leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {/* Role Pill & User Name */}
@@ -283,7 +281,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="p-1.5 sm:p-2 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
               title="Sign Out"
               aria-label="Sign out"
             >

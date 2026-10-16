@@ -113,8 +113,92 @@ export function DocumentViewer({
     }
   }, [propEditingAnswerId, answers]);
 
-  // Ref to the zoomable image container
+  // Ref to the zoomable image container and viewport
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const zoomScaleRef = useRef(zoomScale);
+  zoomScaleRef.current = zoomScale;
+
+  // Touch pinch-to-zoom and double-tap handling for mobile PWA
+  useEffect(() => {
+    const container = viewportRef.current;
+    if (!container) return;
+
+    let initialPinchDist = 0;
+    let initialZoom = 1;
+    let lastTapTime = 0;
+    let touchStartPos = { x: 0, y: 0 };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        initialPinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialZoom = zoomScaleRef.current;
+      } else if (e.touches.length === 1) {
+        touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && initialPinchDist > 0) {
+        e.preventDefault();
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = currentDist / initialPinchDist;
+        const targetZoom = Math.min(3.0, Math.max(0.5, Number((initialZoom * factor).toFixed(2))));
+        setZoomScale(targetZoom);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        initialPinchDist = 0;
+      }
+      if (e.touches.length === 0 && e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const distMoved = Math.hypot(
+          touch.clientX - touchStartPos.x,
+          touch.clientY - touchStartPos.y
+        );
+        const now = Date.now();
+        // Double-tap zoom toggle (within 300ms and minimal finger travel)
+        if (distMoved < 15 && now - lastTapTime < 300) {
+          setZoomScale((prev) => (prev > 1.1 ? 1.0 : 1.8));
+          lastTapTime = 0;
+        } else {
+          lastTapTime = now;
+        }
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        setZoomScale((prev) =>
+          Math.min(3.0, Math.max(0.5, Number((prev - e.deltaY * 0.005).toFixed(2))))
+        );
+      }
+    };
+
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
+    container.addEventListener("wheel", onWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+      container.removeEventListener("wheel", onWheel);
+    };
+  }, []);
 
   // Ref tracking active mouse drag session
   const dragStateRef = useRef<{
@@ -383,8 +467,8 @@ export function DocumentViewer({
     });
   });
 
-  const handleZoomIn = () => setZoomScale((prev) => Math.min(2.5, prev + 0.2));
-  const handleZoomOut = () => setZoomScale((prev) => Math.max(0.6, prev - 0.2));
+  const handleZoomIn = () => setZoomScale((prev) => Math.min(3.0, Number((prev + 0.25).toFixed(2))));
+  const handleZoomOut = () => setZoomScale((prev) => Math.max(0.5, Number((prev - 0.25).toFixed(2))));
   const handleResetZoom = () => setZoomScale(1.0);
 
   const getStatusColor = (ans: GradedAnswer) => {
@@ -543,8 +627,11 @@ export function DocumentViewer({
         </div>
       </div>
 
-      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background */}
-      <div className="relative flex-1 overflow-auto bg-[#f6f6f4] p-1.5 sm:p-6 md:p-8 flex items-start justify-center">
+      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background with Pinch-to-Zoom Support */}
+      <div
+        ref={viewportRef}
+        className="relative flex-1 overflow-auto bg-[#f6f6f4] p-1.5 sm:p-6 md:p-8 flex items-start justify-center touch-pan-x touch-pan-y overscroll-contain select-none"
+      >
         <div
           ref={imageContainerRef}
           className="relative transition-transform origin-top duration-150 shadow-md rounded-sm border border-hairline/80 inline-block bg-white max-w-full"

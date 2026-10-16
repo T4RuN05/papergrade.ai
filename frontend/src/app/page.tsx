@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   Sparkles,
   ArrowRight,
@@ -25,7 +26,7 @@ import {
   AlertCircle,
   HelpCircle,
 } from "lucide-react";
-import { api, getAuthToken } from "@/lib/api";
+import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -34,15 +35,53 @@ import {
 } from "@/components/ui";
 
 export default function LandingPage() {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isRedirectingStudent, setIsRedirectingStudent] = useState(false);
   const [activeDemoTab, setActiveDemoTab] = useState<"ai_grading" | "window_timing" | "tenancy" | "revaluation">("ai_grading");
 
   useEffect(() => {
     const token = getAuthToken();
-    if (token) {
-      api.getMe().then(setCurrentUser).catch(() => setCurrentUser(null));
+    const storedUser = getStoredUser();
+
+    // Instant redirect if student is already logged in
+    if (token && storedUser?.role === "STUDENT") {
+      setIsRedirectingStudent(true);
+      router.replace("/student/portal");
+      return;
     }
-  }, []);
+
+    if (token) {
+      api
+        .getMe()
+        .then((user) => {
+          setCurrentUser(user);
+          if (user?.role === "STUDENT") {
+            setIsRedirectingStudent(true);
+            router.replace("/student/portal");
+          }
+        })
+        .catch(() => setCurrentUser(null));
+    }
+  }, [router]);
+
+  if (isRedirectingStudent) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3">
+        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden shrink-0 shadow-xs animate-pulse">
+          <Image
+            src="/logo-icon.png"
+            alt="PaperGrade AI"
+            width={56}
+            height={56}
+            className="h-14 w-14 object-contain"
+            priority
+          />
+        </div>
+        <p className="text-xs text-ink-muted font-medium">Opening student dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 sm:space-y-16 max-w-6xl mx-auto pb-20 pt-2 sm:pt-4 px-3.5 sm:px-6 lg:px-8">

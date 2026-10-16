@@ -14,7 +14,7 @@ import {
   Layers,
   ArrowRight,
 } from "lucide-react";
-import { api, getAuthToken } from "@/lib/api";
+import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
@@ -31,17 +31,27 @@ export function Navbar() {
     role: string;
     full_name: string;
   } | null>(null);
+  const [hasToken, setHasToken] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
     const token = getAuthToken();
+    setHasToken(Boolean(token));
     if (token) {
+      // Synchronously restore cached user to prevent UI flash
+      const cached = getStoredUser();
+      if (cached) {
+        setCurrentUser(cached);
+      }
       api
         .getMe()
         .then((user) => setCurrentUser(user))
-        .catch(() => setCurrentUser(null));
+        .catch(() => {
+          setCurrentUser(null);
+          setHasToken(false);
+        });
     } else {
       setCurrentUser(null);
     }
@@ -50,6 +60,7 @@ export function Navbar() {
   const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
+    setHasToken(false);
     toast.success("You have signed out successfully.", { title: "Logged Out" });
     router.push("/auth/login");
   };
@@ -128,25 +139,23 @@ export function Navbar() {
         </nav>
 
         {/* User Role / Auth Desk */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 min-h-[32px]">
           {isMounted && currentUser ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {/* Notification Bell Button (Triggers Right Slide-Over Drawer) */}
               <button
                 type="button"
                 onClick={openDrawer}
-                className="p-1.5 rounded-md text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
                 title="Notifications"
                 aria-label="Open notifications"
               >
-                <span className="relative inline-flex items-center justify-center">
-                  <Bell className="h-4 w-4" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1.5 left-2.5 flex h-3.5 min-w-3.5 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white shadow-xs ring-2 ring-surface animate-in zoom-in-50">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
-                </span>
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white shadow-xs ring-2 ring-surface animate-in zoom-in-50 leading-none">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </button>
 
               {/* Role badge */}
@@ -174,12 +183,19 @@ export function Navbar() {
 
               {/* Logout button */}
               <button
+                type="button"
                 onClick={handleLogout}
-                className="p-1.5 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
                 title="Logout"
+                aria-label="Sign out"
               >
                 <LogOut className="h-4 w-4" />
               </button>
+            </div>
+          ) : !isMounted || hasToken ? (
+            /* Subtle skeleton placeholder during initial mount or while verifying token: DO NOT flash Sign In */
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-canvas-soft border border-hairline animate-pulse shrink-0" />
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -233,7 +249,7 @@ export function Navbar() {
 
           <div className="mt-3 pt-3 border-t border-hairline flex items-center justify-between text-xs text-ink-muted">
             <span>PaperGrade AI Pilot</span>
-            {(!isMounted || !currentUser) && (
+            {isMounted && !hasToken && !currentUser && (
               <Link
                 href="/auth/claim"
                 onClick={() => setMobileMenuOpen(false)}

@@ -19,6 +19,11 @@ interface NotificationContextType {
   unreadCount: number;
   isOpen: boolean;
   loading: boolean;
+  permission: NotificationPermission;
+  isSupported: boolean;
+  requestPermission: () => Promise<boolean>;
+  sendSystemNotification: (title: string, options?: NotificationOptions) => Promise<void>;
+  sendTestNotification: () => Promise<void>;
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
@@ -34,7 +39,95 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [permission, setPermission] = useState<NotificationPermission>("default");
+  const [isSupported, setIsSupported] = useState(false);
   const isInitialMount = useRef(true);
+
+  // Sync initial notification permission status on client mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setIsSupported(true);
+      setPermission(Notification.permission);
+    }
+  }, []);
+
+  const sendSystemNotification = useCallback(
+    async (title: string, options?: NotificationOptions) => {
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
+
+      const notifOptions: NotificationOptions = {
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        silent: false,
+        ...options,
+      };
+
+      try {
+        if ("serviceWorker" in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && "showNotification" in reg) {
+            await reg.showNotification(title, notifOptions);
+            return;
+          }
+        }
+        new Notification(title, notifOptions);
+      } catch {
+        // Fallback if browser serviceWorker notification fails
+        try {
+          new Notification(title, notifOptions);
+        } catch {}
+      }
+    },
+    []
+  );
+
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      toast.warning("Push notifications are not supported in this browser environment.", {
+        title: "Unsupported",
+      });
+      return false;
+    }
+
+    try {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+
+      if (result === "granted") {
+        toast.success("Push notifications enabled! You will receive live updates for graded papers and announcements.", {
+          title: "Notifications Enabled",
+        });
+        sendSystemNotification("PaperGrade AI Notifications Active", {
+          body: "Push alerts are successfully enabled on this device.",
+          data: { url: "/student/portal" },
+        });
+        return true;
+      } else if (result === "denied") {
+        toast.info("Notifications were blocked. You can re-enable them in your browser site permissions.", {
+          title: "Permission Blocked",
+        });
+        return false;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, [toast, sendSystemNotification]);
+
+  const sendTestNotification = useCallback(async () => {
+    if (permission !== "granted") {
+      const granted = await requestPermission();
+      if (!granted) return;
+    }
+    await sendSystemNotification("PaperGrade AI Alert", {
+      body: "Test notification delivered! Real-time alerts are functioning on your PWA.",
+      data: { url: "/student/portal" },
+    });
+    toast.success("Test notification dispatched to your system tray / notification shade.", {
+      title: "Test Dispatched",
+    });
+  }, [permission, requestPermission, sendSystemNotification, toast]);
 
   const fetchNotifications = useCallback(async () => {
     const token = getAuthToken();
@@ -49,9 +142,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         setNotifications((prev) => {
           if (!isInitialMount.current) {
             const existingIds = new Set(prev.map((n) => n.id));
-            const newUnread = data.filter((n) => !existingIds.has(n.id) && (!n.is_read || n.is_read === 0));
+            const newUnread = data.filter(
+              (n) => !existingIds.has(n.id) && (!n.is_read || n.is_read === 0)
+            );
             newUnread.forEach((n) => {
               toast.info(n.message, { title: n.title });
+              sendSystemNotification(n.title, {
+                body: n.message,
+                data: { url: n.link_url || "/student/portal" },
+              });
             });
           } else {
             isInitialMount.current = false;
@@ -64,7 +163,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, sendSystemNotification]);
 
   useEffect(() => {
     fetchNotifications();
@@ -79,7 +178,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const toggleDrawer = () => setIsOpen((prev) => !prev);
 
   const markAsRead = async (id: string) => {
-    // Optimistic UI update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n))
     );
@@ -91,7 +189,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const markAllRead = async () => {
-    // Optimistic UI update
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
     try {
       await api.markAllNotificationsRead();
@@ -109,6 +206,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         unreadCount,
         isOpen,
         loading,
+        permission,
+        isSupported,
+        requestPermission,
+        sendSystemNotification,
+        sendTestNotification,
         openDrawer,
         closeDrawer,
         toggleDrawer,

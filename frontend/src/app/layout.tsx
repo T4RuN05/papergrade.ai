@@ -8,9 +8,12 @@ export const metadata: Metadata = {
   description: "High-integrity AI assisted academic grading, instant submissions, and transparent revaluations.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/logo-icon.png",
-    shortcut: "/logo-icon.png",
-    apple: "/logo-icon.png",
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,

@@ -54,3 +54,54 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
+// Push notification incoming event
+self.addEventListener("push", (event) => {
+  let data = { title: "PaperGrade AI", body: "You have a new academic update.", url: "/student/portal" };
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch (e) {
+      data.body = event.data.text() || data.body;
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || "/student/portal",
+    },
+    actions: [
+      { action: "open", title: "View Update" }
+    ]
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+// User clicked on system notification
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/student/portal";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Focus existing open window if possible
+      for (const client of clientList) {
+        if ("focus" in client) {
+          if (client.url.includes(self.location.origin)) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

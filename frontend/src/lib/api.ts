@@ -16,14 +16,36 @@ export function getAuthToken(): string | null {
   return localStorage.getItem("papergrade_jwt");
 }
 
-export function setAuthToken(token: string): void {
+export function setAuthToken(token: string, user?: any): void {
   if (typeof window === "undefined") return;
   localStorage.setItem("papergrade_jwt", token);
+  if (user) {
+    setStoredUser(user);
+  }
+}
+
+export function setStoredUser(user: any): void {
+  if (typeof window === "undefined" || !user) return;
+  try {
+    localStorage.setItem("papergrade_user", JSON.stringify(user));
+  } catch {}
+}
+
+export function getStoredUser(): any | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("papergrade_user");
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return getStoredUserPayload();
 }
 
 export function removeAuthToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem("papergrade_jwt");
+  localStorage.removeItem("papergrade_user");
   clearApiCache();
 }
 
@@ -193,7 +215,12 @@ export const api = {
       throw new Error(parseErrorDetail(err, "Invalid email or password"));
     }
     const data = await res.json();
-    setAuthToken(data.access_token);
+    const userPayload = data.user || {
+      id: data.user_id,
+      role: data.role,
+      full_name: data.full_name,
+    };
+    setAuthToken(data.access_token, userPayload);
     clearApiCache();
     return {
       access_token: data.access_token,
@@ -216,7 +243,11 @@ export const api = {
       throw new Error(parseErrorDetail(err, "Failed to claim account"));
     }
     const resData = await res.json();
-    setAuthToken(resData.access_token);
+    setAuthToken(resData.access_token, {
+      id: resData.user_id,
+      role: resData.role,
+      full_name: resData.full_name,
+    });
     return resData;
   },
 
@@ -230,7 +261,9 @@ export const api = {
         removeAuthToken();
         throw new Error("Unauthorized");
       }
-      return res.json();
+      const meData = await res.json();
+      setStoredUser(meData);
+      return meData;
     }, 45000); // 45s cache
   },
 
