@@ -35,7 +35,7 @@ class Settings:
     DATABASE_PATH: Path = DATA_DIR / "papergrade.db"
 
     # Cloudflare R2 / S3 Object Storage Settings
-    STORAGE_BACKEND: str = (os.getenv("STORAGE_BACKEND") or os.getenv("STORAGE_PROVIDER") or "auto").strip().lower() # "auto", "cloudinary", "r2", "local"
+    STORAGE_BACKEND: str = (os.getenv("STORAGE_BACKEND") or os.getenv("STORAGE_PROVIDER") or "cloudinary").strip().lower() # "auto", "cloudinary", "r2", "local"
     R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "").strip()
     R2_ACCESS_KEY_ID: str = os.getenv("R2_ACCESS_KEY_ID", "").strip()
     R2_SECRET_ACCESS_KEY: str = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
@@ -43,10 +43,10 @@ class Settings:
     R2_PUBLIC_URL: str = os.getenv("R2_PUBLIC_URL", "").strip() # Optional custom domain / r2.dev URL
 
     # Cloudinary Storage Settings (Free tier zero-billing alternative)
-    CLOUDINARY_URL: str = os.getenv("CLOUDINARY_URL", "").strip()
     CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "dijssimbb").strip()
-    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "").strip()
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "499744465829232").strip()
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "BeE8QrnuIuIPw4xhI79FRE5tKNs").strip()
+    CLOUDINARY_URL: str = os.getenv("CLOUDINARY_URL", "cloudinary://499744465829232:BeE8QrnuIuIPw4xhI79FRE5tKNs@dijssimbb").strip()
 
     # Supabase Settings
     SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "https://wxslwjwlutrcucieossv.supabase.co").strip()

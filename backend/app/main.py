@@ -103,12 +103,15 @@ def root():
 
 @app.get("/api/health")
 def health_check():
+    from backend.app.services.storage import get_storage_service
+    storage = get_storage_service()
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "gemini_live": settings.is_gemini_configured,
-        "model": settings.GEMINI_MODEL
+        "model": settings.GEMINI_MODEL,
+        "storage": type(storage).__name__
     }
 
 @app.get("/api/status")

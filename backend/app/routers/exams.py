@@ -740,15 +740,21 @@ async def get_exam_question_paper(
             continue
 
     # Resilient fallback to sample exam document if available
-    sample_qp = Path("backend/sample_data/sample_exam/question_paper.pdf")
-    if not sample_qp.exists():
-        sample_qp = settings.BASE_DIR / "sample_data" / "sample_exam" / "question_paper.pdf"
-    if sample_qp.exists():
-        return FileResponse(
-            str(sample_qp),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
-        )
+    pkg_dir = Path(__file__).resolve().parent.parent.parent
+    sample_candidates = [
+        Path("backend/sample_data/sample_exam/question_paper.pdf"),
+        pkg_dir / "sample_data" / "sample_exam" / "question_paper.pdf",
+        pkg_dir / "backend" / "sample_data" / "sample_exam" / "question_paper.pdf",
+        Path.cwd() / "backend" / "sample_data" / "sample_exam" / "question_paper.pdf",
+        Path.cwd() / "sample_data" / "sample_exam" / "question_paper.pdf"
+    ]
+    for s_path in sample_candidates:
+        if s_path.exists() and s_path.is_file():
+            return FileResponse(
+                str(s_path),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
+            )
             
     raise HTTPException(status_code=404, detail="Question paper document not found.")
 
@@ -819,15 +825,21 @@ async def get_exam_answer_key(
             continue
 
     # Resilient fallback to sample exam document if available
-    sample_ak = Path("backend/sample_data/sample_exam/answer_key.pdf")
-    if not sample_ak.exists():
-        sample_ak = settings.BASE_DIR / "sample_data" / "sample_exam" / "answer_key.pdf"
-    if sample_ak.exists():
-        return FileResponse(
-            str(sample_ak),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
-        )
+    pkg_dir = Path(__file__).resolve().parent.parent.parent
+    sample_candidates_ak = [
+        Path("backend/sample_data/sample_exam/answer_key.pdf"),
+        pkg_dir / "sample_data" / "sample_exam" / "answer_key.pdf",
+        pkg_dir / "backend" / "sample_data" / "sample_exam" / "answer_key.pdf",
+        Path.cwd() / "backend" / "sample_data" / "sample_exam" / "answer_key.pdf",
+        Path.cwd() / "sample_data" / "sample_exam" / "answer_key.pdf"
+    ]
+    for s_path in sample_candidates_ak:
+        if s_path.exists() and s_path.is_file():
+            return FileResponse(
+                str(s_path),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
+            )
             
     raise HTTPException(status_code=404, detail="Answer key document not found.")
 
