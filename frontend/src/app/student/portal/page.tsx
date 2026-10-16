@@ -1,0 +1,1070 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Clock,
+  Upload,
+  FileCheck2,
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  Eye,
+  RotateCcw,
+  RefreshCw,
+  FileText,
+  ShieldCheck,
+  ChevronRight,
+  Sparkles,
+  Award,
+  BookOpen,
+  Calendar,
+  Layers,
+  HelpCircle,
+  CheckSquare,
+  Square,
+  ExternalLink,
+  Info,
+} from "lucide-react";
+import { api, getAuthToken } from "@/lib/api";
+import { useToast } from "@/lib/ToastContext";
+import {
+  ButtonPrimary,
+  ButtonUtility,
+  FeatureCard,
+  BadgePill,
+  ModalCard,
+  FormInput,
+  StudentPortalSkeleton,
+} from "@/components/ui";
+
+export default function StudentPortalPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [user, setUser] = useState<any>(null);
+  const [exams, setExams] = useState<any[]>([]);
+  const [activeExam, setActiveExam] = useState<any>(null);
+  const [windowStatus, setWindowStatus] = useState<any>(null);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
+  // Detailed Breakdown Modal state
+  const [breakdownModalOpen, setBreakdownModalOpen] = useState(false);
+  const [breakdownSubmission, setBreakdownSubmission] = useState<any>(null);
+
+  // Revaluation modal state
+  const [revalModalOpen, setRevalModalOpen] = useState(false);
+  const [revalSubmission, setRevalSubmission] = useState<any>(null);
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [revalReason, setRevalReason] = useState("");
+  const [revalLoading, setRevalLoading] = useState(false);
+  const [revalMsg, setRevalMsg] = useState<string | null>(null);
+
+  // Load student profile, exam windows, and all past submissions
+  const loadPortalData = async (isBackground = false) => {
+    try {
+      if (!isBackground) setLoading(true);
+      try {
+        const state = await api.getStudentPortalState();
+        if (state) {
+          setUser(state.user);
+          setExams(state.exams || []);
+          setSubmissions(state.submissions || []);
+          setActiveExam(state.active_exam || (state.exams && state.exams.length > 0 ? state.exams[0] : null));
+          setWindowStatus(state.window_status || null);
+          return;
+        }
+      } catch (portalErr) {
+        console.warn("Consolidated portal-state endpoint failed, falling back to multi-call", portalErr);
+      }
+
+      // Fallback to individual endpoints if consolidated endpoint is unavailable
+      const me = await api.getMe();
+      setUser(me);
+
+      const [examList, subList] = await Promise.all([
+        api.listExams().catch(() => []),
+        api.listSubmissions().catch(() => []),
+      ]);
+
+      setExams(examList);
+      setSubmissions(subList);
+
+      if (examList.length > 0) {
+        const windowResults = await Promise.all(
+          examList.map(async (ex) => {
+            try {
+              const win = await api.getWindowStatus(ex.id);
+              return { exam: ex, win };
+            } catch {
+              return { exam: ex, win: null };
+            }
+          })
+        );
+
+        const activeResult = windowResults.find((r) => r.win && r.win.is_active);
+        if (activeResult) {
+          setActiveExam(activeResult.exam);
+          setWindowStatus(activeResult.win);
+        } else {
+          setActiveExam(examList[0]);
+          setWindowStatus(windowResults[0]?.win || null);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load student portal data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      router.push("/auth/login");
+      return;
+    }
+    loadPortalData();
+
+    // Auto-poll portal data every 20 seconds to detect live window opens or result publications
+    const pollInterval = setInterval(() => {
+      loadPortalData(true);
+    }, 20000);
+
+    return () => clearInterval(pollInterval);
+  }, [router]);
+
+  // Window countdown timer effect
+  useEffect(() => {
+    if (!windowStatus || !windowStatus.is_active || windowStatus.seconds_remaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setWindowStatus((prev: any) => {
+        if (!prev) return null;
+        const newSec = Math.max(0, prev.seconds_remaining - 1);
+        return {
+          ...prev,
+          seconds_remaining: newSec,
+          is_active: newSec > 0 || prev.is_in_grace,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [windowStatus?.is_active]);
+
+  const formatCountdown = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Upload handler (Multipart Single PDF)
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile || !activeExam) return;
+
+    setUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("roll_number", user?.roll_number || user?.student?.roll_number || "ROLL-101");
+      formData.append("student_name", user?.full_name || "Enrolled Student");
+
+      const result = await api.uploadSingleMultipart(activeExam.id, formData);
+      const successMsg = result.is_replacement
+        ? "Answer sheet replaced atomically!"
+        : "Answer sheet uploaded successfully!";
+      setUploadSuccess(successMsg);
+      toast.success(successMsg, { title: "Submission Received" });
+      setSelectedFile(null);
+
+      // Refresh submissions
+      await loadPortalData();
+    } catch (err: any) {
+      const errorMsg = err.message || "Failed to upload answer sheet.";
+      setUploadError(errorMsg);
+      toast.error(errorMsg, { title: "Upload Failed" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Open Revaluation Modal for a specific submission
+  const handleOpenRevalModal = (sub: any) => {
+    setRevalSubmission(sub);
+    setSelectedQuestions([]);
+    setRevalReason("");
+    setRevalMsg(null);
+    setRevalModalOpen(true);
+  };
+
+  // Open Breakdown Modal for a specific submission
+  const handleOpenBreakdownModal = (sub: any) => {
+    const isPub =
+      sub.publication_status === "PUBLISHED" ||
+      (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
+    if (!isPub) {
+      toast.info("Evaluation marks and summary are undergoing faculty review and will be accessible once officially published.", {
+        title: "Grading in Progress",
+      });
+      return;
+    }
+    setBreakdownSubmission(sub);
+    setBreakdownModalOpen(true);
+  };
+
+  // Revaluation submission handler
+  const handleRevalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revalSubmission || selectedQuestions.length === 0 || !revalReason.trim()) return;
+
+    setRevalLoading(true);
+    try {
+      await api.requestRevaluation(revalSubmission.id, {
+        question_ids: selectedQuestions,
+        student_reason: revalReason.trim(),
+      });
+      const successMsg = "Revaluation request submitted. Senior faculty will manually review your paper.";
+      setRevalMsg(successMsg);
+      toast.success(successMsg, { title: "Request Received", duration: 4000 });
+      
+      // Update local submissions list optimistically
+      setSubmissions((prev) =>
+        prev.map((s) => {
+          if (s.id === revalSubmission.id) {
+            return {
+              ...s,
+              revaluation: {
+                id: `rev_pending_${Date.now()}`,
+                status: "SUBMITTED",
+                question_ids_json: JSON.stringify(selectedQuestions),
+                student_reason: revalReason.trim(),
+                requested_at: new Date().toISOString(),
+              },
+            };
+          }
+          return s;
+        })
+      );
+
+      setTimeout(() => {
+        setRevalModalOpen(false);
+        setRevalMsg(null);
+        loadPortalData();
+      }, 1200);
+    } catch (err: any) {
+      const errorMsg = err.message || "Failed to submit revaluation request.";
+      setRevalMsg(errorMsg);
+      toast.error(errorMsg, { title: "Submission Failed" });
+    } finally {
+      setRevalLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <StudentPortalSkeleton />;
+  }
+
+  // Summary Metrics
+  const totalSubmissionsCount = submissions.length;
+  const publishedSubmissions = submissions.filter(
+    (s) => s.publication_status === "PUBLISHED" || s.exam_is_published || s.is_published
+  );
+  const avgPercentage =
+    publishedSubmissions.length > 0
+      ? (
+          publishedSubmissions.reduce((acc, curr) => acc + (Number(curr.percentage) || 0), 0) /
+          publishedSubmissions.length
+        ).toFixed(1)
+      : null;
+  const activeRevalsCount = submissions.filter(
+    (s) => s.revaluation && (s.revaluation.status === "SUBMITTED" || s.revaluation.status === "UNDER_REVIEW")
+  ).length;
+
+  const rollNumber = user?.roll_number || user?.student?.roll_number || "Enrolled";
+  const studentIdDisplay = user?.student_id_num || user?.student?.student_id_num || user?.id;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6">
+      {/* Header Profile Greeting */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-3 border-b border-hairline">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+              Welcome, {user?.full_name || "Student"}
+            </h1>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+              Active Student
+            </span>
+            <div className="sm:hidden">
+              <BadgePill label="PWA Student Portal" color="sky" />
+            </div>
+          </div>
+          <p className="text-xs text-ink-muted mt-1 leading-normal">
+            Roll No: <strong className="text-ink font-medium">{rollNumber}</strong> • Student ID:{" "}
+            <strong className="text-ink font-medium">{studentIdDisplay}</strong>
+          </p>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <BadgePill label="PWA Student Portal" color="sky" />
+        </div>
+      </div>
+
+      {/* Top Academic Summary Counters */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between text-ink-muted">
+            <span className="text-[10px] sm:text-[11px] font-medium">Submitted</span>
+            <Layers className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-ink mt-1">{totalSubmissionsCount}</div>
+          <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">Verified sheets</div>
+        </div>
+
+        <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between text-ink-muted">
+            <span className="text-[10px] sm:text-[11px] font-medium">Published</span>
+            <Award className="h-3.5 w-3.5 text-[#1aae39]" />
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-ink mt-1">{publishedSubmissions.length}</div>
+          <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">Official scores</div>
+        </div>
+
+        <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between text-ink-muted">
+            <span className="text-[10px] sm:text-[11px] font-medium">Average</span>
+            <Sparkles className="h-3.5 w-3.5 text-[#793caf]" />
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-ink mt-1">
+            {avgPercentage !== null ? `${avgPercentage}%` : "—"}
+          </div>
+          <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">All exams</div>
+        </div>
+
+        <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between text-ink-muted">
+            <span className="text-[10px] sm:text-[11px] font-medium">Revaluations</span>
+            <RotateCcw className="h-3.5 w-3.5 text-[#d97706]" />
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-ink mt-1">{activeRevalsCount}</div>
+          <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">
+            {activeRevalsCount > 0 ? "Under review" : "No appeals"}
+          </div>
+        </div>
+      </div>
+
+      {/* Active Exam Submission Window Card */}
+      {activeExam && (
+        <FeatureCard className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <BadgePill
+                  label={
+                    windowStatus?.is_active
+                      ? windowStatus.is_in_grace
+                        ? "Grace Period (2m)"
+                        : "Submission Window Open"
+                      : "Window Closed"
+                  }
+                  color={
+                    windowStatus?.is_active
+                      ? windowStatus.is_in_grace
+                        ? "orange"
+                        : "green"
+                      : "gray"
+                  }
+                />
+                <span className="text-xs text-ink-muted">• {activeExam.subject}</span>
+              </div>
+              <h2 className="text-base font-bold text-ink">{activeExam.title}</h2>
+            </div>
+
+            {/* Countdown Clock */}
+            {windowStatus?.is_active && (
+              <div className="flex items-center gap-2 bg-canvas-soft border border-hairline px-3.5 py-2 rounded-md">
+                <Clock className="h-4 w-4 text-primary animate-pulse" />
+                <div>
+                  <div className="text-[10px] uppercase font-semibold text-ink-muted leading-none">
+                    Time Remaining
+                  </div>
+                  <div className="text-base font-mono font-bold text-ink leading-tight">
+                    {formatCountdown(windowStatus.seconds_remaining)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Submission Section */}
+          <div className="mt-5 space-y-4">
+            {windowStatus?.is_active ? (
+              <form onSubmit={handleUploadSubmit} className="space-y-4">
+                <div className="rounded-lg border-2 border-dashed border-hairline hover:border-primary/50 bg-canvas-soft/50 p-6 text-center transition-colors">
+                  <input
+                    type="file"
+                    id="paper-upload"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setSelectedFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <label htmlFor="paper-upload" className="cursor-pointer block space-y-2">
+                    <div className="mx-auto h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <div className="text-sm font-semibold text-ink">
+                      {selectedFile ? selectedFile.name : "Choose Single Combined PDF or Scan Pages"}
+                    </div>
+                    <p className="text-xs text-ink-muted max-w-sm mx-auto">
+                      Single PDF document. Maximum 15 MB, up to 10 canonical pages.
+                    </p>
+                  </label>
+                </div>
+
+                {uploadError && (
+                  <div className="rounded-xs bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+                    {uploadError}
+                  </div>
+                )}
+                {uploadSuccess && (
+                  <div className="rounded-xs bg-green-50 border border-green-200 p-2.5 text-xs text-green-700">
+                    {uploadSuccess}
+                  </div>
+                )}
+
+                {selectedFile && (
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-xs text-ink-muted">
+                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB ready to upload
+                    </span>
+                    <ButtonPrimary
+                      type="submit"
+                      isLoading={uploading}
+                    >
+                      Submit Answer Sheet
+                    </ButtonPrimary>
+                  </div>
+                )}
+              </form>
+            ) : (
+              <div className="flex items-center gap-2.5 text-xs text-ink-muted py-1">
+                <Info className="h-4 w-4 text-ink-faint shrink-0" />
+                <span>
+                  The 30-minute upload window for <strong className="text-ink">{activeExam.title}</strong> is currently closed. All evaluated past papers are listed below.
+                </span>
+              </div>
+            )}
+          </div>
+        </FeatureCard>
+      )}
+
+      {/* SECTION: PAST EXAM SUBMISSIONS */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-ink">Past Exam Submissions</h2>
+            <p className="text-xs text-ink-muted leading-relaxed">
+              Review evaluated answer sheets, question-by-question marks, and faculty revaluations.
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline whitespace-nowrap shrink-0">
+            {submissions.length} {submissions.length === 1 ? "Paper" : "Papers"}
+          </span>
+        </div>
+
+        {submissions.length === 0 ? (
+          <div className="rounded-lg border border-hairline bg-surface p-8 text-center space-y-2">
+            <FileText className="h-8 w-8 text-ink-faint mx-auto" />
+            <h3 className="text-sm font-semibold text-ink">No exam submissions found</h3>
+            <p className="text-xs text-ink-muted max-w-md mx-auto">
+              When you upload your answer sheets during an active examination window, your verified submissions, AI evaluations, and faculty remarks will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {submissions.map((sub) => {
+              const isPublished =
+                sub.publication_status === "PUBLISHED" ||
+                (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
+              const hasAnswers = sub.answers && sub.answers.length > 0;
+              const reval = sub.revaluation;
+              const hasOpenReval =
+                reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
+              const isRevalResolved = reval && reval.status === "RESOLVED";
+
+              return (
+                <FeatureCard key={sub.id} className="p-5 space-y-4">
+                  {/* Top Bar: Exam Title & Publication Badge */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-ink">
+                          {sub.exam_title || "Academic Examination"}
+                        </span>
+                        {sub.exam_subject && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted">
+                            {sub.exam_subject}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-ink-muted">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          Submitted on{" "}
+                          {sub.created_at
+                            ? new Date(sub.created_at).toLocaleDateString(undefined, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "Recorded"}
+                        </span>
+                        <span>•</span>
+                        <span>Roll: {sub.roll_number}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isPublished ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Results Published
+                          </span>
+                          {sub.is_document_purged ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              <AlertCircle className="h-3 w-3 text-slate-500" />
+                              PDF Purged (15d TTL)
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200"
+                              title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
+                            >
+                              <Clock className="h-3 w-3 text-amber-600" />
+                              {sub.days_remaining !== undefined && sub.days_remaining !== null
+                                ? `${sub.days_remaining}d until PDF purge`
+                                : "15d PDF retention"}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          <Clock className="h-3.5 w-3.5" />
+                          Grading in Progress
+                        </span>
+                      )}
+
+                      {/* Revaluation Status Pill */}
+                      {hasOpenReval && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                          <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                          Revaluation In Review
+                        </span>
+                      )}
+                      {isRevalResolved && reval.decision === "MARKS_REVISED" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Marks Revised
+                        </span>
+                      )}
+                      {isRevalResolved && reval.decision === "MARKS_UPHELD" && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Marks Upheld
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 15-Day Storage Retention Notice Banner for Published Papers */}
+                  {isPublished && (
+                    sub.is_document_purged ? (
+                      <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                        <Info className="h-4 w-4 text-slate-500 shrink-0" />
+                        <span>
+                          <strong>Document Expired & Purged:</strong> In accordance with the 15-day retention policy, the scanned PDF pages and bounding box coordinates for this exam have been deleted to preserve storage. Your marks per question and overall evaluation record remain permanently archived.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 border border-amber-200 text-xs text-amber-900">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>
+                            <strong>Storage Retention Notice:</strong> This graded answer sheet will be permanently deleted in{" "}
+                            <strong>{sub.days_remaining !== undefined && sub.days_remaining !== null ? `${sub.days_remaining} days` : "15 days"}</strong>. Please download your evaluated PDF now to preserve your personal copy. (Revaluation requests remain open for 7 days).
+                          </span>
+                        </div>
+                        <a
+                          href={api.getAnnotatedPdfUrl(sub.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 hover:text-amber-950 underline text-xs"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download Copy
+                        </a>
+                      </div>
+                    )
+                  )}
+
+                  {/* Score & Revaluation Feedback Banner */}
+                  {isPublished ? (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+                      <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-4">
+                        <div>
+                          <div className="text-[10px] sm:text-[11px] font-medium text-ink-muted leading-none">
+                            Total Score
+                          </div>
+                          <div className="text-base sm:text-xl font-bold text-ink mt-0.5 leading-tight">
+                            {sub.total_awarded_marks !== null && sub.total_awarded_marks !== undefined
+                              ? Number(sub.total_awarded_marks).toFixed(1)
+                              : "—"}{" "}
+                            <span className="text-[10px] sm:text-xs font-normal text-ink-muted">
+                              / {sub.max_marks || sub.exam_total_marks || 25}m
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="h-7 w-px bg-hairline hidden sm:block" />
+
+                        <div>
+                          <div className="text-[10px] sm:text-[11px] font-medium text-ink-muted leading-none">
+                            Percentage
+                          </div>
+                          <div className="text-sm sm:text-base font-bold text-ink mt-0.5 leading-tight">
+                            {sub.percentage !== null && sub.percentage !== undefined
+                              ? `${Number(sub.percentage).toFixed(1)}%`
+                              : "—"}
+                          </div>
+                        </div>
+
+                        <div className="h-7 w-px bg-hairline hidden sm:block" />
+
+                        <div>
+                          <div className="text-[10px] sm:text-[11px] font-medium text-ink-muted leading-none">
+                            Questions
+                          </div>
+                          <div className="text-[11px] sm:text-xs font-semibold text-ink mt-0.5 leading-tight truncate">
+                            {hasAnswers ? `${sub.answers.length} Graded` : "Registered"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Revaluation Details if Resolved */}
+                      {isRevalResolved && reval.reviewer_notes && (
+                        <div className="sm:max-w-xs text-left bg-surface border border-hairline p-2 rounded-md">
+                          <div className="text-[10px] font-semibold text-ink-secondary">
+                            Faculty Feedback:
+                          </div>
+                          <p className="text-[11px] text-ink italic line-clamp-2">
+                            "{reval.reviewer_notes}"
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 border border-amber-200/70">
+                      <div className="flex items-center gap-2.5">
+                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold text-amber-900">
+                            Evaluation in Progress • Marks Hidden
+                          </div>
+                          <div className="text-[11px] text-amber-700">
+                            Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
+                          </div>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white border border-amber-300 text-amber-800 shrink-0">
+                        Pending Publication
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Actions Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                      {/* Primary: Inspect in PDF Viewer */}
+                      <Link
+                        href={`/student/submissions/${sub.id}`}
+                        className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-3.5 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center"
+                      >
+                        <Eye className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {isPublished
+                            ? sub.is_document_purged
+                              ? "View Archived Question Marks →"
+                              : "Inspect in Interactive PDF Viewer →"
+                            : "View Submitted Script →"}
+                        </span>
+                      </Link>
+
+                      <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                        {/* Secondary: View Breakdown */}
+                        {isPublished ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBreakdownModal(sub)}
+                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                            <span>Summary</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            title="Detailed breakdown will be accessible once marks are officially published by faculty."
+                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                            <span>Summary Pending</span>
+                          </button>
+                        )}
+
+                        {/* Download Graded PDF */}
+                        {isPublished ? (
+                          sub.is_document_purged ? (
+                            <button
+                              type="button"
+                              disabled
+                              title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
+                              className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                            >
+                              <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                              <span>PDF Expired</span>
+                            </button>
+                          ) : (
+                            <a
+                              href={api.getAnnotatedPdfUrl(sub.id)}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() =>
+                                toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
+                              }
+                              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3 py-1.5 rounded-md transition-colors text-center"
+                              title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
+                            >
+                              <Download className="h-3.5 w-3.5 shrink-0" />
+                              <span>Download PDF</span>
+                            </a>
+                          )
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            title="Evaluated PDF download will be enabled once faculty officially publishes results."
+                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                          >
+                            <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                            <span>PDF Pending</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Revaluation Appeal Status Pill (Shown only if appeal is active or resolved) */}
+                    {isPublished && (hasOpenReval || isRevalResolved) && (
+                      <div className="w-full sm:w-auto">
+                        {hasOpenReval ? (
+                          <Link
+                            href={`/student/submissions/${sub.id}`}
+                            className="text-[11px] font-medium text-orange-700 bg-orange-50 px-2.5 py-1.5 rounded-md border border-orange-200 inline-flex items-center justify-center gap-1 hover:bg-orange-100 transition-colors w-full sm:w-auto text-center"
+                          >
+                            <Clock className="h-3 w-3" />
+                            Appeal In Review (View in Viewer →)
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/student/submissions/${sub.id}`}
+                            className="text-[11px] font-medium text-ink-secondary bg-canvas-soft px-2.5 py-1.5 rounded-md border border-hairline inline-flex items-center justify-center gap-1 hover:bg-surface transition-colors w-full sm:w-auto text-center"
+                          >
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                            Revaluation Completed →
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </FeatureCard>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* DETAILED QUESTION BREAKDOWN MODAL */}
+      <ModalCard
+        isOpen={breakdownModalOpen}
+        onClose={() => setBreakdownModalOpen(false)}
+        title={
+          breakdownSubmission
+            ? `Evaluation Breakdown • ${breakdownSubmission.exam_title || "Examination"}`
+            : "Question Breakdown"
+        }
+      >
+        {breakdownSubmission && (
+          <div className="space-y-4 text-xs">
+            {/* Modal Subheader */}
+            <div className="flex items-center justify-between p-3 rounded-md bg-canvas-soft border border-hairline">
+              <div>
+                <div className="text-[10px] uppercase font-semibold text-ink-muted">
+                  Roll: {breakdownSubmission.roll_number}
+                </div>
+                <div className="text-sm font-bold text-ink">
+                  Total Awarded:{" "}
+                  {breakdownSubmission.total_awarded_marks !== null && breakdownSubmission.total_awarded_marks !== undefined
+                    ? `${Number(breakdownSubmission.total_awarded_marks).toFixed(1)} / ${breakdownSubmission.max_marks || breakdownSubmission.exam_total_marks || 25} marks (${Number(breakdownSubmission.percentage || 0).toFixed(1)}%)`
+                    : "Pending Official Publication"}
+                </div>
+              </div>
+
+              {(breakdownSubmission.publication_status === "PUBLISHED" || breakdownSubmission.is_published) && !breakdownSubmission.is_document_purged && (
+                <a
+                  href={api.getAnnotatedPdfUrl(breakdownSubmission.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Annotated PDF
+                </a>
+              )}
+            </div>
+
+            {/* Questions List */}
+            {breakdownSubmission.answers && breakdownSubmission.answers.length > 0 ? (
+              <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+                {breakdownSubmission.answers.map((ans: any, idx: number) => {
+                  const qLabel = ans.question_id
+                    ? ans.question_id.replace(/^q_?/i, "Q")
+                    : `Q${idx + 1}`;
+                  return (
+                    <div
+                      key={ans.id || idx}
+                      className="p-3 rounded-md border border-hairline bg-surface space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-ink text-xs bg-canvas-soft px-2 py-0.5 rounded border border-hairline">
+                            {qLabel}
+                          </span>
+                          {ans.is_manual_override === 1 && (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              Human Override
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-bold text-ink text-xs">
+                          {Number(ans.awarded_marks || 0).toFixed(1)} / {ans.max_marks || 1} marks
+                        </span>
+                      </div>
+
+                      {ans.feedback && (
+                        <div className="text-ink-secondary bg-canvas-soft/70 p-2 rounded text-[11px] leading-relaxed border border-hairline/60">
+                          <span className="font-semibold text-ink">Rubric Remarks: </span>
+                          {ans.feedback}
+                        </div>
+                      )}
+
+                      {ans.override_reason && (
+                        <div className="text-[11px] text-emerald-800 bg-emerald-50/70 p-2 rounded border border-emerald-200/60">
+                          <span className="font-semibold">Reviewer Justification: </span>
+                          {ans.override_reason}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-ink-muted">
+                Detailed question annotations are being compiled.
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-hairline">
+              <span className="text-[11px] text-ink-muted">
+                Antigravity Academic Grading Standard
+              </span>
+              <ButtonUtility onClick={() => setBreakdownModalOpen(false)}>
+                Close Breakdown
+              </ButtonUtility>
+            </div>
+          </div>
+        )}
+      </ModalCard>
+
+      {/* REVALUATION REQUEST MODAL */}
+      <ModalCard
+        isOpen={revalModalOpen}
+        onClose={() => setRevalModalOpen(false)}
+        title={
+          revalSubmission
+            ? `Submit Revaluation Request • ${revalSubmission.exam_title || "Examination"}`
+            : "Submit Revaluation Request"
+        }
+      >
+        {revalSubmission && (
+          <form onSubmit={handleRevalSubmit} className="space-y-4 text-xs">
+            {/* Faculty Policy Notice */}
+            <div className="flex items-start gap-2.5 p-3 rounded-md bg-blue-50/70 border border-blue-200/70 text-blue-900">
+              <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>Institutional Standard:</strong> Under faculty policy, all revaluation requests are{" "}
+                <strong>Manually reviewed by senior human examiners</strong>. Automated AI adjustments are strictly forbidden on student grievances.
+              </div>
+            </div>
+
+            {/* Questions to Challenge */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-ink">
+                  Select Question(s) to Challenge:
+                </label>
+                {revalSubmission.answers && revalSubmission.answers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = revalSubmission.answers.map(
+                        (a: any, i: number) => a.question_id || `Q${i + 1}`
+                      );
+                      if (selectedQuestions.length === allIds.length) {
+                        setSelectedQuestions([]);
+                      } else {
+                        setSelectedQuestions(allIds);
+                      }
+                    }}
+                    className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                  >
+                    {selectedQuestions.length === (revalSubmission.answers?.length || 0)
+                      ? "Deselect All"
+                      : "Select All"}
+                  </button>
+                )}
+              </div>
+
+              {revalSubmission.answers && revalSubmission.answers.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {revalSubmission.answers.map((ans: any, idx: number) => {
+                    const qId = ans.question_id || `Q${idx + 1}`;
+                    const isSelected = selectedQuestions.includes(qId);
+                    return (
+                      <button
+                        type="button"
+                        key={qId}
+                        onClick={() => {
+                          setSelectedQuestions((prev) =>
+                            prev.includes(qId)
+                              ? prev.filter((x) => x !== qId)
+                              : [...prev, qId]
+                          );
+                        }}
+                        className={`flex items-center justify-between p-2.5 rounded-md border text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-primary/10 border-primary text-primary font-semibold"
+                            : "bg-surface border-hairline text-ink hover:bg-canvas-soft"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {isSelected ? (
+                            <CheckSquare className="h-3.5 w-3.5 text-primary" />
+                          ) : (
+                            <Square className="h-3.5 w-3.5 text-ink-muted" />
+                          )}
+                          <span>{qId.replace(/^q_?/i, "Q")}</span>
+                        </div>
+                        <span className="text-[10px] opacity-75 font-mono">
+                          {Number(ans.awarded_marks || 0).toFixed(1)}/{ans.max_marks || 1}m
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"].map((qid) => (
+                    <button
+                      type="button"
+                      key={qid}
+                      onClick={() => {
+                        setSelectedQuestions((prev) =>
+                          prev.includes(qid) ? prev.filter((x) => x !== qid) : [...prev, qid]
+                        );
+                      }}
+                      className={`py-1.5 px-3 rounded-md border text-center font-semibold transition-colors cursor-pointer ${
+                        selectedQuestions.includes(qid)
+                          ? "bg-primary text-white border-primary"
+                          : "bg-surface border-hairline text-ink hover:bg-canvas-soft"
+                      }`}
+                    >
+                      {qid}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Academic Justification */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-ink">
+                Academic Justification / Grievance Details:
+              </label>
+              <textarea
+                required
+                rows={3}
+                className="w-full rounded-md border border-[#dddddd] bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
+                placeholder="Explain why you believe the step marks, derivation, or criteria require faculty re-verification..."
+                value={revalReason}
+                onChange={(e) => setRevalReason(e.target.value)}
+              />
+            </div>
+
+            {revalMsg && (
+              <div className="rounded-md bg-canvas-soft border border-hairline p-2 text-xs text-ink font-medium">
+                {revalMsg}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-hairline">
+              <div className="text-[11px] text-ink-muted">
+                Selected: <strong className="text-ink">{selectedQuestions.length}</strong> question(s)
+              </div>
+              <div className="flex items-center gap-2">
+                <ButtonUtility type="button" onClick={() => setRevalModalOpen(false)}>
+                  Cancel
+                </ButtonUtility>
+                <ButtonPrimary
+                  type="submit"
+                  isLoading={revalLoading}
+                  disabled={selectedQuestions.length === 0 || !revalReason.trim()}
+                >
+                  Submit Appeal
+                </ButtonPrimary>
+              </div>
+            </div>
+          </form>
+        )}
+      </ModalCard>
+    </div>
+  );
+}

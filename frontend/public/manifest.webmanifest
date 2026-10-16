@@ -1,0 +1,19 @@
+{
+  "name": "PaperGrade AI - Academic Portal",
+  "short_name": "PaperGrade",
+  "description": "High-integrity AI assisted academic grading and instant exam submissions",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5f4",
+  "theme_color": "#0075de",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo-icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"]
+}

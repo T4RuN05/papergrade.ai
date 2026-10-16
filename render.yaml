@@ -1,0 +1,34 @@
+# Render Blueprint Deployment Configuration for PaperGrade AI Pilot
+services:
+  - type: web
+    name: papergrade-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /api/status
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: STORAGE_PROVIDER
+        value: cloudflare_r2
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        value: papergrade-pilot-bucket
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY_1
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
+        sync: false

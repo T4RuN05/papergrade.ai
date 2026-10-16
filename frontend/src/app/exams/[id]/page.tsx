@@ -1,0 +1,1475 @@
+"use client";
+
+import React, { useEffect, useState, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  GraduationCap,
+  ArrowLeft,
+  FileText,
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  ArrowRight,
+  Search,
+  SlidersHorizontal,
+  Download,
+  ExternalLink,
+  BookOpen,
+  Award,
+  Layers,
+  Check,
+  AlertCircle,
+  Building2,
+  Calendar,
+  Eye,
+  FileCheck2,
+  Play,
+  Upload,
+  Plus,
+  RefreshCw,
+  X,
+  Flag,
+  Lock,
+} from "lucide-react";
+import { api, API_BASE, getAuthToken } from "@/lib/api";
+import { Exam } from "@/lib/types";
+import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
+import { useToast } from "@/lib/ToastContext";
+import { useTenant } from "@/lib/TenantContext";
+import {
+  ButtonPrimary,
+  ButtonUtility,
+  FeatureCard,
+  BadgePill,
+  ExamDetailSkeleton,
+  ModalCard,
+  useConfirm,
+} from "@/components/ui";
+
+interface SubmissionRow {
+  id: string;
+  exam_id: string;
+  batch_id?: string;
+  student_name: string;
+  roll_number: string;
+  total_awarded_marks: number;
+  max_marks: number;
+  percentage: number;
+  status: string;
+  publication_status: string;
+  page_count: number;
+  submitted_at?: string;
+}
+
+export default function ExamDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
+  const examId = params.id as string;
+  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, switchTenancy } = useTenant();
+
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
+  const [batchInfo, setBatchInfo] = useState<any>(null);
+  const [loadedBranches, setLoadedBranches] = useState<any[]>([]);
+  const [loadedInstitutes, setLoadedInstitutes] = useState<any[]>([]);
+  const [windowStatus, setWindowStatus] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isStartingEval, setIsStartingEval] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [scoreFilter, setScoreFilter] = useState<"ALL" | "TOP" | "MID" | "LOW">("ALL");
+  const [sortBy, setSortBy] = useState<"roll" | "marks_desc" | "marks_asc" | "name">("roll");
+  const [isBulkClearing, setIsBulkClearing] = useState(false);
+  const [clearingSubId, setClearingSubId] = useState<string | null>(null);
+
+  const needsReviewCount = useMemo(() => {
+    return submissions.filter((s) => s.status === "NEEDS_REVIEW").length;
+  }, [submissions]);
+
+  // Post-Creation Upload Modals & Drag-and-Drop state
+  const [uploadQpOpen, setUploadQpOpen] = useState(false);
+  const [uploadAkOpen, setUploadAkOpen] = useState(false);
+  const [qpFilesToUpload, setQpFilesToUpload] = useState<File[]>([]);
+  const [akFilesToUpload, setAkFilesToUpload] = useState<File[]>([]);
+  const [isDraggingQp, setIsDraggingQp] = useState(false);
+  const [isDraggingAk, setIsDraggingAk] = useState(false);
+  const [isUploadingQp, setIsUploadingQp] = useState(false);
+  const [isUploadingAk, setIsUploadingAk] = useState(false);
+  const [isOpeningWindow, setIsOpeningWindow] = useState(false);
+
+  // Artifact Viewer Modal State (Question Paper & Answer Key)
+  const [viewerModalOpen, setViewerModalOpen] = useState(false);
+  const [viewerArtifactType, setViewerArtifactType] = useState<"QUESTION_PAPER" | "ANSWER_KEY">("QUESTION_PAPER");
+
+  const handleViewArtifact = (type: "QUESTION_PAPER" | "ANSWER_KEY") => {
+    setViewerArtifactType(type);
+    setViewerModalOpen(true);
+  };
+
+  useSetBreadcrumbs(
+    useMemo(
+      () => ({
+        group: "Academic Operations",
+        segments: [
+          { label: "Exams & Rubrics", href: "/exams" },
+          { label: exam ? exam.title : "..." },
+        ],
+      }),
+      [exam?.title]
+    )
+  );
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadExamData = async (showSkeleton = false) => {
+    if (showSkeleton) setLoading(true);
+    else setIsRefreshing(true);
+    try {
+      const [examData, subsData, batchesData, winData, userData, instData, branchData] = await Promise.all([
+        api.getExam(examId),
+        api.listSubmissions(examId).catch(() => []),
+        api.listBatches().catch(() => []),
+        api.getWindowStatus(examId).catch(() => null),
+        api.getMe().catch(() => null),
+        api.listInstitutes().catch(() => []),
+        api.listBranches().catch(() => []),
+      ]);
+
+      setExam(examData);
+      setSubmissions(subsData || []);
+      setWindowStatus(winData);
+      setCurrentUser(userData);
+      setLoadedBranches(branchData || []);
+      setLoadedInstitutes(instData || []);
+
+      // Find matching batch:
+      // 1. From submissions batch_id if available
+      const subBatchId = (subsData || []).find((s: any) => s.batch_id)?.batch_id;
+      let matchedBatch = (batchesData || []).find((b: any) => b.id === subBatchId);
+      if (!matchedBatch && examData?.branch_id) {
+        matchedBatch = (batchesData || []).find((b: any) => b.branch_id === examData.branch_id);
+      }
+      setBatchInfo(matchedBatch || null);
+
+      // Tenancy auto-sync for Root Admin: ensure active header context matches exam's branch and institute
+      if (examData?.branch_id && isRootAdmin) {
+        const examBranchId = examData.branch_id;
+        const examInstId = examData.institute_id;
+        const examInstName = examData.institute_name;
+        const examBranchName = examData.branch_name;
+
+        if (selectedBranch && selectedBranch.id !== examBranchId) {
+          const res = switchTenancy(examInstId, examBranchId, examInstName, examBranchName);
+          if (res.switched) {
+            toast.info(`Switching to ${res.instituteName || examInstName || "Institute"} and ${res.branchName || examBranchName || "Branch"}`, {
+              title: "Tenancy Synchronized",
+              duration: 4000,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load exam details:", err);
+    } finally {
+      if (showSkeleton) setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadExamData(true);
+  }, [examId]);
+
+  // Real-time polling while any submission is actively in queue (QUEUED / PROCESSING), window is open, or starting eval
+  useEffect(() => {
+    const hasActiveQueue = submissions.some(
+      (s) => s.status === "QUEUED" || s.status === "PROCESSING"
+    );
+    const isWindowActive = Boolean(windowStatus?.is_active);
+
+    if (!hasActiveQueue && !isWindowActive && !isStartingEval) return;
+
+    // Fast poll (2.5 seconds) while actively processing papers, 5s for window countdown
+    const intervalMs = hasActiveQueue ? 2500 : 5000;
+    const timer = setInterval(() => {
+      loadExamData(false);
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [submissions, windowStatus, isStartingEval]);
+
+  const handleUploadQp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (qpFilesToUpload.length === 0) return;
+    setIsUploadingQp(true);
+    try {
+      const formData = new FormData();
+      for (const file of qpFilesToUpload) {
+        formData.append("question_paper", file);
+      }
+      await api.uploadQuestionPaper(examId, formData);
+      setUploadQpOpen(false);
+      setQpFilesToUpload([]);
+      await loadExamData(false);
+      toast.success("Question Paper uploaded and canonicalized successfully!", { title: "Question Paper Attached" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload question paper", { title: "Upload Failed" });
+    } finally {
+      setIsUploadingQp(false);
+    }
+  };
+
+  const handleUploadAk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (akFilesToUpload.length === 0) return;
+    setIsUploadingAk(true);
+    try {
+      const formData = new FormData();
+      for (const file of akFilesToUpload) {
+        formData.append("answer_key", file);
+      }
+      await api.uploadAnswerKey(examId, formData);
+      setUploadAkOpen(false);
+      setAkFilesToUpload([]);
+      await loadExamData(false);
+      toast.success("Official Answer Key uploaded! AI draft rubric generated for your review.", { title: "Answer Key Attached" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload answer key", { title: "Upload Failed" });
+    } finally {
+      setIsUploadingAk(false);
+    }
+  };
+
+  const handleStartEvaluation = async () => {
+    if (!exam) return;
+    const ok = await confirm({
+      title: "Start Automated Evaluation",
+      message: `Start automated evaluation for all accepted student papers in "${exam.title}"? Jobs will be processed in roll number ascending order.`,
+      confirmText: "Start Evaluation",
+      variant: "primary",
+    });
+    if (!ok) return;
+
+    setIsStartingEval(true);
+    // Optimistic UI state: immediately update non-completed submissions to QUEUED
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.status !== "COMPLETED" && s.status !== "GRADED"
+          ? { ...s, status: "QUEUED" }
+          : s
+      )
+    );
+    try {
+      const res = await api.startEvaluation(examId);
+      await loadExamData(false);
+      toast.success(`Evaluation started! ${res.enqueued_papers || "All"} submissions enqueued in roll number order.`, { title: "Evaluation Triggered" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start evaluation", { title: "Evaluation Blocked" });
+      await loadExamData(false);
+    } finally {
+      setIsStartingEval(false);
+    }
+  };
+
+  const handleClearAllExamReviews = async () => {
+    if (needsReviewCount === 0) return;
+    const ok = await confirm({
+      title: "Clear All Review Flags",
+      message: `Are you sure you want to clear review flags on all ${needsReviewCount} flagged papers and mark them as Completed?`,
+      confirmText: "Clear Flags",
+      variant: "warning",
+    });
+    if (!ok) return;
+
+    setIsBulkClearing(true);
+    try {
+      const res = await api.clearExamReviews(examId);
+      await loadExamData(false);
+      toast.success(
+        `Cleared review flags on ${res.cleared_count || needsReviewCount} papers. All marked as Completed!`,
+        { title: "Review Flags Cleared" }
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to clear exam review flags", { title: "Bulk Unflag Failed" });
+    } finally {
+      setIsBulkClearing(false);
+    }
+  };
+
+  const handleClearSingleSubmissionReview = async (subId: string) => {
+    setClearingSubId(subId);
+    try {
+      await api.clearSubmissionReview(subId);
+      setSubmissions((prev) =>
+        prev.map((s) => (s.id === subId ? { ...s, status: "COMPLETED" } : s))
+      );
+      toast.success("Paper unflagged and marked as Completed.", {
+        title: "Paper Completed",
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to clear paper review flags", { title: "Unflag Failed" });
+      await loadExamData(false);
+    } finally {
+      setClearingSubId(null);
+    }
+  };
+
+  const handlePublishResults = async () => {
+    if (!exam) return;
+    const reviewCount = submissions.filter((s) => s.status === "NEEDS_REVIEW").length;
+    const ok = await confirm({
+      title: "Publish Official Results",
+      message:
+        reviewCount > 0
+          ? `Are you sure you want to officially publish evaluation results? Note: ${reviewCount} paper(s) are currently flagged for review and will be published with their awarded scores.`
+          : "Are you sure you want to officially publish evaluation results for all students in this exam? Scores and breakdown rubrics will immediately become visible on the student portal.",
+      confirmText: "Publish Results",
+      variant: "primary",
+    });
+    if (!ok) return;
+
+    setIsPublishing(true);
+    try {
+      await api.publishResults(examId);
+      await loadExamData(false);
+      toast.success("Results successfully published to the student portal!", { title: "Results Published" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to publish results", { title: "Publish Failed" });
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleOpenWindow = async () => {
+    if (!exam) return;
+    setIsOpeningWindow(true);
+    try {
+      await api.openWindow(exam.id, 30, 2);
+      toast.success("30-minute student submission window opened successfully!", { title: "Window Opened" });
+      const win = await api.getWindowStatus(exam.id);
+      setWindowStatus(win);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to open window", { title: "Window Open Failed" });
+    } finally {
+      setIsOpeningWindow(false);
+    }
+  };
+
+  // Calculations for KPI Cards
+  const stats = useMemo(() => {
+    if (!submissions || submissions.length === 0) {
+      return { total: 0, completed: 0, avgMarks: 0, avgPct: 0, maxScore: 0, minScore: 0, passRate: 0 };
+    }
+    const evaluatedSubs = submissions.filter((s) =>
+      ["COMPLETED", "NEEDS_REVIEW", "GRADED"].includes(s.status)
+    );
+    const count = evaluatedSubs.length;
+    if (count === 0) {
+      return { total: submissions.length, completed: 0, avgMarks: 0, avgPct: 0, maxScore: 0, minScore: 0, passRate: 0 };
+    }
+
+    const totalMarks = evaluatedSubs.reduce((acc, curr) => acc + (curr.total_awarded_marks || 0), 0);
+    const avgMarks = totalMarks / count;
+    const avgPct = evaluatedSubs.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / count;
+
+    let maxScore = -Infinity;
+    let minScore = Infinity;
+    let passCount = 0;
+
+    evaluatedSubs.forEach((s) => {
+      const m = s.total_awarded_marks || 0;
+      if (m > maxScore) maxScore = m;
+      if (m < minScore) minScore = m;
+      if ((s.percentage || 0) >= 40) passCount++;
+    });
+
+    const passRate = (passCount / count) * 100;
+
+    return {
+      total: submissions.length,
+      completed: count,
+      avgMarks,
+      avgPct,
+      maxScore: maxScore === -Infinity ? 0 : maxScore,
+      minScore: minScore === Infinity ? 0 : minScore,
+      passRate,
+    };
+  }, [submissions]);
+
+  // Filtered & Sorted Submissions
+  const filteredSubmissions = useMemo(() => {
+    return submissions
+      .filter((sub) => {
+        const query = searchTerm.toLowerCase().trim();
+        const matchesQuery =
+          !query ||
+          sub.student_name.toLowerCase().includes(query) ||
+          sub.roll_number.toLowerCase().includes(query);
+
+        if (!matchesQuery) return false;
+
+        if (scoreFilter === "TOP") return (sub.percentage || 0) >= 75;
+        if (scoreFilter === "MID") return (sub.percentage || 0) >= 40 && (sub.percentage || 0) < 75;
+        if (scoreFilter === "LOW") return (sub.percentage || 0) < 40;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "marks_desc") return (b.total_awarded_marks || 0) - (a.total_awarded_marks || 0);
+        if (sortBy === "marks_asc") return (a.total_awarded_marks || 0) - (b.total_awarded_marks || 0);
+        if (sortBy === "name") return a.student_name.localeCompare(b.student_name);
+        return a.roll_number.localeCompare(b.roll_number, undefined, { numeric: true });
+      });
+  }, [submissions, searchTerm, scoreFilter, sortBy]);
+
+  if (loading) {
+    return <ExamDetailSkeleton />;
+  }
+
+  if (!exam) {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-4">
+        <FeatureCard className="p-8 text-center space-y-4">
+          <div className="mx-auto h-12 w-12 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <h2 className="text-base font-bold text-ink">Examination Not Found</h2>
+          <p className="text-xs text-ink-muted">
+            The examination ID <code className="font-mono bg-canvas-soft px-1.5 py-0.5 rounded">{examId}</code> could not be found in the active database.
+          </p>
+          <div className="pt-2">
+            <ButtonUtility href="/exams">
+              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+              Return to Examinations
+            </ButtonUtility>
+          </div>
+        </FeatureCard>
+      </div>
+    );
+  }
+
+  const isApproved = Boolean(
+    exam.is_rubric_approved ||
+    exam.has_approved_rubric ||
+    exam.status === "RUBRIC_APPROVED" ||
+    exam.lifecycle_status === "APPROVED" ||
+    exam.rubric_version?.is_approved ||
+    ["RUBRIC_APPROVED", "SUBMISSION_OPEN", "EVALUATING", "EVALUATED", "COMPLETED", "PUBLISHED"].includes(exam.status) ||
+    ["RUBRIC_APPROVED", "SUBMISSION_OPEN", "EVALUATING", "EVALUATED", "COMPLETED", "PUBLISHED", "APPROVED"].includes(exam.lifecycle_status || "")
+  );
+  const isPublished = exam.is_published === 1 || exam.lifecycle_status === "PUBLISHED";
+  const hasAnswerKey = Boolean(exam.answer_key_path);
+  const hasQuestionPaper = Boolean(exam.question_paper_path);
+  const isWindowOpen = Boolean(windowStatus?.is_active);
+
+  // Dynamic branch & institute resolution based on exam.branch_id
+  const effectiveBranches = allBranches.length > 0 ? allBranches : loadedBranches;
+  const effectiveInstitutes = institutes.length > 0 ? institutes : loadedInstitutes;
+  const examBranch = effectiveBranches.find((b) => b.id === exam.branch_id) || selectedBranch;
+  const examInstitute = effectiveInstitutes.find((i) => i.id === examBranch?.institute_id) || selectedInstitute;
+
+  // Unprocessed submissions count (in UPLOADED, AWAITING_KEY, FAILED, etc. - excluding COMPLETED, GRADED, and NEEDS_REVIEW)
+  const unprocessedCount = submissions.filter(
+    (s) =>
+      s.status !== "COMPLETED" &&
+      s.status !== "GRADED" &&
+      s.status !== "NEEDS_REVIEW" &&
+      s.status !== "PROCESSING" &&
+      s.status !== "QUEUED"
+  ).length;
+
+  const hasFailedPapers = submissions.some((s) => s.status === "FAILED");
+
+  const hasActiveQueue = submissions.some(
+    (s) => s.status === "QUEUED" || s.status === "PROCESSING"
+  );
+
+  const isEvaluating =
+    isStartingEval ||
+    hasActiveQueue ||
+    ((exam.lifecycle_status === "EVALUATING" || exam.status === "EVALUATING") && unprocessedCount > 0);
+
+  const canStartEvaluation =
+    !isEvaluating &&
+    !isWindowOpen &&
+    hasAnswerKey &&
+    isApproved &&
+    unprocessedCount > 0;
+
+  const renderStatusBadge = (status: string, errorDetails?: string) => {
+    const s = (status || "UPLOADED").toUpperCase();
+    if (s === "COMPLETED" || s === "GRADED") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+          COMPLETED
+        </span>
+      );
+    }
+    if (s === "PROCESSING") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+          <RefreshCw className="h-3 w-3 animate-spin text-blue-600" />
+          PROCESSING
+        </span>
+      );
+    }
+    if (s === "QUEUED") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+          <Clock className="h-3 w-3 text-amber-600" />
+          QUEUED
+        </span>
+      );
+    }
+    if (s === "FAILED") {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200"
+          title={errorDetails || "Evaluation failed. Click Retry Evaluation to re-enqueue."}
+        >
+          <AlertCircle className="h-3 w-3 text-red-600" />
+          FAILED
+        </span>
+      );
+    }
+    if (s === "NEEDS_REVIEW") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+          <Eye className="h-3 w-3 text-purple-600" />
+          NEEDS REVIEW
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+        <FileText className="h-3 w-3 text-slate-500" />
+        {s}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto pb-16">
+      {/* Main Examination Header Card */}
+      <FeatureCard className="p-6 sm:p-8 space-y-6 border-hairline bg-surface">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-hairline">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <BadgePill label={`Subject: ${exam.subject}`} color="purple" />
+              <BadgePill label={`Exam ID: ${exam.id.slice(0, 8)}...`} color="gray" />
+              {isWindowOpen ? (
+                <BadgePill
+                  label={`Window Open (${windowStatus?.seconds_remaining ? Math.ceil(windowStatus.seconds_remaining / 60) + "m" : "Active"})`}
+                  color="green"
+                />
+              ) : windowStatus?.status === "CLOSED" ? (
+                <BadgePill label="Window Closed" color="gray" />
+              ) : (
+                <BadgePill label="Window Not Opened" color="orange" />
+              )}
+              <BadgePill
+                label={
+                  isPublished
+                    ? "Official Results Published"
+                    : isEvaluating
+                    ? "Evaluating in Queue"
+                    : stats.completed > 0
+                    ? `${stats.completed}/${stats.total} Evaluated`
+                    : "Submissions Accepted"
+                }
+                color={isPublished ? "green" : isEvaluating ? "purple" : "orange"}
+              />
+              <BadgePill
+                label={
+                  isApproved
+                    ? "Rubric Locked & Approved"
+                    : exam.current_rubric_version_id
+                    ? "Rubric Draft (Unapproved)"
+                    : "No Rubric (Awaiting Key)"
+                }
+                color={isApproved ? "teal" : exam.current_rubric_version_id ? "orange" : "gray"}
+              />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+              {exam.title}
+            </h1>
+            <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
+              Academic assessment ledger for <span className="font-semibold text-ink">{exam.subject}</span>. Maximum achievable score: <span className="font-mono font-bold text-ink">{exam.total_marks || 100} marks</span>.
+            </p>
+          </div>
+
+          {/* Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:self-start lg:self-center">
+            {/* Start / Retry / Completed Evaluation Button */}
+            {isEvaluating ? (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold bg-[#edf5fd] text-primary border border-primary/20 shadow-2xs">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                <span>Evaluating in Queue ({stats.completed}/{stats.total} Graded)</span>
+              </div>
+            ) : unprocessedCount > 0 ? (
+              <ButtonPrimary
+                size="sm"
+                onClick={handleStartEvaluation}
+                isLoading={isStartingEval}
+                disabled={!canStartEvaluation}
+                title={
+                  isWindowOpen
+                    ? "Submission window is still active. Please wait until window closes."
+                    : !hasAnswerKey
+                    ? "Root Admin must upload Official Answer Key first."
+                    : !isApproved
+                    ? "Root Admin must review & lock the Rubric first."
+                    : "Enqueue accepted papers for automated evaluation"
+                }
+                className="bg-primary hover:bg-primary-active shadow-xs"
+              >
+                <Play className="h-3.5 w-3.5 mr-1.5" />
+                {hasFailedPapers ? `Retry Evaluation (${unprocessedCount})` : `Start Evaluation (${unprocessedCount})`}
+              </ButtonPrimary>
+            ) : stats.total > 0 ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>Evaluation Complete ({stats.completed}/{stats.total} Graded)</span>
+              </div>
+            ) : null}
+
+            {/* Open Submission Window Quick Action */}
+            {!isWindowOpen && !isPublished && (
+              <ButtonUtility
+                size="sm"
+                onClick={handleOpenWindow}
+                disabled={isOpeningWindow}
+                className="bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold"
+              >
+                <Clock className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                {isOpeningWindow ? "Opening..." : "Open 30-Min Window"}
+              </ButtonUtility>
+            )}
+
+            <ButtonUtility href={`/exams/${exam.id}/rubric`}>
+              <BookOpen className="h-3.5 w-3.5 mr-1.5 text-primary" />
+              Rubric & Criteria
+            </ButtonUtility>
+
+            <ButtonUtility href={`/analytics?exam_id=${exam.id}`}>
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-teal-600" />
+              Analytics
+            </ButtonUtility>
+
+            <ButtonUtility href={`/marks?exam_id=${exam.id}`}>
+              <FileCheck2 className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
+              Marks Ledger
+            </ButtonUtility>
+
+            {stats.completed > 0 && !isPublished ? (
+              <ButtonPrimary
+                size="sm"
+                onClick={handlePublishResults}
+                isLoading={isPublishing}
+                className="bg-[#1aae39] hover:bg-[#169631]"
+              >
+                <Check className="h-3.5 w-3.5 mr-1.5" />
+                Publish Results
+              </ButtonPrimary>
+            ) : isPublished ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#eaf7ed] text-[#1aae39] border border-[#c2ecd0]">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Published
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Academic Details & Materials Banner */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs bg-canvas-soft rounded-lg p-4 border border-hairline">
+          <div className="flex items-start gap-2.5">
+            <Building2 className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
+            <div>
+              <span className="text-ink-muted block text-[11px]">Academic Institute & Branch</span>
+              <span className="font-semibold text-ink">{examInstitute?.name || "Academic Institute"}</span>
+              <span className="text-ink-secondary block text-[11px]">
+                {examBranch ? `${examBranch.name} (${examBranch.city || "Main"})` : "Branch Campus"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <Layers className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
+            <div>
+              <span className="text-ink-muted block text-[11px]">Linked Batch</span>
+              {batchInfo ? (
+                <Link
+                  href="/branch/batches"
+                  className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  {batchInfo.name} {batchInfo.code ? `(${batchInfo.code})` : ""}
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              ) : (
+                <span className="text-ink-secondary font-medium">Branch-wide Assessment</span>
+              )}
+              <span className="text-ink-muted block text-[11px]">
+                {batchInfo?.academic_year ? `Academic Year ${batchInfo.academic_year}` : "All Branch Batches"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <FileText className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-ink-muted block text-[11px]">Exam Artifacts</span>
+              <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs">
+                {/* Question Paper */}
+                {exam.question_paper_path ? (
+                  <div className="flex items-center gap-1.5 bg-surface border border-hairline px-2 py-0.5 rounded text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => handleViewArtifact("QUESTION_PAPER")}
+                      className="font-medium text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      title="View Question Paper in Modal"
+                    >
+                      Question Paper
+                      <Eye className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadQpOpen(true)}
+                      className="text-ink-muted hover:text-ink underline text-[10px]"
+                      title="Replace Question Paper"
+                    >
+                      (Replace)
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setUploadQpOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Upload Question Paper
+                  </button>
+                )}
+
+                {/* Answer Key */}
+                {exam.answer_key_path ? (
+                  <div className="flex items-center gap-1.5 bg-surface border border-hairline px-2 py-0.5 rounded text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => handleViewArtifact("ANSWER_KEY")}
+                      className="font-medium text-emerald-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      title="View Official Answer Key in Modal"
+                    >
+                      Answer Key
+                      <Eye className="h-3 w-3" />
+                    </button>
+                    {currentUser?.role === "ROOT_ADMIN" && (
+                      <button
+                        type="button"
+                        onClick={() => setUploadAkOpen(true)}
+                        className="text-ink-muted hover:text-ink underline text-[10px]"
+                        title="Replace Answer Key"
+                      >
+                        (Replace)
+                      </button>
+                    )}
+                  </div>
+                ) : currentUser?.role === "ROOT_ADMIN" ? (
+                  <button
+                    type="button"
+                    onClick={() => setUploadAkOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Upload Answer Key
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted bg-canvas-soft border border-hairline px-2 py-0.5 rounded">
+                    Answer Key: Pending Root Admin
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Performance Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+              <span>Submissions Evaluated</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold font-mono text-ink">{stats.completed}</span>
+              <span className="text-xs text-ink-muted">/ {stats.total} sheets</span>
+            </div>
+            <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full mt-2.5 overflow-hidden">
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+              <span>Class Mean Score</span>
+              <Award className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold font-mono text-ink">{stats.avgMarks.toFixed(1)}</span>
+              <span className="text-xs text-ink-muted">/ {exam.total_marks || 100}</span>
+            </div>
+            <div className="text-[11px] text-ink-secondary font-medium mt-1">
+              Average Performance: <span className="font-semibold text-primary">{stats.avgPct.toFixed(1)}%</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+              <span>Highest Score</span>
+              <Sparkles className="h-4 w-4 text-amber-500" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold font-mono text-emerald-600">{stats.maxScore.toFixed(1)}</span>
+              <span className="text-xs text-ink-muted">/ {exam.total_marks || 100}</span>
+            </div>
+            <div className="text-[11px] text-ink-muted mt-1">
+              Lowest Score Recorded: <span className="font-mono font-medium text-ink">{stats.minScore.toFixed(1)}</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+              <span>Pass Rate (≥40%)</span>
+              <GraduationCap className="h-4 w-4 text-purple-600" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold font-mono text-ink">{stats.passRate.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full mt-2.5 overflow-hidden">
+              <div
+                className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${stats.passRate}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </FeatureCard>
+
+      {/* Evaluation Invariant Checklist Banner when requirements are pending */}
+      {!isPublished && !isEvaluating && !canStartEvaluation && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-amber-900 flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-amber-700" />
+              Evaluation Queue Prerequisites Checklist {unprocessedCount > 0 ? `(${unprocessedCount} papers stored)` : "(Awaiting Submissions & Key)"}
+            </span>
+            <span className="text-[11px] text-amber-800 font-medium">Evaluation Invariants</span>
+          </div>
+          <p className="text-[11px] text-amber-800/90 leading-relaxed">
+            Per examination guidelines, automated evaluation cannot begin while students are still uploading or until the official answer key and locked rubric are verified.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px]">
+            <div className={`p-2.5 rounded-lg border flex items-center justify-between ${!isWindowOpen ? "bg-surface border-emerald-300 text-emerald-800" : "bg-surface border-amber-200 text-amber-900"}`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${!isWindowOpen ? "text-emerald-600" : "text-amber-500"}`} />
+                <span>1. Submission Window</span>
+              </div>
+              <BadgePill label={!isWindowOpen ? "Closed" : "Active"} color={!isWindowOpen ? "green" : "orange"} />
+            </div>
+
+            <div className={`p-2.5 rounded-lg border flex items-center justify-between ${hasAnswerKey ? "bg-surface border-emerald-300 text-emerald-800" : "bg-surface border-amber-200 text-amber-900"}`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${hasAnswerKey ? "text-emerald-600" : "text-amber-500"}`} />
+                <span>2. Official Answer Key</span>
+              </div>
+              {hasAnswerKey ? (
+                <div className="flex items-center gap-1.5">
+                  <BadgePill label="Uploaded" color="green" />
+                  <button
+                    type="button"
+                    onClick={() => handleViewArtifact("ANSWER_KEY")}
+                    className="text-[10px] text-emerald-700 hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    title="View Answer Key in Modal"
+                  >
+                    <Eye className="h-2.5 w-2.5" />
+                    View
+                  </button>
+                </div>
+              ) : currentUser?.role === "ROOT_ADMIN" ? (
+                <button
+                  type="button"
+                  onClick={() => setUploadAkOpen(true)}
+                  className="font-bold text-primary hover:underline text-[11px]"
+                >
+                  Upload →
+                </button>
+              ) : (
+                <span className="text-[10px] font-medium text-ink-muted bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded">
+                  Pending Admin
+                </span>
+              )}
+            </div>
+
+            <div className={`p-2.5 rounded-lg border flex items-center justify-between ${isApproved ? "bg-surface border-emerald-300 text-emerald-800" : "bg-surface border-amber-200 text-amber-900"}`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${isApproved ? "text-emerald-600" : "text-amber-500"}`} />
+                <span>3. Rubric Approved</span>
+              </div>
+              {isApproved ? (
+                <BadgePill label="Locked" color="green" />
+              ) : (
+                <Link
+                  href={`/exams/${exam.id}/rubric`}
+                  className="font-bold text-primary hover:underline text-[11px]"
+                >
+                  Review & Lock →
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* When all prerequisites are ready, show a ready banner */}
+      {canStartEvaluation && (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50/80 p-4 text-xs flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+            <div>
+              <p className="font-bold text-emerald-900">All Evaluation Prerequisites Satisfied</p>
+              <p className="text-[11px] text-emerald-800 mt-0.5">
+                Submission window closed, answer key uploaded, and rubric locked. Ready to evaluate {unprocessedCount} student {unprocessedCount === 1 ? "paper" : "papers"} in FIFO order.
+              </p>
+            </div>
+          </div>
+          <ButtonPrimary
+            size="sm"
+            onClick={handleStartEvaluation}
+            isLoading={isStartingEval}
+            className="bg-primary hover:bg-primary-active shrink-0 shadow-xs"
+          >
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+            Start Evaluation ({unprocessedCount})
+          </ButtonPrimary>
+        </div>
+      )}
+
+      {/* Student Submissions Table Section */}
+      <FeatureCard className="p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
+          <div>
+            <h2 className="text-base font-bold text-ink">
+              Student Answer Sheets & Evaluated Scripts
+            </h2>
+            <p className="text-xs text-ink-muted mt-0.5">
+              Showing {filteredSubmissions.length} of {submissions.length} total enrolled submission scripts.
+            </p>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Real-time Refresh Button */}
+            <button
+              type="button"
+              onClick={() => loadExamData(false)}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-md hover:bg-canvas-soft transition-colors cursor-pointer"
+              title="Refresh submissions ledger in real time"
+            >
+              <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+              <span>{isRefreshing ? "Updating..." : "Refresh"}</span>
+            </button>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search student or roll #..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-xs rounded-md border border-hairline bg-surface focus:outline-none focus:border-primary text-ink placeholder:text-ink-faint w-48 transition-all"
+              />
+            </div>
+
+            {/* Score Tier Filter */}
+            <select
+              value={scoreFilter}
+              onChange={(e: any) => setScoreFilter(e.target.value)}
+              className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
+            >
+              <option value="ALL">All Scores</option>
+              <option value="TOP">Distinction (≥75%)</option>
+              <option value="MID">Passing (40% - 74%)</option>
+              <option value="LOW">Needs Attention (&lt;40%)</option>
+            </select>
+
+            {/* Sort Filter */}
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
+            >
+              <option value="roll">Sort: Roll Number</option>
+              <option value="marks_desc">Sort: Highest Marks</option>
+              <option value="marks_asc">Sort: Lowest Marks</option>
+              <option value="name">Sort: Student Name</option>
+            </select>
+
+            {/* Bulk Unflag Button when any papers need review */}
+            {needsReviewCount > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllExamReviews}
+                disabled={isBulkClearing}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                title="Unflag all flagged papers in this exam at once and mark them Completed"
+              >
+                {isBulkClearing ? (
+                  <RefreshCw className="h-3 w-3 animate-spin text-purple-600" />
+                ) : (
+                  <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                )}
+                <span>Unflag All ({needsReviewCount} Flagged)</span>
+              </button>
+            )}
+
+          </div>
+        </div>
+
+        {/* Table View */}
+        {filteredSubmissions.length === 0 ? (
+          <div className="py-12 text-center space-y-2">
+            <p className="text-xs font-semibold text-ink">No submissions match the search criteria.</p>
+            <p className="text-[11px] text-ink-muted">Clear filters or try searching for another student name or roll number.</p>
+            <ButtonUtility onClick={() => { setSearchTerm(""); setScoreFilter("ALL"); }}>
+              Reset Filters
+            </ButtonUtility>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-hairline">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium">
+                  <th className="py-3 px-4">Roll Number</th>
+                  <th className="py-3 px-4">Student Name</th>
+                  <th className="py-3 px-4 text-center">Pages</th>
+                  <th className="py-3 px-4 text-right">Marks Awarded</th>
+                  <th className="py-3 px-4 text-center">Score %</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Audit & Review</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hairline bg-surface">
+                {filteredSubmissions.map((sub) => {
+                  const pct = sub.percentage || 0;
+                  const scoreBadgeColor =
+                    pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
+
+                  return (
+                    <tr
+                      key={sub.id}
+                      className="hover:bg-canvas-soft/60 transition-colors group"
+                    >
+                      <td className="py-3 px-4 font-mono font-semibold text-ink">
+                        {sub.roll_number}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-medium text-ink block">{sub.student_name}</span>
+                        <span className="text-[10px] text-ink-faint font-mono">{sub.id.slice(0, 8)}...</span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-mono text-ink-secondary">
+                        {sub.page_count || 1}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className="font-mono font-bold text-ink">
+                          {sub.total_awarded_marks != null ? sub.total_awarded_marks.toFixed(1) : "—"}
+                        </span>
+                        <span className="text-ink-muted font-mono text-[11px]"> / {exam.total_marks || 100}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <BadgePill
+                          label={`${pct.toFixed(1)}%`}
+                          color={scoreBadgeColor}
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {renderStatusBadge(sub.status, (sub as any).error_message)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          {sub.status === "NEEDS_REVIEW" && (
+                            <button
+                              type="button"
+                              onClick={() => handleClearSingleSubmissionReview(sub.id)}
+                              disabled={clearingSubId === sub.id}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded transition-colors cursor-pointer disabled:opacity-50"
+                              title="Unflag all questions in this paper and mark as Completed"
+                            >
+                              {clearingSubId === sub.id ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Check className="h-3 w-3" />
+                              )}
+                              <span>Unflag</span>
+                            </button>
+                          )}
+                          {Boolean(sub.status && ["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(sub.status.toUpperCase())) ? (
+                            <Link
+                              href={`/grading/${sub.id}`}
+                              className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-active transition-colors text-xs px-2.5 py-1 rounded-md hover:bg-canvas-soft"
+                            >
+                              <span>Inspect Sheet</span>
+                              <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                            </Link>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs px-2.5 py-1 rounded-md opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
+                              title={
+                                sub.status === "PROCESSING"
+                                  ? "AI evaluation is currently processing this paper. Inspect Sheet is disabled until status changes to completed or failed."
+                                  : sub.status === "QUEUED"
+                                  ? "Paper is queued for evaluation. Inspect Sheet is disabled until status changes to completed or failed."
+                                  : "Evaluation in progress. Inspect Sheet is disabled in all runtime statuses until status changes to completed or failed."
+                              }
+                            >
+                              <Lock className="h-3 w-3 text-ink-muted/70" />
+                              <span>Inspect Sheet</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </FeatureCard>
+
+      {/* MODAL: Upload Question Paper */}
+      {uploadQpOpen && (
+        <ModalCard
+          title="Upload / Replace Question Paper"
+          preventBackdropClose={true}
+          onClose={() => {
+            setUploadQpOpen(false);
+            setQpFilesToUpload([]);
+            setIsDraggingQp(false);
+          }}
+        >
+          <form onSubmit={handleUploadQp} className="space-y-4">
+            <p className="text-xs text-ink-muted leading-relaxed">
+              Upload the official Question Paper for <span className="font-semibold text-ink">{exam.title}</span> as a PDF or multi-page images.
+            </p>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingQp(true);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDraggingQp(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDraggingQp(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingQp(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  const valid = Array.from(e.dataTransfer.files).filter((f) => {
+                    const ext = f.name.toLowerCase();
+                    return ext.endsWith(".pdf") || ext.endsWith(".png") || ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".webp");
+                  });
+                  if (valid.length > 0) setQpFilesToUpload(valid);
+                  else toast.error("Please drop valid PDF or image files", { title: "Invalid File Type" });
+                }
+              }}
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${
+                isDraggingQp
+                  ? "border-primary bg-primary/10 scale-[1.01] shadow-inner"
+                  : "border-hairline hover:border-primary/60 bg-canvas-soft"
+              }`}
+            >
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                onChange={(e) => {
+                  if (e.target.files) setQpFilesToUpload(Array.from(e.target.files));
+                }}
+                className="hidden"
+                id="qp-file-input"
+              />
+              <label htmlFor="qp-file-input" className="cursor-pointer space-y-2 block">
+                <FileText className={`h-8 w-8 mx-auto transition-transform ${isDraggingQp ? "text-primary scale-110 animate-bounce" : "text-primary"}`} />
+                <div className="text-xs font-semibold text-ink">
+                  {isDraggingQp
+                    ? "Drop Question Paper file(s) here"
+                    : qpFilesToUpload.length > 0
+                    ? `${qpFilesToUpload.length} file(s) selected`
+                    : "Drag & drop or click to select Question Paper"}
+                </div>
+                <div className="text-[11px] text-ink-muted">Supports PDF, PNG, JPG (single or multi-page)</div>
+              </label>
+            </div>
+
+            {/* Selected files summary */}
+            {qpFilesToUpload.length > 0 && (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto rounded border border-hairline p-2 bg-surface">
+                <div className="flex items-center justify-between text-[11px] text-ink-muted pb-1 border-b border-hairline">
+                  <span>Selected Files ({qpFilesToUpload.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => setQpFilesToUpload([])}
+                    className="text-red-500 hover:underline text-[10px]"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                {qpFilesToUpload.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                    <span className="truncate max-w-[280px] font-medium text-ink">{f.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-ink-muted">{(f.size / 1024).toFixed(1)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setQpFilesToUpload(qpFilesToUpload.filter((_, idx) => idx !== i))}
+                        className="text-ink-muted hover:text-red-500 text-xs"
+                        title="Remove file"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <ButtonUtility
+                type="button"
+                onClick={() => {
+                  setUploadQpOpen(false);
+                  setQpFilesToUpload([]);
+                }}
+              >
+                Cancel
+              </ButtonUtility>
+              <ButtonPrimary type="submit" disabled={qpFilesToUpload.length === 0 || isUploadingQp} isLoading={isUploadingQp}>
+                Upload Question Paper
+              </ButtonPrimary>
+            </div>
+          </form>
+        </ModalCard>
+      )}
+
+      {/* MODAL: Upload Official Answer Key */}
+      {uploadAkOpen && (
+        <ModalCard
+          title="Upload Official Answer Key"
+          preventBackdropClose={true}
+          onClose={() => {
+            setUploadAkOpen(false);
+            if (!isUploadingAk) setAkFilesToUpload([]);
+            setIsDraggingAk(false);
+          }}
+        >
+          <form onSubmit={handleUploadAk} className="space-y-4">
+            <p className="text-xs text-ink-muted leading-relaxed">
+              Root Admin can upload the Official Answer Key as a PDF or multi-page images. This automatically drafts a structured AI rubric via Gemini.
+            </p>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingAk(true);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDraggingAk(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDraggingAk(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingAk(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  const valid = Array.from(e.dataTransfer.files).filter((f) => {
+                    const ext = f.name.toLowerCase();
+                    return ext.endsWith(".pdf") || ext.endsWith(".png") || ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".webp");
+                  });
+                  if (valid.length > 0) setAkFilesToUpload(valid);
+                  else toast.error("Please drop valid PDF or image files", { title: "Invalid File Type" });
+                }
+              }}
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${
+                isDraggingAk
+                  ? "border-emerald-500 bg-emerald-50/60 scale-[1.01] shadow-inner"
+                  : "border-hairline hover:border-emerald-500/60 bg-canvas-soft"
+              }`}
+            >
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                onChange={(e) => {
+                  if (e.target.files) setAkFilesToUpload(Array.from(e.target.files));
+                }}
+                className="hidden"
+                id="ak-file-input"
+              />
+              <label htmlFor="ak-file-input" className="cursor-pointer space-y-2 block">
+                <Sparkles className={`h-8 w-8 mx-auto transition-transform ${isDraggingAk ? "text-emerald-600 scale-110 animate-bounce" : "text-emerald-600"}`} />
+                <div className="text-xs font-semibold text-ink">
+                  {isDraggingAk
+                    ? "Drop Answer Key file(s) here"
+                    : akFilesToUpload.length > 0
+                    ? `${akFilesToUpload.length} file(s) selected`
+                    : "Drag & drop or click to select Answer Key"}
+                </div>
+                <div className="text-[11px] text-ink-muted">Supports PDF, PNG, JPG (single or multi-page)</div>
+              </label>
+            </div>
+
+            {/* Selected files summary */}
+            {akFilesToUpload.length > 0 && (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto rounded border border-hairline p-2 bg-surface">
+                <div className="flex items-center justify-between text-[11px] text-ink-muted pb-1 border-b border-hairline">
+                  <span>Selected Files ({akFilesToUpload.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => setAkFilesToUpload([])}
+                    className="text-red-500 hover:underline text-[10px]"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                {akFilesToUpload.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                    <span className="truncate max-w-[280px] font-medium text-ink">{f.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-ink-muted">{(f.size / 1024).toFixed(1)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setAkFilesToUpload(akFilesToUpload.filter((_, idx) => idx !== i))}
+                        className="text-ink-muted hover:text-red-500 text-xs"
+                        title="Remove file"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* In-progress status banner */}
+            {isUploadingAk && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-1 animate-in fade-in">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-700" />
+                  <span>AI Rubric Generation in Progress...</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Gemini Vision AI is analyzing questions, choices, marking schemes, and criteria. You can close this window at any time.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2">
+              <ButtonUtility
+                type="button"
+                onClick={() => {
+                  setUploadAkOpen(false);
+                  if (!isUploadingAk) setAkFilesToUpload([]);
+                }}
+              >
+                {isUploadingAk ? "Close Window (Continues in background)" : "Cancel"}
+              </ButtonUtility>
+
+              <ButtonPrimary
+                type="submit"
+                disabled={akFilesToUpload.length === 0 || isUploadingAk}
+                isLoading={isUploadingAk}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Upload & Generate Rubric
+              </ButtonPrimary>
+            </div>
+          </form>
+        </ModalCard>
+      )}
+
+      {/* MODAL: View Exam Artifact (Question Paper / Answer Key) */}
+      {viewerModalOpen && exam && (
+        <ModalCard
+          title={
+            viewerArtifactType === "QUESTION_PAPER"
+              ? `Question Paper — ${exam.title}`
+              : `Official Answer Key — ${exam.title}`
+          }
+          maxWidth="max-w-4xl"
+          onClose={() => setViewerModalOpen(false)}
+        >
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-hairline text-xs">
+              <div className="flex items-center gap-2">
+                <BadgePill
+                  label={viewerArtifactType === "QUESTION_PAPER" ? "Question Paper" : "Official Answer Key"}
+                  color={viewerArtifactType === "QUESTION_PAPER" ? "sky" : "green"}
+                />
+                <span className="text-ink-muted text-[11px]">
+                  {exam.title} • {exam.subject}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded hover:bg-canvas-soft transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  <span>Open in Tab</span>
+                </a>
+                <a
+                  href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
+                  download={`${viewerArtifactType === "QUESTION_PAPER" ? "question_paper" : "answer_key"}_${exam.id}.pdf`}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded hover:bg-canvas-soft transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>Download</span>
+                </a>
+                <ButtonUtility size="sm" onClick={() => setViewerModalOpen(false)}>
+                  Close
+                </ButtonUtility>
+              </div>
+            </div>
+
+            {/* Embedded Native Browser PDF Preview */}
+            <div className="w-full h-[72vh] rounded-lg border border-hairline bg-canvas-soft overflow-hidden relative shadow-inner">
+              <iframe
+                src={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
+                className="w-full h-full border-0 bg-white"
+                title={viewerArtifactType === "QUESTION_PAPER" ? "Question Paper Viewer" : "Answer Key Viewer"}
+              />
+            </div>
+          </div>
+        </ModalCard>
+      )}
+    </div>
+  );
+}

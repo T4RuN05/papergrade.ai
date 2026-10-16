@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f6f5f4; /* Notion Warm Paper Canvas */
+  --foreground: #000000; /* Notion Ink */
+  --surface: #ffffff;    /* Card Surface */
+  --hairline: #e6e6e6;   /* Hairline Divider */
+  --primary: #0075de;    /* Notion Blue */
+  --secondary: #213183;  /* Deep Indigo Hero */
+}
+
+body {
+  color: #000000;
+  background-color: #f6f5f4;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "lnum" 1;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Notion calm scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f6f5f4;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d8d6d2;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a39e98;
+}
+
+/* Notion toast micro-animations */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-slide-in {
+  animation: toastSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+.toast-slide-out {
+  animation: toastSlideOut 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Toast Reverse Loading Progress Countdown Animation (100% -> 0%) */
+@keyframes toastReverseProgress {
+  0% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+/* Toast Forward Progress Animation (0% -> 100%) */
+@keyframes toastForwardProgress {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+/* Toast Indeterminate Loading Sweep (for loading state toasts) */
+@keyframes toastLoadingSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(30%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+.animate-toast-loading {
+  animation: toastLoadingSweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Unified Skeleton Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    #ebe9e6 0%,
+    #f8f7f6 35%,
+    #ffffff 50%,
+    #f8f7f6 65%,
+    #ebe9e6 100%
+  );
+  background-size: 250% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+

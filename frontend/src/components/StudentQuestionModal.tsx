@@ -1,0 +1,365 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import {
+  RotateCcw,
+  ShieldCheck,
+  CheckCircle2,
+  Award,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { GradedAnswer } from "@/lib/types";
+import { api } from "@/lib/api";
+import { BadgePill, ButtonPrimary, ButtonUtility, ModalCard, StickerColor } from "./ui";
+import { useToast } from "@/lib/ToastContext";
+
+interface StudentQuestionModalProps {
+  submissionId: string;
+  answer: GradedAnswer | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onRevaluationSubmitted?: (answerId: string, revalData: any) => void;
+}
+
+export function StudentQuestionModal({
+  submissionId,
+  answer,
+  isOpen,
+  onClose,
+  onRevaluationSubmitted,
+}: StudentQuestionModalProps) {
+  const { toast } = useToast();
+  const [revalReason, setRevalReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [showFullCrop, setShowFullCrop] = useState(false);
+
+  const cropUrl = useMemo(() => {
+    if (!answer) return "";
+    return api.getAnswerCropUrl(submissionId, answer);
+  }, [answer, submissionId]);
+
+  if (!isOpen || !answer) return null;
+
+  const scorePct =
+    answer.max_marks > 0
+      ? Math.round((Number(answer.awarded_marks || 0) / Number(answer.max_marks)) * 100)
+      : 0;
+
+  const scoreBadgeColor: StickerColor =
+    scorePct >= 75 ? "green" : scorePct >= 50 ? "teal" : scorePct > 0 ? "orange" : "gray";
+
+  const reval = answer.revaluation;
+  const hasActiveReval = reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
+  const isRevalResolved = reval && reval.status === "RESOLVED";
+
+  const handleAppealSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revalReason.trim()) {
+      toast.warning("Please provide an academic justification for your revaluation request.", {
+        title: "Reason Required",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await api.requestRevaluation(submissionId, {
+        question_ids: [answer.question_id],
+        student_reason: revalReason.trim(),
+      });
+
+      const newReval = {
+        id: result.request_id || `rev_${Date.now()}`,
+        status: "SUBMITTED",
+        decision: null,
+        student_reason: revalReason.trim(),
+        reviewer_notes: null,
+        requested_at: new Date().toISOString(),
+      };
+
+      toast.success(
+        `Revaluation requested for Question ${answer.question_id}. Faculty will manually verify step marks.`,
+        { title: "Appeal Submitted", duration: 4000 }
+      );
+
+      if (onRevaluationSubmitted) {
+        onRevaluationSubmitted(answer.id, newReval);
+      }
+
+      setRevalReason("");
+      setShowAppealForm(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit revaluation request.", {
+        title: "Submission Error",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalCard
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Question ${answer.question_id} • Score & Review`}
+      maxWidth="max-w-md"
+    >
+      <div className="space-y-3 text-xs">
+        {/* Compact Score & Status Summary Bar */}
+        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-canvas-soft border border-hairline">
+          <div>
+            <span className="text-[10px] uppercase font-semibold text-ink-muted block leading-none">
+              Awarded Marks
+            </span>
+            <div className="text-base sm:text-xl font-black text-ink font-mono mt-0.5 leading-tight">
+              {Number(answer.awarded_marks || 0).toFixed(1)}{" "}
+              <span className="text-xs font-normal text-ink-muted">/ {answer.max_marks} marks</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <BadgePill
+              label={`${scorePct}% Score`}
+              color={scoreBadgeColor}
+              className="text-[10.5px] sm:text-xs px-2 py-0.5 sm:py-1 font-bold"
+            />
+            {answer.is_manual_override && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[9.5px] font-semibold">
+                <CheckCircle2 className="h-3 w-3" />
+                Override
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Active Revaluation Status Banner */}
+        {hasActiveReval && (
+          <div className="p-2.5 rounded-lg bg-orange-50/90 border border-orange-200 text-orange-950 space-y-1">
+            <div className="flex items-center justify-between font-bold text-[11px] text-orange-900">
+              <span className="flex items-center gap-1.5">
+                <RotateCcw className="h-3 w-3 animate-spin text-orange-700" />
+                Revaluation In Progress
+              </span>
+              <span className="text-[9.5px] uppercase font-semibold bg-orange-200/80 px-1.5 py-0.2 rounded">
+                Under Review
+              </span>
+            </div>
+            <p className="text-[10.5px] text-orange-900 leading-relaxed italic bg-white/60 p-1.5 rounded border border-orange-200/60">
+              &ldquo;{reval.student_reason}&rdquo;
+            </p>
+          </div>
+        )}
+
+        {/* Resolved Revaluation Status Banner */}
+        {isRevalResolved && (
+          <div
+            className={`p-2.5 rounded-lg border space-y-1 ${
+              reval.decision === "MARKS_REVISED"
+                ? "bg-emerald-50/90 border-emerald-200 text-emerald-950"
+                : "bg-slate-50 border-slate-200 text-slate-900"
+            }`}
+          >
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1.5">
+                {reval.decision === "MARKS_REVISED" ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                ) : (
+                  <ShieldCheck className="h-3.5 w-3.5 text-slate-600" />
+                )}
+                Decision: {reval.decision === "MARKS_REVISED" ? "Marks Revised" : "Marks Upheld"}
+              </span>
+              <span className="text-[9.5px] uppercase font-semibold bg-white/80 px-1.5 py-0.2 rounded border border-hairline">
+                Finalized
+              </span>
+            </div>
+            {reval.reviewer_notes && (
+              <p className="text-[10.5px] leading-relaxed italic bg-white/70 p-1.5 rounded border border-hairline/60">
+                <span className="font-semibold not-italic">Examiner Remarks: </span>&ldquo;{reval.reviewer_notes}&rdquo;
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Student Handwriting Crop Preview (Compact & Expandable) */}
+        <div className="space-y-1 rounded-md border border-hairline bg-surface p-2">
+          <div className="flex items-center justify-between text-ink-muted">
+            <span className="font-semibold flex items-center gap-1 text-[10.5px]">
+              <ImageIcon className="h-3 w-3 text-primary" />
+              Detected Student Handwriting:
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowFullCrop((prev) => !prev)}
+              className="text-[10px] text-primary hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
+            >
+              {showFullCrop ? (
+                <>
+                  <ChevronUp className="h-3 w-3" /> Collapse
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3 w-3" /> Expand
+                </>
+              )}
+            </button>
+          </div>
+
+          <div
+            className={`rounded bg-canvas-soft/60 overflow-hidden flex items-center justify-center transition-all ${
+              showFullCrop ? "max-h-72 p-2" : "max-h-28 sm:max-h-36 p-1.5"
+            }`}
+          >
+            {cropUrl ? (
+              <img
+                key={cropUrl}
+                src={cropUrl}
+                alt={`Answer Crop ${answer.question_id}`}
+                className={`w-auto object-contain rounded select-none shadow-2xs ${
+                  showFullCrop ? "max-h-68" : "max-h-24 sm:max-h-32"
+                }`}
+              />
+            ) : (
+              <span className="text-xs text-ink-muted italic">Crop preview not available</span>
+            )}
+          </div>
+        </div>
+
+        {/* Faculty Rubric Commentary & Feedback */}
+        <div className="space-y-1">
+          <div className="font-semibold text-ink flex items-center gap-1 text-[10.5px]">
+            <Award className="h-3 w-3 text-primary" />
+            Evaluation Feedback & Remarks:
+          </div>
+          <div className="rounded-md bg-canvas-soft border border-hairline p-2 text-ink-secondary leading-relaxed text-[10.5px] sm:text-[11px]">
+            {answer.grading_rationale || answer.feedback || (
+              <span className="italic text-ink-muted">
+                Official marks awarded according to institutional scheme. Full points allotted for correct derivation steps.
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Step-by-Step Criterion Scores if Available */}
+        {answer.criterion_scores && answer.criterion_scores.length > 0 && (
+          <div className="space-y-1">
+            <div className="font-semibold text-ink text-[10.5px]">Criteria Breakdown:</div>
+            <div className="space-y-1 max-h-28 overflow-y-auto pr-0.5">
+              {answer.criterion_scores.map((crit, idx) => (
+                <div
+                  key={crit.id || idx}
+                  className="flex items-center justify-between p-1.5 rounded border border-hairline bg-surface text-[10.5px]"
+                >
+                  <span className="text-ink font-medium truncate max-w-[200px]">
+                    {crit.criterion_id || `Step ${idx + 1}`}
+                  </span>
+                  <span className="font-bold text-ink shrink-0 font-mono">
+                    {Number(crit.awarded_marks || 0).toFixed(1)} / {crit.max_marks || 1}m
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Transcribed Student Text Snippet (Compact) */}
+        {answer.extracted_text && (
+          <div className="space-y-0.5">
+            <span className="font-semibold text-ink-muted text-[9.5px] uppercase">
+              Transcribed Text:
+            </span>
+            <div className="p-1.5 rounded bg-surface border border-hairline text-[10px] font-mono text-ink-secondary line-clamp-2">
+              {answer.extracted_text}
+            </div>
+          </div>
+        )}
+
+        {/* Revaluation Appeal Action Section */}
+        {!hasActiveReval && !isRevalResolved && (
+          <div className="pt-2 border-t border-hairline space-y-2">
+            {!showAppealForm ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-surface border border-hairline">
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-ink text-[11px]">Challenging this question?</div>
+                  <div className="text-[10px] text-ink-muted">
+                    Request manual review by senior faculty examiner.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAppealForm(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 border border-primary/30 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="h-3 w-3 text-primary" />
+                  <span>Request Revaluation</span>
+                </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={handleAppealSubmit}
+                className="space-y-2.5 p-2.5 sm:p-3 rounded-lg border border-primary/20 bg-primary/5"
+              >
+                <div className="flex items-start gap-1.5 text-primary font-semibold text-xs">
+                  <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span>Submit Appeal for Question {answer.question_id}</span>
+                    <p className="text-[9.5px] font-normal text-ink-muted">
+                      Evaluated manually by senior examiners. Strictly zero AI adjustments.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-ink text-[10.5px]">Academic Grievance:</label>
+                  <textarea
+                    required
+                    rows={2}
+                    className="w-full rounded-md border border-[#dddddd] bg-surface p-2 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
+                    placeholder="State reason (e.g. Step 2 calculation was marked incorrect despite matching formula)..."
+                    value={revalReason}
+                    onChange={(e) => setRevalReason(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-0.5">
+                  <ButtonUtility
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setShowAppealForm(false);
+                      setRevalReason("");
+                    }}
+                  >
+                    Cancel
+                  </ButtonUtility>
+                  <ButtonPrimary
+                    type="submit"
+                    size="sm"
+                    isLoading={isSubmitting}
+                    disabled={!revalReason.trim()}
+                  >
+                    Submit Appeal
+                  </ButtonPrimary>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-1 border-t border-hairline text-[10px] text-ink-muted">
+          <span>Antigravity Academic Standard</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-medium text-ink-secondary hover:text-ink px-2 py-1 rounded hover:bg-canvas-soft transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </ModalCard>
+  );
+}

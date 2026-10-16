@@ -1,0 +1,160 @@
+from typing import Optional
+from pathlib import Path
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+from backend.app.config import settings
+from backend.app.database import get_db
+from backend.app.schemas import ManualEditAnswerRequest, ManualEditRegionRequest
+from backend.app.services.grading_service import grading_service
+from backend.app.services.storage import get_storage_service
+from backend.app.services.pdf_service import pdf_service
+
+router = APIRouter(prefix="/api/grading", tags=["Grading & Overrides"])
+
+@router.post("/exams/{exam_id}/clear-all-reviews")
+def clear_all_exam_reviews(exam_id: str):
+    try:
+        result = grading_service.bulk_clear_exam_reviews(exam_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to bulk clear exam reviews: {str(e)}")
+
+@router.post("/{submission_id}/clear-review")
+def clear_submission_review(submission_id: str):
+    try:
+        updated = grading_service.clear_all_review_flags(submission_id)
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear review flags: {str(e)}")
+
+@router.post("/answers/{submission_id}/{answer_id}/edit")
+@router.post("/{submission_id}/answers/{answer_id}")
+@router.patch("/{submission_id}/answers/{answer_id}")
+def edit_answer(submission_id: str, answer_id: str, req: ManualEditAnswerRequest):
+    try:
+        updated = grading_service.manual_edit_answer(submission_id, answer_id, req)
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to edit answer: {str(e)}")
+
+@router.post("/regions/{submission_id}/{region_id}/edit")
+@router.post("/{submission_id}/regions/{region_id}")
+@router.patch("/{submission_id}/regions/{region_id}")
+def edit_region(submission_id: str, region_id: str, req: ManualEditRegionRequest):
+    try:
+        updated = grading_service.manual_edit_region(submission_id, region_id, req)
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to edit region: {str(e)}")
+
+@router.get("/page-image/{submission_id}/{page_num}")
+def get_page_image(submission_id: str, page_num: int):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_document_purged, canonical_pdf_path, original_file_path FROM submissions WHERE id = ?", (submission_id,))
+        sub = cursor.fetchone()
+
+    if sub and sub.get("is_document_purged"):
+        raise HTTPException(
+            status_code=410,
+            detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage. Question marks and scores remain archived."
+        )
+
+    img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+    if not img_path.exists() and sub:
+        # JIT render fallback if background task is still running or image cache was cleared
+        key = sub.get("canonical_pdf_path") or sub.get("original_file_path")
+        if key:
+            try:
+                storage = get_storage_service()
+                local_pdf = storage.get_local_path_or_download(key)
+                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+            except Exception:
+                pass
+
+    if not img_path.exists():
+        raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
+    return FileResponse(str(img_path), media_type="image/png")
+
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+@router.get("/crop/{submission_id}/{answer_id}")
+def get_answer_crop(
+    submission_id: str,
+    answer_id: str,
+    region_id: Optional[str] = None,
+    v: Optional[str] = None
+):
+    crops_dir = settings.RENDERS_DIR / submission_id / "crops"
+    crops_dir.mkdir(parents=True, exist_ok=True)
+
+    target_crop_path = None
+    target_reg = None
+
+    if region_id:
+        reg_crop_path = crops_dir / f"crop_{answer_id}_{region_id}.png"
+        if reg_crop_path.exists():
+            return FileResponse(str(reg_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
+        target_crop_path = reg_crop_path
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM answer_regions WHERE id = ?", (region_id,))
+            target_reg = cursor.fetchone()
+
+    if not target_crop_path or not target_reg:
+        primary_crop_path = crops_dir / f"crop_{answer_id}.png"
+        if primary_crop_path.exists():
+            return FileResponse(str(primary_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
+        target_crop_path = primary_crop_path
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM answer_regions WHERE answer_id = ? ORDER BY id ASC LIMIT 1", (answer_id,))
+            target_reg = cursor.fetchone()
+
+    # Dynamic fallback: regenerate crop if missing from disk
+    if target_reg:
+        page_num = target_reg["page_number"]
+        page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+        if not page_img.exists():
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT canonical_pdf_path, original_file_path FROM submissions WHERE id = ?", (submission_id,))
+                sub = cursor.fetchone()
+            if sub:
+                key = sub.get("canonical_pdf_path") or sub.get("original_file_path")
+                if key:
+                    try:
+                        storage = get_storage_service()
+                        local_pdf = storage.get_local_path_or_download(key)
+                        pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                    except Exception:
+                        pass
+        if page_img.exists():
+            try:
+                pdf_service.crop_answer_region(
+                    page_img,
+                    float(target_reg["x"]),
+                    float(target_reg["y"]),
+                    float(target_reg["width"]),
+                    float(target_reg["height"]),
+                    target_crop_path,
+                )
+            except Exception:
+                pass
+
+    if target_crop_path and target_crop_path.exists():
+        return FileResponse(str(target_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
+
+    raise HTTPException(status_code=404, detail="Crop not found.")
+
