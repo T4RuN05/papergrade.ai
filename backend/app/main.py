@@ -90,6 +90,17 @@ def get_batch_by_id(batch_id: str):
         batch_d["submissions"] = [dict(s) for s in cursor.fetchall()]
         return batch_d
 
+@app.get("/")
+def root():
+    return {
+        "status": "online",
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "message": "PaperGrade AI Backend API is running successfully.",
+        "docs": "/docs",
+        "status_check": "/api/status"
+    }
+
 @app.get("/api/health")
 def health_check():
     return {
