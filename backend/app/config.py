@@ -30,7 +30,8 @@ class Settings:
     RENDERS_DIR: Path = DATA_DIR / "page_renders"
     EXPORTS_DIR: Path = DATA_DIR / "exports"
     # Database (Supabase PostgreSQL or local SQLite)
-    DATABASE_URL: str = (os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL") or "").strip()
+    _raw_db: str = (os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL") or "").strip()
+    DATABASE_URL: str = _raw_db.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543") if "pooler.supabase.com:5432" in _raw_db else _raw_db
     DATABASE_PATH: Path = DATA_DIR / "papergrade.db"
 
     # Cloudflare R2 / S3 Object Storage Settings

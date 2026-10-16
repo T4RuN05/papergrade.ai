@@ -90,10 +90,17 @@ def get_pg_pool():
                 import psycopg2
                 from psycopg2.pool import ThreadedConnectionPool
                 from psycopg2.extras import RealDictCursor
+
+                dsn = settings.DATABASE_URL
+                # Supabase session mode (:5432) has a strict limit of 15 connections.
+                # Transaction mode (:6543) scales to thousands of concurrent requests.
+                if "pooler.supabase.com:5432" in dsn:
+                    dsn = dsn.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+
                 _pg_pool = ThreadedConnectionPool(
-                    minconn=4,
-                    maxconn=35,
-                    dsn=settings.DATABASE_URL,
+                    minconn=1,
+                    maxconn=10,
+                    dsn=dsn,
                     cursor_factory=RealDictCursor
                 )
     return _pg_pool
