@@ -10,9 +10,21 @@ services:
     envVars:
       - key: PORT
         value: 8000
-      - key: STORAGE_PROVIDER
-        value: cloudflare_r2
-      - key: SUPABASE_DB_URL
+      - key: STORAGE_BACKEND
+        value: auto
+      - key: DATABASE_URL
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
         sync: false
       - key: R2_ACCOUNT_ID
         sync: false
@@ -22,13 +34,4 @@ services:
         sync: false
       - key: R2_BUCKET_NAME
         value: papergrade-pilot-bucket
-      - key: JWT_SECRET
-        generateValue: true
-      - key: GEMINI_API_KEY_1
-        sync: false
-      - key: GEMINI_API_KEY_2
-        sync: false
-      - key: GEMINI_API_KEY_3
-        sync: false
-      - key: GEMINI_API_KEY_4
-        sync: false
+

@@ -15,7 +15,7 @@ class Settings:
     PORT: int = 8000
 
     # Gemini API settings
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "").strip("\"'")
+    GEMINI_API_KEY: str = (os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_1") or "").strip("\"'")
     GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "").strip("\"'")
     GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "").strip("\"'")
     GEMINI_API_KEY_4: str = os.getenv("GEMINI_API_KEY_4", "").strip("\"'")
@@ -30,11 +30,11 @@ class Settings:
     RENDERS_DIR: Path = DATA_DIR / "page_renders"
     EXPORTS_DIR: Path = DATA_DIR / "exports"
     # Database (Supabase PostgreSQL or local SQLite)
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
+    DATABASE_URL: str = (os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL") or "").strip()
     DATABASE_PATH: Path = DATA_DIR / "papergrade.db"
 
     # Cloudflare R2 / S3 Object Storage Settings
-    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "auto").strip().lower() # "auto", "cloudinary", "r2", "local"
+    STORAGE_BACKEND: str = (os.getenv("STORAGE_BACKEND") or os.getenv("STORAGE_PROVIDER") or "auto").strip().lower() # "auto", "cloudinary", "r2", "local"
     R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "").strip()
     R2_ACCESS_KEY_ID: str = os.getenv("R2_ACCESS_KEY_ID", "").strip()
     R2_SECRET_ACCESS_KEY: str = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
