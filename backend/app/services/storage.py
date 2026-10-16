@@ -241,12 +241,21 @@ class CloudinaryStorageService(StorageService):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _clean_public_id(self, key: str) -> str:
-        return key.replace("\\", "/").lstrip("/")
+        k = str(key).replace("\\", "/").strip().lstrip("/")
+        # If absolute path or contains marker folders, extract relative storage key
+        for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
+            if marker in k:
+                k = k[k.index(marker) + len(marker):]
+                break
+        # Strip Windows drive letters (e.g. C:/...)
+        if len(k) > 1 and k[1] == ":":
+            k = k[2:].lstrip("/")
+        return k
 
     def upload_file(self, file_content: bytes | str | Path, key: str, content_type: str = "application/pdf") -> str:
         import cloudinary.uploader
         clean_key = self._clean_public_id(key)
-        res_type = "raw" if (clean_key.endswith(".pdf") or "pdf" in content_type) else "auto"
+        res_type = "raw" if (clean_key.lower().endswith(".pdf") or "pdf" in content_type.lower()) else "auto"
 
         if isinstance(file_content, (str, Path)):
             src = str(file_content)
@@ -287,8 +296,12 @@ class CloudinaryStorageService(StorageService):
         import urllib.request
         import cloudinary.utils
 
-        res_type = "raw" if clean_key.endswith(".pdf") else "image"
-        url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type=res_type, secure=True)
+        res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
+        if res_type == "raw":
+            ext = clean_key.rsplit(".", 1)[1] if "." in clean_key else "pdf"
+            url = cloudinary.utils.private_download_url(clean_key, ext, resource_type="raw", type="upload")
+        else:
+            url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
 
         req = urllib.request.Request(url, headers={"User-Agent": "PaperGrade-AI/1.0"})
         with urllib.request.urlopen(req) as resp:
@@ -315,14 +328,19 @@ class CloudinaryStorageService(StorageService):
     def generate_presigned_download_url(self, key: str, expires_in: int = 900) -> str:
         import cloudinary.utils
         clean_key = self._clean_public_id(key)
-        res_type = "raw" if clean_key.endswith(".pdf") else "image"
-        url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type=res_type, secure=True)
+        res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
+        if res_type == "raw":
+            ext = clean_key.rsplit(".", 1)[1] if "." in clean_key else "pdf"
+            return cloudinary.utils.private_download_url(
+                clean_key, ext, resource_type="raw", type="upload", expires_in=expires_in
+            )
+        url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
         return url
 
     def delete_file(self, key: str) -> bool:
         import cloudinary.uploader
         clean_key = self._clean_public_id(key)
-        res_type = "raw" if clean_key.endswith(".pdf") else "image"
+        res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
         try:
             cloudinary.uploader.destroy(clean_key, resource_type=res_type)
             cached_path = self.cache_dir / clean_key
@@ -339,7 +357,7 @@ class CloudinaryStorageService(StorageService):
             return True
         try:
             import cloudinary.api
-            res_type = "raw" if clean_key.endswith(".pdf") else "image"
+            res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
             cloudinary.api.resource(clean_key, resource_type=res_type)
             return True
         except Exception:

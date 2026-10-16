@@ -58,7 +58,7 @@ def edit_region(submission_id: str, region_id: str, req: ManualEditRegionRequest
 def get_page_image(submission_id: str, page_num: int):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT is_document_purged, canonical_pdf_path, original_file_path FROM submissions WHERE id = ?", (submission_id,))
+        cursor.execute("SELECT is_document_purged, canonical_pdf_path, original_file_path, exam_id, roll_number FROM submissions WHERE id = ?", (submission_id,))
         sub = cursor.fetchone()
 
     if sub and sub.get("is_document_purged"):
@@ -70,14 +70,36 @@ def get_page_image(submission_id: str, page_num: int):
     img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
     if not img_path.exists() and sub:
         # JIT render fallback if background task is still running or image cache was cleared
-        key = sub.get("canonical_pdf_path") or sub.get("original_file_path")
-        if key:
+        candidate_keys = []
+        for raw_k in [sub.get("canonical_pdf_path"), sub.get("original_file_path")]:
+            if raw_k:
+                candidate_keys.append(raw_k)
+                clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
+                candidate_keys.append(clean_k)
+                for marker in ["/submissions/", "/uploads/", "/data/"]:
+                    if marker in clean_k:
+                        candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
+                        candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
+                        
+        exam_id = sub.get("exam_id")
+        roll = sub.get("roll_number")
+        if exam_id and roll:
+            candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
+            candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
+        candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
+        candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
+
+        storage = get_storage_service()
+        for k in candidate_keys:
             try:
-                storage = get_storage_service()
-                local_pdf = storage.get_local_path_or_download(key)
-                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                if storage.file_exists(k):
+                    local_pdf = storage.get_local_path_or_download(k)
+                    if local_pdf and local_pdf.exists():
+                        pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                        if img_path.exists():
+                            break
             except Exception:
-                pass
+                continue
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
@@ -129,17 +151,39 @@ def get_answer_crop(
         if not page_img.exists():
             with get_db() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT canonical_pdf_path, original_file_path FROM submissions WHERE id = ?", (submission_id,))
+                cursor.execute("SELECT canonical_pdf_path, original_file_path, exam_id, roll_number FROM submissions WHERE id = ?", (submission_id,))
                 sub = cursor.fetchone()
             if sub:
-                key = sub.get("canonical_pdf_path") or sub.get("original_file_path")
-                if key:
+                candidate_keys = []
+                for raw_k in [sub.get("canonical_pdf_path"), sub.get("original_file_path")]:
+                    if raw_k:
+                        candidate_keys.append(raw_k)
+                        clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
+                        candidate_keys.append(clean_k)
+                        for marker in ["/submissions/", "/uploads/", "/data/"]:
+                            if marker in clean_k:
+                                candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
+                                candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
+                                
+                exam_id = sub.get("exam_id")
+                roll = sub.get("roll_number")
+                if exam_id and roll:
+                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
+                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
+                candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
+                candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
+
+                storage = get_storage_service()
+                for k in candidate_keys:
                     try:
-                        storage = get_storage_service()
-                        local_pdf = storage.get_local_path_or_download(key)
-                        pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                        if storage.file_exists(k):
+                            local_pdf = storage.get_local_path_or_download(k)
+                            if local_pdf and local_pdf.exists():
+                                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                                if page_img.exists():
+                                    break
                     except Exception:
-                        pass
+                        continue
         if page_img.exists():
             try:
                 pdf_service.crop_answer_region(
