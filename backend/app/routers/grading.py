@@ -103,7 +103,11 @@ def get_page_image(submission_id: str, page_num: int):
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
-    return FileResponse(str(img_path), media_type="image/png")
+    return FileResponse(str(img_path), media_type="image/png", headers=PAGE_CACHE_HEADERS)
+
+PAGE_CACHE_HEADERS = {
+    "Cache-Control": "public, max-age=604800, immutable",
+}
 
 NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",

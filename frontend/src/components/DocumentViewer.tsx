@@ -78,12 +78,43 @@ export function DocumentViewer({
   const [imageError, setImageError] = useState<boolean>(false);
   const [isPageImageLoading, setIsPageImageLoading] = useState<boolean>(true);
 
+  // Set of loaded page keys to avoid re-triggering loading skeleton when flipping back & forth
+  const loadedPagesRef = useRef<Set<string>>(new Set());
+  const imgRef = useRef<HTMLImageElement>(null);
+
   // Active page is controlled if provided by parent, else local
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalPage;
 
+  // Clear cache if submission changes
+  useEffect(() => {
+    loadedPagesRef.current.clear();
+  }, [submissionId]);
+
+  // Proactively preload document pages in background so flipping between pages is instant
+  useEffect(() => {
+    if (!submissionId || !pageCount || pageCount <= 0) return;
+    const maxPreload = Math.min(pageCount, 50);
+    for (let p = 1; p <= maxPreload; p++) {
+      const url = api.getPageImageUrl(submissionId, p);
+      const img = new Image();
+      img.src = url;
+      img.onload = () => {
+        loadedPagesRef.current.add(`${submissionId}_p_${p}`);
+      };
+    }
+  }, [submissionId, pageCount]);
+
   useEffect(() => {
     setImageError(false);
-    setIsPageImageLoading(true);
+    const key = `${submissionId}_p_${currentPage}`;
+    if (loadedPagesRef.current.has(key)) {
+      setIsPageImageLoading(false);
+    } else if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      loadedPagesRef.current.add(key);
+      setIsPageImageLoading(false);
+    } else {
+      setIsPageImageLoading(true);
+    }
   }, [currentPage, submissionId]);
 
   const setCurrentPage = (p: number | ((prev: number) => number)) => {
@@ -674,13 +705,18 @@ export function DocumentViewer({
               )}
 
               <img
+                ref={imgRef}
                 src={pageImageUrl}
                 alt={`Student Page ${currentPage}`}
-                className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-200 ${
+                className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-150 ${
                   isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
                 }`}
                 loading="eager"
-                onLoad={() => setIsPageImageLoading(false)}
+                decoding="async"
+                onLoad={() => {
+                  loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
+                  setIsPageImageLoading(false);
+                }}
                 onError={() => {
                   setIsPageImageLoading(false);
                   setImageError(true);
