@@ -161,22 +161,22 @@ export default function LoginPage() {
       // Strict role separation: student form must only allow students, faculty form must only allow faculty/staff
       if (loginRole === "STUDENT" && user.role !== "STUDENT") {
         api.logout();
-        const roleErr = "Access Denied: These credentials belong to a Faculty/Staff account. Please switch to the 'Faculty / Staff' tab to sign in.";
+        const roleErr = "Invalid student roll number or password.";
         setError(roleErr);
-        toast.error("Faculty and staff accounts cannot sign in through the Student Portal form.", {
-          title: "Wrong Sign-In Tab",
-          duration: 5000,
+        toast.error(roleErr, {
+          title: "Sign-In Failed",
+          duration: 4000,
         });
         return;
       }
 
       if (loginRole === "STAFF" && user.role === "STUDENT") {
         api.logout();
-        const roleErr = "Access Denied: These credentials belong to a Student account. Please switch to the 'Student Portal' tab to sign in.";
+        const roleErr = "Invalid faculty email or password.";
         setError(roleErr);
-        toast.error("Students cannot sign in through the Faculty/Staff form.", {
-          title: "Wrong Sign-In Tab",
-          duration: 5000,
+        toast.error(roleErr, {
+          title: "Sign-In Failed",
+          duration: 4000,
         });
         return;
       }
@@ -199,17 +199,22 @@ export default function LoginPage() {
       startNavigationProgress();
       router.push(dest);
     } catch (err: any) {
-      let msg = "Failed to sign in. Please verify your credentials.";
-      if (typeof err === "string") {
+      let defaultMsg =
+        loginRole === "STUDENT"
+          ? "Invalid student roll number or password."
+          : "Invalid faculty email or password.";
+
+      let msg = defaultMsg;
+      if (typeof err === "string" && !err.includes("belong to") && !err.includes("Role")) {
         msg = err;
-      } else if (err?.message && typeof err.message === "string") {
+      } else if (err?.message && typeof err.message === "string" && !err.message.includes("belong to") && !err.message.includes("Role")) {
         msg = err.message;
       }
-      if (msg === "[object Object]") {
-        msg = "Invalid email, roll number, or password";
+      if (msg === "[object Object]" || msg.toLowerCase().includes("invalid credentials")) {
+        msg = defaultMsg;
       }
       setError(msg);
-      toast.error(msg, { title: "Authentication Failed" });
+      toast.error(msg, { title: "Sign-In Failed" });
     } finally {
       setLoading(false);
     }
