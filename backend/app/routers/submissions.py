@@ -241,7 +241,7 @@ def confirm_presigned_upload(
 ):
     """
     Step 2 of Direct-to-Storage Upload:
-    Validates file integrity with PyMuPDF, enforces bounds (<=10 pages, <=15MB),
+    Validates file integrity with PyMuPDF, enforces bounds (<=15 pages, <=7MB),
     and executes atomic replacement (superseding any previous submission).
     """
     clean_roll = req.roll_number.strip().upper()

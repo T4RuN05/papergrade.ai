@@ -66,8 +66,8 @@ class Settings:
     # Submission & Evaluation Lifecycle Constraints
     WINDOW_DURATION_MINUTES: int = int(os.getenv("WINDOW_DURATION_MINUTES", "30"))
     GRACE_PERIOD_MINUTES: int = int(os.getenv("GRACE_PERIOD_MINUTES", "2"))
-    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "15"))
-    MAX_PAGE_COUNT: int = int(os.getenv("MAX_PAGE_COUNT", "10"))
+    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "7"))
+    MAX_PAGE_COUNT: int = int(os.getenv("MAX_PAGE_COUNT", "15"))
     REVALUATION_WINDOW_DAYS: int = int(os.getenv("REVALUATION_WINDOW_DAYS", "7"))
     SUBMISSION_RETENTION_DAYS: int = int(os.getenv("SUBMISSION_RETENTION_DAYS", "15"))
 

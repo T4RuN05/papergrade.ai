@@ -39,7 +39,11 @@ def _compute_window_status(window_row: Optional[Dict[str, Any]]) -> Dict[str, An
             "is_active": False,
             "seconds_remaining": 0,
             "is_in_grace": False,
-            "is_expired": True
+            "is_expired": True,
+            "closed_at": None,
+            "seconds_since_closed": None,
+            "seconds_until_card_expires": 0,
+            "should_display": False
         }
     
     now = datetime.now(timezone.utc)
@@ -51,6 +55,19 @@ def _compute_window_status(window_row: Optional[Dict[str, Any]]) -> Dict[str, An
     is_active = (is_in_window or is_in_grace) and window_row.get("status") == "OPEN"
     seconds_remaining = max(0, int((deadline - now).total_seconds()))
     grace_seconds_remaining = max(0, int((grace_deadline - now).total_seconds()))
+
+    closed_at_iso = window_row.get("grace_deadline_at") or window_row.get("deadline_at")
+    closed_at_dt = parse_iso(closed_at_iso)
+    seconds_since_closed = None
+    seconds_until_card_expires = 0
+    TWO_HOURS_SECONDS = 2 * 3600
+
+    if not is_active:
+        diff = (now - closed_at_dt).total_seconds()
+        seconds_since_closed = max(0, int(diff))
+        seconds_until_card_expires = max(0, int(TWO_HOURS_SECONDS - seconds_since_closed))
+
+    should_display = is_active or (seconds_since_closed is not None and seconds_since_closed <= TWO_HOURS_SECONDS)
     
     return {
         "has_window": True,
@@ -60,12 +77,16 @@ def _compute_window_status(window_row: Optional[Dict[str, Any]]) -> Dict[str, An
         "opened_at": window_row.get("opened_at"),
         "deadline_at": window_row.get("deadline_at"),
         "grace_deadline_at": window_row.get("grace_deadline_at"),
+        "closed_at": closed_at_iso,
+        "seconds_since_closed": seconds_since_closed,
+        "seconds_until_card_expires": seconds_until_card_expires,
         "is_active": is_active,
         "is_in_window": is_in_window,
         "is_in_grace": is_in_grace,
         "is_expired": now > grace_deadline,
         "seconds_remaining": seconds_remaining,
-        "grace_seconds_remaining": grace_seconds_remaining
+        "grace_seconds_remaining": grace_seconds_remaining,
+        "should_display": should_display
     }
 
 def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
@@ -169,8 +190,12 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 _window_cache[cache_key] = {"time": now_ts, "data": windows_by_exam}
 
         # Match active exam and window
+        # Priority 1: Currently active window (status == OPEN and within deadline/grace)
+        # Priority 2: Window closed within the last 2 hours (most recently closed candidate)
+        # Otherwise: None (card will not show)
         active_exam = None
         active_window_status = None
+        recently_closed_candidates = []
         
         for ex in exam_rows:
             w_row = windows_by_exam.get(ex["id"])
@@ -179,11 +204,12 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 active_exam = ex
                 active_window_status = w_stat
                 break
+            elif w_stat.get("should_display"):
+                recently_closed_candidates.append((w_stat.get("seconds_since_closed", 999999), ex, w_stat))
         
-        # Fallback to first exam if none active
-        if not active_exam and exam_rows:
-            active_exam = exam_rows[0]
-            active_window_status = _compute_window_status(windows_by_exam.get(active_exam["id"]))
+        if not active_exam and recently_closed_candidates:
+            recently_closed_candidates.sort(key=lambda item: item[0])
+            _, active_exam, active_window_status = recently_closed_candidates[0]
 
         # 4. Fetch Submissions for this student
         submissions = []
@@ -251,6 +277,13 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 reval_row = cursor.fetchone()
                 if reval_row:
                     sub["revaluation"] = dict(reval_row)
+
+                # Fetch answers breakdown for published papers
+                cursor.execute(
+                    f"SELECT * FROM answers WHERE submission_id = {param} ORDER BY question_id ASC",
+                    (sub["id"],)
+                )
+                sub["answers"] = [dict(a) for a in cursor.fetchall()]
 
             submissions.append(sub)
 

@@ -466,7 +466,12 @@ export const api = {
     opened_at: string | null;
     deadline_at: string | null;
     grace_deadline_at: string | null;
-    reopen_count: number;
+    reopen_count?: number;
+    closed_at?: string | null;
+    seconds_since_closed?: number | null;
+    seconds_until_card_expires?: number;
+    should_display?: boolean;
+    [key: string]: any;
   }> {
     const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/status`, {
       headers: { ...getAuthHeaders() },

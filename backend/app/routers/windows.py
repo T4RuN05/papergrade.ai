@@ -70,6 +70,19 @@ def get_window_status(exam_id: str, current_user: Dict[str, Any] = Depends(get_c
         is_active = (is_in_window or is_in_grace) and window["status"] == "OPEN"
         seconds_remaining = max(0, int((deadline - now).total_seconds()))
         grace_seconds_remaining = max(0, int((grace_deadline - now).total_seconds()))
+
+        closed_at_iso = window.get("grace_deadline_at") or window.get("deadline_at")
+        closed_at_dt = parse_iso(closed_at_iso)
+        seconds_since_closed = None
+        seconds_until_card_expires = 0
+        TWO_HOURS_SECONDS = 2 * 3600
+
+        if not is_active:
+            diff = (now - closed_at_dt).total_seconds()
+            seconds_since_closed = max(0, int(diff))
+            seconds_until_card_expires = max(0, int(TWO_HOURS_SECONDS - seconds_since_closed))
+
+        should_display = is_active or (seconds_since_closed is not None and seconds_since_closed <= TWO_HOURS_SECONDS)
         
         return {
             "has_window": True,
@@ -79,12 +92,16 @@ def get_window_status(exam_id: str, current_user: Dict[str, Any] = Depends(get_c
             "opened_at": window["opened_at"],
             "deadline_at": window["deadline_at"],
             "grace_deadline_at": window["grace_deadline_at"],
+            "closed_at": closed_at_iso,
+            "seconds_since_closed": seconds_since_closed,
+            "seconds_until_card_expires": seconds_until_card_expires,
             "is_active": is_active,
             "is_in_window": is_in_window,
             "is_in_grace": is_in_grace,
             "is_expired": now > grace_deadline,
             "seconds_remaining": seconds_remaining,
-            "grace_seconds_remaining": grace_seconds_remaining
+            "grace_seconds_remaining": grace_seconds_remaining,
+            "should_display": should_display
         }
 
 @router.post("/{exam_id}/open")

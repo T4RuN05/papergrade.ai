@@ -217,7 +217,7 @@ even when no answer key has been uploaded yet.
 ### Submission file constraints
 
 -   One combined PDF per student per exam.
--   Proposed pilot maximum: **15 MB** and **10 pages** per submission.
+-   Proposed pilot maximum: **7 MB** and **15 pages** per submission.
     Keep these as configuration values, not scattered constants.
 -   Validate actual file bytes, PDF signature/structure, size, and page
     count on the backend. MIME type and filename alone are insufficient.
@@ -1089,8 +1089,8 @@ automated tests where practical.
     resolved.
 -   Final confidence thresholds for automatic review flags, calibrated
     from a human-verified benchmark.
--   Exact maximum upload size/page count after pilot testing; initial
-    target is 15 MB / 10 pages and must be configurable.
+-   Exact maximum upload size/page count after pilot testing; current
+    target is 7 MB / 15 pages and must be configurable.
 -   Final AI provider/model chain and production pricing; model names,
     quotas and pricing must remain configurable and telemetry-driven.
 -   Whether Branch Managers may ever receive a limited evaluation/review

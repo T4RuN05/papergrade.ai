@@ -504,6 +504,13 @@ export default function StudentPortalPage() {
   const [revalLoading, setRevalLoading] = useState(false);
   const [revalMsg, setRevalMsg] = useState<string | null>(null);
 
+  // Live ticker (updates every 15s to automatically unmount expired closed window cards without refresh)
+  const [currentTick, setCurrentTick] = useState<number>(Date.now());
+  useEffect(() => {
+    const ticker = setInterval(() => setCurrentTick(Date.now()), 15000);
+    return () => clearInterval(ticker);
+  }, []);
+
   // Load student profile, exam windows, and all past submissions
   const loadPortalData = async (isBackground = false) => {
     try {
@@ -514,7 +521,7 @@ export default function StudentPortalPage() {
           setUser(state.user);
           setExams(state.exams || []);
           setSubmissions(state.submissions || []);
-          setActiveExam(state.active_exam || (state.exams && state.exams.length > 0 ? state.exams[0] : null));
+          setActiveExam(state.active_exam || null);
           setWindowStatus(state.window_status || null);
           return;
         }
@@ -551,9 +558,34 @@ export default function StudentPortalPage() {
           setActiveExam(activeResult.exam);
           setWindowStatus(activeResult.win);
         } else {
-          setActiveExam(examList[0]);
-          setWindowStatus(windowResults[0]?.win || null);
+          // Check for windows closed within the last 2 hours (<= 7200000 ms)
+          const twoHoursMs = 2 * 60 * 60 * 1000;
+          const recentlyClosed = windowResults
+            .filter((r) => {
+              if (!r.win) return false;
+              if (r.win.should_display !== undefined) return r.win.should_display;
+              const closedIso = r.win.grace_deadline_at || r.win.deadline_at || r.win.closed_at;
+              if (!closedIso) return false;
+              const diffMs = Date.now() - new Date(closedIso).getTime();
+              return diffMs >= 0 && diffMs <= twoHoursMs;
+            })
+            .sort((a, b) => {
+              const timeA = new Date(a.win?.grace_deadline_at || a.win?.deadline_at || a.win?.closed_at || 0).getTime();
+              const timeB = new Date(b.win?.grace_deadline_at || b.win?.deadline_at || b.win?.closed_at || 0).getTime();
+              return timeB - timeA;
+            });
+
+          if (recentlyClosed.length > 0) {
+            setActiveExam(recentlyClosed[0].exam);
+            setWindowStatus(recentlyClosed[0].win);
+          } else {
+            setActiveExam(null);
+            setWindowStatus(null);
+          }
         }
+      } else {
+        setActiveExam(null);
+        setWindowStatus(null);
       }
     } catch (err) {
       console.error("Failed to load student portal data", err);
@@ -637,17 +669,75 @@ export default function StudentPortalPage() {
     }
   };
 
+  // Determine if active exam submission window card should be displayed:
+  // ONLY show if window is currently active (OPEN + within deadline/grace),
+  // OR if the window closed within the last 2 hours (<= 120 minutes).
+  const shouldShowExamWindowCard = Boolean(
+    activeExam &&
+      windowStatus &&
+      (windowStatus.is_active ||
+        (() => {
+          const closedIso =
+            windowStatus.grace_deadline_at ||
+            windowStatus.deadline_at ||
+            windowStatus.closed_at;
+          if (!closedIso) return false;
+          const closedTime = new Date(closedIso).getTime();
+          if (isNaN(closedTime)) return false;
+          const diffMs = currentTick - closedTime;
+          const twoHoursMs = 2 * 60 * 60 * 1000;
+          return diffMs >= 0 && diffMs <= twoHoursMs;
+        })())
+  );
+
+  // Time remaining before the closed window card disappears from view
+  const getRemainingCardTime = () => {
+    if (!windowStatus || windowStatus.is_active) return null;
+    const closedIso =
+      windowStatus.grace_deadline_at ||
+      windowStatus.deadline_at ||
+      windowStatus.closed_at;
+    if (!closedIso) return null;
+    const closedTime = new Date(closedIso).getTime();
+    if (isNaN(closedTime)) return null;
+    const elapsedMs = currentTick - closedTime;
+    const remainingMs = 2 * 60 * 60 * 1000 - elapsedMs;
+    if (remainingMs <= 0) return null;
+    const mins = Math.ceil(remainingMs / 60000);
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${h}h ${m}m`;
+    }
+    return `${mins}m`;
+  };
+
   // Open Revaluation Modal for a specific submission
-  const handleOpenRevalModal = (sub: any) => {
+  const handleOpenRevalModal = async (sub: any) => {
     setRevalSubmission(sub);
     setSelectedQuestions([]);
     setRevalReason("");
     setRevalMsg(null);
     setRevalModalOpen(true);
+
+    if (!sub.answers || sub.answers.length === 0) {
+      try {
+        const details = await api.getSubmission(sub.id);
+        if (details && details.answers) {
+          setRevalSubmission((prev: any) => ({
+            ...prev,
+            ...details,
+            answers: details.answers,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not fetch detailed answers for revaluation modal", err);
+      }
+    }
   };
 
   // Open Breakdown Modal for a specific submission
-  const handleOpenBreakdownModal = (sub: any) => {
+  const handleOpenBreakdownModal = async (sub: any) => {
     const isPub =
       sub.publication_status === "PUBLISHED" ||
       (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
@@ -659,6 +749,25 @@ export default function StudentPortalPage() {
     }
     setBreakdownSubmission(sub);
     setBreakdownModalOpen(true);
+
+    // Fetch full question answers breakdown if not already cached in state
+    if (!sub.answers || sub.answers.length === 0) {
+      try {
+        const details = await api.getSubmission(sub.id);
+        if (details && details.answers) {
+          setBreakdownSubmission((prev: any) => ({
+            ...prev,
+            ...details,
+            answers: details.answers,
+          }));
+          setSubmissions((prevList) =>
+            prevList.map((s) => (s.id === sub.id ? { ...s, ...details, answers: details.answers } : s))
+          );
+        }
+      } catch (err) {
+        console.warn("Could not fetch detailed answers for breakdown modal", err);
+      }
+    }
   };
 
   // Revaluation submission handler
@@ -842,12 +951,12 @@ export default function StudentPortalPage() {
       {/* Minimal Marks Trajectory Graph */}
       <StudentMarksTrajectory submissions={submissions} />
 
-      {/* Active Exam Submission Window Card */}
-      {activeExam && (
+      {/* Active Exam Submission Window Card (Only displayed if open, or if closed within the last 2 hours) */}
+      {shouldShowExamWindowCard && activeExam && (
         <FeatureCard className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <BadgePill
                   label={
                     windowStatus?.is_active
@@ -865,6 +974,11 @@ export default function StudentPortalPage() {
                   }
                 />
                 <span className="text-xs text-ink-muted">• {activeExam.subject}</span>
+                {!windowStatus?.is_active && getRemainingCardTime() && (
+                  <span className="text-[11px] text-ink-muted bg-canvas-soft border border-hairline px-2 py-0.5 rounded-full">
+                    Notice disappears in {getRemainingCardTime()}
+                  </span>
+                )}
               </div>
               <h2 className="text-base font-bold text-ink">{activeExam.title}</h2>
             </div>
@@ -909,7 +1023,7 @@ export default function StudentPortalPage() {
                       {selectedFile ? selectedFile.name : "Choose Single Combined PDF or Scan Pages"}
                     </div>
                     <p className="text-xs text-ink-muted max-w-sm mx-auto">
-                      Single PDF document. Maximum 15 MB, up to 10 canonical pages.
+                      Single PDF document. Maximum 7 MB, up to 15 canonical pages.
                     </p>
                   </label>
                 </div>
@@ -943,7 +1057,7 @@ export default function StudentPortalPage() {
               <div className="flex items-center gap-2.5 text-xs text-ink-muted py-1">
                 <Info className="h-4 w-4 text-ink-faint shrink-0" />
                 <span>
-                  The 30-minute upload window for <strong className="text-ink">{activeExam.title}</strong> is currently closed. All evaluated past papers are listed below.
+                  The upload window for <strong className="text-ink">{activeExam.title}</strong> is currently closed. This notice will remain visible for 2 hours post-closure. All evaluated past papers are listed below.
                 </span>
               </div>
             )}
