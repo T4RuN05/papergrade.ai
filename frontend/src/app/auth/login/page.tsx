@@ -608,11 +608,6 @@ export default function LoginPage() {
             </Link>
           </div>
         </FeatureCard>
-
-        <div className="text-center text-[11px] text-ink-faint flex items-center justify-center gap-1.5">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          <span>Protected by role-based tenant isolation • Antigravity Security Standard</span>
-        </div>
       </div>
     </div>
   );
