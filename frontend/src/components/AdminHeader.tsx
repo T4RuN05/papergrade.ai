@@ -13,6 +13,7 @@ import {
   Building2,
   Layers,
   LogOut,
+  LifeBuoy,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { BadgePill } from "./ui";
@@ -20,6 +21,7 @@ import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
+import { ReportIssueModal } from "./ReportIssueModal";
 
 interface AdminHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -32,6 +34,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const { unreadCount, openDrawer } = useNotifications();
   const { trail } = useBreadcrumbs();
   const [mounted, setMounted] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -247,6 +250,17 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             <span>Supabase PostgreSQL • Online</span>
           </div>
 
+          {/* Technical Support / Bug Report Button */}
+          <button
+            type="button"
+            onClick={() => setReportModalOpen(true)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+            title="Report Technical Issue"
+            aria-label="Report Technical Issue"
+          >
+            <LifeBuoy className="h-4 w-4" />
+          </button>
+
           {/* Notification Bell Button (Triggers Right Sidebar Drawer) */}
           <button
             type="button"
@@ -290,6 +304,13 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           )}
         </div>
       </div>
+
+      {/* Technical Support & Issue Report Modal */}
+      <ReportIssueModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        userRole={currentUser?.role}
+      />
     </header>
   );
 }

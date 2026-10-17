@@ -35,10 +35,13 @@ import {
   ChevronUp,
   Sliders,
   Cpu,
+  LifeBuoy,
+  AlertTriangle,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 import { useNotifications } from "@/lib/NotificationContext";
+import { ReportIssueModal } from "@/components/ReportIssueModal";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -530,6 +533,9 @@ export default function StudentPortalPage() {
   const [revalLoading, setRevalLoading] = useState(false);
   const [revalMsg, setRevalMsg] = useState<string | null>(null);
 
+  // Technical issue report modal state
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+
   // Live ticker (updates every 15s to automatically unmount expired closed window cards without refresh)
   const [currentTick, setCurrentTick] = useState<number>(Date.now());
   useEffect(() => {
@@ -888,8 +894,19 @@ export default function StudentPortalPage() {
           </p>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
-          <BadgePill label="PWA Student Portal" color="sky" />
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setReportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all cursor-pointer shadow-2xs"
+            title="Report a technical issue with the portal"
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span>Report Issue</span>
+          </button>
+          <div className="hidden sm:block">
+            <BadgePill label="PWA Student Portal" color="sky" />
+          </div>
         </div>
       </div>
 
@@ -1428,6 +1445,29 @@ export default function StudentPortalPage() {
         )}
       </div>
 
+      {/* Direct Technical Support & Report Issue Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline shadow-2xs">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <LifeBuoy className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-ink">Facing a technical issue?</h3>
+            <p className="text-[11px] text-ink-muted leading-relaxed mt-0.5">
+              If an answer sheet upload failed, marks are not appearing, or you encounter a visual glitch, send a report with screenshots directly to our technical team.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setReportModalOpen(true)}
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary-active transition-colors shrink-0 shadow-2xs cursor-pointer"
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span>Report Technical Issue</span>
+        </button>
+      </div>
+
       {/* DETAILED QUESTION BREAKDOWN MODAL */}
       <ModalCard
         isOpen={breakdownModalOpen}
@@ -1873,6 +1913,13 @@ export default function StudentPortalPage() {
           </form>
         )}
       </ModalCard>
+
+      {/* Technical Support & Issue Report Modal */}
+      <ReportIssueModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        userRole="STUDENT"
+      />
     </div>
   );
 }

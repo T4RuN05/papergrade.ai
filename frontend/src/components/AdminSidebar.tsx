@@ -20,11 +20,14 @@ import {
   ExternalLink,
   X,
   FileSpreadsheet,
+  LifeBuoy,
+  AlertTriangle,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { Skeleton } from "./ui";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
+import { ReportIssueModal } from "./ReportIssueModal";
 
 interface AdminSidebarProps {
   mobileOpen?: boolean;
@@ -37,6 +40,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
   const { toast } = useToast();
   const { currentUser, isRootAdmin, isBranchManager, selectedBranch, refreshTenancy } = useTenant();
   const [mounted, setMounted] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -69,6 +73,13 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           label: "Institutes & Branches",
           icon: Building2,
           badge: "Root",
+          show: isRootAdmin,
+        },
+        {
+          href: "/admin/reports",
+          label: "Issue Reports",
+          icon: LifeBuoy,
+          badge: "Support",
           show: isRootAdmin,
         },
       ],
@@ -385,6 +396,19 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
 
       {/* Bottom User Profile Section */}
       <div className="p-3 border-t border-hairline bg-canvas-soft/50 shrink-0">
+        {/* Quick Report Issue Action */}
+        <button
+          type="button"
+          onClick={() => setReportModalOpen(true)}
+          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer mb-2.5 shadow-2xs"
+        >
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>Report Technical Issue</span>
+          </span>
+          <span className="text-[10px] text-primary font-bold">Help</span>
+        </button>
+
         <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline shadow-xs">
           <div className="flex items-center gap-2 min-w-0">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
@@ -460,6 +484,13 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           {sidebarContent}
         </div>
       </div>
+
+      {/* Technical Support & Issue Report Modal */}
+      <ReportIssueModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        userRole={currentUser?.role}
+      />
     </>
   );
 }

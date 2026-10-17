@@ -513,6 +513,32 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_pwd_reset_branch ON password_reset_requests(branch_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_pwd_reset_status ON password_reset_requests(status);")
 
+        # 15d. Technical Issue Reports Table
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS technical_reports (
+            id {text_type} PRIMARY KEY,
+            user_id {text_type} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            user_role {text_type} NOT NULL,
+            user_name {text_type} NOT NULL,
+            user_email {text_type},
+            user_roll {text_type},
+            branch_id {text_type} REFERENCES branches(id) ON DELETE SET NULL,
+            category {text_type} NOT NULL,
+            subject {text_type} NOT NULL,
+            description {text_type} NOT NULL,
+            screenshots_json {text_type} NOT NULL DEFAULT '[]',
+            status {text_type} NOT NULL DEFAULT 'OPEN',
+            admin_notes {text_type},
+            resolved_by {text_type} REFERENCES users(id) ON DELETE SET NULL,
+            resolved_at {text_type},
+            created_at {text_type} NOT NULL,
+            updated_at {text_type} NOT NULL
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tech_rep_user ON technical_reports(user_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tech_rep_branch ON technical_reports(branch_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tech_rep_status ON technical_reports(status);")
+
         # 16. Audit Logs Table
         cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS audit_logs (
@@ -730,6 +756,9 @@ def init_db():
             ("idx_reval_sub", "revaluation_requests", "submission_id"),
             ("idx_notif_user", "notifications", "user_id"),
             ("idx_push_subs_user", "push_subscriptions", "user_id"),
+            ("idx_tech_rep_user", "technical_reports", "user_id"),
+            ("idx_tech_rep_status", "technical_reports", "status"),
+            ("idx_tech_rep_branch", "technical_reports", "branch_id"),
             ("idx_audit_resource", "audit_logs", "resource_type, resource_id"),
         ]
         for idx_name, tbl, cols in indexes:

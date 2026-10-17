@@ -20,6 +20,7 @@ from backend.app.routers import (
     revaluation,
     notifications,
     students,
+    reports,
 )
 
 @asynccontextmanager
@@ -60,6 +61,7 @@ app.include_router(submissions.router, prefix="/api/submissions")
 app.include_router(revaluation.router)
 app.include_router(notifications.router)
 app.include_router(students.router)
+app.include_router(reports.router)
 
 # Include legacy/core routers for backward compatibility
 app.include_router(grading.router)

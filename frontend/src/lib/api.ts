@@ -1207,4 +1207,73 @@ export const api = {
     }
     return res.json();
   },
+
+  // -------------------------------------------------------------
+  // Technical Issue Reports & Support
+  // -------------------------------------------------------------
+  async submitTechnicalReport(formData: FormData): Promise<{ success: boolean; report_id: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/v1/reports`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to submit technical report" }));
+      throw new Error(parseErrorDetail(err, "Failed to submit technical report"));
+    }
+    return res.json();
+  },
+
+  async getMyTechnicalReports(): Promise<{ reports: any[] }> {
+    const res = await fetch(`${API_BASE}/api/v1/reports/my`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to load reports" }));
+      throw new Error(parseErrorDetail(err, "Failed to load reports"));
+    }
+    return res.json();
+  },
+
+  async listTechnicalReports(status?: string, role?: string, branchId?: string): Promise<{
+    stats: { total: number; open: number; in_progress: number; resolved: number };
+    reports: any[];
+  }> {
+    const params = new URLSearchParams();
+    if (status && status !== "ALL") params.append("status", status);
+    if (role && role !== "ALL") params.append("role", role);
+    if (branchId && branchId !== "ALL") params.append("branch_id", branchId);
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API_BASE}/api/v1/reports${query}`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to list technical reports" }));
+      throw new Error(parseErrorDetail(err, "Failed to list technical reports"));
+    }
+    return res.json();
+  },
+
+  async updateTechnicalReport(
+    reportId: string,
+    data: { status: string; admin_notes?: string }
+  ): Promise<{ success: boolean; report: any; message: string }> {
+    const res = await fetch(`${API_BASE}/api/v1/reports/${reportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to update report status" }));
+      throw new Error(parseErrorDetail(err, "Failed to update report status"));
+    }
+    return res.json();
+  },
+
+  getReportImageUrl(reportId: string, filename: string): string {
+    return `${API_BASE}/api/v1/reports/${reportId}/images/${encodeURIComponent(filename)}`;
+  },
 };

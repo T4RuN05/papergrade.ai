@@ -29,6 +29,7 @@ class Settings:
     UPLOADS_DIR: Path = DATA_DIR / "uploads"
     RENDERS_DIR: Path = DATA_DIR / "page_renders"
     EXPORTS_DIR: Path = DATA_DIR / "exports"
+    REPORTS_DIR: Path = DATA_DIR / "reports"
     # Database (Supabase PostgreSQL or local SQLite)
     _raw_db: str = (os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL") or "").strip()
     DATABASE_URL: str = _raw_db.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543") if "pooler.supabase.com:5432" in _raw_db else _raw_db
@@ -80,7 +81,7 @@ class Settings:
     PRICING_VERSION: str = "2026-03-gemini-flash"
 
     def ensure_directories(self):
-        for directory in [self.DATA_DIR, self.UPLOADS_DIR, self.RENDERS_DIR, self.EXPORTS_DIR]:
+        for directory in [self.DATA_DIR, self.UPLOADS_DIR, self.RENDERS_DIR, self.EXPORTS_DIR, self.REPORTS_DIR]:
             directory.mkdir(parents=True, exist_ok=True)
 
     @property
