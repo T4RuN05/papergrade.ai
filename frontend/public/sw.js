@@ -1,4 +1,4 @@
-const CACHE_NAME = "papergrade-shell-v2";
+const CACHE_NAME = "papergrade-shell-v3";
 
 // Bypass and do not cache on localhost / dev
 const isLocalhost =
@@ -80,6 +80,14 @@ self.addEventListener("push", (event) => {
   };
 
   event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+// Client message event for foreground notification dispatch
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SHOW_NOTIFICATION") {
+    const { title, options } = event.data;
+    event.waitUntil(self.registration.showNotification(title, options));
+  }
 });
 
 // User clicked on system notification

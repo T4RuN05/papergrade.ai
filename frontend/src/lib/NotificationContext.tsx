@@ -56,27 +56,60 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       if (typeof window === "undefined" || !("Notification" in window)) return;
       if (Notification.permission !== "granted") return;
 
-      const notifOptions: NotificationOptions = {
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
+      const origin = window.location.origin;
+      const notifOptions: any = {
+        icon: new URL("/icon-192.png", origin).href,
+        badge: new URL("/icon-192.png", origin).href,
+        vibrate: [200, 100, 200],
+        tag: `papergrade-${Date.now()}`,
+        renotify: true,
         silent: false,
         ...options,
       };
 
-      try {
-        if ("serviceWorker" in navigator) {
-          const reg = await navigator.serviceWorker.ready;
+      // 1. Mobile PWA / Android ServiceWorker approach (MANDATORY for Android Chrome & WebAPKs)
+      if ("serviceWorker" in navigator) {
+        try {
+          let reg = await navigator.serviceWorker.getRegistration();
+          if (!reg) {
+            reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+          }
+
+          // If the service worker is installing, wait up to 1.5s for it to become ready
+          if (reg && reg.installing) {
+            await Promise.race([
+              new Promise<void>((resolve) => {
+                reg!.installing?.addEventListener("statechange", function (this: ServiceWorker) {
+                  if (this.state === "activated") resolve();
+                });
+              }),
+              new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+            ]);
+          }
+
           if (reg && "showNotification" in reg) {
             await reg.showNotification(title, notifOptions);
             return;
           }
+
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "SHOW_NOTIFICATION",
+              title,
+              options: notifOptions,
+            });
+            return;
+          }
+        } catch (swErr) {
+          console.warn("ServiceWorker showNotification encountered an error:", swErr);
         }
+      }
+
+      // 2. Desktop Fallback (PC Chrome, Edge, Safari, Firefox)
+      try {
         new Notification(title, notifOptions);
-      } catch {
-        // Fallback if browser serviceWorker notification fails
-        try {
-          new Notification(title, notifOptions);
-        } catch {}
+      } catch (err) {
+        console.warn("Desktop Notification constructor fallback failed:", err);
       }
     },
     []
@@ -116,17 +149,24 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [toast, sendSystemNotification]);
 
   const sendTestNotification = useCallback(async () => {
-    if (permission !== "granted") {
-      const granted = await requestPermission();
-      if (!granted) return;
+    try {
+      if (permission !== "granted") {
+        const granted = await requestPermission();
+        if (!granted) return;
+      }
+      await sendSystemNotification("PaperGrade AI Alert", {
+        body: "Test notification delivered! Real-time alerts are functioning on your device.",
+        data: { url: "/student/portal" },
+      });
+      toast.success("Test notification dispatched to your system tray / notification shade.", {
+        title: "Test Dispatched",
+      });
+    } catch (err: any) {
+      console.error("Test notification error:", err);
+      toast.error(err.message || "Failed to dispatch notification", {
+        title: "Notification Error",
+      });
     }
-    await sendSystemNotification("PaperGrade AI Alert", {
-      body: "Test notification delivered! Real-time alerts are functioning on your PWA.",
-      data: { url: "/student/portal" },
-    });
-    toast.success("Test notification dispatched to your system tray / notification shade.", {
-      title: "Test Dispatched",
-    });
   }, [permission, requestPermission, sendSystemNotification, toast]);
 
   const fetchNotifications = useCallback(async () => {
