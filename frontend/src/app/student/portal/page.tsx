@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -27,6 +27,10 @@ import {
   ExternalLink,
   Info,
   Bell,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  LineChart,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -40,6 +44,613 @@ import {
   FormInput,
   StudentPortalSkeleton,
 } from "@/components/ui";
+
+interface TrajectoryPoint {
+  index: number;
+  id: string;
+  title: string;
+  subject: string;
+  dateStr: string;
+  fullDateStr: string;
+  marks: number;
+  maxMarks: number;
+  percentage: number;
+  reval: any;
+  isMarksRevised: boolean;
+  isMarksUpheld: boolean;
+  isRevalPending: boolean;
+  revalNotes?: string;
+  rawSubmission: any;
+}
+
+function StudentMarksTrajectory({
+  submissions,
+  onInspectPaper,
+}: {
+  submissions: any[];
+  onInspectPaper: (sub: any) => void;
+}) {
+  const [selectedSubject, setSelectedSubject] = useState<string>("ALL");
+  const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
+
+  // Extract published submissions
+  const publishedSubmissions = useMemo(() => {
+    return submissions.filter((s) => {
+      return (
+        s.publication_status === "PUBLISHED" ||
+        (s.publication_status !== "UNPUBLISHED" && Boolean(s.exam_is_published || s.is_published))
+      );
+    });
+  }, [submissions]);
+
+  // Unique subjects
+  const subjects = useMemo(() => {
+    const set = new Set<string>();
+    publishedSubmissions.forEach((s) => {
+      if (s.exam_subject) set.add(s.exam_subject.trim());
+    });
+    return Array.from(set);
+  }, [publishedSubmissions]);
+
+  // Filter and sort chronologically
+  const points: TrajectoryPoint[] = useMemo(() => {
+    const filtered =
+      selectedSubject === "ALL"
+        ? publishedSubmissions
+        : publishedSubmissions.filter(
+            (s) => s.exam_subject && s.exam_subject.trim() === selectedSubject
+          );
+
+    return filtered
+      .slice()
+      .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
+      .map((sub, idx) => {
+        const rawMarks = Number(sub.total_awarded_marks ?? 0);
+        const maxMarks = Number(sub.max_marks ?? 100);
+        const pct =
+          sub.percentage !== null && sub.percentage !== undefined
+            ? Number(sub.percentage)
+            : maxMarks > 0
+            ? Number(((rawMarks / maxMarks) * 100).toFixed(1))
+            : 0;
+
+        const reval = sub.revaluation;
+        const isRevalResolved = reval && reval.status === "RESOLVED";
+        const isMarksRevised =
+          isRevalResolved && (reval.decision === "MARKS_REVISED" || sub.is_manual_override === 1);
+        const isMarksUpheld = isRevalResolved && reval.decision === "MARKS_UPHELD";
+        const isRevalPending =
+          reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
+
+        return {
+          index: idx,
+          id: sub.id,
+          title: sub.exam_title || `Exam #${idx + 1}`,
+          subject: sub.exam_subject || "General",
+          dateStr: sub.created_at
+            ? new Date(sub.created_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              })
+            : `Paper ${idx + 1}`,
+          fullDateStr: sub.created_at
+            ? new Date(sub.created_at).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : "Recorded",
+          marks: rawMarks,
+          maxMarks: maxMarks,
+          percentage: pct,
+          reval,
+          isMarksRevised,
+          isMarksUpheld,
+          isRevalPending,
+          revalNotes: reval?.reviewer_notes,
+          rawSubmission: sub,
+        };
+      });
+  }, [publishedSubmissions, selectedSubject]);
+
+  // Metrics
+  const count = points.length;
+  const avgPct =
+    count > 0
+      ? (points.reduce((acc, p) => acc + p.percentage, 0) / count).toFixed(1)
+      : null;
+  const maxPct = count > 0 ? Math.max(...points.map((p) => p.percentage)).toFixed(1) : null;
+  const revalUpgradesCount = points.filter((p) => p.isMarksRevised).length;
+
+  // Trend diff between first and last or recent 2
+  const trendDiff =
+    count >= 2
+      ? Number((points[count - 1].percentage - points[0].percentage).toFixed(1))
+      : null;
+
+  // Active point defaults to the latest exam
+  const currentActive =
+    activePointIndex !== null && points[activePointIndex]
+      ? points[activePointIndex]
+      : points[points.length - 1] || null;
+
+  // SVG Coordinates calculation
+  const svgWidth = 650;
+  const svgHeight = 220;
+  const padTop = 25;
+  const padBottom = 35;
+  const padLeft = 45;
+  const padRight = 30;
+  const plotW = svgWidth - padLeft - padRight;
+  const plotH = svgHeight - padTop - padBottom;
+
+  const getY = (pct: number) => {
+    const clamped = Math.max(0, Math.min(100, pct));
+    return padTop + (1 - clamped / 100) * plotH;
+  };
+
+  const getX = (idx: number) => {
+    if (count <= 1) return padLeft + plotW / 2;
+    return padLeft + (idx / (count - 1)) * plotW;
+  };
+
+  // Build SVG path
+  const pathD = useMemo(() => {
+    if (count === 0) return "";
+    if (count === 1) {
+      const cx = getX(0);
+      const cy = getY(points[0].percentage);
+      return `M ${cx - 20} ${cy} L ${cx + 20} ${cy}`;
+    }
+    return points.reduce((acc, p, i) => {
+      const x = getX(i);
+      const y = getY(p.percentage);
+      if (i === 0) return `M ${x} ${y}`;
+      // Smooth cubic bezier
+      const prevX = getX(i - 1);
+      const prevY = getY(points[i - 1].percentage);
+      const cpX1 = prevX + (x - prevX) / 2;
+      const cpY1 = prevY;
+      const cpX2 = prevX + (x - prevX) / 2;
+      const cpY2 = y;
+      return `${acc} C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${x} ${y}`;
+    }, "");
+  }, [points, count]);
+
+  const areaD = useMemo(() => {
+    if (count < 2) return "";
+    const firstX = getX(0);
+    const lastX = getX(count - 1);
+    const bottomY = padTop + plotH;
+    return `${pathD} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
+  }, [pathD, count]);
+
+  // If no published submissions yet
+  if (publishedSubmissions.length === 0) {
+    return (
+      <FeatureCard className="p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-ink">
+                Marks Trajectory & Academic Growth
+              </h2>
+              <p className="text-xs text-ink-muted">
+                Continuous performance trendline across evaluation rounds
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline self-start sm:self-auto">
+            Awaiting First Graded Paper
+          </span>
+        </div>
+
+        <div className="py-8 text-center space-y-2 max-w-md mx-auto">
+          <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+            <LineChart className="h-5 w-5" />
+          </div>
+          <p className="text-xs text-ink font-semibold">No performance trajectory plotted yet</p>
+          <p className="text-xs text-ink-muted leading-relaxed">
+            As soon as faculty publish your graded answer sheets, PaperGrade will plot your score trajectory, subject benchmarks, and dynamic revaluation upgrades right here.
+          </p>
+        </div>
+      </FeatureCard>
+    );
+  }
+
+  return (
+    <FeatureCard className="p-5 sm:p-6 space-y-5">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-hairline">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+            <h2 className="text-base font-bold text-ink">
+              Marks Trajectory & Academic Growth
+            </h2>
+            {revalUpgradesCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Sparkles className="h-3 w-3 text-emerald-600" />
+                {revalUpgradesCount} Revaluation {revalUpgradesCount === 1 ? "Upgrade" : "Upgrades"}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-ink-muted">
+            Tracking performance across {count} verified {count === 1 ? "exam" : "exams"} • Dynamically reflecting faculty revaluations
+          </p>
+        </div>
+
+        {/* Quick Performance Badges */}
+        <div className="flex flex-wrap items-center gap-2">
+          {trendDiff !== null && (
+            <div
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                trendDiff > 0
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : trendDiff < 0
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-slate-50 text-slate-700 border-slate-200"
+              }`}
+            >
+              {trendDiff > 0 ? (
+                <TrendingUp className="h-3.5 w-3.5" />
+              ) : trendDiff < 0 ? (
+                <TrendingDown className="h-3.5 w-3.5" />
+              ) : (
+                <Minus className="h-3.5 w-3.5" />
+              )}
+              <span>
+                {trendDiff > 0
+                  ? `+${trendDiff}% Growth`
+                  : trendDiff < 0
+                  ? `${trendDiff}% Shift`
+                  : "Steady"}
+              </span>
+            </div>
+          )}
+
+          {avgPct !== null && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+              <Award className="h-3.5 w-3.5 text-purple-600" />
+              <span>Avg: {avgPct}%</span>
+            </div>
+          )}
+
+          {maxPct !== null && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+              <Sparkles className="h-3.5 w-3.5 text-sky-600" />
+              <span>Peak: {maxPct}%</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Subject Filter Pills (if multiple subjects exist) */}
+      {subjects.length > 1 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedSubject("ALL");
+              setActivePointIndex(null);
+            }}
+            className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer shrink-0 ${
+              selectedSubject === "ALL"
+                ? "bg-primary text-white shadow-2xs"
+                : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-muted hover:text-ink"
+            }`}
+          >
+            All Subjects ({publishedSubmissions.length})
+          </button>
+          {subjects.map((subj) => {
+            const subjCount = publishedSubmissions.filter((s) => s.exam_subject === subj).length;
+            const isSelected = selectedSubject === subj;
+            return (
+              <button
+                key={subj}
+                type="button"
+                onClick={() => {
+                  setSelectedSubject(subj);
+                  setActivePointIndex(null);
+                }}
+                className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer shrink-0 ${
+                  isSelected
+                    ? "bg-primary text-white shadow-2xs"
+                    : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-muted hover:text-ink"
+                }`}
+              >
+                {subj} ({subjCount})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* SVG Canvas Container */}
+      <div className="relative w-full overflow-hidden rounded-lg border border-hairline bg-surface p-2 sm:p-4">
+        <svg
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          className="w-full h-44 sm:h-56 select-none overflow-visible"
+        >
+          <defs>
+            <linearGradient id="pgMarksTrajectoryGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+            </linearGradient>
+            <filter id="pgPointGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.25" />
+            </filter>
+          </defs>
+
+          {/* Grid lines and Y-axis percentage labels */}
+          {[100, 75, 50, 25, 0].map((pct) => {
+            const y = getY(pct);
+            return (
+              <g key={pct}>
+                <line
+                  x1={padLeft}
+                  y1={y}
+                  x2={svgWidth - padRight}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                  strokeDasharray={pct === 0 ? "none" : "3 3"}
+                />
+                <text
+                  x={padLeft - 8}
+                  y={y + 3.5}
+                  textAnchor="end"
+                  className="fill-slate-400 font-mono text-[9px] select-none"
+                >
+                  {pct}%
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Dotted Average Benchmark Line */}
+          {avgPct !== null && count >= 2 && (
+            <g>
+              <line
+                x1={padLeft}
+                y1={getY(Number(avgPct))}
+                x2={svgWidth - padRight}
+                y2={getY(Number(avgPct))}
+                stroke="#a855f7"
+                strokeWidth="1.5"
+                strokeDasharray="4 4"
+                strokeOpacity="0.75"
+              />
+              <text
+                x={svgWidth - padRight + 4}
+                y={getY(Number(avgPct)) + 3}
+                className="fill-purple-600 font-mono text-[8.5px] font-bold"
+              >
+                Avg {avgPct}%
+              </text>
+            </g>
+          )}
+
+          {/* Area Fill */}
+          {areaD && <path d={areaD} fill="url(#pgMarksTrajectoryGrad)" />}
+
+          {/* Polyline / Bezier Curve */}
+          {pathD && (
+            <path
+              d={pathD}
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth="2.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* Data Nodes */}
+          {points.map((p, idx) => {
+            const cx = getX(idx);
+            const cy = getY(p.percentage);
+            const isSelected = currentActive?.id === p.id;
+
+            return (
+              <g
+                key={p.id}
+                onClick={() => setActivePointIndex(idx)}
+                className="cursor-pointer group"
+              >
+                {/* Larger transparent touch/hover target */}
+                <circle cx={cx} cy={cy} r="18" fill="transparent" />
+
+                {/* Revaluation Upgraded Special Halo Marker */}
+                {p.isMarksRevised && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={isSelected ? "13" : "10"}
+                    fill="#10b981"
+                    fillOpacity="0.22"
+                    className="animate-pulse"
+                  />
+                )}
+
+                {/* Selection Ring */}
+                {isSelected && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r="9"
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="2"
+                    strokeDasharray="2 2"
+                    className="animate-spin origin-center"
+                    style={{ transformOrigin: `${cx}px ${cy}px` }}
+                  />
+                )}
+
+                {/* Node Center Dot */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={isSelected ? "6" : "5"}
+                  fill={
+                    p.isMarksRevised
+                      ? "#10b981"
+                      : p.isRevalPending
+                      ? "#f59e0b"
+                      : "#2563eb"
+                  }
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  filter="url(#pgPointGlow)"
+                  className="transition-all duration-150 group-hover:r-[7px]"
+                />
+
+                {/* Score Label above node */}
+                <text
+                  x={cx}
+                  y={cy - 10}
+                  textAnchor="middle"
+                  className={`font-mono text-[10px] font-bold select-none ${
+                    p.isMarksRevised
+                      ? "fill-emerald-700"
+                      : isSelected
+                      ? "fill-primary font-black text-[11px]"
+                      : "fill-slate-700"
+                  }`}
+                >
+                  {p.percentage}%
+                </text>
+
+                {/* X-axis Date/Exam Label */}
+                <text
+                  x={cx}
+                  y={svgHeight - 12}
+                  textAnchor="middle"
+                  className={`font-sans text-[9px] select-none ${
+                    isSelected ? "fill-ink font-bold" : "fill-slate-500"
+                  }`}
+                >
+                  {p.dateStr}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Legend Footer */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-1 border-t border-hairline/80 text-[11px] text-ink-muted">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-primary/20" />
+              <span>Standard Evaluation</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+              <span className="font-medium text-emerald-800">Revaluation Upgraded</span>
+            </span>
+            {points.some((p) => p.isRevalPending) && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20" />
+                <span>Revaluation In Review</span>
+              </span>
+            )}
+            {count >= 2 && (
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 border-t-2 border-dashed border-purple-500" />
+                <span>Average Line</span>
+              </span>
+            )}
+          </div>
+          <span className="text-[10.5px] text-ink-muted italic">
+            Tap any node to view exam details
+          </span>
+        </div>
+      </div>
+
+      {/* Selected Point Detailed Card */}
+      {currentActive && (
+        <div className="rounded-lg border border-hairline bg-canvas-soft/80 p-3.5 sm:p-4 space-y-2.5 transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-ink">
+                  {currentActive.title}
+                </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-surface border border-hairline text-ink-muted font-medium">
+                  {currentActive.subject}
+                </span>
+                {currentActive.isMarksRevised && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Marks Upgraded via Revaluation
+                  </span>
+                )}
+                {currentActive.isMarksUpheld && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+                    <ShieldCheck className="h-3 w-3" />
+                    Marks Upheld
+                  </span>
+                )}
+                {currentActive.isRevalPending && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                    <RotateCcw className="h-3 w-3 animate-spin" />
+                    Appeal Under Review
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-ink-muted">
+                Evaluated on {currentActive.fullDateStr}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 self-start sm:self-auto">
+              <div className="text-right">
+                <div className="text-xs font-bold text-ink">
+                  {currentActive.marks}{" "}
+                  <span className="text-ink-muted font-normal">/ {currentActive.maxMarks}</span>
+                </div>
+                <div className="text-[11px] font-mono font-semibold text-primary">
+                  {currentActive.percentage}% Score
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onInspectPaper(currentActive.rawSubmission)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface hover:bg-white border border-hairline text-xs font-semibold text-ink shadow-2xs hover:border-primary/50 transition-all cursor-pointer"
+              >
+                <span>Inspect Sheet</span>
+                <ChevronRight className="h-3.5 w-3.5 text-ink-muted" />
+              </button>
+            </div>
+          </div>
+
+          {/* Revaluation Remarks Callout if applicable */}
+          {currentActive.isMarksRevised && (
+            <div className="flex items-start gap-2 p-2.5 rounded-md bg-emerald-50/90 border border-emerald-200/90 text-xs text-emerald-900">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-semibold text-emerald-950">
+                  Revaluation Review Complete
+                </div>
+                <div className="text-[11px] text-emerald-800 leading-relaxed">
+                  {currentActive.revalNotes
+                    ? `Senior faculty notes: "${currentActive.revalNotes}"`
+                    : "The grading marks for this examination were officially revised following senior faculty re-evaluation. Your trajectory automatically incorporates the updated score."}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </FeatureCard>
+  );
+}
 
 export default function StudentPortalPage() {
   const router = useRouter();
@@ -405,6 +1016,18 @@ export default function StudentPortalPage() {
           </div>
         </div>
       </div>
+
+      {/* Dynamic Academic Marks Trajectory & Revaluation Upgrade Graph */}
+      <StudentMarksTrajectory
+        submissions={submissions}
+        onInspectPaper={(sub) => {
+          if (sub.is_document_purged) {
+            handleOpenBreakdownModal(sub);
+          } else {
+            router.push(`/student/submissions/${sub.id}`);
+          }
+        }}
+      />
 
       {/* Active Exam Submission Window Card */}
       {activeExam && (

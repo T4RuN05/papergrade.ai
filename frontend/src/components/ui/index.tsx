@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
 export interface ButtonPrimaryProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
@@ -186,7 +186,10 @@ export interface FormInputProps extends React.InputHTMLAttributes<HTMLInputEleme
   error?: string;
 }
 
-export function FormInput({ label, error, className = "", id, ...props }: FormInputProps) {
+export function FormInput({ label, error, className = "", id, type, ...props }: FormInputProps) {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+  const actualType = isPassword ? (showPassword ? "text" : "password") : type;
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
 
   return (
@@ -196,13 +199,32 @@ export function FormInput({ label, error, className = "", id, ...props }: FormIn
           {label}
         </label>
       )}
-      <input
-        id={inputId}
-        className={`w-full rounded-xs border border-[#dddddd] bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:shadow-notion-card transition-all ${
-          error ? "border-red-400 focus:border-red-500" : ""
-        } ${className}`}
-        {...props}
-      />
+      <div className="relative w-full">
+        <input
+          id={inputId}
+          type={actualType}
+          className={`w-full rounded-xs border border-[#dddddd] bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:shadow-notion-card transition-all ${
+            isPassword ? "pr-10" : ""
+          } ${error ? "border-red-400 focus:border-red-500" : ""} ${className}`}
+          {...props}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            tabIndex={-1}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink transition-colors cursor-pointer rounded-xs focus:outline-hidden"
+            title={showPassword ? "Hide password" : "Show password"}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4 text-ink-muted hover:text-ink" />
+            ) : (
+              <Eye className="h-4 w-4 text-ink-muted hover:text-ink" />
+            )}
+          </button>
+        )}
+      </div>
       {error && <span className="text-xs text-red-500">{error}</span>}
     </div>
   );

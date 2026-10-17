@@ -76,12 +76,14 @@ export function DocumentViewer({
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const [hoveredAnswerId, setHoveredAnswerId] = useState<string | null>(null);
   const [imageError, setImageError] = useState<boolean>(false);
+  const [isPageImageLoading, setIsPageImageLoading] = useState<boolean>(true);
 
   // Active page is controlled if provided by parent, else local
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalPage;
 
   useEffect(() => {
     setImageError(false);
+    setIsPageImageLoading(true);
   }, [currentPage, submissionId]);
 
   const setCurrentPage = (p: number | ((prev: number) => number)) => {
@@ -637,7 +639,7 @@ export function DocumentViewer({
           className="relative transition-transform origin-top duration-150 shadow-md rounded-sm border border-hairline/80 inline-block bg-white max-w-full"
           style={{ transform: `scale(${zoomScale})` }}
         >
-          {/* Base Page Image or Retention Purged Notice */}
+          {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
           {imageError ? (
             <div className="flex flex-col items-center justify-center p-10 sm:p-16 text-center max-w-[850px] w-full min-h-[480px] space-y-3 bg-surface rounded-sm">
               <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
@@ -649,14 +651,47 @@ export function DocumentViewer({
               </p>
             </div>
           ) : (
-            <img
-              src={pageImageUrl}
-              alt={`Student Page ${currentPage}`}
-              className="block max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm"
-              loading="eager"
-              onError={() => setImageError(true)}
-            />
+            <>
+              {/* Cloudinary Paper Fetching Loading Screen */}
+              {isPageImageLoading && (
+                <div className="flex flex-col items-center justify-center p-8 sm:p-16 text-center max-w-[850px] w-[85vw] sm:w-[680px] md:w-[780px] min-h-[480px] sm:min-h-[640px] bg-white rounded-sm space-y-4 shadow-2xs">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-xs animate-pulse">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                  <div className="space-y-1.5 max-w-xs sm:max-w-sm">
+                    <h3 className="text-sm sm:text-base font-bold text-ink">
+                      Fetching Examination Sheet...
+                    </h3>
+                    <p className="text-xs text-ink-muted leading-relaxed">
+                      Rendering Page {currentPage} of {Math.max(1, pageCount)} from secure paper vault. Please wait a moment.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-ink-muted bg-canvas-soft px-3 py-1 rounded-full border border-hairline">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+                    <span>Synchronizing evaluation overlays</span>
+                  </div>
+                </div>
+              )}
+
+              <img
+                src={pageImageUrl}
+                alt={`Student Page ${currentPage}`}
+                className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-200 ${
+                  isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
+                }`}
+                loading="eager"
+                onLoad={() => setIsPageImageLoading(false)}
+                onError={() => {
+                  setIsPageImageLoading(false);
+                  setImageError(true);
+                }}
+              />
+            </>
           )}
+
+          {/* Only render teacher score stamp and annotation overlays once the image has completely loaded */}
+          {!isPageImageLoading && !imageError && (
+            <>
 
           {/* Page 1 Teacher Score Stamp (Clean Red Ink Stamp Aesthetic) */}
           {!hideScoreStamp && currentPage === 1 && totalMax > 0 && totalAwardedMarks !== undefined && totalAwardedMarks !== null && (
@@ -1025,6 +1060,8 @@ export function DocumentViewer({
               </div>
             );
           })}
+            </>
+          )}
         </div>
       </div>
     </div>
