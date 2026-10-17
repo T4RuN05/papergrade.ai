@@ -3,6 +3,8 @@ import json
 import threading
 from pathlib import Path
 from typing import Optional, List
+from datetime import datetime, timezone, timedelta
+import random
 from backend.app.config import settings
 from backend.app.database import get_db, get_iso_now
 from backend.app.services.storage import get_storage_service
@@ -30,7 +32,11 @@ class PersistentQueueWorker:
             t = threading.Thread(target=self._run_worker_loop, args=(i,), daemon=True, name=f"QueueWorker-{i}")
             t.start()
             self._threads.append(t)
-        print(f"[QueueWorker] Background worker pool started with {self.num_workers} parallel workers.")
+        # Background watchdog to prevent infinite stuck jobs
+        watchdog = threading.Thread(target=self._run_watchdog_loop, daemon=True, name="QueueWorker-Watchdog")
+        watchdog.start()
+        self._threads.append(watchdog)
+        print(f"[QueueWorker] Background worker pool started with {self.num_workers} parallel workers and 1 watchdog.")
 
     def stop(self):
         self.running = False
@@ -39,23 +45,32 @@ class PersistentQueueWorker:
         self._threads = []
         print("[QueueWorker] Background worker pool stopped.")
 
-    def recover_stalled_jobs(self):
+    def recover_stalled_jobs(self, stale_only: bool = False, max_stale_minutes: int = 5):
         """
-        On worker startup or restart, reset any jobs stuck in 'PROCESSING'
-        back to 'QUEUED' so they are not abandoned. Also resume any batches
-        that were paused due to quota.
+        On worker startup or periodic watchdog, reset jobs stuck in 'PROCESSING'
+        back to 'QUEUED' so they are not abandoned.
+        When stale_only=True, only resets jobs older than max_stale_minutes.
         """
         now = get_iso_now()
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-            UPDATE submissions
-            SET status = 'QUEUED', updated_at = ?
-            WHERE status = 'PROCESSING'
-            """, (now,))
+            if stale_only:
+                cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max_stale_minutes)).isoformat()
+                cursor.execute("""
+                UPDATE submissions
+                SET status = 'QUEUED', retry_count = retry_count + 1, updated_at = ?
+                WHERE status = 'PROCESSING' AND (updated_at IS NULL OR updated_at < ?)
+                """, (now, cutoff))
+            else:
+                cursor.execute("""
+                UPDATE submissions
+                SET status = 'QUEUED', updated_at = ?
+                WHERE status = 'PROCESSING'
+                """, (now,))
             sub_count = cursor.rowcount
             if sub_count > 0:
-                print(f"[QueueWorker] Recovered {sub_count} stalled job(s) from previous run back to QUEUED.")
+                tag = "Watchdog recovered" if stale_only else "Recovered"
+                print(f"[QueueWorker] {tag} {sub_count} stalled job(s) back to QUEUED.")
 
             cursor.execute("""
             UPDATE batches
@@ -65,6 +80,15 @@ class PersistentQueueWorker:
             batch_count = cursor.rowcount
             if batch_count > 0:
                 print(f"[QueueWorker] Resumed {batch_count} quota-paused batch(es) back to PROCESSING.")
+
+    def _run_watchdog_loop(self):
+        """Runs every 60 seconds to detect and recover stuck jobs in PROCESSING."""
+        while self.running:
+            time.sleep(60.0)
+            try:
+                self.recover_stalled_jobs(stale_only=True, max_stale_minutes=5)
+            except Exception as e:
+                print(f"[QueueWorker-Watchdog] Error in watchdog loop: {e}")
 
     def _run_worker_loop(self, worker_id: int):
         # Stagger startup slightly so workers don't query simultaneously on startup
@@ -210,26 +234,50 @@ class PersistentQueueWorker:
             max_job_retries = 3
 
             now = get_iso_now()
-            with get_db() as conn:
-                cursor = conn.cursor()
-                if new_retries < max_job_retries:
-                    # Retry after backoff
-                    cursor.execute("""
-                    UPDATE submissions
-                    SET status = 'QUEUED', retry_count = ?, error_message = ?, updated_at = ?
-                    WHERE id = ?
-                    """, (new_retries, f"Retry {new_retries}: {err_msg[:200]}", now, submission_id))
-                else:
-                    # Mark FAILED
-                    cursor.execute("""
-                    UPDATE submissions
-                    SET status = 'FAILED', retry_count = ?, error_message = ?, updated_at = ?
-                    WHERE id = ?
-                    """, (new_retries, f"Failed: {err_msg[:300]}", now, submission_id))
+            # Resilient recovery with retry loop to survive temporary connection exhaustion
+            for attempt in range(5):
+                try:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        # Check if answers were already evaluated and saved (idempotency guard)
+                        cursor.execute("SELECT COUNT(*) as cnt FROM answers WHERE submission_id = ?", (submission_id,))
+                        ans_row = cursor.fetchone()
+                        ans_cnt = ans_row["cnt"] if ans_row else 0
 
-            if batch_id:
-                self._update_batch_progress(batch_id)
-            self._update_exam_evaluation_status(exam_id)
+                        if ans_cnt > 0:
+                            # Submission actually succeeded in Gemini grading; preserve evaluated status
+                            print(f"[QueueWorker-{worker_id}] Submission {submission_id} has {ans_cnt} evaluated answers in DB. Preserving evaluated state despite post-grading error: {err_msg[:100]}")
+                            cursor.execute("""
+                            UPDATE submissions
+                            SET status = 'NEEDS_REVIEW', error_message = ?, updated_at = ?
+                            WHERE id = ?
+                            """, (f"Graded with post-process warning: {err_msg[:150]}", now, submission_id))
+                        elif new_retries < max_job_retries:
+                            # Retry after backoff
+                            cursor.execute("""
+                            UPDATE submissions
+                            SET status = 'QUEUED', retry_count = ?, error_message = ?, updated_at = ?
+                            WHERE id = ?
+                            """, (new_retries, f"Retry {new_retries}: {err_msg[:200]}", now, submission_id))
+                        else:
+                            # Mark FAILED
+                            cursor.execute("""
+                            UPDATE submissions
+                            SET status = 'FAILED', retry_count = ?, error_message = ?, updated_at = ?
+                            WHERE id = ?
+                            """, (new_retries, f"Failed: {err_msg[:300]}", now, submission_id))
+                        break
+                except Exception as db_err:
+                    if attempt == 4:
+                        print(f"[QueueWorker-{worker_id}] CRITICAL: Could not persist failure state for {submission_id} after 5 DB retries: {db_err}")
+                    time.sleep(0.2 * (attempt + 1) + random.uniform(0.05, 0.15))
+
+            try:
+                if batch_id:
+                    self._update_batch_progress(batch_id)
+                self._update_exam_evaluation_status(exam_id)
+            except Exception:
+                pass
             return True
 
     def _update_exam_evaluation_status(self, exam_id: str):

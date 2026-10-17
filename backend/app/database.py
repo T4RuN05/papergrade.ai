@@ -99,7 +99,7 @@ def get_pg_pool():
 
                 _pg_pool = ThreadedConnectionPool(
                     minconn=1,
-                    maxconn=10,
+                    maxconn=25,
                     dsn=dsn,
                     cursor_factory=RealDictCursor
                 )
@@ -108,7 +108,22 @@ def get_pg_pool():
 def _get_pooled_pg_connection():
     pool = get_pg_pool()
     import psycopg2
-    raw = pool.getconn()
+    from psycopg2.pool import PoolError
+    import time
+    import random
+
+    # Resilient acquire with retry loop to survive temporary traffic bursts
+    raw = None
+    max_acquire_attempts = 10
+    for attempt in range(max_acquire_attempts):
+        try:
+            raw = pool.getconn()
+            break
+        except PoolError as pe:
+            if attempt == max_acquire_attempts - 1:
+                raise PoolError(f"connection pool exhausted after {max_acquire_attempts} retries: {pe}")
+            time.sleep(0.05 * (attempt + 1) + random.uniform(0.01, 0.05))
+
     try:
         if raw.closed != 0:
             raise psycopg2.OperationalError("Closed")
@@ -153,10 +168,15 @@ class PostgresConnectionWrapper:
         return cur
 
     def commit(self):
-        return self._conn.commit()
+        if self._conn and self._conn.closed == 0:
+            return self._conn.commit()
 
     def rollback(self):
-        return self._conn.rollback()
+        if self._conn and self._conn.closed == 0:
+            try:
+                return self._conn.rollback()
+            except Exception:
+                pass
 
     def close(self):
         if self._closed:

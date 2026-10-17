@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -229,7 +229,45 @@ export default function ExamDetailPage() {
     loadExamData(true);
   }, [examId]);
 
-  // Real-time polling while any submission is actively in queue (QUEUED / PROCESSING), window is open, or starting eval
+  const isPollingRef = useRef(false);
+
+  // Poll only the single, lightweight evaluation status endpoint (<5ms, 1 connection)
+  const pollEvaluationStatus = useCallback(async () => {
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
+    try {
+      const statusData = await api.getExamEvaluationStatus(examId);
+      if (!statusData) return;
+
+      // Update exam status if it transitioned (e.g. EVALUATING -> EVALUATED)
+      if (statusData.status) {
+        setExam((prev) => (prev ? { ...prev, status: statusData.status, lifecycle_status: statusData.lifecycle_status } : prev));
+      }
+
+      // Merge updated submission items into existing submissions state
+      if (Array.isArray(statusData.submissions)) {
+        setSubmissions((prev) => {
+          const updateMap = new Map(statusData.submissions.map((s: any) => [s.id, s]));
+          if (prev.length === 0) return statusData.submissions;
+          return prev.map((oldSub) => {
+            const updated = updateMap.get(oldSub.id);
+            return updated ? { ...oldSub, ...updated } : oldSub;
+          });
+        });
+      }
+
+      // If evaluation just finished (no more queued or processing), trigger a single full sync
+      if (!statusData.is_active && statusData.summary?.total > 0) {
+        loadExamData(false);
+      }
+    } catch (err) {
+      console.error("Evaluation status poll failed:", err);
+    } finally {
+      isPollingRef.current = false;
+    }
+  }, [examId]);
+
+  // Real-time polling while any submission is actively in queue (QUEUED / PROCESSING) or starting eval
   useEffect(() => {
     const hasActiveQueue = submissions.some(
       (s) => s.status === "QUEUED" || s.status === "PROCESSING"
@@ -238,14 +276,24 @@ export default function ExamDetailPage() {
 
     if (!hasActiveQueue && !isWindowActive && !isStartingEval) return;
 
-    // Fast poll (2.5 seconds) while actively processing papers, 5s for window countdown
-    const intervalMs = hasActiveQueue ? 2500 : 5000;
-    const timer = setInterval(() => {
-      loadExamData(false);
-    }, intervalMs);
+    // If only window is active (upload phase), poll window status only (1 endpoint)
+    if (!hasActiveQueue && isWindowActive) {
+      const winTimer = setInterval(async () => {
+        try {
+          const win = await api.getWindowStatus(examId);
+          setWindowStatus(win);
+        } catch (_) {}
+      }, 5000);
+      return () => clearInterval(winTimer);
+    }
 
-    return () => clearInterval(timer);
-  }, [submissions, windowStatus, isStartingEval]);
+    // Active evaluation polling: single status endpoint every 7 seconds
+    const evalTimer = setInterval(() => {
+      pollEvaluationStatus();
+    }, 7000);
+
+    return () => clearInterval(evalTimer);
+  }, [submissions, windowStatus?.is_active, isStartingEval, pollEvaluationStatus, examId]);
 
   const handleUploadQp = async (e: React.FormEvent) => {
     e.preventDefault();

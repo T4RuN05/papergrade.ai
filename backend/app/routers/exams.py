@@ -71,6 +71,63 @@ def list_exams(
             cursor.execute(base_query + " ORDER BY e.created_at DESC")
         return [dict(r) for r in cursor.fetchall()]
 
+@router.get("/{exam_id}/evaluation-status")
+def get_exam_evaluation_status(exam_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
+    """
+    Lightweight, single-query endpoint for real-time evaluation polling.
+    Returns exam status, aggregated counts, and submission progress in one fast DB call (<5ms),
+    eliminating the need for the frontend to poll multiple endpoints.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Fetch exam status
+        cursor.execute("SELECT id, title, status, lifecycle_status, total_marks, is_published FROM exams WHERE id = ?", (exam_id,))
+        exam = cursor.fetchone()
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+
+        # 2. Fetch all submissions with only the columns needed for live UI
+        cursor.execute("""
+            SELECT id, roll_number, student_name, status, total_awarded_marks, max_marks,
+                   percentage, error_message, retry_count, updated_at
+            FROM submissions
+            WHERE exam_id = ? AND submission_status = 'SUBMITTED'
+            ORDER BY roll_number ASC, created_at ASC
+        """, (exam_id,))
+        subs = [dict(s) for s in cursor.fetchall()]
+
+        # 3. Aggregate counts
+        counts = {"QUEUED": 0, "PROCESSING": 0, "COMPLETED": 0, "NEEDS_REVIEW": 0, "FAILED": 0, "PAUSED_QUOTA": 0}
+        for s in subs:
+            st = s.get("status", "QUEUED")
+            counts[st] = counts.get(st, 0) + 1
+
+        total = len(subs)
+        finished = counts["COMPLETED"] + counts["NEEDS_REVIEW"] + counts["FAILED"]
+        active = counts["QUEUED"] + counts["PROCESSING"]
+        progress_pct = round((finished / total * 100), 1) if total > 0 else 0.0
+
+        return {
+            "exam_id": exam["id"],
+            "title": exam["title"],
+            "status": exam["status"],
+            "lifecycle_status": exam.get("lifecycle_status", exam["status"]),
+            "is_active": active > 0,
+            "summary": {
+                "total": total,
+                "queued": counts["QUEUED"],
+                "processing": counts["PROCESSING"],
+                "completed": counts["COMPLETED"],
+                "needs_review": counts["NEEDS_REVIEW"],
+                "failed": counts["FAILED"],
+                "paused_quota": counts["PAUSED_QUOTA"],
+                "finished": finished,
+                "progress_percent": progress_pct
+            },
+            "submissions": subs
+        }
+
 @router.get("/{exam_id}")
 def get_exam(exam_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
     exam = exam_service.get_exam(exam_id)

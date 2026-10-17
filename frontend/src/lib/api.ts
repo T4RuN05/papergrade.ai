@@ -686,6 +686,22 @@ export const api = {
     return res.json();
   },
 
+  async getExamEvaluationStatus(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/exams/${id}/evaluation-status`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const fallback = await fetch(`${API_BASE}/api/exams/${id}/evaluation-status`, {
+        headers: { ...getAuthHeaders() },
+        cache: "no-store",
+      });
+      if (!fallback.ok) throw new Error("Failed to fetch exam evaluation status");
+      return fallback.json();
+    }
+    return res.json();
+  },
+
   async createExam(formData: FormData): Promise<Exam> {
     const res = await fetch(`${API_BASE}/api/v1/exams`, {
       method: "POST",
