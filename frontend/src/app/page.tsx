@@ -25,6 +25,7 @@ import {
   Eye,
   AlertCircle,
   HelpCircle,
+  Loader2,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import {
@@ -67,18 +68,22 @@ export default function LandingPage() {
 
   if (isRedirectingStudent) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3">
-        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden shrink-0 shadow-xs animate-pulse">
+      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-5 animate-in fade-in duration-300">
+        <div className="relative group">
+          <div className="absolute -inset-3 rounded-3xl bg-gradient-to-r from-primary/20 via-indigo-500/15 to-purple-500/20 blur-2xl opacity-75 animate-pulse" />
           <Image
-            src="/logo-icon.png"
+            src="/landing-logo.png"
             alt="PaperGrade AI"
-            width={56}
-            height={56}
-            className="h-14 w-14 object-contain"
+            width={280}
+            height={280}
+            className="relative w-48 h-48 sm:w-60 sm:h-60 md:w-72 md:h-72 object-contain drop-shadow-md"
             priority
           />
         </div>
-        <p className="text-xs text-ink-muted font-medium">Opening student dashboard...</p>
+        <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-ink-secondary">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <span>Opening Student Dashboard...</span>
+        </div>
       </div>
     );
   }

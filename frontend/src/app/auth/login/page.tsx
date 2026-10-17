@@ -16,7 +16,7 @@ import {
   ArrowLeft,
   Lock,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { ButtonPrimary, ButtonUtility, FormInput, FeatureCard } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
@@ -31,6 +31,8 @@ export default function LoginPage() {
 
   // Primary Login state
   const [viewMode, setViewMode] = useState<AuthViewMode>("LOGIN");
+  const [loginRole, setLoginRole] = useState<"STUDENT" | "STAFF">("STUDENT");
+  const [isStandalone, setIsStandalone] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,6 +48,31 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
+
+  // Check if user is already authenticated or launched in standalone PWA
+  useEffect(() => {
+    const token = getAuthToken();
+    const storedUser = getStoredUser();
+    if (token && storedUser) {
+      if (storedUser.role === "STUDENT") {
+        router.replace("/student/portal");
+        return;
+      } else {
+        router.replace("/overview");
+        return;
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      const isPwa =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+      setIsStandalone(Boolean(isPwa));
+      if (isPwa) {
+        setLoginRole("STUDENT");
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     const handleBeforeInstall = (e: Event) => {
@@ -66,6 +93,36 @@ export default function LoginPage() {
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, [toast]);
+
+  const handleStudentAccessClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const token = getAuthToken();
+    const storedUser = getStoredUser();
+
+    if (token && storedUser?.role === "STUDENT") {
+      startNavigationProgress();
+      router.push("/student/portal");
+      return;
+    }
+
+    // Activate student sign-in mode & focus input
+    setLoginRole("STUDENT");
+    setViewMode("LOGIN");
+    toast.info("Enter your Student Roll Number and Password to access your portal.", {
+      title: "Student Sign-In Required",
+      duration: 5000,
+    });
+
+    const el = document.getElementById("login-identifier-input") as HTMLInputElement;
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-primary");
+      }, 2000);
+    }
+  };
 
   // Live polling for Branch Manager approval while awaiting
   useEffect(() => {
@@ -269,7 +326,9 @@ export default function LoginPage() {
           </div>
           <h1 className="text-xl font-bold tracking-tight text-ink">
             {viewMode === "LOGIN"
-              ? "Sign in to PaperGrade"
+              ? loginRole === "STUDENT"
+                ? "Student Portal Sign-In"
+                : "Staff & Faculty Sign-In"
               : viewMode === "FORGOT_REQUEST"
               ? "Reset Student Password"
               : viewMode === "AWAITING_APPROVAL"
@@ -278,7 +337,9 @@ export default function LoginPage() {
           </h1>
           <p className="text-xs text-ink-muted">
             {viewMode === "LOGIN"
-              ? "Enter your email, roll number, or student ID to continue."
+              ? loginRole === "STUDENT"
+                ? "Enter your student Roll Number and password to access your dashboard."
+                : "Enter your institutional email to access administrative operations."
               : viewMode === "FORGOT_REQUEST"
               ? "Requests are audited and approved by your assigned Branch Manager."
               : viewMode === "AWAITING_APPROVAL"
@@ -291,6 +352,40 @@ export default function LoginPage() {
           {/* VIEW: LOGIN FORM */}
           {viewMode === "LOGIN" && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {/* Role Toggle Tabs */}
+              <div className="grid grid-cols-2 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginRole("STUDENT");
+                    setError(null);
+                  }}
+                  className={`py-1.5 px-3 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    loginRole === "STUDENT"
+                      ? "bg-surface text-ink shadow-2xs font-bold"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  <span>Student Portal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginRole("STAFF");
+                    setError(null);
+                  }}
+                  className={`py-1.5 px-3 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    loginRole === "STAFF"
+                      ? "bg-surface text-ink shadow-2xs font-bold"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  <span>Faculty / Staff</span>
+                </button>
+              </div>
+
               {error && (
                 <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
                   <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
@@ -299,12 +394,13 @@ export default function LoginPage() {
               )}
 
               <FormInput
-                label="Email, Roll Number, or Student ID"
+                id="login-identifier-input"
+                label={loginRole === "STUDENT" ? "Student Roll Number" : "Email or Staff ID"}
                 type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. user@institute.edu or ROLL-101"
+                placeholder={loginRole === "STUDENT" ? "e.g. C25-BVI-001 or ROLL-101" : "e.g. user@institute.edu"}
               />
 
               <div className="space-y-1">
@@ -337,7 +433,7 @@ export default function LoginPage() {
                 className="w-full"
                 isLoading={loading}
               >
-                Sign In
+                {loginRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In as Staff"}
               </ButtonPrimary>
             </form>
           )}
@@ -502,14 +598,23 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Link
-              href="/student/portal"
+            <button
+              type="button"
+              onClick={handleStudentAccessClick}
               id="btn-student-pwa-portal"
-              className="w-full flex items-center justify-between p-3 rounded-lg border border-hairline bg-canvas-soft hover:bg-surface hover:border-primary/50 hover:shadow-2xs transition-all group text-left cursor-pointer"
+              className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all group text-left cursor-pointer ${
+                loginRole === "STUDENT"
+                  ? "bg-sky-50/50 border-sky-200/80 shadow-2xs"
+                  : "bg-canvas-soft border-hairline hover:bg-surface hover:border-primary/50 hover:shadow-2xs"
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary group-hover:scale-105 transition-transform shrink-0">
-                  <Smartphone className="h-4 w-4 text-primary" />
+                <div className={`flex h-8 w-8 items-center justify-center rounded-md transition-all shrink-0 ${
+                  loginRole === "STUDENT"
+                    ? "bg-primary text-white"
+                    : "bg-primary/10 text-primary group-hover:scale-105"
+                }`}>
+                  <Smartphone className="h-4 w-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -517,16 +622,18 @@ export default function LoginPage() {
                       Student PWA Web App
                     </span>
                     <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
-                      PWA
+                      {isStandalone ? "Installed PWA" : "PWA"}
                     </span>
                   </div>
                   <p className="text-[11px] text-ink-muted">
-                    Open mobile portal for answer sheets & scores
+                    {isStandalone
+                      ? "Running in installed app mode. Sign in to view scores"
+                      : "Open mobile portal for answer sheets & scores"}
                   </p>
                 </div>
               </div>
               <ArrowRight className="h-4 w-4 text-ink-muted group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
-            </Link>
+            </button>
 
             {deferredPrompt && (
               <button

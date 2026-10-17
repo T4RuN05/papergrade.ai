@@ -338,24 +338,24 @@ export default function BranchBatchesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <ButtonUtility
             onClick={() => setResetModalOpen(true)}
             size="sm"
-            className="w-full sm:w-auto justify-center shrink-0 relative"
+            className="w-full sm:w-auto justify-center relative truncate"
           >
-            <KeyRound className="h-3.5 w-3.5 mr-1.5" />
-            <span>Password Resets</span>
+            <KeyRound className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            <span className="truncate">Password Resets</span>
             {pendingResets.length > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
+              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse shrink-0">
                 {pendingResets.length}
               </span>
             )}
           </ButtonUtility>
 
-          <ButtonPrimary onClick={() => setCreateBatchOpen(true)} size="sm" className="w-full sm:w-auto justify-center shrink-0">
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Create Batch
+          <ButtonPrimary onClick={() => setCreateBatchOpen(true)} size="sm" className="w-full sm:w-auto justify-center truncate">
+            <Plus className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            <span className="truncate">Create Batch</span>
           </ButtonPrimary>
         </div>
       </div>
@@ -363,16 +363,16 @@ export default function BranchBatchesPage() {
       {/* Pending Reset Requests Warning Banner */}
       {pendingResets.length > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-amber-50/90 border border-amber-300 text-amber-900 shadow-2xs animate-in fade-in">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5 sm:mt-0">
               <KeyRound className="h-5 w-5" />
             </div>
-            <div>
-              <div className="font-bold text-xs sm:text-sm text-ink flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="font-bold text-xs sm:text-sm text-ink flex items-center gap-2 flex-wrap">
                 <span>{pendingResets.length} Student Password Reset Request{pendingResets.length > 1 ? "s" : ""} Pending Approval</span>
-                <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-ping shrink-0" />
               </div>
-              <p className="text-[11px] text-ink-muted">
+              <p className="text-[11px] text-ink-muted break-words">
                 Students are currently waiting live on their login screens for your approval.
               </p>
             </div>
@@ -934,11 +934,11 @@ export default function BranchBatchesPage() {
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4 text-xs">
-          <div className="flex items-center justify-between text-xs text-ink-muted">
-            <span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-ink-muted">
+            <span className="leading-relaxed">
               Review requests from students who forgot their passwords. Approving allows the student to immediately set a new password on their live screen.
             </span>
-            <span className="font-mono font-semibold text-ink shrink-0 ml-2">
+            <span className="font-mono font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[11px] shrink-0 self-start sm:self-auto">
               {pendingResets.length} Pending
             </span>
           </div>
@@ -955,13 +955,13 @@ export default function BranchBatchesPage() {
                 const isCompleted = req.status === "COMPLETED";
 
                 return (
-                  <div key={req.id} className="p-3.5 bg-surface hover:bg-canvas-soft/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
+                  <div key={req.id} className="p-3 sm:p-3.5 bg-surface hover:bg-canvas-soft/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1 min-w-0 w-full sm:w-auto">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-ink">
+                        <span className="font-bold text-sm text-ink truncate max-w-[200px] sm:max-w-none">
                           {req.student_name || "Enrolled Student"}
                         </span>
-                        <span className="font-mono text-xs text-ink-muted bg-canvas-soft border border-hairline px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs text-ink-muted bg-canvas-soft border border-hairline px-2 py-0.5 rounded shrink-0">
                           {req.roll_number}
                         </span>
                         <BadgePill
@@ -977,8 +977,8 @@ export default function BranchBatchesPage() {
                           }
                         />
                       </div>
-                      <div className="text-[11px] text-ink-muted flex items-center gap-2 sm:gap-3 flex-wrap">
-                        {req.student_email && <span>{req.student_email}</span>}
+                      <div className="text-[11px] text-ink-muted flex items-center gap-1.5 sm:gap-3 flex-wrap">
+                        {req.student_email && <span className="truncate max-w-[180px] sm:max-w-none">{req.student_email}</span>}
                         <span>• Requested {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         {req.approved_at && (
                           <span>• Approved {new Date(req.approved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -986,19 +986,20 @@ export default function BranchBatchesPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-hairline/60">
                       {isPending ? (
                         <>
                           <button
                             type="button"
                             disabled={actionLoadingId === req.id}
                             onClick={() => handleRejectReset(req.id, req.student_name || req.roll_number)}
-                            className="px-3 py-1.5 text-xs font-semibold rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors cursor-pointer"
+                            className="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors cursor-pointer text-center"
                           >
                             Reject
                           </button>
                           <ButtonPrimary
                             size="sm"
+                            className="flex-1 sm:flex-none justify-center"
                             isLoading={actionLoadingId === req.id}
                             onClick={() => handleApproveReset(req.id, req.student_name || req.roll_number)}
                           >
@@ -1007,15 +1008,15 @@ export default function BranchBatchesPage() {
                           </ButtonPrimary>
                         </>
                       ) : isApproved ? (
-                        <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-md">
+                        <span className="w-full sm:w-auto text-center text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-md">
                           Approved • Waiting on Student
                         </span>
                       ) : isCompleted ? (
-                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                        <span className="w-full sm:w-auto text-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
                           Password Reset Completed
                         </span>
                       ) : (
-                        <span className="text-[11px] text-ink-faint">
+                        <span className="w-full sm:w-auto text-center text-[11px] text-ink-faint">
                           Rejected
                         </span>
                       )}

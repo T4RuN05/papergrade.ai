@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "PaperGrade AI",
+    startupImage: [
+      {
+        url: "/landing-logo.png",
+      },
+    ],
   },
 };
 
