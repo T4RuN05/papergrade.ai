@@ -355,7 +355,7 @@ class PersistentQueueWorker:
                     notif_type="GRADING_COMPLETED",
                     title="Batch Grading Complete",
                     message=f"Batch '{b_name}' grading finished ({completed} graded, {failed} failed).",
-                    link_url="/grading"
+                    link_url="/marks"
                 )
 
 queue_worker = PersistentQueueWorker()
