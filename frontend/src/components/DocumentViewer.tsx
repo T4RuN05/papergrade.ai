@@ -609,6 +609,11 @@ export function DocumentViewer({
               Exit Edit
             </button>
           </div>
+        ) : readOnly ? (
+          <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-hairline text-[11px] text-ink-secondary shadow-2xs">
+            <Eye className="h-3 w-3 text-primary inline shrink-0" />
+            <span>Click any question box to inspect marks & review</span>
+          </div>
         ) : (
           <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-hairline text-[11px] text-ink-secondary shadow-2xs">
             <span>Click box to inspect • Click <Edit3 className="h-2.5 w-2.5 inline text-primary mx-0.5" /> to adjust box</span>

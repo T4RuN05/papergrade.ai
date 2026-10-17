@@ -350,7 +350,6 @@ export function StudentQuestionModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-1 border-t border-hairline text-[10px] text-ink-muted">
-          <span>Antigravity Academic Standard</span>
           <button
             type="button"
             onClick={onClose}

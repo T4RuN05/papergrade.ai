@@ -1711,9 +1711,6 @@ export default function StudentPortalPage() {
             )}
 
             <div className="flex items-center justify-between pt-3 border-t border-hairline">
-              <span className="text-[11px] text-ink-muted">
-                Antigravity Academic Grading Standard
-              </span>
               <ButtonUtility onClick={() => setBreakdownModalOpen(false)}>
                 Close Breakdown
               </ButtonUtility>
