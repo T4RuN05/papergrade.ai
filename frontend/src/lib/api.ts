@@ -273,6 +273,99 @@ export const api = {
   },
 
   // -------------------------------------------------------------
+  // Student Password Reset Flow (Branch Manager Approval)
+  // -------------------------------------------------------------
+  async requestPasswordReset(identifier: string): Promise<{
+    status: string;
+    request_id: string;
+    request_status: string;
+    message: string;
+    student_name?: string;
+    roll_number?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to submit reset request" }));
+      throw new Error(parseErrorDetail(err, "Failed to submit reset request"));
+    }
+    return res.json();
+  },
+
+  async getPasswordResetStatus(requestId: string): Promise<{
+    request_id: string;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED" | "EXPIRED";
+    student_name?: string;
+    roll_number?: string;
+    requested_at?: string;
+    approved_at?: string;
+    reset_token?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/status/${requestId}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to check reset status" }));
+      throw new Error(parseErrorDetail(err, "Failed to check reset status"));
+    }
+    return res.json();
+  },
+
+  async completePasswordReset(data: {
+    request_id: string;
+    reset_token: string;
+    new_password: string;
+  }): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to complete password reset" }));
+      throw new Error(parseErrorDetail(err, "Failed to complete password reset"));
+    }
+    return res.json();
+  },
+
+  async listPasswordResets(statusFilter?: string): Promise<any[]> {
+    const query = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+    const res = await fetch(`${API_BASE}/api/v1/auth/password-resets${query}`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async approvePasswordReset(requestId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/password-resets/${requestId}/approve`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to approve password reset" }));
+      throw new Error(parseErrorDetail(err, "Failed to approve password reset"));
+    }
+    return res.json();
+  },
+
+  async rejectPasswordReset(requestId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/password-resets/${requestId}/reject`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to reject password reset" }));
+      throw new Error(parseErrorDetail(err, "Failed to reject password reset"));
+    }
+    return res.json();
+  },
+
+  // -------------------------------------------------------------
   // Tenancy & Onboarding (Institutes, Branches, Staff, Batches)
   // -------------------------------------------------------------
   async listInstitutes(): Promise<any[]> {

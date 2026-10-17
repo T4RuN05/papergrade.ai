@@ -490,6 +490,29 @@ def init_db():
         );
         """)
 
+        # 15c. Student Password Reset Requests Table (Branch Manager Approval Flow)
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS password_reset_requests (
+            id {text_type} PRIMARY KEY,
+            user_id {text_type} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            student_id {text_type} REFERENCES students(id) ON DELETE SET NULL,
+            branch_id {text_type} REFERENCES branches(id) ON DELETE SET NULL,
+            roll_number {text_type},
+            student_name {text_type},
+            student_email {text_type},
+            status {text_type} NOT NULL DEFAULT 'PENDING',
+            reset_token {text_type},
+            approved_by {text_type} REFERENCES users(id) ON DELETE SET NULL,
+            approved_at {text_type},
+            completed_at {text_type},
+            expires_at {text_type} NOT NULL,
+            created_at {text_type} NOT NULL
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pwd_reset_user ON password_reset_requests(user_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pwd_reset_branch ON password_reset_requests(branch_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pwd_reset_status ON password_reset_requests(status);")
+
         # 16. Audit Logs Table
         cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS audit_logs (

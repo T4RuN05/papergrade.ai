@@ -17,6 +17,9 @@ import {
   Building2,
   ShieldCheck,
   UserCheck,
+  KeyRound,
+  Check,
+  X,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useTenant } from "@/lib/TenantContext";
@@ -61,6 +64,59 @@ export default function BranchBatchesPage() {
   const [importRosterOpen, setImportRosterOpen] = useState(false);
   const [rosterFile, setRosterFile] = useState<File | null>(null);
   const [importStats, setImportStats] = useState<any>(null);
+
+  // Student Password Reset Requests state
+  const [passwordResets, setPasswordResets] = useState<any[]>([]);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  const loadPasswordResets = async () => {
+    try {
+      const data = await api.listPasswordResets();
+      setPasswordResets(data || []);
+    } catch (err) {
+      console.warn("Failed to load password resets", err);
+    }
+  };
+
+  useEffect(() => {
+    loadPasswordResets();
+    const interval = setInterval(loadPasswordResets, 6000);
+    return () => clearInterval(interval);
+  }, [selectedBranch?.id]);
+
+  const pendingResets = useMemo(() => {
+    return passwordResets.filter((r) => r.status === "PENDING");
+  }, [passwordResets]);
+
+  const handleApproveReset = async (id: string, name: string) => {
+    setActionLoadingId(id);
+    try {
+      await api.approvePasswordReset(id);
+      toast.success(`Password reset approved for ${name}. The student can now enter their new password!`, {
+        title: "Request Approved",
+        duration: 5000,
+      });
+      await loadPasswordResets();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve request", { title: "Approval Error" });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectReset = async (id: string, name: string) => {
+    setActionLoadingId(id);
+    try {
+      await api.rejectPasswordReset(id);
+      toast.info(`Password reset request rejected for ${name}.`, { title: "Request Rejected" });
+      await loadPasswordResets();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject request", { title: "Rejection Error" });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   // Load batches whenever active branch changes
   useEffect(() => {
@@ -282,11 +338,50 @@ export default function BranchBatchesPage() {
           </p>
         </div>
 
-        <ButtonPrimary onClick={() => setCreateBatchOpen(true)} size="sm" className="w-full sm:w-auto justify-center shrink-0">
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Create Batch
-        </ButtonPrimary>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <ButtonUtility
+            onClick={() => setResetModalOpen(true)}
+            size="sm"
+            className="w-full sm:w-auto justify-center shrink-0 relative"
+          >
+            <KeyRound className="h-3.5 w-3.5 mr-1.5" />
+            <span>Password Resets</span>
+            {pendingResets.length > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
+                {pendingResets.length}
+              </span>
+            )}
+          </ButtonUtility>
+
+          <ButtonPrimary onClick={() => setCreateBatchOpen(true)} size="sm" className="w-full sm:w-auto justify-center shrink-0">
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Create Batch
+          </ButtonPrimary>
+        </div>
       </div>
+
+      {/* Pending Reset Requests Warning Banner */}
+      {pendingResets.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-amber-50/90 border border-amber-300 text-amber-900 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+              <KeyRound className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-bold text-xs sm:text-sm text-ink flex items-center gap-2">
+                <span>{pendingResets.length} Student Password Reset Request{pendingResets.length > 1 ? "s" : ""} Pending Approval</span>
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+              </div>
+              <p className="text-[11px] text-ink-muted">
+                Students are currently waiting live on their login screens for your approval.
+              </p>
+            </div>
+          </div>
+          <ButtonPrimary size="sm" onClick={() => setResetModalOpen(true)} className="shrink-0 w-full sm:w-auto justify-center">
+            Review & Approve
+          </ButtonPrimary>
+        </div>
+      )}
 
 
 
@@ -830,6 +925,114 @@ export default function BranchBatchesPage() {
           )}
         </ModalCard>
       )}
+
+      {/* PASSWORD RESET APPROVAL MODAL */}
+      <ModalCard
+        isOpen={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        title={`Student Password Reset Requests • ${selectedBranch?.name || "Branch"}`}
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="flex items-center justify-between text-xs text-ink-muted">
+            <span>
+              Review requests from students who forgot their passwords. Approving allows the student to immediately set a new password on their live screen.
+            </span>
+            <span className="font-mono font-semibold text-ink shrink-0 ml-2">
+              {pendingResets.length} Pending
+            </span>
+          </div>
+
+          {passwordResets.length === 0 ? (
+            <div className="py-8 text-center text-ink-muted">
+              No password reset requests submitted for this branch.
+            </div>
+          ) : (
+            <div className="divide-y divide-hairline border border-hairline rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
+              {passwordResets.map((req) => {
+                const isPending = req.status === "PENDING";
+                const isApproved = req.status === "APPROVED";
+                const isCompleted = req.status === "COMPLETED";
+
+                return (
+                  <div key={req.id} className="p-3.5 bg-surface hover:bg-canvas-soft/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-ink">
+                          {req.student_name || "Enrolled Student"}
+                        </span>
+                        <span className="font-mono text-xs text-ink-muted bg-canvas-soft border border-hairline px-2 py-0.5 rounded">
+                          {req.roll_number}
+                        </span>
+                        <BadgePill
+                          label={req.status}
+                          color={
+                            isPending
+                              ? "orange"
+                              : isApproved
+                              ? "teal"
+                              : isCompleted
+                              ? "green"
+                              : "gray"
+                          }
+                        />
+                      </div>
+                      <div className="text-[11px] text-ink-muted flex items-center gap-2 sm:gap-3 flex-wrap">
+                        {req.student_email && <span>{req.student_email}</span>}
+                        <span>• Requested {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {req.approved_at && (
+                          <span>• Approved {new Date(req.approved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isPending ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={actionLoadingId === req.id}
+                            onClick={() => handleRejectReset(req.id, req.student_name || req.roll_number)}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                          <ButtonPrimary
+                            size="sm"
+                            isLoading={actionLoadingId === req.id}
+                            onClick={() => handleApproveReset(req.id, req.student_name || req.roll_number)}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" />
+                            Approve
+                          </ButtonPrimary>
+                        </>
+                      ) : isApproved ? (
+                        <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-md">
+                          Approved • Waiting on Student
+                        </span>
+                      ) : isCompleted ? (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                          Password Reset Completed
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-ink-faint">
+                          Rejected
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t border-hairline">
+            <ButtonUtility onClick={() => setResetModalOpen(false)}>
+              Close
+            </ButtonUtility>
+          </div>
+        </div>
+      </ModalCard>
     </div>
   );
 }

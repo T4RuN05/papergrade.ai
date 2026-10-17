@@ -1,6 +1,7 @@
 import uuid
 import asyncio
-from typing import Optional, Dict, Any
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr
 
@@ -11,10 +12,22 @@ from backend.app.services.auth import (
     create_access_token,
     get_current_user,
     require_root_admin,
+    require_branch_manager,
 )
-from backend.app.services.notification_service import send_notification
+from backend.app.services.notification_service import (
+    send_notification,
+    notify_branch_managers,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication & RBAC"])
+
+class ForgotPasswordRequest(BaseModel):
+    identifier: str
+
+class ResetPasswordSubmission(BaseModel):
+    request_id: str
+    reset_token: str
+    new_password: str
 
 class LoginRequest(BaseModel):
     email: Optional[str] = None
@@ -355,4 +368,336 @@ def list_users(
         query += " ORDER BY created_at DESC"
         cursor.execute(query, tuple(params))
         return [dict(r) for r in cursor.fetchall()]
+
+# -------------------------------------------------------------
+# Student Forgot Password Flow (Branch Manager Approval)
+# -------------------------------------------------------------
+
+@router.post("/forgot-password/request")
+def request_password_reset(req: ForgotPasswordRequest):
+    """
+    Student requests a password reset from the login screen.
+    Finds student record & branch, creates a PENDING request,
+    and alerts the assigned Branch Manager for authorization.
+    """
+    clean_id = req.identifier.strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="Roll number, student ID, or email is required.")
+    
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Lookup student and user record
+        cursor.execute(f"""
+            SELECT s.*, b.branch_id as batch_branch_id, u.id as user_id, u.email as user_email, u.full_name as user_name, u.branch_id as user_branch_id
+            FROM students s
+            LEFT JOIN batches b ON s.batch_id = b.id
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE (UPPER(s.roll_number) = {param} OR s.student_id_num = {param} OR LOWER(s.email) = {param})
+            LIMIT 1
+        """, (clean_id.upper(), clean_id, clean_id.lower()))
+        student_match = cursor.fetchone()
+
+        user_match = None
+        if not student_match:
+            cursor.execute(f"""
+                SELECT u.* FROM users u
+                WHERE LOWER(u.email) = {param} AND u.role = 'STUDENT'
+                LIMIT 1
+            """, (clean_id.lower(),))
+            user_match = cursor.fetchone()
+            if user_match:
+                cursor.execute(f"""
+                    SELECT s.*, b.branch_id as batch_branch_id
+                    FROM students s
+                    LEFT JOIN batches b ON s.batch_id = b.id
+                    WHERE s.user_id = {param}
+                    ORDER BY s.created_at DESC LIMIT 1
+                """, (user_match["id"],))
+                student_match = cursor.fetchone()
+        
+        if not student_match and not user_match:
+            raise HTTPException(
+                status_code=404,
+                detail="No student account found for this roll number or ID. Please check your credentials."
+            )
+        
+        user_id = (user_match["id"] if user_match else student_match.get("user_id"))
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Your student account has not been claimed yet. Please claim your account with your admission ID."
+            )
+
+        student_id = student_match["id"] if student_match else None
+        roll_number = student_match.get("roll_number") if student_match else clean_id.upper()
+        student_name = (student_match.get("full_name") if student_match else user_match.get("full_name")) or "Student"
+        student_email = (user_match.get("email") if user_match else student_match.get("email")) or ""
+        branch_id = (student_match.get("batch_branch_id") if student_match else None) or (user_match.get("branch_id") if user_match else None)
+
+        now = get_iso_now()
+        now_dt = datetime.now(timezone.utc)
+        expires_at = (now_dt + timedelta(minutes=45)).isoformat()
+
+        # Check for existing PENDING or APPROVED request within active window
+        cursor.execute(f"""
+            SELECT * FROM password_reset_requests
+            WHERE user_id = {param} AND status IN ('PENDING', 'APPROVED') AND expires_at > {param}
+            ORDER BY created_at DESC LIMIT 1
+        """, (user_id, now))
+        existing = cursor.fetchone()
+        if existing:
+            return {
+                "status": "success",
+                "request_id": existing["id"],
+                "request_status": existing["status"],
+                "message": "A reset request is already active. Please wait for Branch Manager approval.",
+                "student_name": student_name,
+                "roll_number": roll_number
+            }
+
+        req_id = f"pr_{uuid.uuid4().hex[:12]}"
+        cursor.execute(f"""
+            INSERT INTO password_reset_requests (
+                id, user_id, student_id, branch_id, roll_number, student_name, student_email,
+                status, expires_at, created_at
+            ) VALUES ({param}, {param}, {param}, {param}, {param}, {param}, {param}, 'PENDING', {param}, {param})
+        """, (req_id, user_id, student_id, branch_id, roll_number, student_name, student_email, expires_at, now))
+
+        # Notify branch managers for this branch
+        notify_branch_managers(
+            cursor=cursor,
+            branch_id=branch_id,
+            notif_type="PASSWORD_RESET_REQUEST",
+            title="Password Reset Request",
+            message=f"Student {student_name} ({roll_number}) has requested a password reset. Review and approve in Branch Management.",
+            link_url="/branch/batches"
+        )
+
+        return {
+            "status": "success",
+            "request_id": req_id,
+            "request_status": "PENDING",
+            "message": "Password reset request submitted. Awaiting approval from your Branch Manager.",
+            "student_name": student_name,
+            "roll_number": roll_number
+        }
+
+@router.get("/forgot-password/status/{request_id}")
+def get_password_reset_status(request_id: str):
+    """
+    Polled by student login form while in waiting state.
+    Returns status: PENDING, APPROVED, REJECTED, COMPLETED, or EXPIRED.
+    When APPROVED, returns the one-time reset_token to authorize password update.
+    """
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM password_reset_requests WHERE id = {param}", (request_id,))
+        req = cursor.fetchone()
+        if not req:
+            raise HTTPException(status_code=404, detail="Password reset request not found.")
+
+        now_dt = datetime.now(timezone.utc)
+        expires_dt = datetime.fromisoformat(req["expires_at"].replace("Z", "+00:00"))
+        
+        current_status = req["status"]
+        if current_status in ["PENDING", "APPROVED"] and now_dt > expires_dt:
+            current_status = "EXPIRED"
+            cursor.execute(f"UPDATE password_reset_requests SET status = 'EXPIRED' WHERE id = {param}", (request_id,))
+
+        resp = {
+            "request_id": req["id"],
+            "status": current_status,
+            "student_name": req.get("student_name"),
+            "roll_number": req.get("roll_number"),
+            "requested_at": req.get("created_at"),
+            "approved_at": req.get("approved_at"),
+        }
+
+        # ONLY return reset_token if request is currently APPROVED
+        if current_status == "APPROVED":
+            resp["reset_token"] = req.get("reset_token")
+
+        return resp
+
+@router.post("/forgot-password/reset")
+def complete_password_reset(req: ResetPasswordSubmission):
+    """
+    Student submits new password after Branch Manager approves the request.
+    Verifies reset_token and updates password hash.
+    """
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long.")
+
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM password_reset_requests WHERE id = {param}", (req.request_id,))
+        pr = cursor.fetchone()
+        if not pr:
+            raise HTTPException(status_code=404, detail="Invalid or expired reset request.")
+
+        if pr["status"] != "APPROVED":
+            raise HTTPException(status_code=400, detail=f"Request is not approved (Current status: {pr['status']}).")
+
+        if not pr.get("reset_token") or pr.get("reset_token") != req.reset_token:
+            raise HTTPException(status_code=403, detail="Invalid or mismatched reset authorization token.")
+
+        now_dt = datetime.now(timezone.utc)
+        expires_dt = datetime.fromisoformat(pr["expires_at"].replace("Z", "+00:00"))
+        if now_dt > expires_dt:
+            cursor.execute(f"UPDATE password_reset_requests SET status = 'EXPIRED' WHERE id = {param}", (req.request_id,))
+            raise HTTPException(status_code=400, detail="This reset authorization has expired. Please submit a new request.")
+
+        new_hash = hash_password(req.new_password)
+        now = get_iso_now()
+
+        # Update user password
+        cursor.execute(f"""
+            UPDATE users SET password_hash = {param}
+            WHERE id = {param}
+        """, (new_hash, pr["user_id"]))
+
+        # Mark request COMPLETED and clear reset token
+        cursor.execute(f"""
+            UPDATE password_reset_requests
+            SET status = 'COMPLETED', completed_at = {param}, reset_token = NULL
+            WHERE id = {param}
+        """, (now, req.request_id))
+
+        # Send confirmation notification
+        send_notification(
+            cursor=cursor,
+            user_id=pr["user_id"],
+            notif_type="PASSWORD_RESET_SUCCESS",
+            title="Password Changed Successfully",
+            message="Your account password was successfully reset. You can now log in.",
+            link_url="/auth/login"
+        )
+
+        return {
+            "status": "success",
+            "message": "Password successfully reset! You can now log in with your new password."
+        }
+
+@router.get("/password-resets")
+def list_password_resets(
+    status_filter: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    """
+    Branch Manager & Root Admin endpoint to list student password reset requests.
+    Filtered by branch for Branch Managers.
+    """
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT pr.*, u.full_name as approved_by_name, b.name as branch_name
+            FROM password_reset_requests pr
+            LEFT JOIN users u ON pr.approved_by = u.id
+            LEFT JOIN branches b ON pr.branch_id = b.id
+            WHERE 1=1
+        """
+        params = []
+        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
+            query += f" AND (pr.branch_id = {param} OR pr.branch_id IS NULL)"
+            params.append(current_user["branch_id"])
+
+        if status_filter:
+            query += f" AND pr.status = {param}"
+            params.append(status_filter.upper())
+
+        query += " ORDER BY pr.created_at DESC LIMIT 50"
+        cursor.execute(query, tuple(params))
+        return [dict(r) for r in cursor.fetchall()]
+
+@router.post("/password-resets/{request_id}/approve")
+def approve_password_reset(
+    request_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    """
+    Branch Manager approves student password reset request.
+    Generates single-use reset_token for the waiting student form.
+    """
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM password_reset_requests WHERE id = {param}", (request_id,))
+        req = cursor.fetchone()
+        if not req:
+            raise HTTPException(status_code=404, detail="Password reset request not found.")
+
+        if req["status"] != "PENDING":
+            raise HTTPException(status_code=400, detail=f"Request is already {req['status']}.")
+
+        # Check branch ownership if branch manager
+        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
+            if req.get("branch_id") and req["branch_id"] != current_user["branch_id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned branch.")
+
+        reset_token = f"rst_{uuid.uuid4().hex}"
+        now = get_iso_now()
+
+        cursor.execute(f"""
+            UPDATE password_reset_requests
+            SET status = 'APPROVED', reset_token = {param}, approved_by = {param}, approved_at = {param}
+            WHERE id = {param}
+        """, (reset_token, current_user["sub"], now, request_id))
+
+        # Notify student account if user_id exists
+        send_notification(
+            cursor=cursor,
+            user_id=req["user_id"],
+            notif_type="PASSWORD_RESET_APPROVED",
+            title="Password Reset Request Approved",
+            message=f"Branch Manager has approved your password reset request. Please complete setting your new password.",
+            link_url="/auth/login"
+        )
+
+        return {
+            "status": "success",
+            "message": f"Password reset request for {req.get('student_name', 'student')} approved.",
+            "request_id": request_id
+        }
+
+@router.post("/password-resets/{request_id}/reject")
+def reject_password_reset(
+    request_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    """
+    Branch Manager rejects student password reset request.
+    """
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM password_reset_requests WHERE id = {param}", (request_id,))
+        req = cursor.fetchone()
+        if not req:
+            raise HTTPException(status_code=404, detail="Password reset request not found.")
+
+        if req["status"] != "PENDING":
+            raise HTTPException(status_code=400, detail=f"Request is already {req['status']}.")
+
+        # Check branch ownership if branch manager
+        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
+            if req.get("branch_id") and req["branch_id"] != current_user["branch_id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned branch.")
+
+        now = get_iso_now()
+        cursor.execute(f"""
+            UPDATE password_reset_requests
+            SET status = 'REJECTED', approved_by = {param}, approved_at = {param}
+            WHERE id = {param}
+        """, (current_user["sub"], now, request_id))
+
+        return {
+            "status": "success",
+            "message": f"Password reset request for {req.get('student_name', 'student')} rejected.",
+            "request_id": request_id
+        }
 
