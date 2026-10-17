@@ -43,6 +43,8 @@ backend/data/page_renders/*
 backend/data/exports/*
 backend/data/cloudinary_cache/*
 backend/data/submissions/*
+backend/data/backups/
+backend/data/reports/*
 backend/data/papergrade.db
 backend/data/*.db
 !backend/data/.gitkeep
