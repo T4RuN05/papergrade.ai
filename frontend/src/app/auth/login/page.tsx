@@ -94,35 +94,7 @@ export default function LoginPage() {
     };
   }, [toast]);
 
-  const handleStudentAccessClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const token = getAuthToken();
-    const storedUser = getStoredUser();
 
-    if (token && storedUser?.role === "STUDENT") {
-      startNavigationProgress();
-      router.push("/student/portal");
-      return;
-    }
-
-    // Activate student sign-in mode & focus input
-    setLoginRole("STUDENT");
-    setViewMode("LOGIN");
-    toast.info("Enter your Student Roll Number and Password to access your portal.", {
-      title: "Student Sign-In Required",
-      duration: 5000,
-    });
-
-    const el = document.getElementById("login-identifier-input") as HTMLInputElement;
-    if (el) {
-      el.focus();
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("ring-2", "ring-primary");
-      setTimeout(() => {
-        el.classList.remove("ring-2", "ring-primary");
-      }, 2000);
-    }
-  };
 
   // Live polling for Branch Manager approval while awaiting
   useEffect(() => {
@@ -185,6 +157,29 @@ export default function LoginPage() {
         email: email.trim(),
         password: password,
       });
+
+      // Strict role separation: student form must only allow students, faculty form must only allow faculty/staff
+      if (loginRole === "STUDENT" && user.role !== "STUDENT") {
+        api.logout();
+        const roleErr = "Access Denied: These credentials belong to a Faculty/Staff account. Please switch to the 'Faculty / Staff' tab to sign in.";
+        setError(roleErr);
+        toast.error("Faculty and staff accounts cannot sign in through the Student Portal form.", {
+          title: "Wrong Sign-In Tab",
+          duration: 5000,
+        });
+        return;
+      }
+
+      if (loginRole === "STAFF" && user.role === "STUDENT") {
+        api.logout();
+        const roleErr = "Access Denied: These credentials belong to a Student account. Please switch to the 'Student Portal' tab to sign in.";
+        setError(roleErr);
+        toast.error("Students cannot sign in through the Faculty/Staff form.", {
+          title: "Wrong Sign-In Tab",
+          duration: 5000,
+        });
+        return;
+      }
 
       const enteredEmail = email.trim();
       let roleTitle = "Welcome Administrator";
@@ -587,55 +582,8 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Student PWA Web App Section */}
-          <div className="relative my-4 flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-hairline" />
-            </div>
-            <span className="relative bg-surface px-2 text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
-              Student Access
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={handleStudentAccessClick}
-              id="btn-student-pwa-portal"
-              className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all group text-left cursor-pointer ${
-                loginRole === "STUDENT"
-                  ? "bg-sky-50/50 border-sky-200/80 shadow-2xs"
-                  : "bg-canvas-soft border-hairline hover:bg-surface hover:border-primary/50 hover:shadow-2xs"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-md transition-all shrink-0 ${
-                  loginRole === "STUDENT"
-                    ? "bg-primary text-white"
-                    : "bg-primary/10 text-primary group-hover:scale-105"
-                }`}>
-                  <Smartphone className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-ink group-hover:text-primary transition-colors">
-                      Student PWA Web App
-                    </span>
-                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
-                      {isStandalone ? "Installed PWA" : "PWA"}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-ink-muted">
-                    {isStandalone
-                      ? "Running in installed app mode. Sign in to view scores"
-                      : "Open mobile portal for answer sheets & scores"}
-                  </p>
-                </div>
-              </div>
-              <ArrowRight className="h-4 w-4 text-ink-muted group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
-            </button>
-
-            {deferredPrompt && (
+          {deferredPrompt && !isStandalone && (
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={handleInstallClick}
@@ -645,8 +593,8 @@ export default function LoginPage() {
                 <Download className="h-3.5 w-3.5" />
                 <span>Install Student App on this Device</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mt-3.5 pt-3 border-t border-hairline text-center text-xs text-ink-muted">
             Are you a student with a new admission ID?{" "}
