@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
   title: "PaperGrade AI — Academic Evaluation & Submissions",
@@ -42,6 +43,7 @@ export default function RootLayout({
       >
         <ServiceWorkerRegister />
         <AppShell>{children}</AppShell>
+        <Analytics />
       </body>
     </html>
   );
