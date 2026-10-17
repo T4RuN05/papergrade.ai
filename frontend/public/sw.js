@@ -1,4 +1,4 @@
-const CACHE_NAME = "papergrade-shell-v5";
+const CACHE_NAME = "papergrade-shell-v6";
 
 // Bypass and do not cache on localhost / dev
 const isLocalhost =
@@ -75,7 +75,7 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body,
     icon: new URL("/icon-192.png", origin).href,
-    badge: new URL("/icon-192.png", origin).href,
+    badge: new URL("/badge.png", origin).href,
     vibrate: [200, 100, 200],
     tag: `papergrade-push-${Date.now()}`,
     renotify: true,

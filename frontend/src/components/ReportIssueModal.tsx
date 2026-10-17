@@ -238,15 +238,6 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
         {/* TAB 1: SUBMIT NEW REPORT */}
         {activeTab === "submit" && (
           <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* System Info Banner */}
-            <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-200/70 text-blue-900 leading-relaxed text-[11px] flex items-start gap-2">
-              <LifeBuoy className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Direct Engineering Support: </span>
-                Reports submitted here are sent directly to the central root administrators. You will receive an in-app and device push notification as soon as your issue is resolved.
-              </div>
-            </div>
-
             {/* Category & Subject */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="space-y-1">

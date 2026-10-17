@@ -111,7 +111,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const origin = window.location.origin;
       const notifOptions: any = {
         icon: new URL("/icon-192.png", origin).href,
-        badge: new URL("/icon-192.png", origin).href,
+        badge: new URL("/badge.png", origin).href,
         vibrate: [200, 100, 200],
         tag: `papergrade-${Date.now()}`,
         renotify: true,
@@ -236,6 +236,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications([]);
       return;
     }
+    // Automatically keep device Web Push registration bound to the active user session
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      syncWebPushSubscription().catch(() => {});
+    }
     try {
       setLoading(true);
       const data = await api.listNotifications();
@@ -264,7 +272,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [toast, sendSystemNotification]);
+  }, [toast, sendSystemNotification, syncWebPushSubscription]);
 
   useEffect(() => {
     fetchNotifications();
