@@ -429,6 +429,17 @@ export default function AdminReportsPage() {
                               src={imgUrl}
                               alt={`Report attachment ${imgIdx + 1}`}
                               className="h-full w-auto object-cover group-hover:scale-105 transition-transform"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                target.style.display = "none";
+                                const parent = target.parentElement;
+                                if (parent && !parent.querySelector(".img-missing-badge")) {
+                                  const fallback = document.createElement("div");
+                                  fallback.className = "img-missing-badge h-full w-full flex flex-col items-center justify-center p-2 text-center bg-canvas-soft text-[10px] text-ink-muted";
+                                  fallback.innerHTML = "<span class='font-semibold text-rose-500'>Image Unavailable</span><span class='text-[9px] text-ink-secondary mt-0.5'>Attachment not found</span>";
+                                  parent.appendChild(fallback);
+                                }
+                              }}
                             />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                               <ExternalLink className="h-4 w-4" />
@@ -545,6 +556,17 @@ export default function AdminReportsPage() {
                 src={activeLightboxImg}
                 alt="Enlarged screenshot"
                 className="max-h-[75vh] w-auto object-contain rounded"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = "none";
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector(".lightbox-error-msg")) {
+                    const fallback = document.createElement("div");
+                    fallback.className = "lightbox-error-msg p-8 text-center space-y-2 text-ink-secondary";
+                    fallback.innerHTML = "<div class='text-sm font-semibold text-rose-600'>Screenshot Unavailable</div><p class='text-xs text-ink-muted max-w-sm mx-auto'>This attachment could not be retrieved from cloud storage.</p>";
+                    parent.appendChild(fallback);
+                  }
+                }}
               />
             </div>
           </div>

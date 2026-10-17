@@ -1,16 +1,20 @@
 import os
 import uuid
 import json
+import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, RedirectResponse
 from backend.app.database import get_db, get_iso_now
 from backend.app.services.auth import get_current_user, require_root_admin
 from backend.app.config import settings
 from backend.app.services.notification_service import notify_root_admins, send_notification
+from backend.app.services.storage import get_storage_service
 
-router = APIRouter(prefix="/api/v1/reports", tags=["Technical Reports"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["Technical Reports"])
 
 # Maximum file constraints
 MAX_SCREENSHOT_COUNT = 3
@@ -89,9 +93,22 @@ async def submit_technical_report(
             ext = "webp"
 
         safe_filename = f"{report_id}_img_{idx + 1}_{uuid.uuid4().hex[:6]}.{ext}"
+        storage_key = f"reports/{report_id}/{safe_filename}"
+
+        # 1. Upload to persistent cloud storage (Cloudinary / R2 / local)
+        try:
+            storage = get_storage_service()
+            storage.upload_file(content, storage_key, content_type=content_type)
+        except Exception as st_err:
+            logger.warning("Failed uploading screenshot to storage service: %s", st_err)
+
+        # 2. Also keep local copy in REPORTS_DIR as cache
         target_path = settings.REPORTS_DIR / safe_filename
-        with open(target_path, "wb") as f:
-            f.write(content)
+        try:
+            with open(target_path, "wb") as f:
+                f.write(content)
+        except Exception:
+            pass
 
         saved_filenames.append(safe_filename)
 
@@ -244,11 +261,8 @@ def list_reports(
 
 @router.get("/{report_id}/images/{filename}")
 def get_report_image(report_id: str, filename: str):
-    """Serve a screenshot securely from the reports directory."""
+    """Serve a screenshot securely from persistent storage or local reports cache."""
     safe_filename = os.path.basename(filename)
-    file_path = settings.REPORTS_DIR / safe_filename
-    if not file_path.exists() or not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Screenshot image not found.")
     
     media_type = "image/png"
     if safe_filename.endswith(".jpg") or safe_filename.endswith(".jpeg"):
@@ -256,7 +270,33 @@ def get_report_image(report_id: str, filename: str):
     elif safe_filename.endswith(".webp"):
         media_type = "image/webp"
 
-    return FileResponse(file_path, media_type=media_type)
+    storage_key = f"reports/{report_id}/{safe_filename}"
+    storage = get_storage_service()
+
+    # 1. Check persistent cloud storage (Cloudinary / R2)
+    try:
+        if storage.file_exists(storage_key):
+            # If Cloudinary or remote storage, redirect to direct CDN url for max speed
+            if hasattr(storage, "generate_presigned_download_url"):
+                cdn_url = storage.generate_presigned_download_url(storage_key)
+                if cdn_url and cdn_url.startswith("http"):
+                    return RedirectResponse(cdn_url, status_code=307)
+            
+            file_bytes = storage.download_file(storage_key)
+            return Response(
+                content=file_bytes,
+                media_type=media_type,
+                headers={"Cache-Control": "public, max-age=86400, immutable"}
+            )
+    except Exception as e:
+        logger.debug("Storage download notice for %s: %s", storage_key, e)
+
+    # 2. Check local disk fallback in REPORTS_DIR
+    file_path = settings.REPORTS_DIR / safe_filename
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path, media_type=media_type)
+
+    raise HTTPException(status_code=404, detail="Screenshot image not found.")
 
 @router.patch("/{report_id}")
 def update_report_status(

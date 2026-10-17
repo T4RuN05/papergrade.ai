@@ -61,7 +61,8 @@ app.include_router(submissions.router, prefix="/api/submissions")
 app.include_router(revaluation.router)
 app.include_router(notifications.router)
 app.include_router(students.router)
-app.include_router(reports.router)
+app.include_router(reports.router, prefix="/api/v1/reports")
+app.include_router(reports.router, prefix="/api/reports")
 
 # Include legacy/core routers for backward compatibility
 app.include_router(grading.router)
