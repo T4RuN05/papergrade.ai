@@ -725,6 +725,40 @@ export const api = {
     return res.json();
   },
 
+  async getExamArtifactMeta(
+    examId: string,
+    artifactType: "question-paper" | "answer-key"
+  ): Promise<{
+    exam_id: string;
+    artifact_type: string;
+    has_document: boolean;
+    page_count: number;
+    title: string;
+    subject?: string;
+  }> {
+    const token = getAuthToken();
+    const res = await fetch(
+      `${API_BASE}/api/v1/exams/${examId}/${artifactType}/meta${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+      {
+        headers: getAuthHeaders(),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to fetch document metadata" }));
+      throw new Error(err.detail || "Failed to fetch document metadata");
+    }
+    return res.json();
+  },
+
+  getExamArtifactPageUrl(
+    examId: string,
+    artifactType: "question-paper" | "answer-key",
+    pageNum: number
+  ): string {
+    const token = getAuthToken();
+    return `${API_BASE}/api/v1/exams/${examId}/${artifactType}/pages/${pageNum}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  },
+
   async generateRubric(examId: string): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/generate-rubric`, {
       method: "POST",

@@ -679,84 +679,92 @@ def load_sample_exam(current_user: Optional[Dict[str, Any]] = Depends(get_curren
         "message": "Sample Physics exam loaded successfully."
     }
 
+def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Path]:
+    """
+    Resolves the local Path for question-paper or answer-key.
+    Downloads from storage service if only in remote object storage.
+    """
+    exam = exam_service.get_exam(exam_id)
+    if not exam:
+        return None
+
+    is_qp = "question" in artifact_type.lower()
+    raw_path = exam.get("question_paper_path") if is_qp else exam.get("answer_key_path")
+    filename = "question_paper.pdf" if is_qp else "answer_key.pdf"
+
+    candidates = []
+    if raw_path:
+        candidates.append(raw_path)
+
+    # Standard disk locations
+    candidates.append(str(settings.UPLOADS_DIR / f"exam_{exam_id}" / filename))
+
+    for cand in candidates:
+        cand_path = Path(cand)
+        if cand_path.exists() and cand_path.is_file():
+            return cand_path
+
+    # Check Storage Service (Cloudinary / R2)
+    storage = get_storage_service()
+    storage_keys = []
+    if raw_path:
+        clean_raw = str(raw_path).replace("\\", "/").strip().lstrip("/")
+        storage_keys.append(clean_raw)
+        for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
+            if marker in clean_raw:
+                storage_keys.append(clean_raw[clean_raw.index(marker) + len(marker):])
+
+    artifact_dir = "question_paper" if is_qp else "answer_key"
+    storage_keys.extend([
+        f"exams/{exam_id}/{filename}",
+        f"exams/{exam_id}/{artifact_dir}",
+        f"exam_{exam_id}/{filename}",
+        f"uploads/exam_{exam_id}/{filename}"
+    ])
+
+    for key in storage_keys:
+        try:
+            if storage.file_exists(key):
+                local_path = storage.get_local_path_or_download(key)
+                if local_path and local_path.exists():
+                    return local_path
+        except Exception as e:
+            logger.warning(f"Failed fetching key {key}: {e}")
+            continue
+
+    # Sample fallbacks
+    pkg_dir = Path(__file__).resolve().parent.parent.parent
+    sample_sub = "question_paper.pdf" if is_qp else "answer_key.pdf"
+    sample_candidates = [
+        Path(f"backend/sample_data/sample_exam/{sample_sub}"),
+        pkg_dir / "sample_data" / "sample_exam" / sample_sub,
+        pkg_dir / "backend" / "sample_data" / "sample_exam" / sample_sub,
+        Path.cwd() / "backend" / "sample_data" / "sample_exam" / sample_sub,
+        Path.cwd() / "sample_data" / "sample_exam" / sample_sub
+    ]
+    for s_path in sample_candidates:
+        if s_path.exists() and s_path.is_file():
+            return s_path
+
+    return None
+
 @router.get("/{exam_id}/question-paper")
 async def get_exam_question_paper(
     exam_id: str,
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     """
-    Stream the Question Paper PDF for an examination for inline modal preview.
-    Checks local filesystem and Cloudinary/object storage.
+    Stream or download the Question Paper PDF for an examination.
     """
-    exam = exam_service.get_exam(exam_id)
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-        
-    qp_raw = exam.get("question_paper_path")
-    candidates = []
-    if qp_raw:
-        candidates.append(qp_raw)
-    
-    # Standard disk locations
-    candidates.append(str(settings.UPLOADS_DIR / f"exam_{exam_id}" / "question_paper.pdf"))
-    
-    for cand in candidates:
-        cand_path = Path(cand)
-        if cand_path.exists() and cand_path.is_file():
-            return FileResponse(
-                str(cand_path),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
-            )
-            
-    # Check Storage Service (Cloudinary / R2)
-    storage = get_storage_service()
-    storage_keys = []
-    if qp_raw:
-        clean_raw = str(qp_raw).replace("\\", "/").strip().lstrip("/")
-        storage_keys.append(clean_raw)
-        for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
-            if marker in clean_raw:
-                storage_keys.append(clean_raw[clean_raw.index(marker) + len(marker):])
-                
-    storage_keys.extend([
-        f"exams/{exam_id}/question_paper.pdf",
-        f"exams/{exam_id}/question_paper",
-        f"exam_{exam_id}/question_paper.pdf",
-        f"uploads/exam_{exam_id}/question_paper.pdf"
-    ])
-    
-    for key in storage_keys:
-        try:
-            if storage.file_exists(key):
-                file_bytes = storage.download_file(key)
-                return Response(
-                    content=file_bytes,
-                    media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
-                )
-        except Exception as e:
-            logger.warning(f"Failed fetching question paper key {key}: {e}")
-            continue
+    pdf_path = _resolve_exam_artifact_pdf(exam_id, "question-paper")
+    if not pdf_path or not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Question paper document not found.")
 
-    # Resilient fallback to sample exam document if available
-    pkg_dir = Path(__file__).resolve().parent.parent.parent
-    sample_candidates = [
-        Path("backend/sample_data/sample_exam/question_paper.pdf"),
-        pkg_dir / "sample_data" / "sample_exam" / "question_paper.pdf",
-        pkg_dir / "backend" / "sample_data" / "sample_exam" / "question_paper.pdf",
-        Path.cwd() / "backend" / "sample_data" / "sample_exam" / "question_paper.pdf",
-        Path.cwd() / "sample_data" / "sample_exam" / "question_paper.pdf"
-    ]
-    for s_path in sample_candidates:
-        if s_path.exists() and s_path.is_file():
-            return FileResponse(
-                str(s_path),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
-            )
-            
-    raise HTTPException(status_code=404, detail="Question paper document not found.")
+    return FileResponse(
+        str(pdf_path),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
+    )
 
 @router.get("/{exam_id}/answer-key")
 async def get_exam_answer_key(
@@ -764,13 +772,12 @@ async def get_exam_answer_key(
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     """
-    Stream the Official Answer Key PDF for an examination for inline modal preview.
-    Checks local filesystem and Cloudinary/object storage.
+    Stream or download the Official Answer Key PDF for an examination.
     """
     exam = exam_service.get_exam(exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-        
+
     # Security guard: Enrolled students cannot access the answer key before results publication
     if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
         raise HTTPException(
@@ -778,68 +785,105 @@ async def get_exam_answer_key(
             detail="Official answer key is confidential until exam results are published."
         )
 
-    ak_raw = exam.get("answer_key_path")
-    candidates = []
-    if ak_raw:
-        candidates.append(ak_raw)
-        
-    candidates.append(str(settings.UPLOADS_DIR / f"exam_{exam_id}" / "answer_key.pdf"))
-    
-    for cand in candidates:
-        cand_path = Path(cand)
-        if cand_path.exists() and cand_path.is_file():
-            return FileResponse(
-                str(cand_path),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
-            )
-            
-    # Check Storage Service (Cloudinary / R2)
-    storage = get_storage_service()
-    storage_keys = []
-    if ak_raw:
-        clean_raw = str(ak_raw).replace("\\", "/").strip().lstrip("/")
-        storage_keys.append(clean_raw)
-        for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
-            if marker in clean_raw:
-                storage_keys.append(clean_raw[clean_raw.index(marker) + len(marker):])
-                
-    storage_keys.extend([
-        f"exams/{exam_id}/answer_key.pdf",
-        f"exams/{exam_id}/answer_key",
-        f"exam_{exam_id}/answer_key.pdf",
-        f"uploads/exam_{exam_id}/answer_key.pdf"
-    ])
-    
-    for key in storage_keys:
-        try:
-            if storage.file_exists(key):
-                file_bytes = storage.download_file(key)
-                return Response(
-                    content=file_bytes,
-                    media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
-                )
-        except Exception as e:
-            logger.warning(f"Failed fetching answer key key {key}: {e}")
-            continue
+    pdf_path = _resolve_exam_artifact_pdf(exam_id, "answer-key")
+    if not pdf_path or not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Answer key document not found.")
 
-    # Resilient fallback to sample exam document if available
-    pkg_dir = Path(__file__).resolve().parent.parent.parent
-    sample_candidates_ak = [
-        Path("backend/sample_data/sample_exam/answer_key.pdf"),
-        pkg_dir / "sample_data" / "sample_exam" / "answer_key.pdf",
-        pkg_dir / "backend" / "sample_data" / "sample_exam" / "answer_key.pdf",
-        Path.cwd() / "backend" / "sample_data" / "sample_exam" / "answer_key.pdf",
-        Path.cwd() / "sample_data" / "sample_exam" / "answer_key.pdf"
-    ]
-    for s_path in sample_candidates_ak:
-        if s_path.exists() and s_path.is_file():
-            return FileResponse(
-                str(s_path),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
-            )
-            
-    raise HTTPException(status_code=404, detail="Answer key document not found.")
+    return FileResponse(
+        str(pdf_path),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
+    )
+
+@router.get("/{exam_id}/{artifact_type}/meta")
+async def get_exam_artifact_meta(
+    exam_id: str,
+    artifact_type: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
+    """
+    Returns metadata (page count, title, status) for question paper or answer key.
+    Pre-renders pages to high-resolution PNGs for mobile/PWA native viewing.
+    """
+    clean_art = artifact_type.lower().replace("_", "-")
+    if clean_art not in ["question-paper", "answer-key"]:
+        raise HTTPException(status_code=400, detail="Invalid artifact type. Must be question-paper or answer-key.")
+
+    exam = exam_service.get_exam(exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    if clean_art == "answer-key" and current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+        raise HTTPException(status_code=403, detail="Official answer key is confidential until exam results are published.")
+
+    pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
+    if not pdf_path or not pdf_path.exists():
+        return {
+            "exam_id": exam_id,
+            "artifact_type": clean_art,
+            "has_document": False,
+            "page_count": 0,
+            "title": exam.get("title", "")
+        }
+
+    render_key = f"exam_{exam_id}_{clean_art}"
+    render_dir = settings.RENDERS_DIR / render_key
+    page_1 = render_dir / "page_1.png"
+
+    doc = fitz.open(str(pdf_path))
+    page_count = len(doc)
+    doc.close()
+
+    if not page_1.exists():
+        pdf_service.render_pdf_pages_to_images(pdf_path, render_key)
+
+    return {
+        "exam_id": exam_id,
+        "artifact_type": clean_art,
+        "has_document": True,
+        "page_count": page_count,
+        "title": exam.get("title", ""),
+        "subject": exam.get("subject", "")
+    }
+
+@router.get("/{exam_id}/{artifact_type}/pages/{page_num}")
+async def get_exam_artifact_page_image(
+    exam_id: str,
+    artifact_type: str,
+    page_num: int,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
+    """
+    Stream a single high-resolution rendered page image (PNG) of the Question Paper
+    or Answer Key for seamless, mobile-friendly PWA rendering without browser PDF plugin dependencies.
+    """
+    clean_art = artifact_type.lower().replace("_", "-")
+    if clean_art not in ["question-paper", "answer-key"]:
+        raise HTTPException(status_code=400, detail="Invalid artifact type.")
+
+    exam = exam_service.get_exam(exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    if clean_art == "answer-key" and current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+        raise HTTPException(status_code=403, detail="Official answer key is confidential until exam results are published.")
+
+    render_key = f"exam_{exam_id}_{clean_art}"
+    render_dir = settings.RENDERS_DIR / render_key
+    img_path = render_dir / f"page_{page_num}.png"
+
+    if not img_path.exists():
+        pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
+        if not pdf_path or not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="Document not found.")
+        pdf_service.render_pdf_pages_to_images(pdf_path, render_key)
+
+    if not img_path.exists():
+        raise HTTPException(status_code=404, detail=f"Page {page_num} not found.")
+
+    return FileResponse(
+        str(img_path),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=604800, immutable"}
+    )
 

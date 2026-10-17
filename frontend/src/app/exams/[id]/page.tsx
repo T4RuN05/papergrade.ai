@@ -32,6 +32,12 @@ import {
   X,
   Flag,
   Lock,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
 import { api, API_BASE, getAuthToken } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -105,11 +111,49 @@ export default function ExamDetailPage() {
   // Artifact Viewer Modal State (Question Paper & Answer Key)
   const [viewerModalOpen, setViewerModalOpen] = useState(false);
   const [viewerArtifactType, setViewerArtifactType] = useState<"QUESTION_PAPER" | "ANSWER_KEY">("QUESTION_PAPER");
+  const [viewerPage, setViewerPage] = useState<number>(1);
+  const [viewerTotalPages, setViewerTotalPages] = useState<number>(1);
+  const [viewerLoading, setViewerLoading] = useState<boolean>(false);
+  const [viewerPageImgLoading, setViewerPageImgLoading] = useState<boolean>(true);
+  const [viewerZoom, setViewerZoom] = useState<number>(1.0);
+  const [viewerHasDoc, setViewerHasDoc] = useState<boolean>(true);
+  const [viewerError, setViewerError] = useState<string | null>(null);
 
-  const handleViewArtifact = (type: "QUESTION_PAPER" | "ANSWER_KEY") => {
+  const handleViewArtifact = async (type: "QUESTION_PAPER" | "ANSWER_KEY") => {
     setViewerArtifactType(type);
+    setViewerPage(1);
+    setViewerZoom(1.0);
+    setViewerLoading(true);
+    setViewerPageImgLoading(true);
+    setViewerError(null);
     setViewerModalOpen(true);
+
+    if (exam) {
+      try {
+        const artSlug = type === "QUESTION_PAPER" ? "question-paper" : "answer-key";
+        const meta = await api.getExamArtifactMeta(exam.id, artSlug);
+        setViewerTotalPages(Math.max(1, meta.page_count || 1));
+        setViewerHasDoc(meta.has_document);
+      } catch (err: any) {
+        console.error("Failed to load artifact meta:", err);
+        setViewerError(err.message || "Failed to load document preview");
+      } finally {
+        setViewerLoading(false);
+      }
+    }
   };
+
+  useEffect(() => {
+    if (!viewerModalOpen || !exam) return;
+    const artSlug = viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key";
+    const pagesToPreload = [viewerPage + 1, viewerPage - 1].filter(
+      (p) => p >= 1 && p <= viewerTotalPages
+    );
+    pagesToPreload.forEach((p) => {
+      const img = new Image();
+      img.src = api.getExamArtifactPageUrl(exam.id, artSlug, p);
+    });
+  }, [viewerPage, viewerModalOpen, exam, viewerArtifactType, viewerTotalPages]);
 
   useSetBreadcrumbs(
     useMemo(
@@ -1421,26 +1465,96 @@ export default function ExamDetailPage() {
               ? `Question Paper — ${exam.title}`
               : `Official Answer Key — ${exam.title}`
           }
-          maxWidth="max-w-4xl"
+          maxWidth="max-w-5xl"
           onClose={() => setViewerModalOpen(false)}
         >
           <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-hairline text-xs">
-              <div className="flex items-center gap-2">
+            {/* Top Responsive Control Bar */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-3 border-b border-hairline text-xs">
+              {/* Left: Badge & Info */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <BadgePill
                   label={viewerArtifactType === "QUESTION_PAPER" ? "Question Paper" : "Official Answer Key"}
                   color={viewerArtifactType === "QUESTION_PAPER" ? "sky" : "green"}
                 />
-                <span className="text-ink-muted text-[11px]">
+                <span className="text-ink-muted text-[11px] font-medium">
                   {exam.title} • {exam.subject}
                 </span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+
+              {/* Center: Pagination & Zoom Controls */}
+              <div className="flex items-center gap-2 justify-between md:justify-center flex-wrap">
+                {/* Pagination Controls */}
+                <div className="flex items-center gap-1 bg-surface border border-hairline rounded-lg p-0.5 shadow-xs">
+                  <button
+                    onClick={() => {
+                      if (viewerPage > 1) {
+                        setViewerPageImgLoading(true);
+                        setViewerPage((p) => p - 1);
+                      }
+                    }}
+                    disabled={viewerPage <= 1 || viewerLoading}
+                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="px-2 text-[11px] font-semibold text-ink select-none min-w-[70px] text-center">
+                    {viewerLoading ? "Loading..." : `Page ${viewerPage} of ${viewerTotalPages}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (viewerPage < viewerTotalPages) {
+                        setViewerPageImgLoading(true);
+                        setViewerPage((p) => p + 1);
+                      }
+                    }}
+                    disabled={viewerPage >= viewerTotalPages || viewerLoading}
+                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1 bg-surface border border-hairline rounded-lg p-0.5 shadow-xs">
+                  <button
+                    onClick={() => setViewerZoom((z) => Math.max(0.6, Number((z - 0.2).toFixed(1))))}
+                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="px-1 text-[11px] font-medium text-ink-muted min-w-[36px] text-center select-none">
+                    {Math.round(viewerZoom * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setViewerZoom((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))}
+                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </button>
+                  {viewerZoom !== 1.0 && (
+                    <button
+                      onClick={() => setViewerZoom(1.0)}
+                      className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
+                      title="Reset Zoom"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Actions */}
+              <div className="flex items-center gap-1.5 shrink-0 justify-end">
                 <a
                   href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded hover:bg-canvas-soft transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-lg hover:bg-canvas-soft transition-colors shadow-xs"
                 >
                   <ExternalLink className="h-3 w-3" />
                   <span>Open in Tab</span>
@@ -1448,7 +1562,7 @@ export default function ExamDetailPage() {
                 <a
                   href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
                   download={`${viewerArtifactType === "QUESTION_PAPER" ? "question_paper" : "answer_key"}_${exam.id}.pdf`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded hover:bg-canvas-soft transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-lg hover:bg-canvas-soft transition-colors shadow-xs"
                 >
                   <Download className="h-3 w-3" />
                   <span>Download</span>
@@ -1459,13 +1573,99 @@ export default function ExamDetailPage() {
               </div>
             </div>
 
-            {/* Embedded Native Browser PDF Preview */}
-            <div className="w-full h-[72vh] rounded-lg border border-hairline bg-canvas-soft overflow-hidden relative shadow-inner">
-              <iframe
-                src={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
-                className="w-full h-full border-0 bg-white"
-                title={viewerArtifactType === "QUESTION_PAPER" ? "Question Paper Viewer" : "Answer Key Viewer"}
-              />
+            {/* Document Render Canvas */}
+            <div className="w-full h-[68vh] md:h-[72vh] rounded-xl border border-hairline bg-canvas-soft overflow-auto relative p-3 sm:p-5 flex flex-col items-center justify-start shadow-inner">
+              {viewerLoading ? (
+                <div className="flex flex-col items-center justify-center m-auto py-16 gap-3">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  <p className="text-xs font-medium text-ink-secondary">
+                    Rendering high-resolution document pages...
+                  </p>
+                </div>
+              ) : !viewerHasDoc || viewerError ? (
+                <div className="flex flex-col items-center justify-center m-auto py-16 gap-3 max-w-sm text-center">
+                  <AlertCircle className="h-8 w-8 text-amber-500" />
+                  <p className="text-sm font-semibold text-ink">
+                    {viewerError || "Document not available for inline preview."}
+                  </p>
+                  <p className="text-xs text-ink-muted">
+                    You can still download or open the original document directly.
+                  </p>
+                  <a
+                    href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg shadow-sm hover:bg-primary-hover transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Original PDF</span>
+                  </a>
+                </div>
+              ) : (
+                <div className="w-full flex flex-col items-center justify-start transition-all duration-200">
+                  <div
+                    className="bg-white rounded-lg shadow-md border border-hairline overflow-hidden relative transition-transform duration-150 origin-top"
+                    style={{
+                      width: `${Math.round(viewerZoom * 100)}%`,
+                      maxWidth: viewerZoom <= 1 ? "100%" : "none",
+                    }}
+                  >
+                    {viewerPageImgLoading && (
+                      <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center z-10">
+                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                      </div>
+                    )}
+                    <img
+                      key={`${exam.id}_${viewerArtifactType}_${viewerPage}`}
+                      src={api.getExamArtifactPageUrl(
+                        exam.id,
+                        viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key",
+                        viewerPage
+                      )}
+                      alt={`Page ${viewerPage}`}
+                      className="w-full h-auto block select-none pointer-events-auto"
+                      onLoad={() => setViewerPageImgLoading(false)}
+                      onError={() => {
+                        setViewerPageImgLoading(false);
+                        setViewerError("Failed to load page image. Please try downloading the PDF.");
+                      }}
+                    />
+                  </div>
+
+                  {/* Floating Mobile Page Pill */}
+                  {viewerTotalPages > 1 && (
+                    <div className="sticky bottom-3 mt-4 flex md:hidden items-center gap-3 bg-surface/90 backdrop-blur-md border border-hairline px-3 py-1.5 rounded-full shadow-lg z-20 text-xs">
+                      <button
+                        onClick={() => {
+                          if (viewerPage > 1) {
+                            setViewerPageImgLoading(true);
+                            setViewerPage((p) => p - 1);
+                          }
+                        }}
+                        disabled={viewerPage <= 1}
+                        className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="font-semibold text-ink text-[11px]">
+                        {viewerPage} / {viewerTotalPages}
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (viewerPage < viewerTotalPages) {
+                            setViewerPageImgLoading(true);
+                            setViewerPage((p) => p + 1);
+                          }
+                        }}
+                        disabled={viewerPage >= viewerTotalPages}
+                        className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </ModalCard>
