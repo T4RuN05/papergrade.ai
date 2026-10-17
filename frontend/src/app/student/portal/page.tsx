@@ -31,6 +31,10 @@ import {
   TrendingDown,
   Minus,
   LineChart,
+  ChevronDown,
+  ChevronUp,
+  Sliders,
+  Cpu,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -495,6 +499,28 @@ export default function StudentPortalPage() {
   // Detailed Breakdown Modal state
   const [breakdownModalOpen, setBreakdownModalOpen] = useState(false);
   const [breakdownSubmission, setBreakdownSubmission] = useState<any>(null);
+  const [expandedQuestionIds, setExpandedQuestionIds] = useState<Record<string, boolean>>({});
+
+  const toggleQuestionExpand = (id: string) => {
+    setExpandedQuestionIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const toggleAllQuestionsExpand = (allAnswers: any[]) => {
+    const allKeys = allAnswers.map((a: any, idx: number) => a.id || a.question_id || `q_${idx}`);
+    const isAllExpanded = allKeys.every((key) => expandedQuestionIds[key]);
+    if (isAllExpanded) {
+      setExpandedQuestionIds({});
+    } else {
+      const next: Record<string, boolean> = {};
+      allKeys.forEach((key) => {
+        next[key] = true;
+      });
+      setExpandedQuestionIds(next);
+    }
+  };
 
   // Revaluation modal state
   const [revalModalOpen, setRevalModalOpen] = useState(false);
@@ -748,25 +774,24 @@ export default function StudentPortalPage() {
       return;
     }
     setBreakdownSubmission(sub);
+    setExpandedQuestionIds({});
     setBreakdownModalOpen(true);
 
-    // Fetch full question answers breakdown if not already cached in state
-    if (!sub.answers || sub.answers.length === 0) {
-      try {
-        const details = await api.getSubmission(sub.id);
-        if (details && details.answers) {
-          setBreakdownSubmission((prev: any) => ({
-            ...prev,
-            ...details,
-            answers: details.answers,
-          }));
-          setSubmissions((prevList) =>
-            prevList.map((s) => (s.id === sub.id ? { ...s, ...details, answers: details.answers } : s))
-          );
-        }
-      } catch (err) {
-        console.warn("Could not fetch detailed answers for breakdown modal", err);
+    // Fetch full question answers breakdown (including criteria, official answer, and AI transcription)
+    try {
+      const details = await api.getSubmission(sub.id);
+      if (details && details.answers) {
+        setBreakdownSubmission((prev: any) => ({
+          ...prev,
+          ...details,
+          answers: details.answers,
+        }));
+        setSubmissions((prevList) =>
+          prevList.map((s) => (s.id === sub.id ? { ...s, ...details, answers: details.answers } : s))
+        );
       }
+    } catch (err) {
+      console.warn("Could not fetch detailed answers for breakdown modal", err);
     }
   };
 
@@ -1442,19 +1467,54 @@ export default function StudentPortalPage() {
               )}
             </div>
 
+            {/* Questions List Header with Expand All / Collapse All */}
+            {breakdownSubmission.answers && breakdownSubmission.answers.length > 0 && (
+              <div className="flex items-center justify-between px-1 text-xs text-ink-muted">
+                <span className="font-semibold text-ink-secondary">
+                  Questions Evaluated ({breakdownSubmission.answers.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleAllQuestionsExpand(breakdownSubmission.answers)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                >
+                  <Sliders className="h-3 w-3" />
+                  <span>
+                    {breakdownSubmission.answers.every((a: any, idx: number) =>
+                      expandedQuestionIds[a.id || a.question_id || `q_${idx}`]
+                    )
+                      ? "Collapse All"
+                      : "Expand All Details"}
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* Questions List */}
             {breakdownSubmission.answers && breakdownSubmission.answers.length > 0 ? (
               <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
                 {breakdownSubmission.answers.map((ans: any, idx: number) => {
+                  const qKey = ans.id || ans.question_id || `q_${idx}`;
+                  const isExpanded = Boolean(expandedQuestionIds[qKey]);
                   const qLabel = ans.question_id
                     ? ans.question_id.replace(/^q_?/i, "Q")
                     : `Q${idx + 1}`;
+                  const criterionScores: any[] = ans.criterion_scores || [];
+                  const hasCriteria = criterionScores.length > 0;
+                  const hasExtractedText = Boolean(ans.extracted_text && ans.extracted_text.trim());
+                  const hasOfficialAnswer = Boolean(ans.official_answer && ans.official_answer.trim());
+                  const hasRationale = Boolean(
+                    ans.grading_rationale &&
+                    ans.grading_rationale.trim() &&
+                    ans.grading_rationale !== ans.feedback
+                  );
+
                   return (
                     <div
-                      key={ans.id || idx}
-                      className="p-3 rounded-md border border-hairline bg-surface space-y-2"
+                      key={qKey}
+                      className="p-3 rounded-lg border border-hairline bg-surface space-y-2.5 transition-all shadow-2xs"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-ink text-xs bg-canvas-soft px-2 py-0.5 rounded border border-hairline">
                             {qLabel}
@@ -1464,12 +1524,24 @@ export default function StudentPortalPage() {
                               Human Override
                             </span>
                           )}
+                          {ans.page_number && (
+                            <span className="text-[10px] text-ink-muted">Page {ans.page_number}</span>
+                          )}
                         </div>
-                        <span className="font-bold text-ink text-xs">
+                        <span className="font-mono font-bold text-ink text-xs">
                           {Number(ans.awarded_marks || 0).toFixed(1)} / {ans.max_marks || 1} marks
                         </span>
                       </div>
 
+                      {/* Question Text / Prompt if available */}
+                      {ans.question_text && (
+                        <p className="text-[11.5px] text-ink-secondary leading-relaxed bg-canvas-soft/40 p-2 rounded border border-hairline/50">
+                          <span className="font-semibold text-ink">Prompt: </span>
+                          {ans.question_text}
+                        </p>
+                      )}
+
+                      {/* Rubric Remarks */}
                       {ans.feedback && (
                         <div className="text-ink-secondary bg-canvas-soft/70 p-2 rounded text-[11px] leading-relaxed border border-hairline/60">
                           <span className="font-semibold text-ink">Rubric Remarks: </span>
@@ -1477,10 +1549,155 @@ export default function StudentPortalPage() {
                         </div>
                       )}
 
+                      {/* Human Override Justification */}
                       {ans.override_reason && (
                         <div className="text-[11px] text-emerald-800 bg-emerald-50/70 p-2 rounded border border-emerald-200/60">
                           <span className="font-semibold">Reviewer Justification: </span>
                           {ans.override_reason}
+                        </div>
+                      )}
+
+                      {/* Accordion Toggle: Criteria Breakdown & AI Answer */}
+                      <button
+                        type="button"
+                        onClick={() => toggleQuestionExpand(qKey)}
+                        className={`w-full flex items-center justify-between text-xs font-semibold py-1.5 px-2.5 rounded transition-all cursor-pointer border ${
+                          isExpanded
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-canvas-soft/90 border-hairline"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Sliders className="h-3 w-3 text-primary" />
+                          <span>
+                            {isExpanded
+                              ? "Hide Evaluation Details"
+                              : "View Criteria Breakdown & AI Answer"}
+                          </span>
+                          {hasCriteria && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded-full font-bold">
+                              {criterionScores.length} criteria
+                            </span>
+                          )}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+
+                      {/* EXPANDED EVALUATION SECTION */}
+                      {isExpanded && (
+                        <div className="space-y-3 pt-1 border-t border-hairline/70 animate-in fade-in duration-200">
+                          {/* 1. Criteria Breakdown */}
+                          {hasCriteria ? (
+                            <div className="space-y-1.5">
+                              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1">
+                                <CheckSquare className="h-3 w-3 text-primary" />
+                                <span>Rubric Criteria Evaluation ({criterionScores.length})</span>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                {criterionScores.map((crit: any, cIdx: number) => {
+                                  const critAwarded = Number(crit.awarded_marks || 0);
+                                  const critMax = Number(crit.max_marks || 1);
+                                  const isFull = critAwarded >= critMax;
+                                  const isZero = critAwarded === 0;
+
+                                  return (
+                                    <div
+                                      key={crit.id || crit.criterion_id || cIdx}
+                                      className="p-2.5 rounded-md bg-canvas-soft/80 border border-hairline space-y-1"
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="text-[11px] font-medium text-ink leading-snug">
+                                          <span className="font-semibold text-ink-secondary mr-1">
+                                            {crit.criterion_id ? `[${crit.criterion_id}]` : `Criterion ${cIdx + 1}:`}
+                                          </span>
+                                          {crit.description}
+                                        </div>
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold shrink-0 border ${
+                                            isFull
+                                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                              : isZero
+                                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                                              : "bg-amber-50 text-amber-700 border-amber-200"
+                                          }`}
+                                        >
+                                          {critAwarded.toFixed(1)} / {critMax}m
+                                        </span>
+                                      </div>
+
+                                      {crit.evidence && (
+                                        <div className="text-[10.5px] text-ink-muted bg-white/80 p-1.5 rounded border border-hairline/60 leading-relaxed">
+                                          <span className="font-semibold text-ink-secondary">AI Finding / Evidence: </span>
+                                          {crit.evidence}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-ink-muted italic bg-canvas-soft/40 p-2 rounded border border-hairline/50">
+                              Holistic question-level grading applied without sub-criteria.
+                            </div>
+                          )}
+
+                          {/* 2. Side-by-Side: Student Handwriting vs Official Model Solution */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {/* Student's Transcribed Handwriting */}
+                            <div className="p-2.5 rounded-md bg-blue-50/30 border border-blue-200/60 space-y-1">
+                              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
+                                <Cpu className="h-3 w-3 text-primary shrink-0" />
+                                <span>Student Answer (AI Transcribed)</span>
+                              </div>
+                              <div className="text-[11px] text-ink-secondary leading-relaxed font-mono whitespace-pre-wrap bg-white/80 p-2 rounded border border-blue-100 max-h-36 overflow-y-auto">
+                                {hasExtractedText
+                                  ? ans.extracted_text
+                                  : "No handwriting transcribed for this question."}
+                              </div>
+                            </div>
+
+                            {/* Official Answer Key */}
+                            <div className="p-2.5 rounded-md bg-emerald-50/30 border border-emerald-200/60 space-y-1">
+                              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-900 uppercase tracking-wider">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                                <span>Official Model Solution</span>
+                              </div>
+                              <div className="text-[11px] text-ink-secondary leading-relaxed whitespace-pre-wrap bg-white/80 p-2 rounded border border-emerald-100 max-h-36 overflow-y-auto">
+                                {hasOfficialAnswer
+                                  ? ans.official_answer
+                                  : "Model solution not published or withheld by institute policy."}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 3. AI Grading Rationale (if present and distinct) */}
+                          {hasRationale && (
+                            <div className="text-[11px] text-indigo-950 bg-indigo-50/50 p-2 rounded border border-indigo-200/60 leading-relaxed">
+                              <span className="font-semibold text-indigo-900">AI Detailed Reasoning: </span>
+                              {ans.grading_rationale}
+                            </div>
+                          )}
+
+                          {/* 4. Handwriting Crop Link (if available) */}
+                          {ans.crop_url && (
+                            <div className="pt-0.5 flex items-center justify-end text-[11px]">
+                              <a
+                                href={ans.crop_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                              >
+                                <Eye className="h-3 w-3" />
+                                <span>Inspect Handwriting Crop Image →</span>
+                              </a>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
