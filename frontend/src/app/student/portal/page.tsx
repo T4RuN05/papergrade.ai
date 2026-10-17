@@ -1329,7 +1329,7 @@ export default function StudentPortalPage() {
                           {isPublished
                             ? sub.is_document_purged
                               ? "View Archived Question Marks →"
-                              : "Inspect in Interactive PDF Viewer →"
+                              : "Inspect in PDF Viewer →"
                             : "View Submitted Script →"}
                         </span>
                       </Link>
@@ -1441,12 +1441,12 @@ export default function StudentPortalPage() {
         {breakdownSubmission && (
           <div className="space-y-4 text-xs">
             {/* Modal Subheader */}
-            <div className="flex items-center justify-between p-3 rounded-md bg-canvas-soft border border-hairline">
-              <div>
-                <div className="text-[10px] uppercase font-semibold text-ink-muted">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-ink-muted">
                   Roll: {breakdownSubmission.roll_number}
                 </div>
-                <div className="text-sm font-bold text-ink">
+                <div className="text-sm font-bold text-ink leading-snug mt-0.5">
                   Total Awarded:{" "}
                   {breakdownSubmission.total_awarded_marks !== null && breakdownSubmission.total_awarded_marks !== undefined
                     ? `${Number(breakdownSubmission.total_awarded_marks).toFixed(1)} / ${breakdownSubmission.max_marks || breakdownSubmission.exam_total_marks || 25} marks (${Number(breakdownSubmission.percentage || 0).toFixed(1)}%)`
@@ -1459,17 +1459,17 @@ export default function StudentPortalPage() {
                   href={api.getAnnotatedPdfUrl(breakdownSubmission.id)}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                  className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all shrink-0 shadow-2xs whitespace-nowrap"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  Annotated PDF
+                  <Download className="h-3.5 w-3.5 shrink-0" />
+                  <span>Annotated PDF</span>
                 </a>
               )}
             </div>
 
             {/* Questions List Header with Expand All / Collapse All */}
             {breakdownSubmission.answers && breakdownSubmission.answers.length > 0 && (
-              <div className="flex items-center justify-between px-1 text-xs text-ink-muted">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-ink-muted">
                 <span className="font-semibold text-ink-secondary">
                   Questions Evaluated ({breakdownSubmission.answers.length})
                 </span>
@@ -1514,21 +1514,21 @@ export default function StudentPortalPage() {
                       key={qKey}
                       className="p-3 rounded-lg border border-hairline bg-surface space-y-2.5 transition-all shadow-2xs"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                           <span className="font-bold text-ink text-xs bg-canvas-soft px-2 py-0.5 rounded border border-hairline">
                             {qLabel}
                           </span>
                           {ans.is_manual_override === 1 && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
                               Human Override
                             </span>
                           )}
                           {ans.page_number && (
-                            <span className="text-[10px] text-ink-muted">Page {ans.page_number}</span>
+                            <span className="text-[10px] text-ink-muted shrink-0">Page {ans.page_number}</span>
                           )}
                         </div>
-                        <span className="font-mono font-bold text-ink text-xs">
+                        <span className="font-mono font-bold text-ink text-xs shrink-0">
                           {Number(ans.awarded_marks || 0).toFixed(1)} / {ans.max_marks || 1} marks
                         </span>
                       </div>
@@ -1561,30 +1561,33 @@ export default function StudentPortalPage() {
                       <button
                         type="button"
                         onClick={() => toggleQuestionExpand(qKey)}
-                        className={`w-full flex items-center justify-between text-xs font-semibold py-1.5 px-2.5 rounded transition-all cursor-pointer border ${
+                        className={`w-full flex items-center justify-between gap-2 text-xs font-semibold py-2 px-3 rounded-md transition-all cursor-pointer border ${
                           isExpanded
                             ? "bg-primary/10 text-primary border-primary/30"
                             : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-canvas-soft/90 border-hairline"
                         }`}
                       >
-                        <span className="flex items-center gap-1.5">
-                          <Sliders className="h-3 w-3 text-primary" />
-                          <span>
+                        <div className="flex items-center gap-2 min-w-0 text-left">
+                          <Sliders className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="leading-snug truncate sm:whitespace-normal">
                             {isExpanded
                               ? "Hide Evaluation Details"
                               : "View Criteria Breakdown & AI Answer"}
                           </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
                           {hasCriteria && (
-                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded-full font-bold">
-                              {criterionScores.length} criteria
+                            <span className="text-[10px] bg-primary/15 text-primary border border-primary/25 px-2 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0">
+                              {criterionScores.length} {criterionScores.length === 1 ? "criterion" : "criteria"}
                             </span>
                           )}
-                        </span>
-                        {isExpanded ? (
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        )}
+                          {isExpanded ? (
+                            <ChevronUp className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                          )}
+                        </div>
                       </button>
 
                       {/* EXPANDED EVALUATION SECTION */}

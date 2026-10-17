@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </main>
             <footer className="border-t border-hairline bg-surface/60 px-4 py-4 text-center text-xs text-ink-muted">
               <p className="max-w-xl mx-auto leading-relaxed">
-                PaperGrade AI • High-Integrity Academic Evaluation & Zero-Egress Storage • Notion Design Standard
+                PaperGrade AI • High-Integrity Academic Evaluation 
               </p>
             </footer>
           </div>

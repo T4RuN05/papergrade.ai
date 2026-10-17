@@ -9,6 +9,9 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronUp,
+  Sliders,
+  Cpu,
+  CheckSquare,
 } from "lucide-react";
 import { GradedAnswer } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -244,35 +247,87 @@ export function StudentQuestionModal({
 
         {/* Step-by-Step Criterion Scores if Available */}
         {answer.criterion_scores && answer.criterion_scores.length > 0 && (
-          <div className="space-y-1">
-            <div className="font-semibold text-ink text-[10.5px]">Criteria Breakdown:</div>
-            <div className="space-y-1 max-h-28 overflow-y-auto pr-0.5">
-              {answer.criterion_scores.map((crit, idx) => (
-                <div
-                  key={crit.id || idx}
-                  className="flex items-center justify-between p-1.5 rounded border border-hairline bg-surface text-[10.5px]"
-                >
-                  <span className="text-ink font-medium truncate max-w-[200px]">
-                    {crit.criterion_id || `Step ${idx + 1}`}
-                  </span>
-                  <span className="font-bold text-ink shrink-0 font-mono">
-                    {Number(crit.awarded_marks || 0).toFixed(1)} / {crit.max_marks || 1}m
-                  </span>
-                </div>
-              ))}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between font-semibold text-ink text-[10.5px]">
+              <span className="flex items-center gap-1">
+                <Sliders className="h-3 w-3 text-primary" />
+                <span>Criteria Breakdown ({answer.criterion_scores.length}):</span>
+              </span>
+            </div>
+
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+              {answer.criterion_scores.map((crit, idx) => {
+                const critAwarded = Number(crit.awarded_marks || 0);
+                const critMax = Number(crit.max_marks || 1);
+                const isFull = critAwarded >= critMax;
+                const isZero = critAwarded === 0;
+
+                return (
+                  <div
+                    key={crit.id || crit.criterion_id || idx}
+                    className="p-2 rounded-md bg-canvas-soft/80 border border-hairline space-y-1"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-[11px] font-medium text-ink leading-snug">
+                        <span className="font-semibold text-ink-secondary mr-1">
+                          {crit.criterion_id ? `[${crit.criterion_id}]` : `Step ${idx + 1}:`}
+                        </span>
+                        {crit.description}
+                      </div>
+                      <span
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 border whitespace-nowrap ${
+                          isFull
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : isZero
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
+                      >
+                        {critAwarded.toFixed(1)} / {critMax}m
+                      </span>
+                    </div>
+
+                    {crit.evidence && (
+                      <div className="text-[10.5px] text-ink-muted bg-white/80 p-1.5 rounded border border-hairline/60 leading-relaxed">
+                        <span className="font-semibold text-ink-secondary">AI Finding / Evidence: </span>
+                        {crit.evidence}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Transcribed Student Text Snippet (Compact) */}
-        {answer.extracted_text && (
-          <div className="space-y-0.5">
-            <span className="font-semibold text-ink-muted text-[9.5px] uppercase">
-              Transcribed Text:
-            </span>
-            <div className="p-1.5 rounded bg-surface border border-hairline text-[10px] font-mono text-ink-secondary line-clamp-2">
-              {answer.extracted_text}
-            </div>
+        {/* Student Handwriting Transcribed vs Official Model Solution */}
+        {(answer.extracted_text || answer.official_answer) && (
+          <div className="grid grid-cols-1 gap-2 pt-0.5">
+            {/* Student's Transcribed Text */}
+            {answer.extracted_text && (
+              <div className="p-2 rounded-md bg-blue-50/30 border border-blue-200/60 space-y-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-900 uppercase tracking-wider">
+                  <Cpu className="h-3 w-3 text-primary shrink-0" />
+                  <span>Transcribed Student Answer (AI Vision)</span>
+                </div>
+                <div className="text-[10.5px] text-ink-secondary font-mono leading-relaxed whitespace-pre-wrap bg-white/80 p-2 rounded border border-blue-100 max-h-28 overflow-y-auto">
+                  {answer.extracted_text}
+                </div>
+              </div>
+            )}
+
+            {/* Official Model Solution if available */}
+            {answer.official_answer && (
+              <div className="p-2 rounded-md bg-emerald-50/30 border border-emerald-200/60 space-y-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-900 uppercase tracking-wider">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                  <span>Official Model Solution</span>
+                </div>
+                <div className="text-[10.5px] text-ink-secondary leading-relaxed whitespace-pre-wrap bg-white/80 p-2 rounded border border-emerald-100 max-h-28 overflow-y-auto">
+                  {answer.official_answer}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
