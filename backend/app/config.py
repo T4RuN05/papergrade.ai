@@ -58,6 +58,11 @@ class Settings:
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7))) # 7 days
 
+    # Web Push / VAPID Settings (100% Free W3C Browser Push)
+    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "BI1I5SnHVzzA1xq19X5M56EdzidtReiFM40_u9MTepwcZPy_H1G45nswZCVjVJCZpzFO7R5trsMlT2_i_kmbmDk").strip()
+    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "uO96ke6CeqAprAJgxrVs45c4i2X9Y5E516QGGVfKim8").strip()
+    VAPID_CLAIMS_EMAIL: str = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:notifications@papergrade.ai").strip()
+
     # Submission & Evaluation Lifecycle Constraints
     WINDOW_DURATION_MINUTES: int = int(os.getenv("WINDOW_DURATION_MINUTES", "30"))
     GRACE_PERIOD_MINUTES: int = int(os.getenv("GRACE_PERIOD_MINUTES", "2"))

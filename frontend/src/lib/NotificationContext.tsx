@@ -34,6 +34,17 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -43,13 +54,54 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [isSupported, setIsSupported] = useState(false);
   const isInitialMount = useRef(true);
 
-  // Sync initial notification permission status on client mount
+  // Synchronize device Web Push subscription token with backend (enables closed-app delivery)
+  const syncWebPushSubscription = useCallback(async () => {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
+    ) {
+      return;
+    }
+    const token = getAuthToken();
+    if (!token || Notification.permission !== "granted") return;
+
+    try {
+      let reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      }
+      if (!reg || !reg.pushManager) return;
+
+      const vapidPublicKey = await api.getVapidPublicKey();
+      if (!vapidPublicKey) return;
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+      }
+
+      if (sub) {
+        await api.savePushSubscription(sub.toJSON());
+      }
+    } catch (err) {
+      console.warn("Web Push registration notice:", err);
+    }
+  }, []);
+
+  // Sync initial notification permission status & WebPush on client mount
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setIsSupported(true);
       setPermission(Notification.permission);
+      if (Notification.permission === "granted") {
+        syncWebPushSubscription();
+      }
     }
-  }, []);
+  }, [syncWebPushSubscription]);
 
   const sendSystemNotification = useCallback(
     async (title: string, options?: NotificationOptions) => {
@@ -135,6 +187,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           body: "Push alerts are successfully enabled on this device.",
           data: { url: "/student/portal" },
         });
+        await syncWebPushSubscription();
         return true;
       } else if (result === "denied") {
         toast.info("Notifications were blocked. You can re-enable them in your browser site permissions.", {
@@ -146,7 +199,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } catch {
       return false;
     }
-  }, [toast, sendSystemNotification]);
+  }, [toast, sendSystemNotification, syncWebPushSubscription]);
 
   const sendTestNotification = useCallback(async () => {
     try {
@@ -154,11 +207,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const granted = await requestPermission();
         if (!granted) return;
       }
+      // 1. Immediate local confirmation notification
       await sendSystemNotification("PaperGrade AI Alert", {
-        body: "Test notification delivered! Real-time alerts are functioning on your device.",
+        body: "Local alert delivered! Synchronizing Cloud WebPush gateway...",
         data: { url: "/student/portal" },
       });
-      toast.success("Test notification dispatched to your system tray / notification shade.", {
+
+      // 2. Register Web Push with browser push gateway (Google/Apple)
+      await syncWebPushSubscription();
+
+      // 3. Trigger true server-side cloud push test
+      await api.testClosedAppPush().catch(() => {});
+
+      toast.success("Cloud WebPush test dispatched! Alerts will trigger even when closed.", {
         title: "Test Dispatched",
       });
     } catch (err: any) {
@@ -167,7 +228,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         title: "Notification Error",
       });
     }
-  }, [permission, requestPermission, sendSystemNotification, toast]);
+  }, [permission, requestPermission, sendSystemNotification, syncWebPushSubscription, toast]);
 
   const fetchNotifications = useCallback(async () => {
     const token = getAuthToken();

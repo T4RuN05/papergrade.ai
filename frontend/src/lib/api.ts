@@ -788,6 +788,48 @@ export const api = {
     return res.json();
   },
 
+  async getVapidPublicKey(): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/notifications/vapid-public-key`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.public_key || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async savePushSubscription(sub: any): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/notifications/push-subscription`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify(sub),
+    });
+    if (!res.ok) throw new Error("Failed to save push subscription");
+    return res.json();
+  },
+
+  async removePushSubscription(endpoint: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/notifications/push-unsubscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ endpoint }),
+    });
+    if (!res.ok) throw new Error("Failed to remove push subscription");
+    return res.json();
+  },
+
+  async testClosedAppPush(): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/notifications/test-closed-app-push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error("Failed to dispatch cloud push test");
+    return res.json();
+  },
+
   // -------------------------------------------------------------
   // System Health & Legacy POC APIs
   // -------------------------------------------------------------

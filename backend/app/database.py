@@ -477,6 +477,19 @@ def init_db():
         );
         """)
 
+        # 15b. Web Push Subscriptions Table (VAPID for background & closed-app mobile push)
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id {text_type} PRIMARY KEY,
+            user_id {text_type} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            endpoint {text_type} NOT NULL UNIQUE,
+            p256dh {text_type} NOT NULL,
+            auth {text_type} NOT NULL,
+            user_agent {text_type},
+            created_at {text_type} NOT NULL
+        );
+        """)
+
         # 16. Audit Logs Table
         cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS audit_logs (
@@ -693,6 +706,7 @@ def init_db():
             ("idx_queue_status", "evaluation_queue", "status"),
             ("idx_reval_sub", "revaluation_requests", "submission_id"),
             ("idx_notif_user", "notifications", "user_id"),
+            ("idx_push_subs_user", "push_subscriptions", "user_id"),
             ("idx_audit_resource", "audit_logs", "resource_type, resource_id"),
         ]
         for idx_name, tbl, cols in indexes:

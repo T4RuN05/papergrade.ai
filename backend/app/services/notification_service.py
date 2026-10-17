@@ -1,6 +1,82 @@
 import uuid
+import json
+import logging
+import threading
 from typing import Optional, List, Dict, Any
 from backend.app.database import get_db, get_iso_now
+from backend.app.config import settings
+
+logger = logging.getLogger(__name__)
+
+def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, payload_str: str):
+    """Deliver a Web Push encrypted packet to Google FCM / Apple APNs / Mozilla push servers."""
+    try:
+        from pywebpush import webpush, WebPushException
+        webpush(
+            subscription_info={
+                "endpoint": endpoint,
+                "keys": {
+                    "p256dh": p256dh,
+                    "auth": auth,
+                },
+            },
+            data=payload_str,
+            vapid_private_key=settings.VAPID_PRIVATE_KEY,
+            vapid_claims={
+                "sub": settings.VAPID_CLAIMS_EMAIL,
+            },
+            ttl=86400,  # 24 hours delivery window if device is currently offline
+        )
+    except Exception as ex:
+        # Check if subscription has expired or unsubscribed (HTTP 404 or 410 Gone)
+        response = getattr(ex, "response", None)
+        status_code = getattr(response, "status_code", None)
+        if status_code in (404, 410):
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM push_subscriptions WHERE id = ?", (sub_id,))
+            except Exception:
+                pass
+        else:
+            logger.debug("WebPush delivery notice: %s", ex)
+
+def dispatch_webpush_for_user(user_id: str, title: str, message: str, link_url: Optional[str] = None):
+    """Query active push subscriptions for user_id and trigger webpush asynchronously in background."""
+    if not settings.VAPID_PRIVATE_KEY or not user_id:
+        return
+
+    def _worker():
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?",
+                    (user_id,),
+                )
+                subs = [dict(r) for r in cursor.fetchall()]
+
+            if not subs:
+                return
+
+            payload = json.dumps({
+                "title": title,
+                "body": message,
+                "url": link_url or "/student/portal",
+            })
+
+            for s in subs:
+                _send_single_webpush(
+                    sub_id=s["id"],
+                    endpoint=s["endpoint"],
+                    p256dh=s["p256dh"],
+                    auth=s["auth"],
+                    payload_str=payload,
+                )
+        except Exception as err:
+            logger.debug("Failed in dispatch_webpush_for_user: %s", err)
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 def send_notification(
     cursor,
@@ -10,7 +86,7 @@ def send_notification(
     message: str,
     link_url: Optional[str] = None
 ) -> str:
-    """Insert a single notification into notifications table using active cursor."""
+    """Insert a single notification into notifications table using active cursor and dispatch WebPush."""
     if not user_id:
         return ""
     notif_id = f"notif_{uuid.uuid4().hex[:12]}"
@@ -19,6 +95,9 @@ def send_notification(
         INSERT INTO notifications (id, user_id, type, title, message, link_url, is_read, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 0, ?)
     """, (notif_id, user_id, notif_type, title, message, link_url, now))
+    
+    # Asynchronously dispatch WebPush to student's mobile/desktop device (wakes up closed PWA)
+    dispatch_webpush_for_user(user_id, title, message, link_url)
     return notif_id
 
 def notify_user_direct(

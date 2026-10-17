@@ -55,9 +55,14 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Push notification incoming event
+// Push notification incoming event from Google/Apple WebPush cloud
 self.addEventListener("push", (event) => {
-  let data = { title: "PaperGrade AI", body: "You have a new academic update.", url: "/student/portal" };
+  let data = {
+    title: "PaperGrade AI",
+    body: "You have a new academic update.",
+    url: "/student/portal"
+  };
+
   if (event.data) {
     try {
       data = { ...data, ...event.data.json() };
@@ -66,11 +71,14 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  const origin = self.location.origin;
   const options = {
     body: data.body,
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
-    vibrate: [100, 50, 100],
+    icon: new URL("/icon-192.png", origin).href,
+    badge: new URL("/icon-192.png", origin).href,
+    vibrate: [200, 100, 200],
+    tag: `papergrade-push-${Date.now()}`,
+    renotify: true,
     data: {
       url: data.url || "/student/portal",
     },
