@@ -48,16 +48,14 @@ export default function SingleBatchPage() {
   const [scoreFilter, setScoreFilter] = useState<"ALL" | "TOP" | "MID" | "LOW">("ALL");
 
   useSetBreadcrumbs(
-    useMemo(
-      () => ({
-        group: "Academic Operations",
-        segments: [
-          { label: "Batches & Roster", href: "/branch/batches" },
-          { label: batch ? batch.name : "..." },
-        ],
-      }),
-      [batch?.name]
-    )
+    {
+      group: "Academic Operations",
+      segments: [
+        { label: "Batches & Roster", href: "/branch/batches" },
+        { label: batch?.name || (batchId ? `Batch (${batchId.slice(0, 8)})` : "Batch Details") },
+      ],
+    },
+    [batch?.name, batchId]
   );
 
   useEffect(() => {

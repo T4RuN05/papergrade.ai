@@ -163,16 +163,14 @@ export default function ExamDetailPage() {
   }, [viewerPage, viewerModalOpen, exam, viewerArtifactType, viewerTotalPages]);
 
   useSetBreadcrumbs(
-    useMemo(
-      () => ({
-        group: "Academic Operations",
-        segments: [
-          { label: "Exams & Rubrics", href: "/exams" },
-          { label: exam ? exam.title : "..." },
-        ],
-      }),
-      [exam?.title]
-    )
+    {
+      group: "Academic Operations",
+      segments: [
+        { label: "Exams & Rubrics", href: "/exams" },
+        { label: exam?.title || (examId ? `Exam (${examId.slice(0, 8)})` : "Exam Details") },
+      ],
+    },
+    [exam?.title, examId]
   );
 
   const [isRefreshing, setIsRefreshing] = useState(false);

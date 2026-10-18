@@ -37,11 +37,9 @@ export function useBreadcrumbs() {
   return context;
 }
 
-/**
- * Hook to set dynamic breadcrumb trail on mount / update and automatically reset on unmount.
- */
-export function useSetBreadcrumbs(trail: BreadcrumbTrail | null, deps: any[] = []) {
+export function useSetBreadcrumbs(trail: BreadcrumbTrail | null, deps?: any[]) {
   const { setTrail } = useBreadcrumbs();
+  const trailKey = trail ? JSON.stringify(trail) : null;
 
   useEffect(() => {
     if (trail) {
@@ -51,5 +49,5 @@ export function useSetBreadcrumbs(trail: BreadcrumbTrail | null, deps: any[] = [
       setTrail(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, deps !== undefined ? deps : [trailKey]);
 }

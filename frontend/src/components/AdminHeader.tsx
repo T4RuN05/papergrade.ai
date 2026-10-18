@@ -175,13 +175,15 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                   {seg.href && !isLast ? (
                     <Link
                       href={seg.href}
-                      className="text-ink-secondary hover:text-ink hover:underline font-medium truncate max-w-[140px] sm:max-w-[200px]"
+                      title={seg.label}
+                      className="text-ink-secondary hover:text-ink hover:underline font-medium truncate max-w-[140px] sm:max-w-[220px] md:max-w-[340px] lg:max-w-[480px]"
                     >
                       {seg.label}
                     </Link>
                   ) : (
                     <span
-                      className={`truncate max-w-[160px] sm:max-w-[260px] ${
+                      title={seg.label}
+                      className={`truncate max-w-[180px] sm:max-w-[280px] md:max-w-[420px] lg:max-w-[650px] ${
                         isLast ? "font-bold text-ink" : "text-ink-secondary font-medium"
                       }`}
                     >
