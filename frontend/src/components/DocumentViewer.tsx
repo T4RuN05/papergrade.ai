@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -79,7 +79,19 @@ export function DocumentViewer({
   hideScoreStamp = false,
 }: DocumentViewerProps) {
   const [internalPage, setInternalPage] = useState<number>(1);
+  const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [pageAspect, setPageAspect] = useState<number>(0.707); // Default A4 ratio (1 / 1.414)
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  panRef.current = pan;
+
   const [zoomScale, setZoomScale] = useState<number>(1.0);
+  const zoomScaleRef = useRef(zoomScale);
+  zoomScaleRef.current = zoomScale;
+
+  const didPanRef = useRef(false);
+  const isInitialFitRef = useRef(false);
+
   const [hoveredAnswerId, setHoveredAnswerId] = useState<string | null>(null);
   const [imageError, setImageError] = useState<boolean>(false);
   const [isPageImageLoading, setIsPageImageLoading] = useState<boolean>(true);
@@ -178,6 +190,9 @@ export function DocumentViewer({
         const viewport = page.getViewport({ scale: 1.5 });
         canvas.width = viewport.width;
         canvas.height = viewport.height;
+        if (viewport.width > 0 && viewport.height > 0) {
+          setPageAspect(viewport.width / viewport.height);
+        }
 
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
@@ -262,28 +277,156 @@ export function DocumentViewer({
   // Ref to the zoomable image container and viewport
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const zoomScaleRef = useRef(zoomScale);
-  zoomScaleRef.current = zoomScale;
 
-  // Touch pinch-to-zoom and double-tap handling for mobile PWA
+  // Measure viewport container dimensions dynamically
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setContainerDims({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      }
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Compute base display dimensions that fit BOTH width and height by default
+  const baseDimensions = useMemo(() => {
+    const cW = containerDims.width > 0 ? containerDims.width : 800;
+    const cH = containerDims.height > 0 ? containerDims.height : 600;
+    const isMobile = cW < 640;
+    const pad = isMobile ? 8 : 20;
+
+    const availW = Math.max(100, cW - pad * 2);
+    const availH = Math.max(100, cH - pad * 2);
+
+    let w = availW;
+    let h = availW / pageAspect;
+
+    if (h > availH) {
+      h = availH;
+      w = availH * pageAspect;
+    }
+
+    return {
+      width: Math.round(w),
+      height: Math.round(h),
+      containerW: cW,
+      containerH: cH,
+    };
+  }, [containerDims.width, containerDims.height, pageAspect]);
+
+  // Keep pan bounded so the document can be slid freely in all directions without getting lost
+  const clampPan = useCallback((targetX: number, targetY: number, scale: number) => {
+    const cW = baseDimensions.containerW;
+    const cH = baseDimensions.containerH;
+    const curW = baseDimensions.width * scale;
+    const curH = baseDimensions.height * scale;
+
+    let minX: number;
+    let maxX: number;
+    if (curW > cW) {
+      minX = cW - curW - 16;
+      maxX = 16;
+    } else {
+      const cx = (cW - curW) / 2;
+      minX = cx - 20;
+      maxX = cx + 20;
+    }
+
+    let minY: number;
+    let maxY: number;
+    if (curH > cH) {
+      minY = cH - curH - 16;
+      maxY = 16;
+    } else {
+      const cy = (cH - curH) / 2;
+      minY = cy - 20;
+      maxY = cy + 20;
+    }
+
+    return {
+      x: Math.round(Math.max(minX, Math.min(maxX, targetX))),
+      y: Math.round(Math.max(minY, Math.min(maxY, targetY))),
+    };
+  }, [baseDimensions]);
+
+  // Zoom centered on a specific focal client point (e.g. pinch midpoint, cursor, or viewport center)
+  const updateZoomAtPoint = useCallback((targetScale: number, focalClientX: number, focalClientY: number) => {
+    const container = viewportRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const focusX = focalClientX - rect.left;
+    const focusY = focalClientY - rect.top;
+
+    const currentScale = zoomScaleRef.current;
+    const clampedScale = Math.min(3.5, Math.max(0.75, Number(targetScale.toFixed(2))));
+    const scaleRatio = clampedScale / currentScale;
+
+    const currentPan = panRef.current;
+    const newX = focusX - (focusX - currentPan.x) * scaleRatio;
+    const newY = focusY - (focusY - currentPan.y) * scaleRatio;
+
+    const clampedPan = clampPan(newX, newY, clampedScale);
+    setZoomScale(clampedScale);
+    setPan(clampedPan);
+  }, [clampPan]);
+
+  const handleZoomIn = () => {
+    if (!viewportRef.current) return;
+    const rect = viewportRef.current.getBoundingClientRect();
+    updateZoomAtPoint(zoomScaleRef.current * 1.25, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  };
+
+  const handleZoomOut = () => {
+    if (!viewportRef.current) return;
+    const rect = viewportRef.current.getBoundingClientRect();
+    updateZoomAtPoint(zoomScaleRef.current * 0.8, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  };
+
+  const handleResetZoom = useCallback(() => {
+    setZoomScale(1.0);
+    const defX = Math.round((baseDimensions.containerW - baseDimensions.width) / 2);
+    const defY = Math.round((baseDimensions.containerH - baseDimensions.height) / 2);
+    setPan({ x: defX, y: defY });
+  }, [baseDimensions]);
+
+  // Auto-fit to viewport on page navigation or initial dimension measurement
+  useEffect(() => {
+    if (baseDimensions.containerW > 0 && baseDimensions.containerH > 0) {
+      handleResetZoom();
+    }
+  }, [currentPage, baseDimensions.containerW, baseDimensions.containerH, handleResetZoom]);
+
+  // Touch pinch-to-zoom, touch-to-slide, and desktop mouse drag handling
   useEffect(() => {
     const container = viewportRef.current;
     if (!container) return;
 
+    let isPinching = false;
     let initialPinchDist = 0;
     let initialZoom = 1;
-    let lastTapTime = 0;
-    let touchStartPos = { x: 0, y: 0 };
-    let scrollStartPos = { x: 0, y: 0 };
+
     let isTouchPanning = false;
+    let touchStartClient = { x: 0, y: 0 };
+    let panStart = { x: 0, y: 0 };
+    let lastTapTime = 0;
 
     let isMousePanning = false;
-    let mouseStartPos = { x: 0, y: 0 };
-    let mouseScrollStart = { x: 0, y: 0 };
+    let mouseStartClient = { x: 0, y: 0 };
+    let mousePanStart = { x: 0, y: 0 };
 
     const onTouchStart = (e: TouchEvent) => {
+      didPanRef.current = false;
       if (e.touches.length === 2) {
         e.preventDefault();
+        isPinching = true;
         isTouchPanning = false;
         initialPinchDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
@@ -297,49 +440,61 @@ export function DocumentViewer({
           return;
         }
         isTouchPanning = true;
-        touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        scrollStartPos = { x: container.scrollLeft, y: container.scrollTop };
+        touchStartClient = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        panStart = { ...panRef.current };
       }
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && initialPinchDist > 0) {
+      if (isPinching && e.touches.length === 2 && initialPinchDist > 0) {
         e.preventDefault();
+        didPanRef.current = true;
         const currentDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        const factor = currentDist / initialPinchDist;
-        const targetZoom = Math.min(3.0, Math.max(0.5, Number((initialZoom * factor).toFixed(2))));
-        setZoomScale(targetZoom);
-      } else if (e.touches.length === 1 && isTouchPanning) {
-        const dx = e.touches[0].clientX - touchStartPos.x;
-        const dy = e.touches[0].clientY - touchStartPos.y;
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const targetScale = initialZoom * (currentDist / initialPinchDist);
+        updateZoomAtPoint(targetScale, midX, midY);
+      } else if (isTouchPanning && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - touchStartClient.x;
+        const dy = e.touches[0].clientY - touchStartClient.y;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-          container.scrollLeft = scrollStartPos.x - dx;
-          container.scrollTop = scrollStartPos.y - dy;
+          e.preventDefault();
+          didPanRef.current = true;
+          const rawX = panStart.x + dx;
+          const rawY = panStart.y + dy;
+          setPan(clampPan(rawX, rawY, zoomScaleRef.current));
         }
       }
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      isTouchPanning = false;
       if (e.touches.length < 2) {
+        isPinching = false;
         initialPinchDist = 0;
       }
-      if (e.touches.length === 0 && e.changedTouches.length === 1) {
-        const touch = e.changedTouches[0];
-        const distMoved = Math.hypot(
-          touch.clientX - touchStartPos.x,
-          touch.clientY - touchStartPos.y
-        );
-        const now = Date.now();
-        // Double-tap zoom toggle (within 300ms and minimal finger travel)
-        if (distMoved < 15 && now - lastTapTime < 300) {
-          setZoomScale((prev) => (prev > 1.1 ? 1.0 : 1.8));
-          lastTapTime = 0;
-        } else {
-          lastTapTime = now;
+      if (e.touches.length === 0) {
+        isTouchPanning = false;
+        if (e.changedTouches.length === 1) {
+          const touch = e.changedTouches[0];
+          const distMoved = Math.hypot(
+            touch.clientX - touchStartClient.x,
+            touch.clientY - touchStartClient.y
+          );
+          const now = Date.now();
+          if (distMoved < 12 && now - lastTapTime < 300) {
+            // Double-tap toggle: If zoomed, reset to fit; if fit, zoom to 2.0x
+            if (zoomScaleRef.current > 1.2) {
+              handleResetZoom();
+            } else {
+              updateZoomAtPoint(2.0, touch.clientX, touch.clientY);
+            }
+            lastTapTime = 0;
+          } else {
+            lastTapTime = now;
+          }
         }
       }
     };
@@ -350,17 +505,22 @@ export function DocumentViewer({
       if (target.closest("[data-handle]") || target.closest("button") || target.closest("input")) {
         return;
       }
+      didPanRef.current = false;
       isMousePanning = true;
-      mouseStartPos = { x: e.clientX, y: e.clientY };
-      mouseScrollStart = { x: container.scrollLeft, y: container.scrollTop };
+      mouseStartClient = { x: e.clientX, y: e.clientY };
+      mousePanStart = { ...panRef.current };
     };
 
     const onMouseMove = (e: MouseEvent) => {
       if (!isMousePanning) return;
-      const dx = e.clientX - mouseStartPos.x;
-      const dy = e.clientY - mouseStartPos.y;
-      container.scrollLeft = mouseScrollStart.x - dx;
-      container.scrollTop = mouseScrollStart.y - dy;
+      const dx = e.clientX - mouseStartClient.x;
+      const dy = e.clientY - mouseStartClient.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        didPanRef.current = true;
+      }
+      const rawX = mousePanStart.x + dx;
+      const rawY = mousePanStart.y + dy;
+      setPan(clampPan(rawX, rawY, zoomScaleRef.current));
     };
 
     const onMouseUp = () => {
@@ -370,9 +530,13 @@ export function DocumentViewer({
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
-        setZoomScale((prev) =>
-          Math.min(3.0, Math.max(0.5, Number((prev - e.deltaY * 0.005).toFixed(2))))
-        );
+        const factor = e.deltaY < 0 ? 1.15 : 0.85;
+        updateZoomAtPoint(zoomScaleRef.current * factor, e.clientX, e.clientY);
+      } else {
+        e.preventDefault();
+        const rawX = panRef.current.x - e.deltaX;
+        const rawY = panRef.current.y - e.deltaY;
+        setPan(clampPan(rawX, rawY, zoomScaleRef.current));
       }
     };
 
@@ -397,7 +561,7 @@ export function DocumentViewer({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, []);
+  }, [baseDimensions, clampPan, handleResetZoom, updateZoomAtPoint]);
 
   // Ref tracking active mouse drag session
   const dragStateRef = useRef<{
@@ -515,23 +679,35 @@ export function DocumentViewer({
       }));
     };
 
-    const handleMouseUp = () => {
+    const handleEnd = () => {
       if (dragStateRef.current) {
         dragStateRef.current = null;
         setActiveDragRegionId(null);
       }
     };
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!dragStateRef.current || e.touches.length !== 1) return;
+      handleMouseMove({
+        clientX: e.touches[0].clientX,
+        clientY: e.touches[0].clientY,
+      } as any);
+    };
+
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mouseup", handleEnd);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleEnd);
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mouseup", handleEnd);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleEnd);
     };
   }, [zoomScale]);
 
   const handleStartDrag = (
-    e: React.MouseEvent,
+    e: React.MouseEvent | React.TouchEvent,
     handle: HandleType,
     region: AnswerRegion,
     answer: GradedAnswer
@@ -540,6 +716,9 @@ export function DocumentViewer({
     e.stopPropagation();
 
     if (!imageContainerRef.current) return;
+
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
     // Use container dimensions divided by zoomScale to get unscaled base resolution
     const containerRect = imageContainerRef.current.getBoundingClientRect();
@@ -558,8 +737,8 @@ export function DocumentViewer({
       handle,
       regionId: regId,
       answerId: answer.id,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
+      startClientX: clientX,
+      startClientY: clientY,
       initialBox: {
         x: current.x,
         y: current.y,
@@ -666,9 +845,6 @@ export function DocumentViewer({
     });
   });
 
-  const handleZoomIn = () => setZoomScale((prev) => Math.min(3.0, Number((prev + 0.25).toFixed(2))));
-  const handleZoomOut = () => setZoomScale((prev) => Math.max(0.5, Number((prev - 0.25).toFixed(2))));
-  const handleResetZoom = () => setZoomScale(1.0);
 
   const getStatusColor = (ans: GradedAnswer) => {
     if (ans.needs_review) {
@@ -831,29 +1007,25 @@ export function DocumentViewer({
         </div>
       </div>
 
-      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background with Pinch-to-Zoom & Drag-to-Pan */}
+      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background with Touch/Mouse Pan & Zoom */}
       <div
         ref={viewportRef}
-        className="relative flex-1 overflow-auto bg-[#f6f6f4] p-1.5 sm:p-6 md:p-8 overscroll-contain select-none cursor-grab active:cursor-grabbing"
+        className="relative flex-1 overflow-hidden bg-[#f6f6f4] select-none cursor-grab active:cursor-grabbing touch-none overscroll-none"
       >
         <div
-          className={`min-w-full min-h-full flex items-start ${
-            zoomScale > 1.05 ? "justify-start" : "justify-center"
-          }`}
+          ref={imageContainerRef}
+          className="absolute top-0 left-0 shadow-md rounded-sm border border-hairline/80 bg-white"
+          style={{
+            width: `${baseDimensions.width}px`,
+            height: `${baseDimensions.height}px`,
+            transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoomScale})`,
+            transformOrigin: "top left",
+            willChange: "transform",
+          }}
         >
-          <div
-            ref={imageContainerRef}
-            className="relative transition-transform duration-75 shadow-md rounded-sm border border-hairline/80 inline-block bg-white shrink-0"
-            style={{
-              transform: `scale(${zoomScale})`,
-              transformOrigin: zoomScale > 1.05 ? "top left" : "top center",
-              marginRight: zoomScale > 1.05 ? `${Math.round((zoomScale - 1) * 720)}px` : "0px",
-              marginBottom: zoomScale > 1.05 ? `${Math.round((zoomScale - 1) * 1050)}px` : "0px",
-            }}
-          >
           {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
           {imageError ? (
-            <div className="flex flex-col items-center justify-center p-10 sm:p-16 text-center max-w-[850px] w-full min-h-[480px] space-y-3 bg-surface rounded-sm">
+            <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-sm">
               <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
                 <Archive className="h-6 w-6" />
               </div>
@@ -864,23 +1036,19 @@ export function DocumentViewer({
             </div>
           ) : (
             <>
-              {/* Cloudinary Paper Fetching Loading Screen */}
+              {/* Paper Fetching Loading Screen */}
               {isPageImageLoading && (
-                <div className="flex flex-col items-center justify-center p-8 sm:p-16 text-center max-w-[850px] w-[85vw] sm:w-[680px] md:w-[780px] min-h-[480px] sm:min-h-[640px] bg-white rounded-sm space-y-4 shadow-2xs">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-xs animate-pulse">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-white/95 rounded-sm shadow-2xs">
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-xs animate-pulse">
+                    <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin text-primary" />
                   </div>
-                  <div className="space-y-1.5 max-w-xs sm:max-w-sm">
-                    <h3 className="text-sm sm:text-base font-bold text-ink">
+                  <div className="space-y-1 max-w-xs">
+                    <h3 className="text-xs sm:text-sm font-bold text-ink">
                       Fetching Examination Sheet...
                     </h3>
-                    <p className="text-xs text-ink-muted leading-relaxed">
-                      Rendering Page {currentPage} of {Math.max(1, pageCount)} from secure paper vault. Please wait a moment.
+                    <p className="text-[11px] text-ink-muted leading-relaxed">
+                      Rendering Page {currentPage} of {Math.max(1, pageCount)}.
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-ink-muted bg-canvas-soft px-3 py-1 rounded-full border border-hairline">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
-                    <span>Synchronizing evaluation overlays</span>
                   </div>
                 </div>
               )}
@@ -888,8 +1056,8 @@ export function DocumentViewer({
               {!pdfError ? (
                 <canvas
                   ref={canvasRef}
-                  className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-150 ${
-                    isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
+                  className={`w-full h-full block rounded-sm select-none pointer-events-none transition-opacity duration-150 ${
+                    isPageImageLoading ? "opacity-0" : "opacity-100"
                   }`}
                 />
               ) : (
@@ -897,12 +1065,15 @@ export function DocumentViewer({
                   ref={imgRef}
                   src={pageImageUrl}
                   alt={`Student Page ${currentPage}`}
-                  className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-150 ${
-                    isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
+                  className={`w-full h-full block rounded-sm select-none pointer-events-none transition-opacity duration-150 ${
+                    isPageImageLoading ? "opacity-0" : "opacity-100"
                   }`}
                   loading="eager"
                   decoding="async"
                   onLoad={() => {
+                    if (imgRef.current && imgRef.current.naturalWidth > 0 && imgRef.current.naturalHeight > 0) {
+                      setPageAspect(imgRef.current.naturalWidth / imgRef.current.naturalHeight);
+                    }
                     loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
                     setIsPageImageLoading(false);
                   }}
@@ -968,7 +1139,7 @@ export function DocumentViewer({
                 key={regId}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (isEditing) return;
+                  if (didPanRef.current || isEditing) return;
                   if (onInspectAnswer) {
                     onInspectAnswer(answer);
                   } else {
@@ -1183,50 +1354,66 @@ export function DocumentViewer({
                   <>
                     {/* NW Corner */}
                     <div
+                      data-handle="nw"
                       onMouseDown={(e) => handleStartDrag(e, "nw", region, answer)}
-                      className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "nw", region, answer)}
+                      className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize top-left"
                     />
                     {/* N Edge */}
                     <div
+                      data-handle="n"
                       onMouseDown={(e) => handleStartDrag(e, "n", region, answer)}
-                      className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-2 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "n", region, answer)}
+                      className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize top"
                     />
                     {/* NE Corner */}
                     <div
+                      data-handle="ne"
                       onMouseDown={(e) => handleStartDrag(e, "ne", region, answer)}
-                      className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "ne", region, answer)}
+                      className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize top-right"
                     />
                     {/* E Edge */}
                     <div
+                      data-handle="e"
                       onMouseDown={(e) => handleStartDrag(e, "e", region, answer)}
-                      className="absolute top-1/2 -translate-y-1/2 -right-1.5 w-2 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "e", region, answer)}
+                      className="absolute top-1/2 -translate-y-1/2 -right-1.5 w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize right"
                     />
                     {/* SE Corner */}
                     <div
+                      data-handle="se"
                       onMouseDown={(e) => handleStartDrag(e, "se", region, answer)}
-                      className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "se", region, answer)}
+                      className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize bottom-right"
                     />
                     {/* S Edge */}
                     <div
+                      data-handle="s"
                       onMouseDown={(e) => handleStartDrag(e, "s", region, answer)}
-                      className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-2 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "s", region, answer)}
+                      className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize bottom"
                     />
                     {/* SW Corner */}
                     <div
+                      data-handle="sw"
                       onMouseDown={(e) => handleStartDrag(e, "sw", region, answer)}
-                      className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "sw", region, answer)}
+                      className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize bottom-left"
                     />
                     {/* W Edge */}
                     <div
+                      data-handle="w"
                       onMouseDown={(e) => handleStartDrag(e, "w", region, answer)}
-                      className="absolute top-1/2 -translate-y-1/2 -left-1.5 w-2 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 hover:scale-125 transition-transform"
+                      onTouchStart={(e) => handleStartDrag(e, "w", region, answer)}
+                      className="absolute top-1/2 -translate-y-1/2 -left-1.5 w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 hover:scale-125 transition-transform"
                       title="Drag to resize left"
                     />
                   </>
@@ -1291,6 +1478,5 @@ export function DocumentViewer({
           </div>
         </div>
       </div>
-    </div>
   );
 }
