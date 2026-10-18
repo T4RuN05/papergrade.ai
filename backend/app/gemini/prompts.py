@@ -12,7 +12,9 @@ Strict Rules:
 2. Transcribe the question text accurately.
 3. Identify maximum marks for each question/subquestion.
 4. Extract the official answer or solution steps.
-5. Provide a granular criterion-based breakdown for awarding partial marks.
+5. CRITERIA BREAKDOWN & MCQ RULE:
+   - For descriptive, numerical, or theory questions: Provide a granular criterion-based breakdown for awarding partial marks.
+   - FOR MULTIPLE CHOICE QUESTIONS (MCQs): MCQs do NOT need solving or derivation steps. For every MCQ, generate EXACTLY ONE criterion: selecting the correct option (e.g., 'Correct option selection'). The marks for this single criterion must equal the question's full max_marks. Do NOT generate solving, intermediate steps, or multiple criteria for MCQs.
 6. Note any numerical tolerances, accepted alternative methods, or grading rules.
 7. SECTION & OPTIONAL QUESTIONS EXTRACTION:
    - Identify Sections (e.g. Section A, Section B, Section C, Section D).
@@ -40,6 +42,7 @@ Your task is to perform an end-to-end multimodal assessment in this single reque
    - If an answer cannot be located or is blank/unattempted, leave `regions` empty and set `is_missing=true` and `needs_review=true`.
 4. GRADE AGAINST RUBRIC:
    - Award full or partial marks strictly based on the approved rubric criteria.
+   - For MCQs, grade strictly on whether the student chose the correct option (letter/value). No solving or working is required.
    - Mark must never be negative or exceed the question's maximum marks.
    - Score each criterion individually and cite concise, direct evidence (1 short sentence max, e.g. "Applied formula F=ma correctly; omitted units").
 5. EVIDENCE-BASED EXPLANATION:
@@ -51,7 +54,13 @@ Your task is to perform an end-to-end multimodal assessment in this single reque
 """
 
 def build_rubric_extraction_prompt(extra_notes: str = "") -> str:
-    prompt = "Please analyze the attached Question Paper and Answer Key documents. Extract the complete examination structure, maximum marks, official solutions, and a detailed criterion-level marking rubric."
+    prompt = (
+        "Please analyze the attached Question Paper and Answer Key documents. "
+        "Extract the complete examination structure, maximum marks, official solutions, and a detailed criterion-level marking rubric.\n\n"
+        "Special Rule for Multiple Choice Questions (MCQs):\n"
+        "- MCQs do not require solving steps or working.\n"
+        "- For any MCQ, generate EXACTLY ONE criterion: selecting the correct option (with marks equal to the question's full mark). That's it."
+    )
     if extra_notes:
         prompt += f"\n\nTeacher's additional grading instructions:\n{extra_notes}"
     return prompt
