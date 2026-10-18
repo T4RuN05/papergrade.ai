@@ -13,16 +13,13 @@ Strict Rules:
 3. Identify maximum marks for each question/subquestion.
 4. Extract the official answer or solution steps.
 5. CRITERIA GENERATION & MARKS DISTRIBUTION RULES:
-   - REQUIREMENT-FIRST BREAKDOWN: Criteria generation must happen first based on the question requirements (identifying core concepts, formulas, substitution, derivation steps, diagrams, final answers with units, or specific points demanded by the question and official answer key).
+   - REQUIREMENT-FIRST BREAKDOWN: Criteria generation must happen first based on what the question and official answer key actually require (identifying core concepts, formulas, substitution, derivation steps, diagrams, final answers with units, or distinct points).
    - MARKS-BASED CALIBRATION: The criteria must be calibrated directly against the question's total `max_marks`. The sum of all criteria marks for a question MUST EXACTLY EQUAL the question's `max_marks`.
-   - STRICT 0.5 OR 1.0 MARKS PER CRITERION (NO IN-BETWEEN):
-     * The marks allocated to each individual criterion must strictly be either 0.5 or 1.0.
-     * Never allocate arbitrary fractions or in-between values (e.g. NEVER 0.25, 0.75, 0.33, 1.25, etc.). Every single criterion mark must be either exactly 0.5 or exactly 1.0.
-     * Examples:
-       - 1-mark question: Exactly two 0.5 criteria, OR one 1.0 criterion.
-       - 2-mark question: Four 0.5 criteria, OR two 1.0 criteria, OR one 1.0 and two 0.5 criteria (sum = 2.0).
-       - 3-mark question: Three 1.0 criteria, OR six 0.5 criteria, OR a combination of 1.0 and 0.5 criteria summing to exactly 3.0.
-       - 4-mark / 5-mark question: Combination of 1.0 and 0.5 criteria strictly summing to 4.0 / 5.0.
+   - DISCRETE 0.5-MARK STEP SIZING (NO AWKWARD FRACTIONS):
+     * Each criterion mark must be a clean half-mark or whole-mark value (e.g. 0.5, 1.0, 1.5, 2.0).
+     * Never use arbitrary or awkward fractions (e.g. NEVER 0.25, 0.75, 0.33, 1.25, 1.75). Marks per criterion must always be exact multiples of 0.5.
+     * For small questions (1–2 marks), criteria are typically 0.5 or 1.0 each.
+     * For larger questions (3–5 marks), criteria can be 0.5, 1.0, 1.5, or 2.0 depending on the complexity of that specific step/derivation, ensuring the sum matches `max_marks` naturally without inventing fake filler criteria.
    - FOR MULTIPLE CHOICE QUESTIONS (MCQs): MCQs do NOT need solving or derivation steps. For every MCQ, generate EXACTLY ONE criterion: selecting the correct option (e.g., 'Correct option selection'). The marks for this single criterion must equal the question's full max_marks. Do NOT generate solving, intermediate steps, or multiple criteria for MCQs.
 6. Note any numerical tolerances, accepted alternative methods, or grading rules.
 7. SECTION & OPTIONAL QUESTIONS EXTRACTION:
@@ -52,7 +49,7 @@ Your task is to perform an end-to-end multimodal assessment in this single reque
 4. GRADE AGAINST RUBRIC:
    - Award full or partial marks strictly based on the approved rubric criteria.
    - For MCQs, grade strictly on whether the student chose the correct option (letter/value). No solving or working is required.
-   - Awarded marks for each criterion must adhere to the criterion's defined value (e.g., 0.0, 0.5, or 1.0). Never award irregular fractional decimals like 0.25 or 0.75.
+   - Awarded marks must be in clean 0.5 increments (e.g., 0.0, 0.5, 1.0, 1.5). Never award irregular fractional decimals like 0.25 or 0.75.
    - Mark must never be negative or exceed the question's maximum marks.
    - Score each criterion individually and cite concise, direct evidence (1 short sentence max, e.g. "Applied formula F=ma correctly; omitted units").
 5. EVIDENCE-BASED EXPLANATION:
@@ -69,12 +66,12 @@ def build_rubric_extraction_prompt(extra_notes: str = "") -> str:
         "Extract the complete examination structure, maximum marks, official solutions, and a detailed criterion-level marking rubric.\n\n"
         "CRITICAL MARKING CRITERIA RULES:\n"
         "1. Requirement-First & Marks-Calibrated Generation:\n"
-        "   - Criteria generation must happen first based on the question requirements (key formulas, substitution, derivation steps, diagrams, final answers with units).\n"
-        "   - Criteria must be calibrated so the sum of all criteria marks exactly equals the question's max_marks.\n"
-        "2. Strict 0.5 or 1.0 Marks per Criterion (NO IN-BETWEEN):\n"
-        "   - Marks assigned to each individual criterion must strictly be either 0.5 or 1.0.\n"
-        "   - Absolutely no in-between values (e.g. NEVER 0.25, 0.75, 0.33, etc.). Every single criterion must be worth either exactly 0.5 or exactly 1.0.\n"
-        "3. Special Rule for Multiple Choice Questions (MCQs):\n"
+        "   - Base criteria directly on what the question and answer key demand (formulas, substitution, derivation steps, diagrams, final answers with units).\n"
+        "   - The sum of criteria marks must exactly equal the question's max_marks.\n"
+        "2. Discrete 0.5-Mark Step Sizing (No Awkward Fractions):\n"
+        "   - Criterion marks must be clean multiples of 0.5 (e.g. 0.5, 1.0, 1.5, 2.0).\n"
+        "   - Never use awkward fractions like 0.25, 0.75, 0.33, or 1.25. Each step should be evaluated in 0.5 or 1.0 increments.\n"
+        "3. Multiple Choice Questions (MCQs):\n"
         "   - MCQs do not require solving steps or working.\n"
         "   - For any MCQ, generate EXACTLY ONE criterion: selecting the correct option (with marks equal to the question's full mark). That's it."
     )
