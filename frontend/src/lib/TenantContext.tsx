@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { api, getAuthToken, getStoredUserPayload } from "@/lib/api";
+import { api, getAuthToken, getStoredUser, setStoredUser, getStoredUserPayload } from "@/lib/api";
 
 export interface Institute {
   id: string;
@@ -37,7 +37,7 @@ interface TenantContextType {
     targetInstituteName?: string | null,
     targetBranchName?: string | null
   ) => { instituteName?: string; branchName?: string; switched: boolean };
-  refreshTenancy: () => Promise<void>;
+  refreshTenancy: (seedUser?: any) => Promise<void>;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -57,7 +57,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const isRootAdmin = currentUser?.role === "ROOT_ADMIN";
   const isBranchManager = currentUser?.role === "BRANCH_MANAGER";
 
-  const refreshTenancy = useCallback(async () => {
+  const refreshTenancy = useCallback(async (seedUser?: any) => {
     const token = getAuthToken();
     if (!token) {
       setCurrentUser(null);
@@ -65,9 +65,17 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    setLoading(true);
+
+    const initialUser = seedUser || getStoredUser() || getStoredUserPayload();
+    if (initialUser) {
+      setCurrentUser(initialUser);
+    }
+
     try {
       const me = await api.getMe();
       setCurrentUser(me);
+      setStoredUser(me);
 
       const [instList, branchList] = await Promise.all([
         api.listInstitutes().catch(() => []),

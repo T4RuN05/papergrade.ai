@@ -280,16 +280,18 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             <span>Supabase PostgreSQL • Online</span>
           </div>
 
-          {/* Technical Support / Bug Report Button (Desktop only, available in mobile sidebar) */}
-          <button
-            type="button"
-            onClick={() => setReportModalOpen(true)}
-            className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
-            title="Report Technical Issue"
-            aria-label="Report Technical Issue"
-          >
-            <LifeBuoy className="h-4 w-4" />
-          </button>
+          {/* Technical Support / Bug Report Button (Only for Branch Managers and Staff, not Root Admin) */}
+          {!isRootAdmin && (
+            <button
+              type="button"
+              onClick={() => setReportModalOpen(true)}
+              className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
+              title="Report Technical Issue"
+              aria-label="Report Technical Issue"
+            >
+              <LifeBuoy className="h-4 w-4" />
+            </button>
+          )}
 
           {/* Notification Bell Button (Triggers Right Sidebar Drawer) */}
           <button

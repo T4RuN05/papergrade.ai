@@ -39,6 +39,8 @@ import {
   RotateCcw,
   Square,
   Loader2,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { api, API_BASE, getAuthToken, getCached, clearApiCache } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -77,7 +79,7 @@ export default function ExamDetailPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const examId = params.id as string;
-  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, currentUser, switchTenancy } = useTenant();
+  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, isBranchManager, currentUser, switchTenancy } = useTenant();
 
   const [exam, setExam] = useState<Exam | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
@@ -88,6 +90,9 @@ export default function ExamDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isStartingEval, setIsStartingEval] = useState(false);
+  const [deleteExamModalOpen, setDeleteExamModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeletingExam, setIsDeletingExam] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [scoreFilter, setScoreFilter] = useState<"ALL" | "TOP" | "MID" | "LOW">("ALL");
   const [sortBy, setSortBy] = useState<"roll" | "marks_desc" | "marks_asc" | "name">("roll");
@@ -466,6 +471,34 @@ export default function ExamDetailPage() {
       toast.error(err.message || "Failed to publish results", { title: "Publish Failed" });
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const canDeleteExam = Boolean(
+    isRootAdmin ||
+    (isBranchManager && (!currentUser?.branch_id || !exam?.branch_id || currentUser.branch_id === exam?.branch_id))
+  );
+
+  const handleDeleteExam = async () => {
+    if (!exam) return;
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
+      toast.error("Please type DELETE to confirm deletion.", { title: "Confirmation Required" });
+      return;
+    }
+    setIsDeletingExam(true);
+    try {
+      const res = await api.deleteExam(exam.id);
+      clearApiCache();
+      toast.success(
+        res.message || `Exam "${exam.title}" and all associated files/evaluations permanently deleted.`,
+        { title: "Exam Deleted" }
+      );
+      setDeleteExamModalOpen(false);
+      router.push("/exams");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete exam", { title: "Deletion Failed" });
+    } finally {
+      setIsDeletingExam(false);
     }
   };
 
@@ -881,6 +914,21 @@ export default function ExamDetailPage() {
                 Published
               </div>
             ) : null}
+
+            {canDeleteExam && (
+              <ButtonUtility
+                size="sm"
+                onClick={() => {
+                  setDeleteConfirmText("");
+                  setDeleteExamModalOpen(true);
+                }}
+                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300 font-semibold cursor-pointer"
+                title="Permanently delete this exam, all submissions, and files"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5 text-red-600" />
+                Delete Exam
+              </ButtonUtility>
+            )}
           </div>
         </div>
 
@@ -1959,6 +2007,81 @@ export default function ExamDetailPage() {
               </ButtonPrimary>
             </div>
           </form>
+        </ModalCard>
+      )}
+
+      {/* MODAL: Delete Exam Permanently */}
+      {deleteExamModalOpen && exam && (
+        <ModalCard
+          title="Delete Examination Permanently"
+          onClose={() => !isDeletingExam && setDeleteExamModalOpen(false)}
+        >
+          <div className="space-y-4">
+            {/* Warning Banner */}
+            <div className="p-3.5 rounded-lg bg-red-50 border border-red-200/80 text-red-900 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-sm text-red-700">
+                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                <span>CRITICAL WARNING: Irreversible Cascade Deletion</span>
+              </div>
+              <p className="text-xs text-red-800 leading-relaxed">
+                Deleting <span className="font-bold underline">{exam.title}</span> will permanently wipe out all related academic and evaluation assets across the entire system:
+              </p>
+              <ul className="text-xs text-red-800 list-disc list-inside space-y-1 pl-1">
+                <li><span className="font-semibold">All Uploaded Answer Sheets:</span> Physical PDF and rendered image files permanently purged from Database and Cloud Storage / CDN.</li>
+                <li><span className="font-semibold">All Evaluation Scores & Marks:</span> Criterion-level marks, AI feedback, question breakdowns, and marks ledgers.</li>
+                <li><span className="font-semibold">Exam Artifacts:</span> Question paper, answer key master documents, and rubric matrices.</li>
+                <li><span className="font-semibold">Student Access & Revaluations:</span> Submission windows, student portal publications, and dispute logs.</li>
+              </ul>
+              <p className="text-xs font-bold text-red-700 pt-1">
+                This action cannot be undone. No recovery or rollback is possible.
+              </p>
+            </div>
+
+            {/* Confirmation Input */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-ink">
+                To proceed, type <span className="font-mono font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-200">DELETE</span> in the box below:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type DELETE to confirm"
+                disabled={isDeletingExam}
+                className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs font-mono text-ink focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+                autoFocus
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-end gap-2 pt-2 border-t border-hairline">
+              <ButtonUtility
+                type="button"
+                onClick={() => setDeleteExamModalOpen(false)}
+                disabled={isDeletingExam}
+              >
+                Cancel
+              </ButtonUtility>
+              <button
+                type="button"
+                onClick={handleDeleteExam}
+                disabled={isDeletingExam || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                className="inline-flex items-center justify-center px-4 py-2 rounded-md text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs cursor-pointer"
+              >
+                {isDeletingExam ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Purging Exam & CDN Files...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Permanently Delete Exam
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </ModalCard>
       )}
     </div>

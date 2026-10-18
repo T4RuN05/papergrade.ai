@@ -1003,3 +1003,147 @@ async def get_exam_artifact_page_image(
         headers={"Cache-Control": "public, max-age=604800, immutable"}
     )
 
+@router.delete("/{exam_id}")
+async def delete_exam(
+    exam_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    """
+    Permanently delete an examination, all student answer sheets (from DB and CDN/storage),
+    evaluation scores, criteria, answers, revaluations, and submission windows.
+    Enforces branch tenancy: Branch Manager can only delete exams in their assigned branch.
+    """
+    storage = get_storage_service()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Fetch exam
+        cursor.execute("SELECT id, title, branch_id, question_paper_path, answer_key_path FROM exams WHERE id = ?", (exam_id,))
+        exam = cursor.fetchone()
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        exam = dict(exam)
+
+        # 2. Tenancy enforcement
+        if current_user.get("role") == "BRANCH_MANAGER":
+            if exam.get("branch_id") != current_user.get("branch_id"):
+                raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your branch.")
+
+        # 3. Fetch all submissions to delete their files from cloud storage / CDN
+        cursor.execute("""
+            SELECT id, original_file_path, canonical_pdf_path, annotated_pdf_path 
+            FROM submissions 
+            WHERE exam_id = ?
+        """, (exam_id,))
+        subs = [dict(s) for s in cursor.fetchall()]
+
+    # 4. Storage & CDN Cleanup (outside DB lock)
+    deleted_files_count = 0
+    for sub in subs:
+        sub_id = sub["id"]
+        for path_key in [sub.get("original_file_path"), sub.get("canonical_pdf_path"), sub.get("annotated_pdf_path")]:
+            if path_key:
+                try:
+                    storage.delete_file(path_key)
+                    deleted_files_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete storage file {path_key}: {e}")
+
+        # Local submission directory
+        local_sub_dir = settings.DATA_DIR / "uploads" / "submissions" / sub_id
+        if local_sub_dir.exists():
+            try:
+                shutil.rmtree(local_sub_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+        # Local submission render cache
+        render_sub_dir = settings.RENDERS_DIR / f"sub_{sub_id}"
+        if render_sub_dir.exists():
+            try:
+                shutil.rmtree(render_sub_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+    # Delete exam artifact files
+    for art_key in [
+        exam.get("question_paper_path"),
+        exam.get("answer_key_path"),
+        f"exams/{exam_id}/question_paper.pdf",
+        f"exams/{exam_id}/answer_key.pdf"
+    ]:
+        if art_key:
+            try:
+                storage.delete_file(art_key)
+                deleted_files_count += 1
+            except Exception:
+                pass
+
+    # Local exam directory
+    local_exam_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
+    if local_exam_dir.exists():
+        try:
+            shutil.rmtree(local_exam_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+    # Local exam renders
+    for clean_art in ["question-paper", "answer-key"]:
+        r_dir = settings.RENDERS_DIR / f"exam_{exam_id}_{clean_art}"
+        if r_dir.exists():
+            try:
+                shutil.rmtree(r_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+    # 5. Database Cleanup (Atomic Transaction)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        sub_ids = [s["id"] for s in subs]
+
+        if sub_ids:
+            ph = ",".join(["?"] * len(sub_ids))
+            cursor.execute(f"""
+                DELETE FROM criterion_scores WHERE answer_id IN (
+                    SELECT id FROM answers WHERE submission_id IN ({ph})
+                )
+            """, tuple(sub_ids))
+
+            cursor.execute(f"""
+                DELETE FROM answer_regions WHERE answer_id IN (
+                    SELECT id FROM answers WHERE submission_id IN ({ph})
+                )
+            """, tuple(sub_ids))
+
+            cursor.execute(f"DELETE FROM answers WHERE submission_id IN ({ph})", tuple(sub_ids))
+
+        cursor.execute("DELETE FROM evaluation_queue WHERE exam_id = ?", (exam_id,))
+        cursor.execute("DELETE FROM revaluation_requests WHERE exam_id = ?", (exam_id,))
+        cursor.execute("DELETE FROM api_usage_events WHERE exam_id = ?", (exam_id,))
+        cursor.execute("DELETE FROM experiment_benchmarks WHERE exam_id = ?", (exam_id,))
+        cursor.execute("DELETE FROM submission_windows WHERE exam_id = ?", (exam_id,))
+        cursor.execute("DELETE FROM rubric_versions WHERE exam_id = ?", (exam_id,))
+        cursor.execute("DELETE FROM submissions WHERE exam_id = ?", (exam_id,))
+
+        cursor.execute("""
+            UPDATE batches 
+            SET exam_id = NULL, total_submissions = 0, completed_submissions = 0, failed_submissions = 0 
+            WHERE exam_id = ?
+        """, (exam_id,))
+
+        cursor.execute("DELETE FROM notifications WHERE link_url LIKE ?", (f"%{exam_id}%",))
+        cursor.execute("DELETE FROM audit_logs WHERE resource_id = ?", (exam_id,))
+
+        cursor.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
+
+    logger.info(f"Exam '{exam['title']}' ({exam_id}) completely purged by {current_user.get('email')}.")
+
+    return {
+        "success": True,
+        "message": f"Exam '{exam['title']}' and all associated submissions, scores, and cloud files have been permanently deleted.",
+        "exam_id": exam_id,
+        "deleted_submissions_count": len(subs),
+        "deleted_files_count": deleted_files_count,
+    }
+

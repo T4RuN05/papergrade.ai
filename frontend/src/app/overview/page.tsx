@@ -70,6 +70,9 @@ export default function RootAdminOverviewPage() {
   useEffect(() => {
     if (tenantLoading) return;
     if (!currentUser) {
+      if (typeof window !== "undefined" && getAuthToken()) {
+        return;
+      }
       setLoading(false);
       return;
     }
@@ -105,7 +108,8 @@ export default function RootAdminOverviewPage() {
   };
 
   // 1. Loading State
-  if (loading) {
+  const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
+  if (loading || tenantLoading || (hasToken && !currentUser)) {
     return <DashboardSkeleton />;
   }
 

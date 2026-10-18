@@ -396,18 +396,20 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
 
       {/* Bottom User Profile Section */}
       <div className="p-3 border-t border-hairline bg-canvas-soft/50 shrink-0">
-        {/* Quick Report Issue Action */}
-        <button
-          type="button"
-          onClick={() => setReportModalOpen(true)}
-          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer mb-2.5 shadow-2xs"
-        >
-          <span className="flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>Report Technical Issue</span>
-          </span>
-          <span className="text-[10px] text-primary font-bold">Help</span>
-        </button>
+        {/* Quick Report Issue Action (Only for Branch Managers and Staff, not Root Admin) */}
+        {!isRootAdmin && (
+          <button
+            type="button"
+            onClick={() => setReportModalOpen(true)}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer mb-2.5 shadow-2xs"
+          >
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>Report Technical Issue</span>
+            </span>
+            <span className="text-[10px] text-primary font-bold">Help</span>
+          </button>
+        )}
 
         <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline shadow-xs">
           <div className="flex items-center gap-2 min-w-0">

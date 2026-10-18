@@ -195,7 +195,7 @@ export default function LoginPage() {
 
       const welcomeMsg = `Signed in as ${user.full_name || enteredEmail}.`;
       toast.success(welcomeMsg, { title: roleTitle, duration: 4500 });
-      refreshTenancy().catch(() => {});
+      await refreshTenancy(user);
       startNavigationProgress();
       router.push(dest);
     } catch (err: any) {

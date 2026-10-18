@@ -107,13 +107,13 @@ body {
   animation: toastLoadingSweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* Unified Skeleton Shimmer Animation */
+/* Unified Skeleton Shimmer Animation (100% Mathematically Seamless Infinite Loop) */
 @keyframes shimmer {
   0% {
-    background-position: -200% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: 200% 0;
+    background-position: -100% 0;
   }
 }
 
@@ -121,12 +121,16 @@ body {
   background: linear-gradient(
     90deg,
     #ebe9e6 0%,
-    #f8f7f6 35%,
+    #ebe9e6 20%,
+    #f8f7f6 40%,
     #ffffff 50%,
-    #f8f7f6 65%,
+    #f8f7f6 60%,
+    #ebe9e6 80%,
     #ebe9e6 100%
   );
-  background-size: 250% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  animation: shimmer 1.8s linear infinite;
+  will-change: background-position;
 }
 

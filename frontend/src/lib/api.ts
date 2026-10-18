@@ -1391,4 +1391,17 @@ export const api = {
   getReportImageUrl(reportId: string, filename: string): string {
     return `${API_BASE}/api/v1/reports/${reportId}/images/${encodeURIComponent(filename)}`;
   },
+
+  async deleteExam(examId: string): Promise<{ success: boolean; message: string; deleted_submissions_count?: number }> {
+    clearApiCache();
+    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to delete examination" }));
+      throw new Error(parseErrorDetail(err, "Failed to delete examination"));
+    }
+    return res.json();
+  },
 };
