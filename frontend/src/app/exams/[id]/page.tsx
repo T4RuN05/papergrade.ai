@@ -692,7 +692,7 @@ export default function ExamDetailPage() {
               {exam.title}
             </h1>
             <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
-              Academic assessment ledger for <span className="font-semibold text-ink">{exam.subject}</span>. Maximum achievable score: <span className="font-mono font-bold text-ink">{exam.total_marks || 100} marks</span>.
+              Academic assessment ledger for <span className="font-semibold text-ink">{exam.subject}</span>. Maximum achievable score: <span className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A (Awaiting Rubric)"}</span>.
             </p>
           </div>
 
@@ -917,7 +917,7 @@ export default function ExamDetailPage() {
             </div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-bold font-mono text-ink">{stats.avgMarks.toFixed(1)}</span>
-              <span className="text-xs text-ink-muted">/ {exam.total_marks || 100}</span>
+              <span className="text-xs text-ink-muted">/ {exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</span>
             </div>
             <div className="text-[11px] text-ink-secondary font-medium mt-1">
               Average Performance: <span className="font-semibold text-primary">{stats.avgPct.toFixed(1)}%</span>
@@ -931,7 +931,7 @@ export default function ExamDetailPage() {
             </div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-bold font-mono text-emerald-600">{stats.maxScore.toFixed(1)}</span>
-              <span className="text-xs text-ink-muted">/ {exam.total_marks || 100}</span>
+              <span className="text-xs text-ink-muted">/ {exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</span>
             </div>
             <div className="text-[11px] text-ink-muted mt-1">
               Lowest Score Recorded: <span className="font-mono font-medium text-ink">{stats.minScore.toFixed(1)}</span>
@@ -1186,7 +1186,7 @@ export default function ExamDetailPage() {
                         <span className="font-mono font-bold text-ink">
                           {sub.total_awarded_marks != null ? sub.total_awarded_marks.toFixed(1) : "—"}
                         </span>
-                        <span className="text-ink-muted font-mono text-[11px]"> / {exam.total_marks || 100}</span>
+                        <span className="text-ink-muted font-mono text-[11px]">{exam.total_marks && exam.total_marks > 0 ? ` / ${exam.total_marks}` : ""}</span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <BadgePill

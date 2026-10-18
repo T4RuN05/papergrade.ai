@@ -640,19 +640,14 @@ export const api = {
     return res.json();
   },
 
-  async uploadSubmissions(formData: FormData): Promise<{
-    batch_id: string;
-    submissions_queued: number;
-    submissions: any[];
-  }> {
-    const res = await fetch(`${API_BASE}/api/submissions/upload`, {
-      method: "POST",
+  async getSubmissionsForExam(examId: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/api/submissions/exam/${examId}`, {
       headers: { ...getAuthHeaders() },
-      body: formData,
+      cache: "no-store",
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to upload submissions" }));
-      throw new Error(err.detail || "Failed to upload submissions");
+      const err = await res.json().catch(() => ({ detail: "Failed to fetch exam submissions" }));
+      throw new Error(err.detail || "Failed to fetch exam submissions");
     }
     return res.json();
   },

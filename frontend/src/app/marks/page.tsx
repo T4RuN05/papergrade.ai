@@ -68,13 +68,8 @@ export default function ClassMarksPage() {
   const fetchSubmissionsForExam = async (examId: string, isInitial = false) => {
     try {
       if (isInitial) setLoading(true);
-      const allSubsRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/submissions/exam/${examId}`
-      );
-      if (allSubsRes && allSubsRes.ok) {
-        const subsData = await allSubsRes.json();
-        setSubmissions(subsData);
-      }
+      const subsData = await api.getSubmissionsForExam(examId);
+      setSubmissions(subsData);
     } catch (e) {
       console.error(e);
     } finally {

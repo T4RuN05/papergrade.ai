@@ -314,7 +314,6 @@ def request_presigned_upload(
 def confirm_presigned_upload(
     exam_id: str,
     req: ConfirmUploadBody,
-    background_tasks: BackgroundTasks,
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
 ):
     """
@@ -414,8 +413,7 @@ def confirm_presigned_upload(
                     if not req.student_name:
                         s_name = stu_rec["full_name"]
         
-        # Schedule page rendering asynchronously in background
-        background_tasks.add_task(pdf_service.render_pdf_pages_to_images, local_path, sub_id)
+        # Client renders PDF canvas directly via PDF.js; fallback JIT is handled in grading.py
         
         # Insert active submission
         cursor.execute("""
@@ -610,7 +608,6 @@ def _process_submission_sync(
 @router.post("/{exam_id}/upload-single")
 async def upload_single_multipart(
     exam_id: str,
-    background_tasks: BackgroundTasks,
     roll_number: str = Form(...),
     student_name: Optional[str] = Form(""),
     batch_id: Optional[str] = Form(None),
@@ -620,8 +617,7 @@ async def upload_single_multipart(
     """
     Standard multipart upload endpoint for single-PDF submissions.
     Supports local dev testing and direct file picker upload in PWA.
-    Upload validation and DB transactions run non-blocking, and heavy page rendering
-    is dispatched to background_tasks to return an instant HTTP 200 acknowledgment.
+    Upload validation and DB transactions run non-blocking with zero eager rasterization.
     """
     clean_roll = roll_number.strip().upper()
     content = await file.read()
@@ -644,9 +640,7 @@ async def upload_single_multipart(
         current_role
     )
 
-    # Decouple page rendering to background task for instant < 250ms HTTP 200 response
-    background_tasks.add_task(pdf_service.render_pdf_pages_to_images, Path(local_path), sub_id)
-
+    # Client renders PDF canvas directly via PDF.js; fallback JIT is handled in grading.py
     return res_payload
 
 @router.get("/{submission_id}")

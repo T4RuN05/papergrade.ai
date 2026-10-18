@@ -285,8 +285,10 @@ async def upload_answer_key(
     
     # Save draft rubric version (is_approved = 0)
     now = get_iso_now()
-    version_id = f"rub_{uuid.uuid4().hex[:12]}"
-    total_marks = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", 100.0))
+    rubric_total = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", None))
+    if rubric_total is None or rubric_total == 0.0:
+        rubric_total = sum(getattr(q, "max_marks", 0.0) for q in getattr(draft_rubric, "questions", [])) or 0.0
+    total_marks = float(rubric_total)
     
     with get_db() as conn:
         cursor = conn.cursor()
@@ -417,8 +419,10 @@ def generate_rubric(
     )
     
     now = get_iso_now()
-    version_id = f"rub_{uuid.uuid4().hex[:12]}"
-    total_marks = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", 100.0))
+    rubric_total = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", None))
+    if rubric_total is None or rubric_total == 0.0:
+        rubric_total = sum(getattr(q, "max_marks", 0.0) for q in getattr(draft_rubric, "questions", [])) or 0.0
+    total_marks = float(rubric_total)
     
     with get_db() as conn:
         cursor = conn.cursor()

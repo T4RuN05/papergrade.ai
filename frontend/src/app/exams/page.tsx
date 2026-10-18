@@ -294,7 +294,7 @@ export default function ExamsPage() {
                 {/* Bottom Action Footer */}
                 <div className="flex items-center justify-between text-xs text-ink-muted border-t border-hairline pt-3">
                   <span>
-                    Total Marks: <span className="font-mono font-bold text-ink">{exam.total_marks || 100}</span>
+                    Total Marks: <span className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}</span>
                   </span>
 
                   <div className="flex items-center gap-3">

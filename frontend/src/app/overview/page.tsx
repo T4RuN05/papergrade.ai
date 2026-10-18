@@ -372,7 +372,7 @@ export default function RootAdminOverviewPage() {
                 <div className="text-[11px] text-ink-muted flex flex-wrap items-center gap-2">
                   <span>Subject: {exam.subject}</span>
                   <span>•</span>
-                  <span>Total: {exam.total_marks} marks</span>
+                  <span>Total: {exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A"}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
