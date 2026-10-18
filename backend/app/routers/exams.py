@@ -284,6 +284,7 @@ async def upload_answer_key(
     )
     
     # Save draft rubric version (is_approved = 0)
+    version_id = f"rub_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
     rubric_total = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", None))
     if rubric_total is None or rubric_total == 0.0:
@@ -292,10 +293,13 @@ async def upload_answer_key(
     
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as cnt FROM rubric_versions WHERE exam_id = ?", (exam_id,))
+        v_num = (cursor.fetchone()["cnt"] or 0) + 1
+
         cursor.execute("""
             INSERT INTO rubric_versions (id, exam_id, version_num, is_approved, rubric_data, created_at)
-            VALUES (?, ?, 1, 0, ?, ?)
-        """, (version_id, exam_id, draft_rubric.model_dump_json(), now))
+            VALUES (?, ?, ?, 0, ?, ?)
+        """, (version_id, exam_id, v_num, draft_rubric.model_dump_json(), now))
         
         cursor.execute("""
             UPDATE exams 
@@ -418,6 +422,7 @@ def generate_rubric(
         extra_notes=f"Subject: {exam.get('subject', '')}"
     )
     
+    version_id = f"rub_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
     rubric_total = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", None))
     if rubric_total is None or rubric_total == 0.0:
