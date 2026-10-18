@@ -274,17 +274,31 @@ export function DocumentViewer({
     let initialZoom = 1;
     let lastTapTime = 0;
     let touchStartPos = { x: 0, y: 0 };
+    let scrollStartPos = { x: 0, y: 0 };
+    let isTouchPanning = false;
+
+    let isMousePanning = false;
+    let mouseStartPos = { x: 0, y: 0 };
+    let mouseScrollStart = { x: 0, y: 0 };
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
+        isTouchPanning = false;
         initialPinchDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
         initialZoom = zoomScaleRef.current;
       } else if (e.touches.length === 1) {
+        const target = e.target as HTMLElement;
+        if (target.closest("[data-handle]") || target.closest("button") || target.closest("input")) {
+          isTouchPanning = false;
+          return;
+        }
+        isTouchPanning = true;
         touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        scrollStartPos = { x: container.scrollLeft, y: container.scrollTop };
       }
     };
 
@@ -298,10 +312,18 @@ export function DocumentViewer({
         const factor = currentDist / initialPinchDist;
         const targetZoom = Math.min(3.0, Math.max(0.5, Number((initialZoom * factor).toFixed(2))));
         setZoomScale(targetZoom);
+      } else if (e.touches.length === 1 && isTouchPanning) {
+        const dx = e.touches[0].clientX - touchStartPos.x;
+        const dy = e.touches[0].clientY - touchStartPos.y;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          container.scrollLeft = scrollStartPos.x - dx;
+          container.scrollTop = scrollStartPos.y - dy;
+        }
       }
     };
 
     const onTouchEnd = (e: TouchEvent) => {
+      isTouchPanning = false;
       if (e.touches.length < 2) {
         initialPinchDist = 0;
       }
@@ -322,6 +344,29 @@ export function DocumentViewer({
       }
     };
 
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-handle]") || target.closest("button") || target.closest("input")) {
+        return;
+      }
+      isMousePanning = true;
+      mouseStartPos = { x: e.clientX, y: e.clientY };
+      mouseScrollStart = { x: container.scrollLeft, y: container.scrollTop };
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isMousePanning) return;
+      const dx = e.clientX - mouseStartPos.x;
+      const dy = e.clientY - mouseStartPos.y;
+      container.scrollLeft = mouseScrollStart.x - dx;
+      container.scrollTop = mouseScrollStart.y - dy;
+    };
+
+    const onMouseUp = () => {
+      isMousePanning = false;
+    };
+
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -337,12 +382,20 @@ export function DocumentViewer({
     container.addEventListener("touchcancel", onTouchEnd);
     container.addEventListener("wheel", onWheel, { passive: false });
 
+    container.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
     return () => {
       container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
       container.removeEventListener("touchend", onTouchEnd);
       container.removeEventListener("touchcancel", onTouchEnd);
       container.removeEventListener("wheel", onWheel);
+
+      container.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     };
   }, []);
 
@@ -778,16 +831,26 @@ export function DocumentViewer({
         </div>
       </div>
 
-      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background with Pinch-to-Zoom Support */}
+      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background with Pinch-to-Zoom & Drag-to-Pan */}
       <div
         ref={viewportRef}
-        className="relative flex-1 overflow-auto bg-[#f6f6f4] p-1.5 sm:p-6 md:p-8 flex items-start justify-center touch-pan-x touch-pan-y overscroll-contain select-none"
+        className="relative flex-1 overflow-auto bg-[#f6f6f4] p-1.5 sm:p-6 md:p-8 overscroll-contain select-none cursor-grab active:cursor-grabbing"
       >
         <div
-          ref={imageContainerRef}
-          className="relative transition-transform origin-top duration-150 shadow-md rounded-sm border border-hairline/80 inline-block bg-white max-w-full"
-          style={{ transform: `scale(${zoomScale})` }}
+          className={`min-w-full min-h-full flex items-start ${
+            zoomScale > 1.05 ? "justify-start" : "justify-center"
+          }`}
         >
+          <div
+            ref={imageContainerRef}
+            className="relative transition-transform duration-75 shadow-md rounded-sm border border-hairline/80 inline-block bg-white shrink-0"
+            style={{
+              transform: `scale(${zoomScale})`,
+              transformOrigin: zoomScale > 1.05 ? "top left" : "top center",
+              marginRight: zoomScale > 1.05 ? `${Math.round((zoomScale - 1) * 720)}px` : "0px",
+              marginBottom: zoomScale > 1.05 ? `${Math.round((zoomScale - 1) * 1050)}px` : "0px",
+            }}
+          >
           {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
           {imageError ? (
             <div className="flex flex-col items-center justify-center p-10 sm:p-16 text-center max-w-[850px] w-full min-h-[480px] space-y-3 bg-surface rounded-sm">
@@ -1225,6 +1288,7 @@ export function DocumentViewer({
           })}
             </>
           )}
+          </div>
         </div>
       </div>
     </div>

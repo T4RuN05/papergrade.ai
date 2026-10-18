@@ -154,13 +154,21 @@ function StudentMarksTrajectory({
       ? Number((points[count - 1].percentage - points[0].percentage).toFixed(1))
       : null;
 
-  // SVG Coordinates calculation
-  const svgWidth = 650;
-  const svgHeight = 180;
-  const padTop = 20;
-  const padBottom = 26;
-  const padLeft = 40;
-  const padRight = 24;
+  const [lineAnimated, setLineAnimated] = useState(false);
+
+  useEffect(() => {
+    setLineAnimated(false);
+    const t = setTimeout(() => setLineAnimated(true), 40);
+    return () => clearTimeout(t);
+  }, [selectedSubject, points.length]);
+
+  // SVG Coordinates calculation (optimized 520x165 dynamic viewBox)
+  const svgWidth = 520;
+  const svgHeight = 165;
+  const padTop = 16;
+  const padBottom = 24;
+  const padLeft = 32;
+  const padRight = 16;
   const plotW = svgWidth - padLeft - padRight;
   const plotH = svgHeight - padTop - padBottom;
 
@@ -306,11 +314,11 @@ function StudentMarksTrajectory({
         </div>
       )}
 
-      {/* Minimal SVG Chart Container */}
-      <div className="relative w-full overflow-hidden rounded-lg border border-hairline bg-surface p-2 sm:p-3">
+      {/* Seamless Dynamic SVG Chart Container (No letterboxing, fills container) */}
+      <div className="relative w-full overflow-hidden pt-1">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full h-36 sm:h-44 select-none overflow-visible"
+          className="w-full h-auto select-none overflow-visible block"
         >
           <defs>
             <linearGradient id="pgMarksTrajectoryGrad" x1="0" y1="0" x2="0" y2="1">
@@ -332,7 +340,7 @@ function StudentMarksTrajectory({
                   y1={y}
                   x2={svgWidth - padRight}
                   y2={y}
-                  stroke="#e5e7eb"
+                  stroke="#e2e8f0"
                   strokeWidth="1"
                   strokeDasharray={pct === 0 ? "none" : "3 3"}
                 />
@@ -340,7 +348,7 @@ function StudentMarksTrajectory({
                   x={padLeft - 6}
                   y={y + 3.5}
                   textAnchor="end"
-                  className="fill-slate-400 font-mono text-[9px] select-none"
+                  className="fill-slate-400 font-mono text-[8.5px] select-none"
                 >
                   {pct}%
                 </text>
@@ -371,10 +379,19 @@ function StudentMarksTrajectory({
             </g>
           )}
 
-          {/* Area Fill */}
-          {areaD && <path d={areaD} fill="url(#pgMarksTrajectoryGrad)" />}
+          {/* Area Fill with Fade In */}
+          {areaD && (
+            <path
+              d={areaD}
+              fill="url(#pgMarksTrajectoryGrad)"
+              style={{
+                opacity: lineAnimated ? 1 : 0,
+                transition: "opacity 0.6s ease 0.3s",
+              }}
+            />
+          )}
 
-          {/* Line Path */}
+          {/* Line Path with Lightweight Smooth Draw Animation */}
           {pathD && (
             <path
               d={pathD}
@@ -383,16 +400,30 @@ function StudentMarksTrajectory({
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              style={{
+                strokeDasharray: 1200,
+                strokeDashoffset: lineAnimated ? 0 : 1200,
+                transition: "stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)",
+              }}
             />
           )}
 
-          {/* Data Nodes */}
+          {/* Data Nodes with Pop-in Animation */}
           {points.map((p, idx) => {
             const cx = getX(idx);
             const cy = getY(p.percentage);
 
             return (
-              <g key={p.id} className="group">
+              <g
+                key={p.id}
+                className="group transition-all"
+                style={{
+                  opacity: lineAnimated ? 1 : 0,
+                  transform: lineAnimated ? "scale(1)" : "scale(0.3)",
+                  transformOrigin: `${cx}px ${cy}px`,
+                  transition: `opacity 0.35s ease ${0.25 + idx * 0.08}s, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${0.25 + idx * 0.08}s`,
+                }}
+              >
                 <title>{`${p.title} (${p.subject}): ${p.marks}/${p.maxMarks} (${p.percentage}%)`}</title>
 
                 {/* Revaluation Upgraded Halo */}
@@ -430,7 +461,7 @@ function StudentMarksTrajectory({
                   x={cx}
                   y={cy - 9}
                   textAnchor="middle"
-                  className={`font-mono text-[9.5px] font-bold select-none ${
+                  className={`font-mono text-[9px] font-bold select-none ${
                     p.isMarksRevised ? "fill-emerald-700" : "fill-slate-700"
                   }`}
                 >
@@ -440,7 +471,7 @@ function StudentMarksTrajectory({
                 {/* X-axis Date/Exam Label */}
                 <text
                   x={cx}
-                  y={svgHeight - 10}
+                  y={svgHeight - 8}
                   textAnchor="middle"
                   className="font-sans text-[8.5px] fill-slate-500 select-none"
                 >
@@ -452,7 +483,7 @@ function StudentMarksTrajectory({
         </svg>
 
         {/* Minimal Legend Footer */}
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2 mt-1 border-t border-hairline/80 text-[11px] text-ink-muted">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1.5 mt-1 border-t border-hairline/60 text-[11px] text-ink-muted">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-primary" />
             <span>Standard</span>
@@ -502,6 +533,7 @@ export default function StudentPortalPage() {
   // Detailed Breakdown Modal state
   const [breakdownModalOpen, setBreakdownModalOpen] = useState(false);
   const [breakdownSubmission, setBreakdownSubmission] = useState<any>(null);
+  const [isBreakdownLoadingDetails, setIsBreakdownLoadingDetails] = useState(false);
   const [expandedQuestionIds, setExpandedQuestionIds] = useState<Record<string, boolean>>({});
 
   const toggleQuestionExpand = (id: string) => {
@@ -783,6 +815,13 @@ export default function StudentPortalPage() {
     setExpandedQuestionIds({});
     setBreakdownModalOpen(true);
 
+    const hasDetailsAlready = Boolean(
+      sub.answers &&
+      sub.answers.length > 0 &&
+      sub.answers.some((a: any) => (a.criterion_scores && a.criterion_scores.length > 0) || a.question_text)
+    );
+    setIsBreakdownLoadingDetails(!hasDetailsAlready);
+
     // Fetch full question answers breakdown (including criteria, official answer, and AI transcription)
     try {
       const details = await api.getSubmission(sub.id);
@@ -798,6 +837,8 @@ export default function StudentPortalPage() {
       }
     } catch (err) {
       console.warn("Could not fetch detailed answers for breakdown modal", err);
+    } finally {
+      setIsBreakdownLoadingDetails(false);
     }
   };
 
@@ -1573,13 +1614,21 @@ export default function StudentPortalPage() {
                         </span>
                       </div>
 
-                      {/* Question Text / Prompt if available */}
-                      {ans.question_text && (
+                      {/* Question Text / Prompt if available or skeleton placeholder while loading */}
+                      {ans.question_text ? (
                         <p className="text-[11.5px] text-ink-secondary leading-relaxed bg-canvas-soft/40 p-2 rounded border border-hairline/50">
                           <span className="font-semibold text-ink">Prompt: </span>
                           {ans.question_text}
                         </p>
-                      )}
+                      ) : isBreakdownLoadingDetails ? (
+                        <div className="bg-canvas-soft/40 p-2 rounded border border-hairline/50 space-y-1.5 animate-pulse">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold text-ink-muted">Prompt:</span>
+                            <div className="h-2.5 w-3/4 bg-ink-faint/25 rounded" />
+                          </div>
+                          <div className="h-2 w-1/2 bg-ink-faint/15 rounded ml-12" />
+                        </div>
+                      ) : null}
 
                       {/* Rubric Remarks */}
                       {ans.feedback && (
@@ -1617,11 +1666,13 @@ export default function StudentPortalPage() {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                          {hasCriteria && (
+                          {hasCriteria ? (
                             <span className="text-[10px] bg-primary/15 text-primary border border-primary/25 px-2 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0">
                               {criterionScores.length} {criterionScores.length === 1 ? "criterion" : "criteria"}
                             </span>
-                          )}
+                          ) : isBreakdownLoadingDetails ? (
+                            <span className="h-4 w-16 bg-primary/10 border border-primary/20 rounded-full animate-pulse shrink-0 inline-block" />
+                          ) : null}
                           {isExpanded ? (
                             <ChevronUp className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                           ) : (
@@ -1682,6 +1733,14 @@ export default function StudentPortalPage() {
                                     </div>
                                   );
                                 })}
+                              </div>
+                            </div>
+                          ) : isBreakdownLoadingDetails ? (
+                            <div className="space-y-2 py-1 animate-pulse">
+                              <div className="h-3 w-36 bg-ink-faint/25 rounded" />
+                              <div className="p-2.5 rounded-md bg-canvas-soft/60 border border-hairline space-y-1.5">
+                                <div className="h-2.5 w-3/4 bg-ink-faint/30 rounded" />
+                                <div className="h-2 w-1/2 bg-ink-faint/20 rounded" />
                               </div>
                             </div>
                           ) : (

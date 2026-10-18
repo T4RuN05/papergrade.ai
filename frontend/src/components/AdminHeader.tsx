@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -9,6 +9,8 @@ import {
   Sparkles,
   Database,
   ChevronRight,
+  ChevronDown,
+  Check,
   ExternalLink,
   Building2,
   Layers,
@@ -35,10 +37,26 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const { trail } = useBreadcrumbs();
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setBranchDropdownOpen(false);
+      }
+    }
+    if (branchDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [branchDropdownOpen]);
 
   const {
     currentUser,
@@ -138,16 +156,11 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           <button
             type="button"
             onClick={onOpenMobileSidebar}
-            className="md:hidden p-1.5 -ml-0.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+            className="md:hidden p-1.5 -ml-0.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
             aria-label="Open Sidebar Menu"
           >
             <Menu className="h-5 w-5" />
           </button>
-
-          {/* Mobile Page Title (< sm) */}
-          <span className="sm:hidden font-bold text-ink text-xs xs:text-sm truncate max-w-[110px] xs:max-w-[140px]">
-            {lastSegment?.label || "PaperGrade"}
-          </span>
 
           {/* Unified Navigation Trail (Desktop sm+) */}
           <div className="hidden sm:flex items-center gap-1.5 text-xs truncate">
@@ -181,64 +194,79 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           </div>
         </div>
 
-        {/* Center: Persistent Multi-Tenant Scope Pill (Responsive) */}
-        <div
-          suppressHydrationWarning
-          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 rounded-md bg-canvas-soft border border-hairline text-xs shadow-2xs shrink min-w-0"
-        >
-          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-          {mounted && isRootAdmin ? (
-            <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
-              {/* Institute Selector - hidden on mobile, visible on sm+ */}
-              <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-                <select
-                  value={selectedInstitute?.id || ""}
-                  onChange={(e) => handleInstituteChange(e.target.value)}
-                  className="bg-transparent font-medium text-ink focus:outline-none cursor-pointer hover:text-primary transition-colors text-xs max-w-[110px] md:max-w-[140px] truncate"
-                  title="Active Institute Scope"
-                >
-                  {institutes.map((inst) => (
-                    <option key={inst.id} value={inst.id}>
-                      {inst.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-ink-muted">/</span>
+        {/* Center: Custom Responsive Multi-Tenant Scope Dropdown */}
+        <div ref={branchDropdownRef} className="relative shrink min-w-0">
+          <button
+            type="button"
+            onClick={() => setBranchDropdownOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-md bg-canvas-soft hover:bg-surface border border-hairline hover:border-hairline/80 text-xs shadow-2xs transition-all cursor-pointer max-w-[170px] xs:max-w-[210px] sm:max-w-[280px]"
+            title="Click to switch active branch context"
+          >
+            <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="font-bold text-ink truncate text-xs">
+              {mounted ? (selectedBranch?.name || selectedInstitute?.name || "Select Branch") : "PaperGrade"}
+            </span>
+            <ChevronDown
+              className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-150 ${
+                branchDropdownOpen ? "rotate-180 text-primary" : ""
+              }`}
+            />
+          </button>
+
+          {/* Styled Notion Floating Dropdown Menu */}
+          {branchDropdownOpen && mounted && (
+            <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 w-64 sm:w-72 bg-surface rounded-lg border border-hairline shadow-notion-modal p-2 z-50 animate-in fade-in zoom-in-95">
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1">
+                <span>Operational Branch</span>
+                {isRootAdmin && <span className="text-[10px] text-primary font-semibold lowercase">root admin</span>}
               </div>
 
-              {/* Branch Selector */}
-              <select
-                value={selectedBranch?.id || ""}
-                onChange={(e) => handleBranchChange(e.target.value)}
-                className="bg-transparent font-bold text-ink focus:outline-none cursor-pointer hover:text-primary transition-colors text-xs max-w-[85px] xs:max-w-[110px] sm:max-w-[160px] truncate"
-                title="Active Branch Scope"
-              >
-                {branches.length === 0 ? (
-                  <option value="">No Branches</option>
-                ) : (
-                  branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-          ) : mounted && isBranchManager ? (
-            <div className="flex items-center gap-1 sm:gap-1.5 font-semibold text-ink text-xs min-w-0 truncate">
-              <span className="hidden sm:inline font-bold text-ink truncate max-w-[100px]">
-                {selectedInstitute?.name || "Institute"}
-              </span>
-              <span className="hidden sm:inline text-ink-muted">/</span>
-              <span className="text-primary font-bold truncate max-w-[85px] xs:max-w-[110px] sm:max-w-none">
-                {selectedBranch?.name || "Branch"}
-              </span>
-              {selectedBranch?.city && (
-                <span className="hidden md:inline text-ink-muted font-normal">({selectedBranch.city})</span>
+              {isRootAdmin && institutes.length > 1 && (
+                <div className="mb-2 px-1">
+                  <label className="text-[10px] font-semibold text-ink-muted block mb-1">Coaching Institute:</label>
+                  <select
+                    value={selectedInstitute?.id || ""}
+                    onChange={(e) => handleInstituteChange(e.target.value)}
+                    className="w-full text-xs font-semibold text-ink bg-canvas-soft border border-hairline rounded p-1.5 focus:outline-none"
+                  >
+                    {institutes.map((inst) => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                </div>
               )}
+
+              <div className="max-h-52 overflow-y-auto space-y-0.5">
+                {branches.length === 0 ? (
+                  <p className="text-xs text-ink-muted p-2 text-center">No branches found</p>
+                ) : (
+                  branches.map((b) => {
+                    const isSelected = b.id === selectedBranch?.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          handleBranchChange(b.id);
+                          setBranchDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left ${
+                          isSelected
+                            ? "bg-primary/10 text-primary font-bold"
+                            : "text-ink hover:bg-canvas-soft font-medium"
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="truncate font-semibold">{b.name}</p>
+                          {b.city && <p className="text-[10px] text-ink-muted truncate">{b.city}</p>}
+                        </div>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          ) : (
-            <span className="text-ink-muted text-xs truncate max-w-[80px] sm:max-w-none">PaperGrade</span>
           )}
         </div>
 
@@ -250,11 +278,11 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             <span>Supabase PostgreSQL • Online</span>
           </div>
 
-          {/* Technical Support / Bug Report Button */}
+          {/* Technical Support / Bug Report Button (Desktop only, available in mobile sidebar) */}
           <button
             type="button"
             onClick={() => setReportModalOpen(true)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+            className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
             title="Report Technical Issue"
             aria-label="Report Technical Issue"
           >
