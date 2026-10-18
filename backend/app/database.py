@@ -42,14 +42,32 @@ class PostgresCursorWrapper:
             sql = sql.replace("datetime('now')", "TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')")
         return sql
 
+    def _sanitize_param(self, val):
+        if isinstance(val, str) and "\x00" in val:
+            return val.replace("\x00", "")
+        return val
+
+    def _sanitize_params(self, params):
+        if params is None:
+            return None
+        if isinstance(params, (list, tuple)):
+            return tuple(self._sanitize_param(p) for p in params)
+        if isinstance(params, dict):
+            return {k: self._sanitize_param(v) for k, v in params.items()}
+        return params
+
     def execute(self, sql: str, params=None):
         clean_sql = self._normalize_sql(sql, params)
         if params is not None:
-            return self._cursor.execute(clean_sql, params)
+            clean_params = self._sanitize_params(params)
+            return self._cursor.execute(clean_sql, clean_params)
         return self._cursor.execute(clean_sql)
 
     def executemany(self, sql: str, seq_of_params):
         clean_sql = self._normalize_sql(sql, seq_of_params)
+        if seq_of_params is not None:
+            clean_seq = [self._sanitize_params(p) for p in seq_of_params]
+            return self._cursor.executemany(clean_sql, clean_seq)
         return self._cursor.executemany(clean_sql, seq_of_params)
 
     def fetchone(self):

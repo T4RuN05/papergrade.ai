@@ -197,20 +197,23 @@ class GradingService:
             if ans.needs_review:
                 has_needs_review = True
 
+            def _clean_str(val):
+                return val.replace("\x00", "") if isinstance(val, str) else val
+
             ans_id = str(uuid.uuid4())
             answers_to_insert.append((
                 ans_id, submission_id, qid, ans.subquestion_id, sec_id, 0,
-                ans.page_number, ans.extracted_student_answer, max_m,
-                validated_awarded, ans.grading_rationale,
+                ans.page_number, _clean_str(ans.extracted_student_answer), max_m,
+                validated_awarded, _clean_str(ans.grading_rationale),
                 ans.transcription_uncertainty, ans.grading_uncertainty,
-                1 if ans.needs_review else 0, ans.review_reason,
+                1 if ans.needs_review else 0, _clean_str(ans.review_reason),
                 1 if ans.is_missing else 0, 0, now, now
             ))
 
             for c_tuple in validated_crit_scores:
                 cid, c_desc, c_max, c_awarded, c_evid = c_tuple
                 criterion_scores_to_insert.append((
-                    str(uuid.uuid4()), ans_id, cid, c_desc, c_max, c_awarded, c_evid, 0, now
+                    str(uuid.uuid4()), ans_id, cid, _clean_str(c_desc), c_max, c_awarded, _clean_str(c_evid), 0, now
                 ))
 
             # Regions bounding box validation
