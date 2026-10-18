@@ -93,7 +93,7 @@ def get_batch_by_id(batch_id: str):
         batch_d["submissions"] = [dict(s) for s in cursor.fetchall()]
         return batch_d
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return {
         "status": "online",
@@ -104,7 +104,7 @@ def root():
         "status_check": "/api/status"
     }
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health_check():
     from backend.app.services.storage import get_storage_service
     storage = get_storage_service()
@@ -117,7 +117,7 @@ def health_check():
         "storage": type(storage).__name__
     }
 
-@app.get("/api/status")
+@app.api_route("/api/status", methods=["GET", "HEAD"])
 def system_status():
     def _val(row):
         if not row:
