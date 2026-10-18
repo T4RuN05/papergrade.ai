@@ -152,16 +152,16 @@ class PersistentQueueWorker:
         page_count = job["page_count"]
         retry_count = job["retry_count"]
 
-        # Resolve local PDF path: check local disk, then fallback to unified storage service (Cloudinary/R2/cache)
-        pdf_path = Path(raw_pdf_path)
-        if not pdf_path.is_file() or not pdf_path.exists():
-            storage = get_storage_service()
-            try:
-                pdf_path = storage.get_local_path_or_download(raw_pdf_path)
-            except Exception as dl_err:
-                raise FileNotFoundError(f"Could not locate or download student PDF for key '{raw_pdf_path}': {dl_err}")
-
         try:
+            # Resolve local PDF path: check local disk, then fallback to unified storage service (Cloudinary/R2/cache)
+            pdf_path = Path(raw_pdf_path)
+            if not pdf_path.is_file() or not pdf_path.exists():
+                storage = get_storage_service()
+                try:
+                    pdf_path = storage.get_local_path_or_download(raw_pdf_path)
+                except Exception as dl_err:
+                    raise FileNotFoundError(f"Could not locate or download student PDF for key '{raw_pdf_path}': {dl_err}")
+
             # 1. Fetch approved rubric
             with get_db() as conn:
                 cursor = conn.cursor()
@@ -194,11 +194,21 @@ class PersistentQueueWorker:
                 rubric_data=rubric_data
             )
 
-            # 4. Update batch counts
+            # 4. Mark queue item as completed
+            now = get_iso_now()
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                UPDATE evaluation_queue 
+                SET status = 'COMPLETED', updated_at = ? 
+                WHERE submission_id = ?
+                """, (now, submission_id))
+
+            # 5. Update batch counts
             if batch_id:
                 self._update_batch_progress(batch_id)
 
-            # 5. Update exam evaluation status if all jobs finished
+            # 6. Update exam evaluation status if all jobs finished
             self._update_exam_evaluation_status(exam_id)
 
             print(f"[QueueWorker-{worker_id}] Successfully processed submission {submission_id}.")
@@ -216,6 +226,12 @@ class PersistentQueueWorker:
                 WHERE id = ?
                 """, (f"Quota Paused: {err_msg[:200]}", now, submission_id))
 
+                cursor.execute("""
+                UPDATE evaluation_queue
+                SET status = 'QUEUED', last_error = ?, updated_at = ?
+                WHERE submission_id = ?
+                """, (f"Quota Paused: {err_msg[:200]}", now, submission_id))
+
                 if batch_id:
                     cursor.execute("""
                     UPDATE batches
@@ -223,8 +239,8 @@ class PersistentQueueWorker:
                     WHERE id = ?
                     """, (now, batch_id))
 
-            print(f"[QueueWorker-{worker_id}] Pausing worker loop for 60s cooldown to allow quota reset...")
-            time.sleep(60.0)
+            print(f"[QueueWorker-{worker_id}] Pausing worker loop for 30s cooldown to allow quota reset...")
+            time.sleep(30.0)
             return False
 
         except Exception as e:
@@ -252,6 +268,11 @@ class PersistentQueueWorker:
                             SET status = 'NEEDS_REVIEW', error_message = ?, updated_at = ?
                             WHERE id = ?
                             """, (f"Graded with post-process warning: {err_msg[:150]}", now, submission_id))
+                            cursor.execute("""
+                            UPDATE evaluation_queue
+                            SET status = 'COMPLETED', last_error = ?, updated_at = ?
+                            WHERE submission_id = ?
+                            """, (err_msg[:200], now, submission_id))
                         elif new_retries < max_job_retries:
                             # Retry after backoff
                             cursor.execute("""
@@ -259,6 +280,11 @@ class PersistentQueueWorker:
                             SET status = 'QUEUED', retry_count = ?, error_message = ?, updated_at = ?
                             WHERE id = ?
                             """, (new_retries, f"Retry {new_retries}: {err_msg[:200]}", now, submission_id))
+                            cursor.execute("""
+                            UPDATE evaluation_queue
+                            SET status = 'QUEUED', attempt_count = ?, last_error = ?, updated_at = ?
+                            WHERE submission_id = ?
+                            """, (new_retries, err_msg[:200], now, submission_id))
                         else:
                             # Mark FAILED
                             cursor.execute("""
@@ -266,6 +292,11 @@ class PersistentQueueWorker:
                             SET status = 'FAILED', retry_count = ?, error_message = ?, updated_at = ?
                             WHERE id = ?
                             """, (new_retries, f"Failed: {err_msg[:300]}", now, submission_id))
+                            cursor.execute("""
+                            UPDATE evaluation_queue
+                            SET status = 'FAILED', attempt_count = ?, last_error = ?, updated_at = ?
+                            WHERE submission_id = ?
+                            """, (new_retries, err_msg[:300], now, submission_id))
                         break
                 except Exception as db_err:
                     if attempt == 4:

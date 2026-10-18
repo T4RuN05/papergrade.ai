@@ -274,7 +274,8 @@ class GeminiGradingClient:
                         system_instruction=RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION,
                         response_mime_type="application/json",
                         response_schema=ExamRubricExtractionResult,
-                        temperature=0.1
+                        temperature=0.1,
+                        max_output_tokens=65536
                     )
                     response = client.models.generate_content(
                         model=model_to_use,
@@ -282,6 +283,17 @@ class GeminiGradingClient:
                         config=config
                     )
                     duration_ms = int((time.time() - start_time) * 1000)
+
+                    # Validate JSON before recording success
+                    raw_text = response.text or ""
+                    try:
+                        parsed = ExamRubricExtractionResult.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = ExamRubricExtractionResult.model_validate_json(repaired)
+                        else:
+                            raise parse_err
 
                     # Token usage
                     in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
@@ -296,8 +308,6 @@ class GeminiGradingClient:
                         cached_tokens=cached_tok, file_size_bytes=file_size,
                         retry_attempt=attempt, is_mock=False, model_name=model_to_use
                     )
-
-                    parsed = ExamRubricExtractionResult.model_validate_json(response.text)
                     return parsed, event_id
 
                 except Exception as e:
@@ -331,9 +341,71 @@ class GeminiGradingClient:
                     sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)
                     time.sleep(sleep_time)
 
+        if last_error and not is_rate_or_quota_error(last_error):
+            raise last_error
+
         raise AllGeminiKeysExhaustedError(
             f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
         )
+
+    @staticmethod
+    def _repair_truncated_json(raw_text: str) -> Optional[str]:
+        """
+        Attempts to gracefully repair slightly truncated JSON from LLM generation
+        by closing open strings, brackets, and braces.
+        """
+        if not raw_text or not raw_text.strip():
+            return None
+        text = raw_text.strip()
+        # If wrapped in markdown code fence, strip it
+        if text.startswith("```json"):
+            text = text[7:]
+        elif text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+        # Count unbalanced structures
+        in_string = False
+        escape = False
+        stack = []
+        for char in text:
+            if escape:
+                escape = False
+                continue
+            if char == "\\":
+                escape = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if char in ('{', '['):
+                    stack.append(char)
+                elif char == '}':
+                    if stack and stack[-1] == '{':
+                        stack.pop()
+                elif char == ']':
+                    if stack and stack[-1] == '[':
+                        stack.pop()
+
+        repaired = text
+        if in_string:
+            repaired += '"'
+
+        while stack:
+            opener = stack.pop()
+            if opener == '{':
+                repaired += '}'
+            elif opener == '[':
+                repaired += ']'
+
+        try:
+            json.loads(repaired)
+            return repaired
+        except Exception:
+            return None
 
     def grade_student_submission(
         self,
@@ -506,7 +578,7 @@ class GeminiGradingClient:
                         response_mime_type="application/json",
                         response_schema=StudentGradingExtractionResult,
                         temperature=0.1,
-                        max_output_tokens=8192,
+                        max_output_tokens=65536,
                         thinking_config=thinking_cfg
                     )
                     response = client.models.generate_content(
@@ -515,6 +587,17 @@ class GeminiGradingClient:
                         config=config
                     )
                     duration_ms = int((time.time() - start_time) * 1000)
+
+                    # Validate JSON before recording success
+                    raw_text = response.text or ""
+                    try:
+                        parsed = StudentGradingExtractionResult.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = StudentGradingExtractionResult.model_validate_json(repaired)
+                        else:
+                            raise parse_err
 
                     in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
                     out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
@@ -533,8 +616,6 @@ class GeminiGradingClient:
                         file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
                         model_name=model_to_use
                     )
-
-                    parsed = StudentGradingExtractionResult.model_validate_json(response.text)
                     return parsed, event_id
 
                 except Exception as e:
@@ -567,6 +648,9 @@ class GeminiGradingClient:
 
                     sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)
                     time.sleep(sleep_time)
+
+        if last_error and not is_rate_or_quota_error(last_error):
+            raise last_error
 
         raise AllGeminiKeysExhaustedError(
             f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
