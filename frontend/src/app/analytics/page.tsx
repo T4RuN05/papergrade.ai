@@ -20,10 +20,13 @@ import { UsageMetrics, BenchmarkSummary, Exam } from "@/lib/types";
 import { UsageCards } from "@/components/UsageCards";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
+import { useTenant } from "@/lib/TenantContext";
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { isBranchManager } = useTenant();
+
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
   const [exams, setExams] = useState<Exam[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>("");
@@ -43,13 +46,12 @@ export default function AnalyticsPage() {
   const [isSubmittingBench, setIsSubmittingBench] = useState(false);
 
   useEffect(() => {
-    api.getMe().then((user) => {
-      if (user?.role === "BRANCH_MANAGER") {
-        router.replace("/branch/batches");
-      }
-    }).catch(() => {});
+    if (isBranchManager) {
+      router.replace("/branch/batches");
+      return;
+    }
     loadAll();
-  }, []);
+  }, [isBranchManager]);
 
   const loadAll = async () => {
     try {

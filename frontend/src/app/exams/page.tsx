@@ -60,18 +60,11 @@ export default function ExamsPage() {
       const examList = Array.isArray(data) ? data : [];
       setExams(examList);
 
-      // Fetch window status for each exam
+      // Batch window status is already joined by the backend in a single query (0 extra roundtrips)
       const statusMap: Record<string, any> = {};
-      await Promise.all(
-        examList.map(async (exam) => {
-          try {
-            const win = await api.getWindowStatus(exam.id);
-            statusMap[exam.id] = win;
-          } catch {
-            statusMap[exam.id] = null;
-          }
-        })
-      );
+      for (const exam of examList) {
+        statusMap[exam.id] = (exam as any).window_status || null;
+      }
       setWindowsMap(statusMap);
     } catch (err: any) {
       console.error("Failed to load exams:", err);

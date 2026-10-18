@@ -36,29 +36,29 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const PIPELINE_STEPS = [
+const AGENTIC_RUBRIC_STEPS = [
   {
-    title: "Document Canonicalization",
-    desc: "Converting Question Paper & Answer Key into high-res multimodal pages",
+    title: "Document Ingestion & Normalization",
+    desc: "Converting multimodal pages into high-fidelity vectorized evaluation surfaces",
   },
   {
-    title: "Gemini Vision AI Analysis",
-    desc: "Reading questions, sub-parts, equations, and official expected answers",
+    title: "Question & Choice Structure Extraction",
+    desc: "Dissecting question hierarchy, sub-parts, mathematical equations, and mark weights",
   },
   {
-    title: "Marking Scheme Extraction",
-    desc: "Identifying optional questions, choice limits, and mark allocations",
+    title: "Model Solution & Criteria Formulation",
+    desc: "Establishing step-by-step marking rubrics, acceptable alternatives, and tolerances",
   },
   {
-    title: "Synthesizing Rubric Draft",
-    desc: "Formulating step-by-step criteria breakdown and model solutions",
+    title: "Synthesizing Interactive Review Workspace",
+    desc: "Assembling approved rubric structure ready for Root Admin verification",
   },
 ];
 
 export default function NewExamPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { selectedBranch } = useTenant();
+  const { selectedBranch, isRootAdmin, isBranchManager } = useTenant();
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [extraNotes, setExtraNotes] = useState("");
@@ -73,9 +73,19 @@ export default function NewExamPage() {
   const qpInputRef = useRef<HTMLInputElement>(null);
   const akInputRef = useRef<HTMLInputElement>(null);
 
+  // Rubric synthesis is strictly active only when Root Admin provides both Question Paper and Answer Key
+  const isSynthesizingRubric = isRootAdmin && qpFiles.length > 0 && akFiles.length > 0;
+
+  // Ensure answer key files are purged if the user is not Root Admin
+  useEffect(() => {
+    if (!isRootAdmin && akFiles.length > 0) {
+      setAkFiles([]);
+    }
+  }, [isRootAdmin, akFiles]);
+
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (isSubmitting) {
+    if (isSubmitting && isSynthesizingRubric) {
       setElapsedSeconds(0);
       setCurrentStep(0);
       const start = Date.now();
@@ -84,9 +94,9 @@ export default function NewExamPage() {
         setElapsedSeconds(elapsed);
         if (elapsed < 3) {
           setCurrentStep(0);
-        } else if (elapsed < 10) {
+        } else if (elapsed < 9) {
           setCurrentStep(1);
-        } else if (elapsed < 18) {
+        } else if (elapsed < 16) {
           setCurrentStep(2);
         } else {
           setCurrentStep(3);
@@ -96,7 +106,7 @@ export default function NewExamPage() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isSubmitting]);
+  }, [isSubmitting, isSynthesizingRubric]);
 
   const handleQpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isSubmitting) return;
@@ -155,7 +165,7 @@ export default function NewExamPage() {
       return;
     }
 
-    const hasBothFiles = qpFiles.length > 0 && akFiles.length > 0;
+    const shouldGenerateRubric = isRootAdmin && qpFiles.length > 0 && akFiles.length > 0;
     setIsSubmitting(true);
 
     try {
@@ -174,8 +184,8 @@ export default function NewExamPage() {
 
       const createdExam = await api.createExam(formData);
 
-      // If Answer Key was provided, upload it to generate draft rubric
-      if (akFiles.length > 0) {
+      // Answer key upload is strictly Root Admin only
+      if (isRootAdmin && akFiles.length > 0) {
         const akFormData = new FormData();
         for (const file of akFiles) {
           akFormData.append("answer_key", file);
@@ -183,7 +193,7 @@ export default function NewExamPage() {
         await api.uploadAnswerKey(createdExam.id, akFormData);
       }
 
-      if (hasBothFiles) {
+      if (shouldGenerateRubric) {
         queueToast({
           type: "success",
           title: "Exam Created & Rubric Generated",
@@ -233,122 +243,159 @@ export default function NewExamPage() {
       </div>
 
       <div className="relative">
-        {/* Full Interactive Processing Overlay when Rubric Generation is in Progress */}
+        {/* Differentiated Processing Overlays */}
         {isSubmitting && (
-          <div className="absolute inset-0 z-30 rounded-xl bg-surface/96 backdrop-blur-md flex flex-col items-center justify-center p-6 sm:p-8 text-center animate-in fade-in duration-200 border border-hairline shadow-notion-modal">
-            {/* AI Spinner Icon */}
-            <div className="relative mb-4">
-              <div className="h-14 w-14 rounded-2xl bg-[#edf5fd] border border-primary/20 flex items-center justify-center text-primary shadow-xs">
-                <Sparkles className="h-7 w-7 animate-spin" />
+          isSynthesizingRubric ? (
+            /* Root Admin with Question Paper & Answer Key: Agentic Rubric Synthesis */
+            <div className="absolute inset-0 z-30 rounded-xl bg-surface/96 backdrop-blur-xl flex flex-col items-center justify-center p-6 sm:p-8 text-center animate-in fade-in duration-300 border border-hairline shadow-2xl">
+              {/* Bespoke Agentic Core */}
+              <div className="relative mb-4 flex items-center justify-center">
+                <div className="absolute h-20 w-20 rounded-full bg-indigo-500/10 animate-ping opacity-30" />
+                <div className="absolute h-16 w-16 rounded-full border border-indigo-400/25 animate-pulse" />
+                <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-tr from-indigo-50 via-surface to-sky-50 border border-indigo-200/60 dark:bg-slate-900 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm">
+                  <Cpu className="h-7 w-7 animate-pulse" />
+                </div>
               </div>
-            </div>
 
-            {/* Header Badge */}
-            <BadgePill label="Gemini Multimodal AI Active" color="purple" />
-
-            <h2 className="text-xl sm:text-2xl font-bold text-ink tracking-tight mt-2.5">
-              Generating Structured Exam Rubric
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm text-ink-muted max-w-lg leading-relaxed">
-              Gemini is analyzing your Question Paper and Answer Key to extract question numbers, choice constraints, marks distribution, and step-by-step criteria.
-            </p>
-
-            {/* Document Summary Chips */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
-              <div className="rounded-md bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-primary" />
-                <span>
-                  Question Paper: <strong>{qpFiles.length} {qpFiles.length === 1 ? "file" : "files"}</strong>
+              {/* Agentic Live Badge (No cartoon logos) */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold tracking-wide">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
                 </span>
+                Autonomous Rubric Agent Active
               </div>
-              <div className="rounded-md bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-[#1aae39]" />
-                <span>
-                  Answer Key: <strong>{akFiles.length} {akFiles.length === 1 ? "file" : "files"}</strong>
-                </span>
-              </div>
-              <div className="rounded-md bg-[#edf5fd] border border-primary/20 px-3 py-1.5 text-primary font-mono font-semibold flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 animate-spin" />
-                <span>{elapsedSeconds}s elapsed</span>
-              </div>
-            </div>
 
-            {/* Animated Pipeline Stepper */}
-            <div className="w-full max-w-lg mt-6 bg-canvas-soft border border-hairline rounded-lg p-4 text-left space-y-3">
-              {PIPELINE_STEPS.map((step, idx) => {
-                const isCompleted = idx < currentStep;
-                const isCurrent = idx === currentStep;
-                return (
-                  <div
-                    key={idx}
-                    className={`flex items-start gap-3 transition-opacity duration-300 ${
-                      isCompleted
-                        ? "opacity-90"
-                        : isCurrent
-                        ? "opacity-100 font-medium"
-                        : "opacity-40"
-                    }`}
-                  >
-                    <div className="mt-0.5">
-                      {isCompleted ? (
-                        <CheckCircle2 className="h-4 w-4 text-[#1aae39]" />
-                      ) : isCurrent ? (
-                        <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center text-[10px] text-ink-muted font-mono">
-                          {idx + 1}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-xs ${
-                            isCurrent
-                              ? "text-primary font-bold"
-                              : isCompleted
-                              ? "text-ink font-semibold"
-                              : "text-ink-muted"
-                          }`}
-                        >
-                          {step.title}
-                        </span>
-                        {isCurrent && (
-                          <BadgePill label="In Progress" color="sky" />
-                        )}
-                        {isCompleted && (
-                          <BadgePill label="Completed" color="green" />
+              <h2 className="text-xl sm:text-2xl font-bold text-ink tracking-tight mt-3">
+                Synthesizing Structured Exam Rubric
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-ink-muted max-w-lg leading-relaxed">
+                Dissecting question paper layout, validating marking constraints, and formulating step-by-step evaluation criteria.
+              </p>
+
+              {/* Document Summary Chips */}
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
+                <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <span>
+                    Question Paper: <strong>{qpFiles.length} {qpFiles.length === 1 ? "file" : "files"}</strong>
+                  </span>
+                </div>
+                <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
+                  <FileCheck2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>
+                    Answer Key: <strong>{akFiles.length} {akFiles.length === 1 ? "file" : "files"}</strong>
+                  </span>
+                </div>
+                <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 text-indigo-700 dark:text-indigo-300 font-mono font-medium flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 animate-spin" />
+                  <span>{elapsedSeconds}s elapsed</span>
+                </div>
+              </div>
+
+              {/* Agentic Timeline Feed */}
+              <div className="w-full max-w-lg mt-5 bg-canvas-soft/80 border border-hairline rounded-xl p-4 text-left space-y-2.5">
+                {AGENTIC_RUBRIC_STEPS.map((step, idx) => {
+                  const isCompleted = idx < currentStep;
+                  const isCurrent = idx === currentStep;
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-3 transition-all duration-300 ${
+                        isCompleted
+                          ? "opacity-90"
+                          : isCurrent
+                          ? "opacity-100"
+                          : "opacity-35"
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        ) : isCurrent ? (
+                          <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center text-[10px] text-ink-muted font-mono">
+                            {idx + 1}
+                          </div>
                         )}
                       </div>
-                      <p className="text-[11px] text-ink-muted mt-0.5 leading-tight">
-                        {step.desc}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-xs ${
+                              isCurrent
+                                ? "text-indigo-600 dark:text-indigo-400 font-bold"
+                                : isCompleted
+                                ? "text-ink font-semibold"
+                                : "text-ink-muted"
+                            }`}
+                          >
+                            {step.title}
+                          </span>
+                          {isCurrent && (
+                            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200">
+                              In Progress
+                            </span>
+                          )}
+                          {isCompleted && (
+                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Completed
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-ink-muted mt-0.5 leading-tight">
+                          {step.desc}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Progress bar */}
-            <div className="w-full max-w-lg mt-4 space-y-1.5">
-              <div className="h-2 w-full bg-canvas-soft border border-hairline rounded-full overflow-hidden relative">
-                <div
-                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${progressPercent}%` }}
-                />
+                  );
+                })}
               </div>
-              <div className="flex items-center justify-between text-[11px] text-ink-muted px-1">
-                <span>Gemini API extraction running...</span>
-                <span>Typically 10–25s</span>
+
+              {/* Animated Gradient Progress Bar */}
+              <div className="w-full max-w-lg mt-4 space-y-1.5">
+                <div className="h-2 w-full bg-canvas-soft border border-hairline rounded-full overflow-hidden relative">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 via-primary to-indigo-600 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-ink-muted px-1 font-mono">
+                  <span>Synthesizing rubric criteria...</span>
+                  <span>Autonomous Pipeline</span>
+                </div>
+              </div>
+
+              {/* Security footnote */}
+              <div className="flex items-center gap-1.5 text-xs text-ink-muted mt-4">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Draft rubric will be opened in the interactive editor for review and approval.</span>
               </div>
             </div>
+          ) : (
+            /* Fast, Clean Minimalist Loader for Branch Manager & No-Rubric Creation */
+            <div className="absolute inset-0 z-30 rounded-xl bg-surface/90 backdrop-blur-md flex flex-col items-center justify-center p-6 sm:p-8 text-center animate-in fade-in duration-200 border border-hairline shadow-notion-modal">
+              <div className="relative mb-4 flex items-center justify-center">
+                <div className="absolute h-16 w-16 rounded-full bg-primary/10 animate-ping opacity-50" />
+                <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs relative">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              </div>
 
-            {/* Bottom notice */}
-            <div className="flex items-center gap-1.5 text-xs text-ink-muted mt-5">
-              <ShieldCheck className="h-4 w-4 text-[#1aae39] shrink-0" />
-              <span>All input fields are locked during generation. Please keep this tab open.</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hairline text-ink-muted text-[11px] font-medium mb-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                Academic Operations
+              </div>
+
+              <h2 className="text-lg sm:text-xl font-bold text-ink tracking-tight">
+                Creating Examination...
+              </h2>
+              <p className="mt-1 text-xs text-ink-muted max-w-sm leading-relaxed">
+                Registering examination record, linking branch settings, and initializing workspace.
+              </p>
             </div>
-          </div>
+          )
         )}
 
         {/* Main Card */}
@@ -356,13 +403,15 @@ export default function NewExamPage() {
           <div className="pb-5 border-b border-hairline">
             <div className="flex items-center gap-2 mb-1.5">
               <BadgePill label="Academic Desk" color="purple" />
-              <span className="text-xs text-ink-muted">• Multimodal Vision Pipeline</span>
+              <span className="text-xs text-ink-muted">• Examination Workspace</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-ink tracking-tight">
               Create Examination
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-ink-muted leading-relaxed">
-              Set up an examination to immediately open student submission windows. Question Paper and Official Answer Key can be uploaded now or attached later prior to AI grading.
+              {isBranchManager
+                ? "Set up an examination to immediately open student submission windows. Question Paper can be attached now or uploaded prior to evaluation."
+                : "Set up an examination to immediately open student submission windows. Question Paper and Official Answer Key can be uploaded now or attached later prior to AI grading."}
             </p>
           </div>
 
@@ -426,7 +475,7 @@ export default function NewExamPage() {
             />
 
             {/* Multi-File Uploads Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${isRootAdmin ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
               {/* 1. Question Paper Upload Box */}
               <div
                 onDragOver={(e) => {
@@ -547,126 +596,140 @@ export default function NewExamPage() {
                 </div>
               </div>
 
-              {/* 2. Official Answer Key Upload Box */}
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (!isSubmitting) setIsAkDragging(true);
-                }}
-                onDragLeave={() => setIsAkDragging(false)}
-                onDrop={handleAkDrop}
-                className={`rounded-lg border-2 border-dashed p-5 flex flex-col justify-between transition-colors ${
-                  isSubmitting
-                    ? "border-hairline bg-canvas-soft opacity-60 cursor-not-allowed pointer-events-none"
-                    : isAkDragging
-                    ? "border-[#1aae39] bg-[#eaf7ed]"
-                    : akFiles.length > 0
-                    ? "border-hairline bg-surface"
-                    : "border-hairline bg-canvas-soft/50 hover:bg-canvas-soft hover:border-primary"
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-[#1aae39]" />
-                      <span className="text-xs font-bold text-ink">
-                        Official Answer Key <span className="text-[11px] font-normal text-ink-muted">(Optional)</span>
-                      </span>
+              {/* 2. Official Answer Key Upload Box (Strictly Root Admin Only) */}
+              {isRootAdmin && (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (!isSubmitting) setIsAkDragging(true);
+                  }}
+                  onDragLeave={() => setIsAkDragging(false)}
+                  onDrop={handleAkDrop}
+                  className={`rounded-lg border-2 border-dashed p-5 flex flex-col justify-between transition-colors ${
+                    isSubmitting
+                      ? "border-hairline bg-canvas-soft opacity-60 cursor-not-allowed pointer-events-none"
+                      : isAkDragging
+                      ? "border-[#1aae39] bg-[#eaf7ed]"
+                      : akFiles.length > 0
+                      ? "border-hairline bg-surface"
+                      : "border-hairline bg-canvas-soft/50 hover:bg-canvas-soft hover:border-primary"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-[#1aae39]" />
+                        <span className="text-xs font-bold text-ink">
+                          Official Answer Key <span className="text-[11px] font-normal text-ink-muted">(Optional)</span>
+                        </span>
+                      </div>
+                      {akFiles.length > 0 && (
+                        <BadgePill label={`${akFiles.length} ${akFiles.length === 1 ? "file" : "files"}`} color="green" />
+                      )}
                     </div>
-                    {akFiles.length > 0 && (
-                      <BadgePill label={`${akFiles.length} ${akFiles.length === 1 ? "file" : "files"}`} color="green" />
+                    <p className="text-[11px] text-ink-muted mb-3">
+                      Root Admin can upload now to generate rubric draft, or attach later prior to evaluation.
+                    </p>
+
+                    {/* Selected File List */}
+                    {akFiles.length > 0 ? (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto mb-3 pr-1">
+                        {akFiles.map((f, idx) => {
+                          const isPdf = f.name.toLowerCase().endsWith(".pdf");
+                          return (
+                            <div
+                              key={`${f.name}-${idx}`}
+                              className="flex items-center justify-between gap-2 bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5 text-[11px]"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="h-4 w-4 rounded-full bg-surface border border-hairline text-ink-muted flex items-center justify-center text-[10px] font-mono shrink-0">
+                                  {idx + 1}
+                                </span>
+                                {isPdf ? (
+                                  <FileCheck2 className="h-3.5 w-3.5 text-[#1aae39] shrink-0" />
+                                ) : (
+                                  <ImageIcon className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                                )}
+                                <span className="truncate text-ink font-medium">
+                                  {f.name}
+                                </span>
+                                <span className="text-[10px] text-ink-muted shrink-0">
+                                  ({formatFileSize(f.size)})
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => handleRemoveAkFile(idx)}
+                                className="text-ink-muted hover:text-red-600 p-0.5 shrink-0 transition-colors"
+                                title="Remove file"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => {
+                          if (!isSubmitting) akInputRef.current?.click();
+                        }}
+                        className="border border-dashed border-hairline rounded-md p-4 text-center my-2 cursor-pointer hover:bg-canvas-soft transition-colors"
+                      >
+                        <Upload className="h-6 w-6 text-ink-muted mx-auto mb-1.5" />
+                        <span className="text-xs text-ink font-medium block">
+                          Click to browse or drop Answer Key
+                        </span>
+                        <span className="text-[10px] text-ink-muted">
+                          PDF, JPG, PNG
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-ink-muted mb-3">
-                    Root Admin can upload now, or add it later after student submissions close.
-                  </p>
 
-                  {/* Selected File List */}
-                  {akFiles.length > 0 ? (
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-3 pr-1">
-                      {akFiles.map((f, idx) => {
-                        const isPdf = f.name.toLowerCase().endsWith(".pdf");
-                        return (
-                          <div
-                            key={`${f.name}-${idx}`}
-                            className="flex items-center justify-between gap-2 bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5 text-[11px]"
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <span className="h-4 w-4 rounded-full bg-surface border border-hairline text-ink-muted flex items-center justify-center text-[10px] font-mono shrink-0">
-                                {idx + 1}
-                              </span>
-                              {isPdf ? (
-                                <FileCheck2 className="h-3.5 w-3.5 text-[#1aae39] shrink-0" />
-                              ) : (
-                                <ImageIcon className="h-3.5 w-3.5 text-teal-600 shrink-0" />
-                              )}
-                              <span className="truncate text-ink font-medium">
-                                {f.name}
-                              </span>
-                              <span className="text-[10px] text-ink-muted shrink-0">
-                                ({formatFileSize(f.size)})
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => handleRemoveAkFile(idx)}
-                              className="text-ink-muted hover:text-red-600 p-0.5 shrink-0 transition-colors"
-                              title="Remove file"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => {
-                        if (!isSubmitting) akInputRef.current?.click();
-                      }}
-                      className="border border-dashed border-hairline rounded-md p-4 text-center my-2 cursor-pointer hover:bg-canvas-soft transition-colors"
-                    >
-                      <Upload className="h-6 w-6 text-ink-muted mx-auto mb-1.5" />
-                      <span className="text-xs text-ink font-medium block">
-                        Click to browse or drop Answer Key
-                      </span>
-                      <span className="text-[10px] text-ink-muted">
-                        PDF, JPG, PNG
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-hairline">
-                  <ButtonUtility
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => {
-                      if (!isSubmitting) akInputRef.current?.click();
-                    }}
-                    className="flex-1 py-1.5 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1 text-[#1aae39]" />
-                    {akFiles.length === 0 ? "Select File(s)" : "Add More"}
-                  </ButtonUtility>
-                  {akFiles.length > 0 && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-hairline">
                     <ButtonUtility
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => {
-                        if (!isSubmitting) setAkFiles([]);
+                        if (!isSubmitting) akInputRef.current?.click();
                       }}
-                      className="py-1.5 text-xs text-red-600 hover:bg-red-50"
-                      title="Clear all answer key files"
+                      className="flex-1 py-1.5 text-xs"
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Clear
+                      <Plus className="h-3.5 w-3.5 mr-1 text-[#1aae39]" />
+                      {akFiles.length === 0 ? "Select File(s)" : "Add More"}
                     </ButtonUtility>
-                  )}
+                    {akFiles.length > 0 && (
+                      <ButtonUtility
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => {
+                          if (!isSubmitting) setAkFiles([]);
+                        }}
+                        className="py-1.5 text-xs text-red-600 hover:bg-red-50"
+                        title="Clear all answer key files"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Clear
+                      </ButtonUtility>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Governance notice for Branch Managers */}
+            {!isRootAdmin && (
+              <div className="flex items-center gap-3 p-3.5 rounded-lg bg-canvas-soft border border-hairline text-ink-muted text-xs">
+                <div className="h-8 w-8 rounded-md bg-surface border border-hairline flex items-center justify-center shrink-0 text-primary">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+                <div className="leading-relaxed">
+                  <span className="font-semibold text-ink">Centralized Rubric Governance:</span> Official Answer Key upload and AI Rubric Synthesis are restricted to Root Administration. You can attach Question Papers now and open student submission windows immediately.
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Extra Notes */}
             <div>
@@ -692,15 +755,15 @@ export default function NewExamPage() {
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   <span>
-                    {qpFiles.length > 0 && akFiles.length > 0
-                      ? `Extracting Rubric with Gemini AI (${elapsedSeconds}s)...`
+                    {isSynthesizingRubric
+                      ? `Synthesizing Rubric with Agent (${elapsedSeconds}s)...`
                       : "Creating Examination..."}
                   </span>
                 </>
-              ) : qpFiles.length > 0 && akFiles.length > 0 ? (
+              ) : isSynthesizingRubric ? (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  <span>Extract Rubric & Proceed to Review →</span>
+                  <Cpu className="h-4 w-4 mr-2" />
+                  <span>Create Exam & Synthesize Rubric →</span>
                 </>
               ) : (
                 <>

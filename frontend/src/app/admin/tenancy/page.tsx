@@ -33,8 +33,7 @@ import { useToast } from "@/lib/ToastContext";
 export default function TenancyManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { setBranchId, refreshTenancy } = useTenant();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const { setBranchId, refreshTenancy, currentUser, isBranchManager } = useTenant();
   const [institutes, setInstitutes] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
@@ -61,23 +60,21 @@ export default function TenancyManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (isBranchManager) {
+      router.replace("/branch/batches");
+      return;
+    }
     loadAll();
-  }, []);
+  }, [isBranchManager]);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [user, instList, branchList, userList] = await Promise.all([
-        api.getMe().catch(() => null),
+      const [instList, branchList, userList] = await Promise.all([
         api.listInstitutes().catch(() => []),
         api.listBranches().catch(() => []),
         api.listUsers("BRANCH_MANAGER").catch(() => []),
       ]);
-      if (user?.role === "BRANCH_MANAGER") {
-        router.replace("/branch/batches");
-        return;
-      }
-      setCurrentUser(user);
       setInstitutes(instList);
       setBranches(branchList);
       setManagers(userList);

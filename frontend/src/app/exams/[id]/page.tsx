@@ -77,7 +77,7 @@ export default function ExamDetailPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const examId = params.id as string;
-  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, switchTenancy } = useTenant();
+  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, currentUser, switchTenancy } = useTenant();
 
   const [exam, setExam] = useState<Exam | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
@@ -85,7 +85,6 @@ export default function ExamDetailPage() {
   const [loadedBranches, setLoadedBranches] = useState<any[]>([]);
   const [loadedInstitutes, setLoadedInstitutes] = useState<any[]>([]);
   const [windowStatus, setWindowStatus] = useState<any>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isStartingEval, setIsStartingEval] = useState(false);
@@ -179,22 +178,17 @@ export default function ExamDetailPage() {
     if (showSkeleton) setLoading(true);
     else setIsRefreshing(true);
     try {
-      const [examData, subsData, batchesData, winData, userData, instData, branchData] = await Promise.all([
+      const [examData, subsData, batchesData] = await Promise.all([
         api.getExam(examId, true),
         api.listSubmissions(examId, true).catch(() => []),
         api.listBatches().catch(() => []),
-        api.getWindowStatus(examId).catch(() => null),
-        api.getMe().catch(() => null),
-        api.listInstitutes().catch(() => []),
-        api.listBranches().catch(() => []),
       ]);
 
       setExam(examData);
       setSubmissions(subsData || []);
-      setWindowStatus(winData);
-      setCurrentUser(userData);
-      setLoadedBranches(branchData || []);
-      setLoadedInstitutes(instData || []);
+      if (examData?.window_status) {
+        setWindowStatus(examData.window_status);
+      }
 
       // Find matching batch:
       // 1. From submissions batch_id if available

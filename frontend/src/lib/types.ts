@@ -58,6 +58,7 @@ export interface Exam {
   updated_at: string;
   has_approved_rubric?: boolean;
   is_rubric_approved?: boolean | number;
+  window_status?: any;
   rubric_version?: {
     id: string;
     version_num: number;

@@ -30,6 +30,7 @@ from backend.app.services.notification_service import (
     get_branch_name,
 )
 from backend.app.services.retention_service import RetentionService
+from backend.app.routers.windows import calculate_window_dict
 
 router = APIRouter(tags=["Exams, Rubrics & Publication"])
 
@@ -69,7 +70,37 @@ def list_exams(
             cursor.execute(base_query + " WHERE e.branch_id = ? ORDER BY e.created_at DESC", (branch_id,))
         else:
             cursor.execute(base_query + " ORDER BY e.created_at DESC")
-        return [dict(r) for r in cursor.fetchall()]
+        exams = [dict(r) for r in cursor.fetchall()]
+        
+        # Batch load latest window status for all exams in ONE single query (eliminates N+1 HTTP loop)
+        if exams:
+            exam_ids = [e["id"] for e in exams]
+            ph = ",".join(["?"] * len(exam_ids))
+            cursor.execute(f"""
+                SELECT sw.*
+                FROM submission_windows sw
+                INNER JOIN (
+                    SELECT exam_id, MAX(created_at) as max_created
+                    FROM submission_windows
+                    WHERE exam_id IN ({ph})
+                    GROUP BY exam_id
+                ) latest ON sw.exam_id = latest.exam_id AND sw.created_at = latest.max_created
+            """, tuple(exam_ids))
+            
+            now = datetime.now(timezone.utc)
+            windows_by_exam = {row["exam_id"]: calculate_window_dict(dict(row), now) for row in cursor.fetchall()}
+            
+            for e in exams:
+                e["window_status"] = windows_by_exam.get(e["id"], {
+                    "has_window": False,
+                    "status": "NOT_OPENED",
+                    "is_active": False,
+                    "seconds_remaining": 0,
+                    "is_in_grace": False,
+                    "is_expired": True,
+                    "should_display": False
+                })
+        return exams
 
 @router.get("/{exam_id}/evaluation-status")
 def get_exam_evaluation_status(exam_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)):
@@ -139,6 +170,14 @@ def get_exam(exam_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_
         if not exam.get("is_published"):
             exam["answer_key_path"] = None
             exam["rubric_version"] = None
+
+    # Attach latest window status in the same call
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM submission_windows WHERE exam_id = ? ORDER BY created_at DESC LIMIT 1", (exam_id,))
+        w_row = cursor.fetchone()
+        exam["window_status"] = calculate_window_dict(dict(w_row) if w_row else None)
+
     return exam
 
 @router.post("")

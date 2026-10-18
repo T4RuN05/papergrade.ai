@@ -37,11 +37,10 @@ import {
 export default function RootAdminOverviewPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { switchTenancy } = useTenant();
+  const { switchTenancy, currentUser, loading: tenantLoading } = useTenant();
   const [status, setStatus] = useState<any>(null);
   const [exams, setExams] = useState<Exam[]>([]);
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   const handleInspectExam = (e: React.MouseEvent, exam: Exam) => {
@@ -69,39 +68,37 @@ export default function RootAdminOverviewPage() {
   };
 
   useEffect(() => {
-    checkAuthAndLoad();
-  }, []);
-
-  const checkAuthAndLoad = async () => {
-    setLoading(true);
-    const token = getAuthToken();
-    if (!token) {
+    if (tenantLoading) return;
+    if (!currentUser) {
       setLoading(false);
       return;
     }
 
+    if (currentUser.role === "BRANCH_MANAGER") {
+      router.replace("/branch/batches");
+      return;
+    }
+
+    if (currentUser.role === "ROOT_ADMIN") {
+      loadOverviewData();
+    } else {
+      setLoading(false);
+    }
+  }, [currentUser, tenantLoading]);
+
+  const loadOverviewData = async () => {
+    setLoading(true);
     try {
-      const user = await api.getMe();
-      setCurrentUser(user);
-
-      if (user.role === "BRANCH_MANAGER") {
-        router.replace("/branch/batches");
-        return;
-      }
-
-      if (user.role === "ROOT_ADMIN") {
-        const [sysStatus, examList, usageData] = await Promise.all([
-          api.getStatus().catch(() => null),
-          api.listExams().catch(() => []),
-          api.getUsageMetrics().catch(() => null),
-        ]);
-        setStatus(sysStatus);
-        setExams(examList);
-        setMetrics(usageData);
-      }
+      const [sysStatus, examList, usageData] = await Promise.all([
+        api.getStatus().catch(() => null),
+        api.listExams().catch(() => []),
+        api.getUsageMetrics().catch(() => null),
+      ]);
+      setStatus(sysStatus);
+      setExams(examList);
+      setMetrics(usageData);
     } catch (e) {
       console.error("Failed to load Root Admin overview:", e);
-      setCurrentUser(null);
     } finally {
       setLoading(false);
     }

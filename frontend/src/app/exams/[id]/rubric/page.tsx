@@ -10,15 +10,16 @@ import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { RubricEditor } from "@/components/RubricEditor";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, RubricSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
+import { useTenant } from "@/lib/TenantContext";
 
 export default function ExamRubricPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser } = useTenant();
   const examId = params.id as string;
 
   const [exam, setExam] = useState<Exam | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useSetBreadcrumbs(
@@ -41,12 +42,8 @@ export default function ExamRubricPage() {
 
   const loadExam = async () => {
     try {
-      const [data, userData] = await Promise.all([
-        api.getExam(examId, true),
-        api.getMe().catch(() => null),
-      ]);
+      const data = await api.getExam(examId, true);
       setExam(data);
-      setCurrentUser(userData);
     } catch (e) {
       console.error(e);
     } finally {
