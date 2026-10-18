@@ -52,6 +52,7 @@ import {
   BadgePill,
   ExamDetailSkeleton,
   ModalCard,
+  FormInput,
   useConfirm,
 } from "@/components/ui";
 
@@ -109,6 +110,10 @@ export default function ExamDetailPage() {
   const [isUploadingAk, setIsUploadingAk] = useState(false);
   const [isOpeningWindow, setIsOpeningWindow] = useState(false);
   const [isClosingWindow, setIsClosingWindow] = useState(false);
+  const [openWindowModalOpen, setOpenWindowModalOpen] = useState(false);
+  const [windowDuration, setWindowDuration] = useState("30");
+  const [windowReason, setWindowReason] = useState("Scheduled examination upload session");
+  const [windowScope, setWindowScope] = useState("ALL_STUDENTS");
 
   // Artifact Viewer Modal State (Question Paper & Answer Key)
   const [viewerModalOpen, setViewerModalOpen] = useState(false);
@@ -463,14 +468,45 @@ export default function ExamDetailPage() {
     }
   };
 
-  const handleOpenWindow = async () => {
+  const handleOpenWindowSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!exam) return;
+
+    const durationNum = parseInt(windowDuration, 10) || 30;
+    const reasonText = windowReason.trim() || "Scheduled examination upload session";
+    const hasPriorWindow = Boolean(windowStatus?.has_window);
+
     setIsOpeningWindow(true);
     try {
-      await api.openWindow(exam.id, 30, 2);
-      toast.success("30-minute student submission window opened successfully!", { title: "Window Opened" });
-      const win = await api.getWindowStatus(exam.id);
-      setWindowStatus(win);
+      if (hasPriorWindow) {
+        await api.reopenWindow(exam.id, {
+          duration_minutes: durationNum,
+          reason: reasonText,
+          reopen_scope: windowScope,
+        });
+      } else {
+        await api.openWindow(exam.id, durationNum, 2);
+      }
+
+      toast.success(`Submission window opened for "${exam.title}" (${durationNum}m)!`, {
+        title: "Window Opened",
+      });
+
+      const win = await api.getWindowStatus(exam.id).catch(() => ({
+        has_window: true,
+        is_active: true,
+        is_in_grace: false,
+        seconds_remaining: durationNum * 60,
+        status: "OPEN",
+      }));
+      setWindowStatus({
+        ...win,
+        is_active: true,
+        seconds_remaining: win.seconds_remaining || durationNum * 60,
+        status: "OPEN",
+      });
+      setOpenWindowModalOpen(false);
+      await loadExamData(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to open window", { title: "Window Open Failed" });
     } finally {
@@ -481,18 +517,18 @@ export default function ExamDetailPage() {
   const handleHardCloseWindow = async () => {
     if (!exam) return;
     const ok = await confirm({
-      title: "Hard Close Submission Window",
+      title: "Close Submission Window",
       message:
-        "Are you sure you want to hard close the student submission window immediately? Students will no longer be able to submit or replace answer sheets, and the exam will become eligible for immediate evaluation.",
-      confirmText: "Hard Close Window",
+        "Are you sure you want to close the student submission window immediately? Students will no longer be able to submit or replace answer sheets, and the exam will become eligible for immediate evaluation.",
+      confirmText: "Close Window",
       variant: "danger",
     });
     if (!ok) return;
 
     setIsClosingWindow(true);
     try {
-      await api.closeWindow(exam.id, "Hard closed early by administrator");
-      toast.success("Submission window hard closed successfully. Submissions are now finalized.", {
+      await api.closeWindow(exam.id, "Closed early by administrator");
+      toast.success("Submission window Closed successfully. Submissions are now finalized.", {
         title: "Window Closed",
       });
       const win = await api.getWindowStatus(exam.id);
@@ -785,27 +821,31 @@ export default function ExamDetailPage() {
               </div>
             ) : null}
 
-            {/* Open / Hard Close Submission Window Quick Action */}
+            {/* Open / Close Submission Window Quick Action */}
             {isWindowOpen ? (
               <ButtonUtility
                 size="sm"
                 onClick={handleHardCloseWindow}
                 disabled={isClosingWindow}
-                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold"
+                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold cursor-pointer"
                 title="Immediately terminate student upload window"
               >
                 <Square className="h-3.5 w-3.5 mr-1.5 text-red-600 fill-red-600" />
-                {isClosingWindow ? "Closing..." : "Hard Close Window"}
+                {isClosingWindow ? "Closing..." : "Close Window"}
               </ButtonUtility>
             ) : !isPublished && (
               <ButtonUtility
                 size="sm"
-                onClick={handleOpenWindow}
-                disabled={isOpeningWindow}
-                className="bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold"
+                onClick={() => {
+                  setWindowReason(windowStatus?.has_window ? "Reopened by administrator" : "Scheduled examination upload session");
+                  setWindowDuration("30");
+                  setWindowScope("ALL_STUDENTS");
+                  setOpenWindowModalOpen(true);
+                }}
+                className="bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-semibold cursor-pointer"
               >
                 <Clock className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-                {isOpeningWindow ? "Opening..." : "Open 30-Min Window"}
+                Open Window
               </ButtonUtility>
             )}
 
@@ -872,7 +912,7 @@ export default function ExamDetailPage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-white hover:bg-red-50 text-red-700 border border-red-200 hover:border-red-300 shadow-2xs transition-colors cursor-pointer"
               >
                 <Square className="h-3.5 w-3.5 text-red-600 fill-red-600" />
-                {isClosingWindow ? "Closing..." : "Hard Close Window"}
+                {isClosingWindow ? "Closing..." : "Close Window"}
               </button>
             </div>
           </div>
@@ -1817,6 +1857,85 @@ export default function ExamDetailPage() {
               )}
             </div>
           </div>
+        </ModalCard>
+      )}
+
+      {/* MODAL: Open / Reopen Submission Window */}
+      {openWindowModalOpen && exam && (
+        <ModalCard
+          title={
+            windowStatus?.has_window
+              ? `Reopen Window: ${exam.title}`
+              : `Open Window: ${exam.title}`
+          }
+          onClose={() => !isOpeningWindow && setOpenWindowModalOpen(false)}
+        >
+          <form onSubmit={handleOpenWindowSubmit} className="space-y-4">
+            <p className="text-xs text-ink-muted">
+              Configure submission window duration and target student scope. Once activated, the server-enforced countdown timer begins immediately for all eligible students.
+            </p>
+
+            <FormInput
+              label="Session Note / Audit Reason"
+              placeholder="e.g. Scheduled examination upload, network delay grace"
+              value={windowReason}
+              onChange={(e) => setWindowReason(e.target.value)}
+              required
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1">Duration</label>
+                <select
+                  value={windowDuration}
+                  onChange={(e) => setWindowDuration(e.target.value)}
+                  disabled={isOpeningWindow}
+                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
+                >
+                  <option value="5">5 Minutes</option>
+                  <option value="10">10 Minutes</option>
+                  <option value="15">15 Minutes</option>
+                  <option value="30">30 Minutes</option>
+                  <option value="45">45 Minutes</option>
+                  <option value="60">60 Minutes</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1">Target Scope</label>
+                <select
+                  value={windowScope}
+                  onChange={(e) => setWindowScope(e.target.value)}
+                  disabled={isOpeningWindow}
+                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
+                >
+                  <option value="ALL_STUDENTS">All Students (Replacements Allowed)</option>
+                  <option value="UNSUBMITTED_ONLY">Unsubmitted Students Only</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <ButtonUtility
+                type="button"
+                onClick={() => setOpenWindowModalOpen(false)}
+                disabled={isOpeningWindow}
+              >
+                Cancel
+              </ButtonUtility>
+              <ButtonPrimary
+                type="submit"
+                isLoading={isOpeningWindow}
+                disabled={isOpeningWindow || !windowReason.trim()}
+              >
+                {isOpeningWindow
+                  ? "Opening Window..."
+                  : windowStatus?.has_window
+                  ? "Confirm Reopening"
+                  : "Open Window"}
+              </ButtonPrimary>
+            </div>
+          </form>
         </ModalCard>
       )}
     </div>

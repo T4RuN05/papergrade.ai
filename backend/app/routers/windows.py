@@ -145,12 +145,16 @@ def open_submission_window(
         
         window_id = f"win_{uuid.uuid4().hex[:12]}"
         
+        cursor.execute("UPDATE submission_windows SET status = 'CLOSED' WHERE exam_id = ? AND status = 'OPEN'", (exam_id,))
+        cursor.execute("SELECT COUNT(*) as cnt FROM submission_windows WHERE exam_id = ?", (exam_id,))
+        win_count = cursor.fetchone()["cnt"] + 1
+        
         cursor.execute("""
             INSERT INTO submission_windows (
                 id, exam_id, branch_id, window_number, opened_at, deadline_at, grace_deadline_at,
                 status, created_by, created_at
-            ) VALUES (?, ?, ?, 1, ?, ?, ?, 'OPEN', ?, ?)
-        """, (window_id, exam_id, exam["branch_id"], now_iso, deadline_iso, grace_iso, current_user["sub"], now_iso))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?)
+        """, (window_id, exam_id, exam["branch_id"], win_count, now_iso, deadline_iso, grace_iso, current_user["sub"], now_iso))
         
         cursor.execute("""
             UPDATE exams 
@@ -317,7 +321,7 @@ def close_submission_window(
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
     """
-    Hard-close an active submission window immediately before timer expiry.
+    Close an active submission window immediately before timer expiry.
     Terminates student upload capability and transitions exam lifecycle so evaluation can commence.
     """
     with get_db() as conn:
@@ -395,7 +399,7 @@ def close_submission_window(
                 branch_id=exam["branch_id"],
                 notif_type="WINDOW_CLOSED",
                 title="Submission Window Closed Early",
-                message=f"Submission window for '{exam['title']}' was hard-closed early by Root Admin. Reason: {clean_reason}.",
+                message=f"Submission window for '{exam['title']}' was Closed early by Root Admin. Reason: {clean_reason}.",
                 link_url="/overview",
                 exclude_user_id=current_user["sub"]
             )
@@ -417,6 +421,6 @@ def close_submission_window(
             "window_id": window["id"],
             "closed_at": now_iso,
             "is_active": False,
-            "message": "Submission window successfully hard closed."
+            "message": "Submission window successfully closed."
         }
 
