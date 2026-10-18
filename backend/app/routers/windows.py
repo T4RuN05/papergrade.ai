@@ -27,6 +27,9 @@ class ReopenWindowRequest(BaseModel):
     reopen_scope: str = "UNSUBMITTED_ONLY" # "UNSUBMITTED_ONLY" or "ALL_STUDENTS"
     duration_minutes: Optional[int] = None
 
+class CloseWindowRequest(BaseModel):
+    reason: Optional[str] = "Manually closed by administrator"
+
 def parse_iso(iso_str: str) -> datetime:
     try:
         return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
@@ -306,3 +309,114 @@ def reopen_submission_window(
             "reopen_reason": clean_reason,
             "reopen_scope": req.reopen_scope
         }
+
+@router.post("/{exam_id}/close")
+def close_submission_window(
+    exam_id: str,
+    req: CloseWindowRequest = CloseWindowRequest(),
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    """
+    Hard-close an active submission window immediately before timer expiry.
+    Terminates student upload capability and transitions exam lifecycle so evaluation can commence.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM exams WHERE id = ?", (exam_id,))
+        exam = cursor.fetchone()
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        
+        # Branch Manager tenancy guard
+        if current_user["role"] == "BRANCH_MANAGER":
+            user_branch = current_user.get("branch_id")
+            if exam["branch_id"] and exam["branch_id"] != user_branch:
+                raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+        
+        # Find active open window
+        cursor.execute(
+            """
+            SELECT * FROM submission_windows 
+            WHERE exam_id = ? 
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (exam_id,)
+        )
+        window = cursor.fetchone()
+        if not window or window["status"] != "OPEN":
+            raise HTTPException(status_code=400, detail="No active open submission window to close.")
+        
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+        clean_reason = (req.reason or "Manually closed by administrator").strip()
+        
+        # Hard close: update status to CLOSED and truncate deadlines to now
+        cursor.execute("""
+            UPDATE submission_windows 
+            SET status = 'CLOSED', deadline_at = ?, grace_deadline_at = ?
+            WHERE id = ?
+        """, (now_iso, now_iso, window["id"]))
+        
+        # Determine updated exam lifecycle status
+        cursor.execute("SELECT id FROM rubric_versions WHERE id = ? AND is_approved = 1", (exam.get("current_rubric_version_id"),))
+        rubric = cursor.fetchone()
+        
+        if rubric and exam.get("answer_key_path"):
+            new_status = "EVALUATION_READY"
+            new_lifecycle = "EVALUATION_READY"
+        elif rubric:
+            new_status = "RUBRIC_APPROVED"
+            new_lifecycle = "APPROVED"
+        else:
+            new_status = "CLOSED"
+            new_lifecycle = "SUBMISSION_CLOSED"
+        
+        cursor.execute("""
+            UPDATE exams 
+            SET lifecycle_status = ?, status = ?, updated_at = ?
+            WHERE id = ?
+        """, (new_lifecycle, new_status, now_iso, exam_id))
+        
+        # Dispatch notifications to branch & exam students
+        notify_branch_students(
+            cursor=cursor,
+            branch_id=exam["branch_id"],
+            notif_type="WINDOW_CLOSED",
+            title="Submission Window Closed",
+            message=f"The submission window for '{exam['title']}' has been closed. Reason: {clean_reason}.",
+            link_url="/student/portal",
+            exam_id=exam_id
+        )
+        
+        # Notify branch manager if closed by Root Admin
+        if current_user.get("role") == "ROOT_ADMIN" and exam.get("branch_id"):
+            notify_branch_managers(
+                cursor=cursor,
+                branch_id=exam["branch_id"],
+                notif_type="WINDOW_CLOSED",
+                title="Submission Window Closed Early",
+                message=f"Submission window for '{exam['title']}' was hard-closed early by Root Admin. Reason: {clean_reason}.",
+                link_url="/overview",
+                exclude_user_id=current_user["sub"]
+            )
+        
+        # Audit log
+        cursor.execute("""
+            INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
+            VALUES (?, ?, 'CLOSE_SUBMISSION_WINDOW', 'EXAM', ?, ?, ?)
+        """, (
+            f"aud_{uuid.uuid4().hex[:12]}",
+            current_user["sub"],
+            exam_id,
+            f'{{"window_id": "{window["id"]}", "closed_early": true, "reason": "{clean_reason}"}}',
+            now_iso
+        ))
+        
+        return {
+            "status": "success",
+            "window_id": window["id"],
+            "closed_at": now_iso,
+            "is_active": False,
+            "message": "Submission window successfully hard closed."
+        }
+

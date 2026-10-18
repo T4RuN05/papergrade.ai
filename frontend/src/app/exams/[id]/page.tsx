@@ -37,6 +37,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  Square,
   Loader2,
 } from "lucide-react";
 import { api, API_BASE, getAuthToken, getCached } from "@/lib/api";
@@ -107,6 +108,7 @@ export default function ExamDetailPage() {
   const [isUploadingQp, setIsUploadingQp] = useState(false);
   const [isUploadingAk, setIsUploadingAk] = useState(false);
   const [isOpeningWindow, setIsOpeningWindow] = useState(false);
+  const [isClosingWindow, setIsClosingWindow] = useState(false);
 
   // Artifact Viewer Modal State (Question Paper & Answer Key)
   const [viewerModalOpen, setViewerModalOpen] = useState(false);
@@ -296,6 +298,29 @@ export default function ExamDetailPage() {
     return () => clearInterval(evalTimer);
   }, [submissions, windowStatus?.is_active, isStartingEval, pollEvaluationStatus, examId]);
 
+  // Real-time smooth 1-second countdown ticker for active submission window
+  useEffect(() => {
+    if (!windowStatus || !windowStatus.is_active || windowStatus.seconds_remaining <= 0) return;
+    const ticker = setInterval(() => {
+      setWindowStatus((prev: any) => {
+        if (!prev || !prev.is_active) return prev;
+        const next = Math.max(0, prev.seconds_remaining - 1);
+        if (next === 0) {
+          return { ...prev, is_active: false, seconds_remaining: 0, status: "CLOSED" };
+        }
+        return { ...prev, seconds_remaining: next };
+      });
+    }, 1000);
+    return () => clearInterval(ticker);
+  }, [windowStatus?.is_active]);
+
+  const formatTimer = (totalSeconds: number) => {
+    if (isNaN(totalSeconds) || totalSeconds <= 0) return "00:00";
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
   const handleUploadQp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (qpFilesToUpload.length === 0) return;
@@ -450,6 +475,35 @@ export default function ExamDetailPage() {
       toast.error(err.message || "Failed to open window", { title: "Window Open Failed" });
     } finally {
       setIsOpeningWindow(false);
+    }
+  };
+
+  const handleHardCloseWindow = async () => {
+    if (!exam) return;
+    const ok = await confirm({
+      title: "Hard Close Submission Window",
+      message:
+        "Are you sure you want to hard close the student submission window immediately? Students will no longer be able to submit or replace answer sheets, and the exam will become eligible for immediate evaluation.",
+      confirmText: "Hard Close Window",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setIsClosingWindow(true);
+    try {
+      await api.closeWindow(exam.id, "Hard closed early by administrator");
+      toast.success("Submission window hard closed successfully. Submissions are now finalized.", {
+        title: "Window Closed",
+      });
+      const win = await api.getWindowStatus(exam.id);
+      setWindowStatus(win);
+      await loadExamData(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to close submission window", {
+        title: "Window Close Failed",
+      });
+    } finally {
+      setIsClosingWindow(false);
     }
   };
 
@@ -731,8 +785,19 @@ export default function ExamDetailPage() {
               </div>
             ) : null}
 
-            {/* Open Submission Window Quick Action */}
-            {!isWindowOpen && !isPublished && (
+            {/* Open / Hard Close Submission Window Quick Action */}
+            {isWindowOpen ? (
+              <ButtonUtility
+                size="sm"
+                onClick={handleHardCloseWindow}
+                disabled={isClosingWindow}
+                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold"
+                title="Immediately terminate student upload window"
+              >
+                <Square className="h-3.5 w-3.5 mr-1.5 text-red-600 fill-red-600" />
+                {isClosingWindow ? "Closing..." : "Hard Close Window"}
+              </ButtonUtility>
+            ) : !isPublished && (
               <ButtonUtility
                 size="sm"
                 onClick={handleOpenWindow}
@@ -777,6 +842,41 @@ export default function ExamDetailPage() {
             ) : null}
           </div>
         </div>
+
+        {/* Active Submission Window Live Countdown & Hard Close Banner */}
+        {isWindowOpen && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-amber-50/80 border border-amber-200/90 text-amber-950">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-md bg-white/90 border border-amber-200 flex items-center justify-center shrink-0">
+                <Clock className="h-5 w-5 text-amber-600 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                    Submission Window Active
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-900">
+                    ⏱ {formatTimer(windowStatus?.seconds_remaining || 0)} remaining
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Students can submit or replace papers until the timer expires. {submissions.length} submission(s) currently received.
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-2 sm:self-center">
+              <button
+                type="button"
+                onClick={handleHardCloseWindow}
+                disabled={isClosingWindow}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-white hover:bg-red-50 text-red-700 border border-red-200 hover:border-red-300 shadow-2xs transition-colors cursor-pointer"
+              >
+                <Square className="h-3.5 w-3.5 text-red-600 fill-red-600" />
+                {isClosingWindow ? "Closing..." : "Hard Close Window"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Academic Details & Materials Banner */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs bg-canvas-soft rounded-lg p-4 border border-hairline">

@@ -603,6 +603,19 @@ export const api = {
     return res.json();
   },
 
+  async closeWindow(examId: string, reason?: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/close`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ reason: reason || "Manually closed by administrator" }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to close window" }));
+      throw new Error(err.detail || "Failed to close window");
+    }
+    return res.json();
+  },
+
   // -------------------------------------------------------------
   // Student Portal State (Consolidated High-Performance Endpoint)
   // -------------------------------------------------------------

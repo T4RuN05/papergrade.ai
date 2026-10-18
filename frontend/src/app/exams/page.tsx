@@ -10,6 +10,7 @@ import {
   Clock,
   FileText,
   RotateCcw,
+  Square,
   Sparkles,
   BarChart3,
   Layers,
@@ -29,14 +30,17 @@ import {
   ModalCard,
   FormInput,
   ExamsGridSkeleton,
+  useConfirm,
 } from "@/components/ui";
 
 export default function ExamsPage() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const { selectedBranch, loading: tenantLoading } = useTenant();
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
   const [windowsMap, setWindowsMap] = useState<Record<string, any>>({});
+  const [closingExamId, setClosingExamId] = useState<string | null>(null);
 
   // Reopen Window Modal
   const [reopenModalOpen, setReopenModalOpen] = useState(false);
@@ -80,6 +84,36 @@ export default function ExamsPage() {
     loadExamsAndWindows();
   }, [loadExamsAndWindows]);
 
+  // Real-time smooth local countdown ticker for active windows
+  useEffect(() => {
+    const hasActive = Object.values(windowsMap).some((w) => w?.is_active && w.seconds_remaining > 0);
+    if (!hasActive) return;
+
+    const ticker = setInterval(() => {
+      setWindowsMap((prev) => {
+        let changed = false;
+        const next: Record<string, any> = {};
+        for (const [id, win] of Object.entries(prev)) {
+          if (win?.is_active && win.seconds_remaining > 0) {
+            const rem = win.seconds_remaining - 1;
+            next[id] = {
+              ...win,
+              seconds_remaining: rem,
+              is_active: rem > 0,
+              status: rem > 0 ? "OPEN" : "CLOSED",
+            };
+            changed = true;
+          } else {
+            next[id] = win;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(ticker);
+  }, [windowsMap]);
+
   // Open 30-min window
   const handleOpenWindow = async (examId: string, examTitle: string) => {
     try {
@@ -90,6 +124,30 @@ export default function ExamsPage() {
     } catch (err: any) {
       const msg = err.message || "Failed to open window.";
       toast.error(msg, { title: "Window Open Failed" });
+    }
+  };
+
+  // Hard close active window
+  const handleHardCloseWindow = async (examId: string, examTitle: string) => {
+    const ok = await confirm({
+      title: "Hard Close Submission Window",
+      message: `Are you sure you want to hard close the active submission window for "${examTitle}"? Students will immediately be blocked from uploading any further answer sheets.`,
+      confirmText: "Hard Close Window",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setClosingExamId(examId);
+    try {
+      await api.closeWindow(examId, "Hard closed early by administrator");
+      toast.success(`Submission window hard closed for "${examTitle}".`, { title: "Window Closed" });
+      const win = await api.getWindowStatus(examId);
+      setWindowsMap((prev) => ({ ...prev, [examId]: win }));
+    } catch (err: any) {
+      const msg = err.message || "Failed to close window.";
+      toast.error(msg, { title: "Window Close Failed" });
+    } finally {
+      setClosingExamId(null);
     }
   };
 
@@ -265,26 +323,38 @@ export default function ExamsPage() {
                       </div>
                     </div>
 
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex items-center gap-1.5">
                       {!isWindowActive && !isInGrace ? (
-                        <ButtonPrimary
-                          size="sm"
-                          onClick={() => handleOpenWindow(exam.id, exam.title)}
-                          className="whitespace-nowrap px-3 py-1.5 text-xs shadow-xs"
-                        >
-                          Open 30m
-                        </ButtonPrimary>
+                        <div className="flex items-center gap-1.5">
+                          <ButtonPrimary
+                            size="sm"
+                            onClick={() => handleOpenWindow(exam.id, exam.title)}
+                            className="whitespace-nowrap px-3 py-1.5 text-xs shadow-xs"
+                          >
+                            Open 30m
+                          </ButtonPrimary>
+                          <ButtonUtility
+                            size="sm"
+                            onClick={() => {
+                              setTargetExamForReopen(exam);
+                              setReopenModalOpen(true);
+                            }}
+                            className="whitespace-nowrap px-2 py-1.5 text-xs"
+                            title="Reopen window with custom duration/reason"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                          </ButtonUtility>
+                        </div>
                       ) : (
                         <ButtonUtility
                           size="sm"
-                          onClick={() => {
-                            setTargetExamForReopen(exam);
-                            setReopenModalOpen(true);
-                          }}
-                          className="whitespace-nowrap px-2.5 py-1.5 text-xs"
+                          onClick={() => handleHardCloseWindow(exam.id, exam.title)}
+                          disabled={closingExamId === exam.id}
+                          className="whitespace-nowrap px-2.5 py-1.5 text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold cursor-pointer"
+                          title="Terminate active submission window immediately"
                         >
-                          <RotateCcw className="h-3 w-3 mr-1" />
-                          Reopen
+                          <Square className="h-3 w-3 mr-1 fill-red-600 text-red-600" />
+                          {closingExamId === exam.id ? "Closing..." : "Hard Close"}
                         </ButtonUtility>
                       )}
                     </div>
