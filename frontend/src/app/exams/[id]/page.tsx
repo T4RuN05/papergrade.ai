@@ -352,6 +352,10 @@ export default function ExamDetailPage() {
     e.preventDefault();
     if (akFilesToUpload.length === 0) return;
     setIsUploadingAk(true);
+    const loadingToastId = toast.loading(
+      "Uploading Answer Key & generating AI rubric with Gemini Vision...",
+      { title: "Processing Answer Key" }
+    );
     try {
       const formData = new FormData();
       for (const file of akFilesToUpload) {
@@ -363,8 +367,10 @@ export default function ExamDetailPage() {
       setUploadAkOpen(false);
       setAkFilesToUpload([]);
       await loadExamData(false);
+      toast.dismiss(loadingToastId);
       toast.success("Official Answer Key uploaded! AI draft rubric generated for your review.", { title: "Answer Key Attached" });
     } catch (err: any) {
+      toast.dismiss(loadingToastId);
       toast.error(err.message || "Failed to upload answer key", { title: "Upload Failed" });
     } finally {
       setIsUploadingAk(false);
@@ -961,7 +967,12 @@ export default function ExamDetailPage() {
               <span className="text-ink-muted block text-[11px]">Exam Artifacts</span>
               <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs">
                 {/* Question Paper */}
-                {exam.question_paper_path ? (
+                {isUploadingQp ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded shadow-2xs">
+                    <RefreshCw className="h-3 w-3 animate-spin text-amber-600 shrink-0" />
+                    <span>Processing QP...</span>
+                  </span>
+                ) : exam.question_paper_path ? (
                   <div className="flex items-center gap-1.5 bg-surface border border-hairline px-2 py-0.5 rounded text-[11px]">
                     <button
                       type="button"
@@ -993,7 +1004,17 @@ export default function ExamDetailPage() {
                 )}
 
                 {/* Answer Key */}
-                {exam.answer_key_path ? (
+                {isUploadingAk ? (
+                  <button
+                    type="button"
+                    onClick={() => setUploadAkOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded shadow-2xs hover:bg-emerald-100 transition-colors cursor-pointer"
+                    title="Click to view AI Rubric generation status"
+                  >
+                    <RefreshCw className="h-3 w-3 animate-spin text-emerald-600 shrink-0" />
+                    <span>Processing Answer Key...</span>
+                  </button>
+                ) : exam.answer_key_path ? (
                   <div className="flex items-center gap-1.5 bg-surface border border-hairline px-2 py-0.5 rounded text-[11px]">
                     <button
                       type="button"
@@ -1551,23 +1572,26 @@ export default function ExamDetailPage() {
                   else toast.error("Please drop valid PDF or image files", { title: "Invalid File Type" });
                 }
               }}
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${
-                isDraggingAk
-                  ? "border-emerald-500 bg-emerald-50/60 scale-[1.01] shadow-inner"
-                  : "border-hairline hover:border-emerald-500/60 bg-canvas-soft"
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+                isUploadingAk
+                  ? "border-hairline bg-canvas-soft/60 opacity-60 pointer-events-none cursor-not-allowed"
+                  : isDraggingAk
+                  ? "border-emerald-500 bg-emerald-50/60 scale-[1.01] shadow-inner cursor-pointer"
+                  : "border-hairline hover:border-emerald-500/60 bg-canvas-soft cursor-pointer"
               }`}
             >
               <input
                 type="file"
                 multiple
+                disabled={isUploadingAk}
                 accept=".pdf,.png,.jpg,.jpeg,.webp"
                 onChange={(e) => {
-                  if (e.target.files) setAkFilesToUpload(Array.from(e.target.files));
+                  if (!isUploadingAk && e.target.files) setAkFilesToUpload(Array.from(e.target.files));
                 }}
                 className="hidden"
                 id="ak-file-input"
               />
-              <label htmlFor="ak-file-input" className="cursor-pointer space-y-2 block">
+              <label htmlFor="ak-file-input" className={`space-y-2 block ${isUploadingAk ? "cursor-not-allowed" : "cursor-pointer"}`}>
                 <Sparkles className={`h-8 w-8 mx-auto transition-transform ${isDraggingAk ? "text-emerald-600 scale-110 animate-bounce" : "text-emerald-600"}`} />
                 <div className="text-xs font-semibold text-ink">
                   {isDraggingAk
@@ -1585,27 +1609,31 @@ export default function ExamDetailPage() {
               <div className="space-y-1.5 max-h-36 overflow-y-auto rounded border border-hairline p-2 bg-surface">
                 <div className="flex items-center justify-between text-[11px] text-ink-muted pb-1 border-b border-hairline">
                   <span>Selected Files ({akFilesToUpload.length})</span>
-                  <button
-                    type="button"
-                    onClick={() => setAkFilesToUpload([])}
-                    className="text-red-500 hover:underline text-[10px]"
-                  >
-                    Clear All
-                  </button>
+                  {!isUploadingAk && (
+                    <button
+                      type="button"
+                      onClick={() => setAkFilesToUpload([])}
+                      className="text-red-500 hover:underline text-[10px]"
+                    >
+                      Clear All
+                    </button>
+                  )}
                 </div>
                 {akFilesToUpload.map((f, i) => (
                   <div key={i} className="flex items-center justify-between text-xs py-0.5">
                     <span className="truncate max-w-[280px] font-medium text-ink">{f.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-ink-muted">{(f.size / 1024).toFixed(1)} KB</span>
-                      <button
-                        type="button"
-                        onClick={() => setAkFilesToUpload(akFilesToUpload.filter((_, idx) => idx !== i))}
-                        className="text-ink-muted hover:text-red-500 text-xs"
-                        title="Remove file"
-                      >
-                        ✕
-                      </button>
+                      {!isUploadingAk && (
+                        <button
+                          type="button"
+                          onClick={() => setAkFilesToUpload(akFilesToUpload.filter((_, idx) => idx !== i))}
+                          className="text-ink-muted hover:text-red-500 text-xs"
+                          title="Remove file"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

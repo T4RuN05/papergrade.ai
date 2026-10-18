@@ -766,6 +766,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to upload question paper" }));
       throw new Error(err.detail || "Failed to upload question paper");
     }
+    clearApiCache("exams:");
     return res.json();
   },
 
@@ -779,6 +780,8 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to upload answer key" }));
       throw new Error(err.detail || "Failed to upload answer key");
     }
+    clearApiCache("exams:");
+    clearApiCache("submissions:");
     return res.json();
   },
 
@@ -825,6 +828,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to generate rubric" }));
       throw new Error(err.detail || "Failed to generate rubric");
     }
+    clearApiCache("exams:");
     return res.json();
   },
 
@@ -838,15 +842,23 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to approve rubric" }));
       throw new Error(err.detail || "Failed to approve rubric");
     }
+    clearApiCache("exams:");
     return res.json();
   },
 
   async unlockRubric(examId: string): Promise<Exam> {
-    const res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/unlock`, {
+    let res = await fetch(`${API_BASE}/api/v1/exams/${examId}/rubric/unlock`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
+    if (!res.ok) {
+      res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/unlock`, {
+        method: "POST",
+        headers: { ...getAuthHeaders() },
+      });
+    }
     if (!res.ok) throw new Error("Failed to unlock rubric");
+    clearApiCache("exams:");
     return res.json();
   },
 

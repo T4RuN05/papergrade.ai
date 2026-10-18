@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   CheckCircle2,
   Plus,
@@ -33,6 +33,10 @@ export function RubricEditor({
   const [rubric, setRubric] = useState<ExamRubric>(initialRubric);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+
+  useEffect(() => {
+    setRubric(initialRubric);
+  }, [initialRubric]);
 
   const calculateTotalMarks = () => {
     if (rubric.sections && rubric.sections.length > 0) {

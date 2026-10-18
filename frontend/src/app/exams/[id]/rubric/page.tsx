@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle, FileText } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, clearApiCache } from "@/lib/api";
 import { Exam, ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { RubricEditor } from "@/components/RubricEditor";
@@ -42,7 +42,7 @@ export default function ExamRubricPage() {
   const loadExam = async () => {
     try {
       const [data, userData] = await Promise.all([
-        api.getExam(examId),
+        api.getExam(examId, true),
         api.getMe().catch(() => null),
       ]);
       setExam(data);
@@ -57,7 +57,12 @@ export default function ExamRubricPage() {
   const handleApprove = async (approvedRubric: ExamRubric) => {
     try {
       const updatedExam = await api.approveRubric(examId, approvedRubric);
-      setExam(updatedExam);
+      clearApiCache(`exams:detail:${examId}`);
+      if (updatedExam && updatedExam.id && updatedExam.rubric_version) {
+        setExam(updatedExam);
+      } else {
+        await loadExam();
+      }
       toast.success("Rubric approved & locked! Ingestion of student answer sheets is now open.", { title: "Rubric Approved" });
     } catch (err: any) {
       toast.error(err.message || "Failed to approve rubric", { title: "Approval Failed" });
@@ -67,7 +72,12 @@ export default function ExamRubricPage() {
   const handleUnlock = async () => {
     try {
       const updatedExam = await api.unlockRubric(examId);
-      setExam(updatedExam);
+      clearApiCache(`exams:detail:${examId}`);
+      if (updatedExam && updatedExam.id && updatedExam.rubric_version) {
+        setExam(updatedExam);
+      } else {
+        await loadExam();
+      }
       toast.info("Rubric unlocked for criteria and structure modifications.", { title: "Rubric Unlocked" });
     } catch (err: any) {
       toast.error(err.message || "Failed to unlock rubric", { title: "Unlock Failed" });
@@ -108,10 +118,12 @@ export default function ExamRubricPage() {
   };
 
   const isApproved = Boolean(exam.rubric_version?.is_approved);
+  const hasQuestions = Boolean(rubricData.questions && rubricData.questions.length > 0);
+  const showNoKeyBanner = !exam.answer_key_path && !hasQuestions;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      {!exam.answer_key_path && (
+      {showNoKeyBanner && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -138,6 +150,7 @@ export default function ExamRubricPage() {
       )}
 
       <RubricEditor
+        key={`${exam.id}_${exam.rubric_version?.id || "draft"}_${isApproved ? "locked" : "unlocked"}`}
         initialRubric={rubricData}
         isApproved={isApproved}
         onApprove={handleApprove}

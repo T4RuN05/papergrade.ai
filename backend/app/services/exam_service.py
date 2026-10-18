@@ -101,7 +101,7 @@ class ExamService:
             """, (exam_id,))
             conn.execute("""
             UPDATE exams
-            SET status = 'DRAFT', updated_at = ?
+            SET status = 'RUBRIC_DRAFT', lifecycle_status = 'SETUP', updated_at = ?
             WHERE id = ?
             """, (now, exam_id))
         return ExamService.get_exam(exam_id)

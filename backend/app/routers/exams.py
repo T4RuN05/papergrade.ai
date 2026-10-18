@@ -501,12 +501,7 @@ def approve_rubric(
             now
         ))
         
-    return {
-        "status": "approved",
-        "exam_id": exam_id,
-        "version_num": v_num,
-        "total_marks": req.rubric_data.total_exam_marks
-    }
+    return exam_service.get_exam(exam_id)
 
 @router.post("/{exam_id}/start-evaluation")
 def start_evaluation(
@@ -717,10 +712,26 @@ def unlock_rubric(
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
+            UPDATE rubric_versions
+            SET is_approved = 0
+            WHERE exam_id = ?
+        """, (exam_id,))
+        cursor.execute("""
             UPDATE exams 
             SET status = 'RUBRIC_DRAFT', lifecycle_status = 'SETUP', updated_at = ?
             WHERE id = ?
         """, (now, exam_id))
+        
+        cursor.execute("""
+            INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
+            VALUES (?, ?, 'UNLOCK_RUBRIC', 'EXAM', ?, ?, ?)
+        """, (
+            f"aud_{uuid.uuid4().hex[:12]}",
+            current_user["sub"],
+            exam_id,
+            '{"action": "unlocked_to_draft"}',
+            now
+        ))
     
     return exam_service.get_exam(exam_id)
 
