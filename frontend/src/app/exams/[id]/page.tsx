@@ -40,7 +40,7 @@ import {
   Square,
   Loader2,
 } from "lucide-react";
-import { api, API_BASE, getAuthToken, getCached } from "@/lib/api";
+import { api, API_BASE, getAuthToken, getCached, clearApiCache } from "@/lib/api";
 import { Exam } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
@@ -182,8 +182,8 @@ export default function ExamDetailPage() {
     else setIsRefreshing(true);
     try {
       const [examData, subsData, batchesData, winData, userData, instData, branchData] = await Promise.all([
-        api.getExam(examId),
-        api.listSubmissions(examId).catch(() => []),
+        api.getExam(examId, true),
+        api.listSubmissions(examId, true).catch(() => []),
         api.listBatches().catch(() => []),
         api.getWindowStatus(examId).catch(() => null),
         api.getMe().catch(() => null),
@@ -336,6 +336,7 @@ export default function ExamDetailPage() {
         formData.append("question_paper", file);
       }
       await api.uploadQuestionPaper(examId, formData);
+      clearApiCache(`exams:detail:${examId}`);
       setUploadQpOpen(false);
       setQpFilesToUpload([]);
       await loadExamData(false);
@@ -357,6 +358,8 @@ export default function ExamDetailPage() {
         formData.append("answer_key", file);
       }
       await api.uploadAnswerKey(examId, formData);
+      clearApiCache(`exams:detail:${examId}`);
+      clearApiCache(`submissions:list:${examId}`);
       setUploadAkOpen(false);
       setAkFilesToUpload([]);
       await loadExamData(false);
