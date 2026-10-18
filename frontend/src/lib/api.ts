@@ -253,17 +253,30 @@ export const api = {
 
   async getMe(): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string }> {
     return fetchWithCache("auth:me", async () => {
-      const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
-        headers: { ...getAuthHeaders() },
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        removeAuthToken();
-        throw new Error("Unauthorized");
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+          headers: { ...getAuthHeaders() },
+          cache: "no-store",
+        });
+        if (res.status === 401) {
+          removeAuthToken();
+          throw new Error("Unauthorized");
+        }
+        if (!res.ok) {
+          // Do not wipe token on 502/503/504 or temporary backend restarts!
+          const existing = getStoredUser();
+          if (existing) return existing;
+          throw new Error(`Server temporarily unavailable (${res.status})`);
+        }
+        const meData = await res.json();
+        setStoredUser(meData);
+        return meData;
+      } catch (err: any) {
+        if (err.message === "Unauthorized") throw err;
+        const existing = getStoredUser();
+        if (existing) return existing;
+        throw err;
       }
-      const meData = await res.json();
-      setStoredUser(meData);
-      return meData;
     }, 45000); // 45s cache
   },
 
@@ -452,12 +465,15 @@ export const api = {
   },
 
   async listBatches(branchId?: string): Promise<any[]> {
-    const url = branchId
-      ? `${API_BASE}/api/v1/tenancy/batches?branch_id=${branchId}`
-      : `${API_BASE}/api/v1/tenancy/batches`;
-    const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to list batches");
-    return res.json();
+    const key = `tenancy:batches:${branchId || "all"}`;
+    return fetchWithCache(key, async () => {
+      const url = branchId
+        ? `${API_BASE}/api/v1/tenancy/batches?branch_id=${branchId}`
+        : `${API_BASE}/api/v1/tenancy/batches`;
+      const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to list batches");
+      return res.json();
+    }, 60000); // 60s cache
   },
 
   async createBatch(data: { branch_id: string; name: string; code: string; academic_year: string }): Promise<any> {
@@ -641,22 +657,35 @@ export const api = {
     return res.json();
   },
 
-  async getSubmission(id: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/submissions/${id}`, {
-      headers: { ...getAuthHeaders() },
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error("Failed to fetch submission");
-    return res.json();
+  async getSubmission(id: string, forceRefresh: boolean = false): Promise<any> {
+    const cacheKey = `submissions:detail:${id}`;
+    if (forceRefresh) clearApiCache(cacheKey);
+    return fetchWithCache(cacheKey, async () => {
+      const res = await fetch(`${API_BASE}/api/v1/submissions/${id}`, {
+        headers: { ...getAuthHeaders() },
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to fetch submission");
+      return res.json();
+    }, 60000); // 60s client cache for instant repeat opens
   },
 
-  async listSubmissions(examId?: string): Promise<any[]> {
-    const url = examId
-      ? `${API_BASE}/api/submissions?exam_id=${examId}`
-      : `${API_BASE}/api/submissions`;
-    const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to fetch submissions");
-    return res.json();
+  getSubmissionPdfUrl(submissionId: string): string {
+    const token = getAuthToken();
+    return `${API_BASE}/api/v1/submissions/${submissionId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  },
+
+  async listSubmissions(examId?: string, forceRefresh: boolean = false): Promise<any[]> {
+    const cacheKey = `submissions:list:${examId || "all"}`;
+    if (forceRefresh) clearApiCache(cacheKey);
+    return fetchWithCache(cacheKey, async () => {
+      const url = examId
+        ? `${API_BASE}/api/submissions?exam_id=${examId}`
+        : `${API_BASE}/api/submissions`;
+      const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch submissions");
+      return res.json();
+    }, 30000); // 30s cache for fast back-and-forth navigation
   },
 
   // -------------------------------------------------------------
@@ -676,14 +705,18 @@ export const api = {
     }
   },
 
-  async getExam(id: string): Promise<Exam> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-    if (!res.ok) {
-      const fallback = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (!fallback.ok) throw new Error("Failed to fetch exam");
-      return fallback.json();
-    }
-    return res.json();
+  async getExam(id: string, forceRefresh: boolean = false): Promise<Exam> {
+    const cacheKey = `exams:detail:${id}`;
+    if (forceRefresh) clearApiCache(cacheKey);
+    return fetchWithCache(cacheKey, async () => {
+      const res = await fetch(`${API_BASE}/api/v1/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
+      if (!res.ok) {
+        const fallback = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
+        if (!fallback.ok) throw new Error("Failed to fetch exam");
+        return fallback.json();
+      }
+      return res.json();
+    }, 45000); // 45s cache for fast back-and-forth navigation
   },
 
   async getExamEvaluationStatus(id: string): Promise<any> {
@@ -1039,7 +1072,10 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error("Failed to save manual edit");
-    return res.json();
+    const resData = await res.json();
+    clearApiCache(`submissions:detail:${submissionId}`);
+    clearApiCache(`submissions:list:`);
+    return resData;
   },
 
   async editAnswer(submissionId: string, answerId: string, data: any): Promise<any> {
@@ -1055,7 +1091,10 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to clear review flag" }));
       throw new Error(err.detail || "Failed to clear review flag");
     }
-    return res.json();
+    const resData = await res.json();
+    clearApiCache(`submissions:detail:${submissionId}`);
+    clearApiCache(`submissions:list:`);
+    return resData;
   },
 
   async clearExamReviews(examId: string): Promise<any> {
@@ -1067,7 +1106,10 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to bulk clear exam review flags" }));
       throw new Error(err.detail || "Failed to bulk clear exam review flags");
     }
-    return res.json();
+    const resData = await res.json();
+    clearApiCache(`submissions:list:${examId}`);
+    clearApiCache(`submissions:list:all`);
+    return resData;
   },
 
   async editRegion(
@@ -1098,7 +1140,10 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to update bounding box region" }));
       throw new Error(err.detail || "Failed to update bounding box region");
     }
-    return res.json();
+    const resData = await res.json();
+    clearApiCache(`submissions:detail:${submissionId}`);
+    clearApiCache(`submissions:list:`);
+    return resData;
   },
 
   async getUsageMetrics(examId?: string): Promise<UsageMetrics> {

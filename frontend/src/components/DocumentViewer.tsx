@@ -37,6 +37,7 @@ interface DraftRegionCoord {
 interface DocumentViewerProps {
   submissionId: string;
   pageCount: number;
+  pdfUrl?: string;
   answers: GradedAnswer[];
   onSelectAnswer: (answer: GradedAnswer) => void;
   onInspectAnswer?: (answer: GradedAnswer) => void;
@@ -55,9 +56,14 @@ interface DocumentViewerProps {
   hideScoreStamp?: boolean;
 }
 
+// In-memory client LRU cache for loaded PDF documents across page changes & reopens
+const pdfDocMemoryCache = new Map<string, any>();
+const MAX_CACHED_PDFS = 5;
+
 export function DocumentViewer({
   submissionId,
   pageCount,
+  pdfUrl: propPdfUrl,
   answers,
   onSelectAnswer,
   onInspectAnswer,
@@ -78,6 +84,12 @@ export function DocumentViewer({
   const [imageError, setImageError] = useState<boolean>(false);
   const [isPageImageLoading, setIsPageImageLoading] = useState<boolean>(true);
 
+  // Client-Side PDF.js canvas state
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pdfError, setPdfError] = useState<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderTaskRef = useRef<any>(null);
+
   // Set of loaded page keys to avoid re-triggering loading skeleton when flipping back & forth
   const loadedPagesRef = useRef<Set<string>>(new Set());
   const imgRef = useRef<HTMLImageElement>(null);
@@ -85,26 +97,127 @@ export function DocumentViewer({
   // Active page is controlled if provided by parent, else local
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalPage;
 
-  // Clear cache if submission changes
+  // Clear cache if submission changes, or immediately restore from memory cache
   useEffect(() => {
     loadedPagesRef.current.clear();
-  }, [submissionId]);
-
-  // Proactively preload document pages in background so flipping between pages is instant
-  useEffect(() => {
-    if (!submissionId || !pageCount || pageCount <= 0) return;
-    const maxPreload = Math.min(pageCount, 50);
-    for (let p = 1; p <= maxPreload; p++) {
-      const url = api.getPageImageUrl(submissionId, p);
-      const img = new Image();
-      img.src = url;
-      img.onload = () => {
-        loadedPagesRef.current.add(`${submissionId}_p_${p}`);
-      };
+    const targetUrl = propPdfUrl || (submissionId ? api.getSubmissionPdfUrl(submissionId) : "");
+    if (targetUrl && pdfDocMemoryCache.has(targetUrl)) {
+      setPdfDoc(pdfDocMemoryCache.get(targetUrl));
+    } else {
+      setPdfDoc(null);
     }
-  }, [submissionId, pageCount]);
+    setPdfError(false);
+  }, [submissionId, propPdfUrl]);
 
+  // Load the single PDF document into browser memory via pdfjs-dist (zero backend rendering RAM!)
   useEffect(() => {
+    let isCancelled = false;
+    async function initPdf() {
+      if (!submissionId) return;
+      setPdfError(false);
+      const targetUrl = propPdfUrl || api.getSubmissionPdfUrl(submissionId);
+
+      // Instant hit: document is already parsed and cached in browser memory
+      if (pdfDocMemoryCache.has(targetUrl)) {
+        setPdfDoc(pdfDocMemoryCache.get(targetUrl));
+        return;
+      }
+
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+          pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || "3.11.174"}/pdf.worker.min.js`;
+        }
+        const loadingTask = pdfjs.getDocument({
+          url: targetUrl,
+          withCredentials: false,
+        });
+        const doc = await loadingTask.promise;
+        if (!isCancelled) {
+          if (pdfDocMemoryCache.size >= MAX_CACHED_PDFS) {
+            const oldestKey = pdfDocMemoryCache.keys().next().value;
+            if (oldestKey) pdfDocMemoryCache.delete(oldestKey);
+          }
+          pdfDocMemoryCache.set(targetUrl, doc);
+          setPdfDoc(doc);
+        }
+      } catch (err: any) {
+        console.warn("Client-side PDF.js could not load PDF directly, falling back to server page image:", err);
+        pdfDocMemoryCache.delete(targetUrl);
+        if (!isCancelled) {
+          setPdfError(true);
+        }
+      }
+    }
+    initPdf();
+    return () => {
+      isCancelled = true;
+    };
+  }, [submissionId, propPdfUrl]);
+
+  // Render currentPage directly to client-side HTML5 canvas
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+    let isCancelled = false;
+
+    async function renderPage() {
+      try {
+        if (renderTaskRef.current) {
+          try {
+            renderTaskRef.current.cancel();
+          } catch (_) {}
+        }
+        setIsPageImageLoading(true);
+        const page = await pdfDoc.getPage(currentPage);
+        if (isCancelled) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        // Viewport scale 1.5 provides crisp, tack-sharp retina handwriting on both mobile and desktop
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport,
+        };
+
+        const task = page.render(renderContext);
+        renderTaskRef.current = task;
+        await task.promise;
+        renderTaskRef.current = null;
+
+        if (!isCancelled) {
+          loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
+          setIsPageImageLoading(false);
+        }
+      } catch (err: any) {
+        if (err?.name !== "RenderingCancelledException") {
+          console.error("PDF page render error:", err);
+          setIsPageImageLoading(false);
+        }
+      }
+    }
+
+    renderPage();
+    return () => {
+      isCancelled = true;
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch (_) {}
+      }
+    };
+  }, [pdfDoc, currentPage, submissionId]);
+
+  // Fallback image handling when PDF.js is unavailable
+  useEffect(() => {
+    if (!pdfError) return;
     setImageError(false);
     const key = `${submissionId}_p_${currentPage}`;
     if (loadedPagesRef.current.has(key)) {
@@ -115,7 +228,7 @@ export function DocumentViewer({
     } else {
       setIsPageImageLoading(true);
     }
-  }, [currentPage, submissionId]);
+  }, [currentPage, submissionId, pdfError]);
 
   const setCurrentPage = (p: number | ((prev: number) => number)) => {
     const next = typeof p === "function" ? p(currentPage) : p;
@@ -709,24 +822,33 @@ export function DocumentViewer({
                 </div>
               )}
 
-              <img
-                ref={imgRef}
-                src={pageImageUrl}
-                alt={`Student Page ${currentPage}`}
-                className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-150 ${
-                  isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
-                }`}
-                loading="eager"
-                decoding="async"
-                onLoad={() => {
-                  loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
-                  setIsPageImageLoading(false);
-                }}
-                onError={() => {
-                  setIsPageImageLoading(false);
-                  setImageError(true);
-                }}
-              />
+              {!pdfError ? (
+                <canvas
+                  ref={canvasRef}
+                  className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-150 ${
+                    isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
+                  }`}
+                />
+              ) : (
+                <img
+                  ref={imgRef}
+                  src={pageImageUrl}
+                  alt={`Student Page ${currentPage}`}
+                  className={`max-w-[850px] w-full h-auto select-none pointer-events-none rounded-sm transition-opacity duration-150 ${
+                    isPageImageLoading ? "opacity-0 absolute top-0 left-0 pointer-events-none h-0" : "block opacity-100"
+                  }`}
+                  loading="eager"
+                  decoding="async"
+                  onLoad={() => {
+                    loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
+                    setIsPageImageLoading(false);
+                  }}
+                  onError={() => {
+                    setIsPageImageLoading(false);
+                    setImageError(true);
+                  }}
+                />
+              )}
             </>
           )}
 

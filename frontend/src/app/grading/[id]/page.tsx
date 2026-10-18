@@ -51,6 +51,7 @@ export default function GradingPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isClearingReview, setIsClearingReview] = useState(false);
 
   useSetBreadcrumbs(
@@ -74,12 +75,15 @@ export default function GradingPage() {
   }, [submissionId]);
 
   const loadSubmission = async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       const data = await api.getSubmission(submissionId);
       setSubmission(data);
       setLoading(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setLoadError(e.message || "Failed to load submission");
       setLoading(false);
     }
   };
@@ -168,21 +172,37 @@ export default function GradingPage() {
   }
 
   if (!submission) {
+    const isConnError = Boolean(
+      loadError &&
+        (loadError.includes("temporarily") ||
+          loadError.includes("Failed to fetch") ||
+          loadError.includes("502") ||
+          loadError.includes("503") ||
+          loadError.includes("504"))
+    );
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
         <FeatureCard className="p-8 text-center space-y-4">
-          <div className="mx-auto h-12 w-12 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
-            <AlertTriangle className="h-6 w-6" />
+          <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+            {isConnError ? <RefreshCw className="h-6 w-6 animate-spin text-primary" /> : <AlertTriangle className="h-6 w-6" />}
           </div>
-          <h2 className="text-base font-bold text-ink">Submission Not Found</h2>
+          <h2 className="text-base font-bold text-ink">
+            {isConnError ? "Connecting to Evaluation Backend..." : "Submission Not Found"}
+          </h2>
           <p className="text-xs text-ink-muted">
-            The submission ID <code className="font-mono bg-canvas-soft px-1.5 py-0.5 rounded">{submissionId}</code> could not be located in the evaluation database.
+            {isConnError
+              ? "The evaluation backend is waking up or temporarily synchronizing. Please wait a moment or click Retry."
+              : `The submission ID ${submissionId} could not be located in the evaluation database.`}
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex items-center justify-center gap-3">
             <ButtonUtility href="/branch/batches">
               <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
               Return to Batches & Roster
             </ButtonUtility>
+            <ButtonPrimary size="sm" onClick={() => loadSubmission()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Retry Connection
+            </ButtonPrimary>
           </div>
         </FeatureCard>
       </div>
@@ -316,6 +336,7 @@ export default function GradingPage() {
           <DocumentViewer
             submissionId={submission.id}
             pageCount={submission.page_count}
+            pdfUrl={(submission as any).pdf_url}
             answers={answers}
             onSelectAnswer={(ans) => handleSelectAnswer(ans, false)}
             onInspectAnswer={(ans) => handleSelectAnswer(ans, true)}

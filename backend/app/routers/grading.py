@@ -1,3 +1,4 @@
+import threading
 from typing import Optional
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
@@ -9,6 +10,8 @@ from backend.app.schemas import ManualEditAnswerRequest, ManualEditRegionRequest
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
+
+_render_lock = threading.Lock()
 
 router = APIRouter(prefix="/api/grading", tags=["Grading & Overrides"])
 
@@ -69,37 +72,39 @@ def get_page_image(submission_id: str, page_num: int):
 
     img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
     if not img_path.exists() and sub:
-        # JIT render fallback if background task is still running or image cache was cleared
-        candidate_keys = []
-        for raw_k in [sub.get("canonical_pdf_path"), sub.get("original_file_path")]:
-            if raw_k:
-                candidate_keys.append(raw_k)
-                clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
-                candidate_keys.append(clean_k)
-                for marker in ["/submissions/", "/uploads/", "/data/"]:
-                    if marker in clean_k:
-                        candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
-                        candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
-                        
-        exam_id = sub.get("exam_id")
-        roll = sub.get("roll_number")
-        if exam_id and roll:
-            candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
-            candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
-        candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
-        candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
+        with _render_lock:
+            # Double check inside mutex in case previous thread just finished rendering it
+            if not img_path.exists():
+                candidate_keys = []
+                for raw_k in [sub.get("canonical_pdf_path"), sub.get("original_file_path")]:
+                    if raw_k:
+                        candidate_keys.append(raw_k)
+                        clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
+                        candidate_keys.append(clean_k)
+                        for marker in ["/submissions/", "/uploads/", "/data/"]:
+                            if marker in clean_k:
+                                candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
+                                candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
+                                
+                exam_id = sub.get("exam_id")
+                roll = sub.get("roll_number")
+                if exam_id and roll:
+                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
+                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
+                candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
+                candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
 
-        storage = get_storage_service()
-        for k in candidate_keys:
-            try:
-                if storage.file_exists(k):
-                    local_pdf = storage.get_local_path_or_download(k)
-                    if local_pdf and local_pdf.exists():
-                        pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
-                        if img_path.exists():
-                            break
-            except Exception:
-                continue
+                storage = get_storage_service()
+                for k in candidate_keys:
+                    try:
+                        if storage.file_exists(k):
+                            local_pdf = storage.get_local_path_or_download(k)
+                            if local_pdf and local_pdf.exists():
+                                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                                if img_path.exists():
+                                    break
+                    except Exception:
+                        continue
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")

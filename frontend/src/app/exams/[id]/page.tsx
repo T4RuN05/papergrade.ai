@@ -39,7 +39,7 @@ import {
   RotateCcw,
   Loader2,
 } from "lucide-react";
-import { api, API_BASE, getAuthToken } from "@/lib/api";
+import { api, API_BASE, getAuthToken, getCached } from "@/lib/api";
 import { Exam } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
@@ -226,7 +226,8 @@ export default function ExamDetailPage() {
   };
 
   useEffect(() => {
-    loadExamData(true);
+    const hasCache = Boolean(getCached(`exams:detail:${examId}`));
+    loadExamData(!hasCache);
   }, [examId]);
 
   const isPollingRef = useRef(false);

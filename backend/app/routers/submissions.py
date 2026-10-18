@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
 
@@ -32,6 +33,7 @@ router = APIRouter(tags=["Submissions & Uploads"])
 def list_submissions(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
+    include_answers: bool = False,
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     with get_db() as conn:
@@ -98,6 +100,27 @@ def list_submissions(
         cursor.execute(query, tuple(params))
         submissions = [dict(r) for r in cursor.fetchall()]
 
+        if not submissions:
+            return []
+
+        # Batch load answers & revaluations in at most 2 single queries instead of 2N sequential roundtrips
+        sub_ids = [s["id"] for s in submissions]
+        answers_by_sub = {}
+        reval_by_sub = {}
+
+        if include_answers and sub_ids:
+            ph = ",".join(["?"] * len(sub_ids))
+            cursor.execute(f"SELECT * FROM answers WHERE submission_id IN ({ph}) ORDER BY question_id ASC", tuple(sub_ids))
+            for a in cursor.fetchall():
+                answers_by_sub.setdefault(a["submission_id"], []).append(dict(a))
+
+        if sub_ids:
+            ph = ",".join(["?"] * len(sub_ids))
+            cursor.execute(f"SELECT * FROM revaluation_requests WHERE submission_id IN ({ph}) ORDER BY requested_at DESC", tuple(sub_ids))
+            for r in cursor.fetchall():
+                if r["submission_id"] not in reval_by_sub:
+                    reval_by_sub[r["submission_id"]] = dict(r)
+
         # Attach answers, revaluation, and 15-day storage retention lifecycle info
         is_student_user = bool(current_user and current_user.get("role") == "STUDENT")
         for s in submissions:
@@ -120,12 +143,8 @@ def list_submissions(
                 s["seconds_remaining"] = None
                 s["retention_expires_at"] = None
             else:
-                cursor.execute("SELECT * FROM answers WHERE submission_id = ? ORDER BY question_id ASC", (s["id"],))
-                s["answers"] = [dict(a) for a in cursor.fetchall()]
-                
-                cursor.execute("SELECT * FROM revaluation_requests WHERE submission_id = ? ORDER BY requested_at DESC LIMIT 1", (s["id"],))
-                reval = cursor.fetchone()
-                s["revaluation"] = dict(reval) if reval else None
+                s["answers"] = answers_by_sub.get(s["id"], [])
+                s["revaluation"] = reval_by_sub.get(s["id"])
 
                 # Retention info (TTL 15 days post-grading)
                 retention_info = RetentionService.get_retention_info(s)
@@ -133,6 +152,65 @@ def list_submissions(
                 s["student_status"] = "Results Published" if is_pub else "Under Evaluation"
 
         return submissions
+
+@router.get("/{submission_id}/pdf")
+def get_submission_pdf_stream(
+    submission_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
+    """
+    Direct zero-RAM PDF delivery endpoint.
+    Redirects (307) directly to Cloudinary / R2 pre-signed CDN URL so zero PDF bytes buffer in server RAM.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.id, s.exam_id, s.canonical_pdf_path, s.original_file_path,
+                   s.is_document_purged, s.publication_status, e.is_published as exam_is_published
+            FROM submissions s
+            LEFT JOIN exams e ON s.exam_id = e.id
+            WHERE s.id = ?
+        """, (submission_id,))
+        sub = cursor.fetchone()
+
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    if sub.get("is_document_purged"):
+        raise HTTPException(
+            status_code=410,
+            detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy."
+        )
+
+    # Check student role access
+    is_student = current_user and current_user.get("role") == "STUDENT"
+    is_pub = bool(sub.get("publication_status") == "PUBLISHED" or sub.get("exam_is_published") == 1)
+    if is_student and not is_pub:
+        raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
+
+    key = sub.get("canonical_pdf_path") or sub.get("original_file_path")
+    if not key:
+        raise HTTPException(status_code=404, detail="PDF path not found for submission.")
+
+    storage = get_storage_service()
+    if hasattr(storage, "generate_presigned_download_url"):
+        try:
+            download_url = storage.generate_presigned_download_url(key)
+            if download_url and (download_url.startswith("http://") or download_url.startswith("https://")):
+                from fastapi.responses import RedirectResponse
+                return RedirectResponse(url=download_url, status_code=307)
+        except Exception:
+            pass
+
+    local_path = storage.get_local_path_or_download(key)
+    if not local_path or not local_path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found in storage.")
+
+    return FileResponse(
+        str(local_path),
+        media_type="application/pdf",
+        headers={"Cache-Control": "public, max-age=86400"}
+    )
 
 @router.get("/exam/{exam_id}")
 def get_submissions_for_exam(exam_id: str):
@@ -660,10 +738,12 @@ def get_submission_details(
                 "revaluation_days_remaining": sub.get("revaluation_days_remaining"),
                 "revaluation_window_open": sub.get("revaluation_window_open"),
                 "storage_notice": sub.get("storage_notice"),
+                "pdf_url": f"/api/v1/submissions/{sub['id']}/pdf",
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
     
     # Root Admin / Branch Manager view: return full internal representation
+    sub["pdf_url"] = f"/api/v1/submissions/{sub['id']}/pdf"
     return sub
 
 @router.post("/purge-expired")

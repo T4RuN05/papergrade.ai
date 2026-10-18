@@ -116,13 +116,15 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         if (managerBranch) localStorage.setItem(STORAGE_BRANCH_KEY, managerBranch.id);
       }
     } catch {
-      // User not authenticated or error
+      // If server is temporarily restarting/unreachable, retain existing session payload
+      const stored = getStoredUserPayload();
+      if (stored) {
+        setCurrentUser(stored);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const pathname = usePathname();
 
   useEffect(() => {
     setIsMounted(true);
@@ -134,7 +136,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       }
     }
     refreshTenancy();
-  }, [pathname, refreshTenancy]);
+  }, [refreshTenancy]);
 
   useEffect(() => {
     const handleStorageChange = () => {
