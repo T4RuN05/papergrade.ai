@@ -200,7 +200,7 @@ export default function RevaluationDeskPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push("/auth/login");
+      router.push("/auth/login?role=staff&redirect=/revaluation");
       return;
     }
     loadRequests();

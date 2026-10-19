@@ -122,7 +122,7 @@ export default function BranchBatchesPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.replace("/auth/login");
+      router.replace("/auth/login?role=staff&redirect=/branch/batches");
       return;
     }
 

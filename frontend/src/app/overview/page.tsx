@@ -71,7 +71,7 @@ export default function RootAdminOverviewPage() {
     if (tenantLoading || isLoggingOut) return;
     const token = typeof window !== "undefined" ? getAuthToken() : null;
     if (!token) {
-      router.replace("/auth/login?redirect=/overview");
+      router.replace("/auth/login?role=staff&redirect=/overview");
       return;
     }
 
@@ -139,7 +139,7 @@ export default function RootAdminOverviewPage() {
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <ButtonPrimary href="/auth/login?redirect=/overview">
+            <ButtonPrimary href="/auth/login?role=staff&redirect=/overview">
               <LogIn className="h-4 w-4 mr-2" />
               Sign In as Root Admin
             </ButtonPrimary>

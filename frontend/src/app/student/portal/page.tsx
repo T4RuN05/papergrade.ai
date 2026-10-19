@@ -661,7 +661,7 @@ export default function StudentPortalPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push("/auth/login");
+      router.push("/auth/login?role=student&redirect=/student/portal");
       return;
     }
     loadPortalData();

@@ -63,7 +63,7 @@ export default function TenancyManagementPage() {
     if (isLoggingOut) return;
     const token = getAuthToken();
     if (!token) {
-      router.replace("/auth/login?redirect=/admin/tenancy");
+      router.replace("/auth/login?role=staff&redirect=/admin/tenancy");
       return;
     }
     if (isBranchManager) {

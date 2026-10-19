@@ -72,7 +72,7 @@ export default function AdminReportsPage() {
     const token = getAuthToken();
     const stored = getStoredUser();
     if (!token) {
-      router.replace("/auth/login");
+      router.replace("/auth/login?role=staff&redirect=/admin/reports");
       return;
     }
     if (stored && stored.role !== "ROOT_ADMIN") {

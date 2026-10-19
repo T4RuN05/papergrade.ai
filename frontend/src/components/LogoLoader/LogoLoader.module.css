@@ -1,0 +1,205 @@
+/*
+  Timeline (one cycle = --ll-dur, default 3.6s)
+    0%  - 38%   outline traces along every contour, a bright head leads the line
+    26% - 50%   gradient fill resolves underneath
+    50% - 62%   trace line dissolves into the fill
+    56% - 80%   light sweep crosses the finished mark
+    84% - 96%   mark fades out, cycle restarts
+  Shapes are staggered with --i (set inline per path).
+*/
+
+.root {
+  --ll-size: 120px;
+  --ll-dur: 3.6s;
+  --ll-head: #3d8bff;
+  --ll-glow: rgba(24, 96, 255, 0.55);
+
+  display: inline-grid;
+  place-items: center;
+  width: var(--ll-size);
+  height: var(--ll-size);
+  line-height: 0;
+}
+
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: auto;
+  height: auto;
+  background: var(--ll-bg, Canvas);
+}
+
+.fullscreen .svg {
+  width: var(--ll-size);
+  height: var(--ll-size);
+}
+
+.grayscale {
+  --ll-head: #9c9a93;
+  --ll-glow: rgba(0, 0, 0, 0.05);
+}
+
+.grayscale .svg {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.04));
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 8px 20px rgba(20, 90, 255, 0.22));
+}
+
+/* ---------- fill ---------- */
+.fill {
+  opacity: 0;
+  animation: fill var(--ll-dur) linear infinite both;
+  animation-delay: calc(var(--i) * calc(var(--ll-dur) * 0.022));
+}
+
+/* ---------- trace line ---------- */
+.trail {
+  stroke-width: 3.6;
+  stroke-linecap: butt;
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1.02;
+  animation: trace var(--ll-dur) linear infinite both;
+  animation-delay: calc(var(--i) * calc(var(--ll-dur) * 0.022));
+}
+
+/* ---------- glowing head that leads the trace ---------- */
+.head {
+  stroke: var(--ll-head);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 0.012 3;
+  stroke-dashoffset: 0.012;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px var(--ll-glow)) drop-shadow(0 0 14px var(--ll-glow));
+  animation: head var(--ll-dur) linear infinite both;
+  animation-delay: calc(var(--i) * calc(var(--ll-dur) * 0.022));
+}
+
+/* ---------- light sweep ---------- */
+.sheen {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sheen var(--ll-dur) linear infinite both;
+}
+
+@keyframes trace {
+  0% {
+    stroke-dashoffset: 1.02;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  38% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  62%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+/* dash length is 0.012 of the path; offset = 0.012 - progress keeps it on the leading edge */
+@keyframes head {
+  0% {
+    stroke-dashoffset: 0.012;
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  2% {
+    opacity: 1;
+  }
+  38% {
+    stroke-dashoffset: -0.988;
+    opacity: 1;
+  }
+  41%,
+  100% {
+    stroke-dashoffset: -0.988;
+    opacity: 0;
+  }
+}
+
+@keyframes fill {
+  0%,
+  26% {
+    opacity: 0;
+  }
+  50%,
+  84% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes sheen {
+  0%,
+  55% {
+    transform: translateX(-200px) skewX(-18deg);
+    opacity: 0;
+  }
+  59% {
+    opacity: 1;
+  }
+  77% {
+    opacity: 1;
+  }
+  81%,
+  100% {
+    transform: translateX(560px) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    opacity: 1;
+    animation: none;
+  }
+  .trail,
+  .head,
+  .sheen {
+    display: none;
+  }
+  .svg {
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+}
+
+/* Screen-reader-only text */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

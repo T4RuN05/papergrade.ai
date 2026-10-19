@@ -206,13 +206,13 @@ export function Navbar() {
           ) : (
             <div className="flex items-center gap-2">
               <Link
-                href="/auth/claim"
+                href="/auth/login?role=claim"
                 className="hidden sm:inline-flex items-center text-xs font-medium text-ink-secondary hover:text-primary px-2.5 py-1 rounded-md hover:bg-canvas-soft transition-colors"
               >
                 Claim Student ID
               </Link>
               <Link
-                href="/auth/login"
+                href={pathname.startsWith("/student") ? "/auth/login?role=student" : pathname.startsWith("/admin") || pathname.startsWith("/branch") || pathname.startsWith("/overview") ? "/auth/login?role=staff" : "/auth/login"}
                 className="inline-flex items-center justify-center rounded-full bg-primary hover:bg-primary-active text-white px-3.5 py-1 text-xs font-medium transition-colors shadow-xs"
               >
                 Sign In
@@ -257,7 +257,7 @@ export function Navbar() {
             <span>PaperGrade AI Pilot</span>
             {isMounted && !hasToken && !currentUser && (
               <Link
-                href="/auth/claim"
+                href="/auth/login?role=claim"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-primary font-medium hover:underline"
               >

@@ -9,17 +9,11 @@ import {
   FileText,
   Check,
   ChevronRight,
-  Layers,
   Users,
-  Clock,
-  Shield,
   Sliders,
-  CheckCircle2,
-  BookOpen,
   Search,
-  Eye,
+  BookOpen,
   Loader2,
-  CornerDownRight,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
 
@@ -56,12 +50,12 @@ export default function LandingPage() {
 
   if (isRedirectingStudent) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[75vh] space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[75vh] space-y-4 bg-canvas-soft">
         <div className="h-10 w-10 rounded-md border border-hairline bg-surface flex items-center justify-center text-ink shadow-xs">
-          <BookOpen className="h-5 w-5" />
+          <BookOpen className="h-5 w-5 text-primary" />
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-ink-muted">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
           <span>Opening Student Portal...</span>
         </div>
       </div>
@@ -69,18 +63,20 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full overflow-clip">
       {/* 
         ========================================================================
-        MAIN PAGE CONTENT LAYER (Slides over the underlaying reveal footer)
+        MAIN PAGE CONTENT LAYER (Warm Paper-Soft Canvas #f6f5f4 per DESIGN-notion.md)
+        Slides over the underlaying reveal footer
         ========================================================================
       */}
       <div
-        className="relative z-10 w-full bg-[#fcfbf9] border-b border-hairline shadow-[0_20px_45px_-10px_rgba(0,0,0,0.05)]"
+        className="relative z-10 w-full bg-canvas-soft border-b border-hairline shadow-[0_20px_45px_-10px_rgba(0,0,0,0.06)]"
         style={{
+          backgroundColor: "#f6f5f4",
           backgroundImage: `
-            linear-gradient(to right, rgba(0, 0, 0, 0.032) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(0, 0, 0, 0.032) 1px, transparent 1px)
+            linear-gradient(to right, rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 1px, transparent 1px)
           `,
           backgroundSize: "28px 28px",
         }}
@@ -89,82 +85,83 @@ export default function LandingPage() {
           
           {/* 1. HERO SECTION */}
           <section className="text-center max-w-3xl mx-auto space-y-6 pt-2 sm:pt-6">
-            {/* Top Minimal Brand Mark */}
+            
+            {/* Authentic Brand Badge (Preserving official golden logo & Notion Blue AI) */}
             <div className="flex justify-center">
-              <div className="h-12 w-12 rounded-lg border border-hairline bg-surface flex items-center justify-center p-2 shadow-xs">
+              <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-hairline bg-surface shadow-xs">
                 <Image
                   src="/logo-icon.png"
-                  alt="PaperGrade"
-                  width={32}
-                  height={32}
-                  className="object-contain"
+                  alt="PaperGrade AI"
+                  width={22}
+                  height={22}
+                  className="h-5 w-5 object-contain"
                   priority
                 />
+                <span className="text-xs font-bold tracking-tight text-ink">
+                  PaperGrade <span className="text-primary font-semibold">AI</span>
+                </span>
+                <span className="text-[10px] text-ink-muted font-mono pl-2 border-l border-hairline uppercase tracking-wider">
+                  Assessment Infrastructure
+                </span>
               </div>
             </div>
 
-            {/* Platform Identifier Tag */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md border border-hairline bg-surface text-xs font-mono text-ink-secondary">
-              <span className="h-1.5 w-1.5 rounded-full bg-ink" />
-              <span>Academic Assessment Infrastructure</span>
-            </div>
-
-            {/* Primary Headline */}
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-ink leading-[1.15] sm:leading-[1.12]">
+            {/* Primary Headline (NotionInter display weight & tracking) */}
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-ink leading-[1.14] sm:leading-[1.1]">
               Structured criteria evaluation for handwritten examinations.
             </h1>
 
             {/* Concise Mission Subhead */}
-            <p className="text-sm sm:text-base md:text-lg text-ink-secondary leading-relaxed max-w-2xl mx-auto">
-              PaperGrade automates the assessment of handwritten student answer sheets against instructor-approved rubrics. Every question receives discrete criteria scoring, annotated step feedback, and auditable revaluation records.
+            <p className="text-sm sm:text-base md:text-lg text-ink-secondary leading-relaxed max-w-2xl mx-auto font-normal">
+              PaperGrade evaluates handwritten student answer sheets against itemized, instructor-approved rubrics. Every question receives discrete criteria scoring, annotated step feedback, and auditable revaluation records.
             </p>
 
-            {/* Context-Aware Primary Actions */}
+            {/* Notion Pill-Shaped Action Buttons (button-primary & button-secondary from DESIGN-notion.md) */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               {currentUser ? (
                 currentUser.role === "ROOT_ADMIN" ? (
                   <Link
                     href="/overview"
-                    className="inline-flex items-center justify-center h-10 px-5 rounded-md bg-ink text-white text-xs font-medium hover:bg-neutral-800 transition-colors shadow-xs"
+                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs"
                   >
                     <span>Open Administrator Desk</span>
-                    <ArrowRight className="h-3.5 w-3.5 ml-2" />
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Link>
                 ) : currentUser.role === "BRANCH_MANAGER" ? (
                   <Link
                     href="/branch/batches"
-                    className="inline-flex items-center justify-center h-10 px-5 rounded-md bg-ink text-white text-xs font-medium hover:bg-neutral-800 transition-colors shadow-xs"
+                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs"
                   >
                     <span>Open Branch Batches</span>
-                    <ArrowRight className="h-3.5 w-3.5 ml-2" />
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Link>
                 ) : (
                   <Link
                     href="/student/portal"
-                    className="inline-flex items-center justify-center h-10 px-5 rounded-md bg-ink text-white text-xs font-medium hover:bg-neutral-800 transition-colors shadow-xs"
+                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs"
                   >
                     <span>Open Student Portal</span>
-                    <ArrowRight className="h-3.5 w-3.5 ml-2" />
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Link>
                 )
               ) : (
                 <>
                   <Link
-                    href="/auth/login"
-                    className="inline-flex items-center justify-center h-10 px-5 rounded-md bg-ink text-white text-xs font-medium hover:bg-neutral-800 transition-colors shadow-xs w-full sm:w-auto"
+                    href="/auth/login?role=staff"
+                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs w-full sm:w-auto"
                   >
                     <span>Sign In to Console</span>
-                    <ArrowRight className="h-3.5 w-3.5 ml-2" />
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Link>
                   <Link
-                    href="/student/portal"
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-md border border-hairline bg-surface text-xs font-medium text-ink hover:bg-canvas-soft transition-colors w-full sm:w-auto"
+                    href="/auth/login?role=student"
+                    className="inline-flex items-center justify-center h-10 px-5 rounded-full border border-hairline bg-surface text-sm font-medium text-ink hover:bg-canvas-soft transition-colors shadow-xs w-full sm:w-auto"
                   >
                     <span>Student Portal</span>
                   </Link>
                   <Link
-                    href="/auth/claim"
-                    className="inline-flex items-center justify-center h-10 px-4 rounded-md border border-hairline bg-surface text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors w-full sm:w-auto"
+                    href="/auth/login?role=claim"
+                    className="inline-flex items-center justify-center h-10 px-5 rounded-full border border-hairline bg-surface text-sm font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors w-full sm:w-auto"
                   >
                     <span>Claim Student ID</span>
                   </Link>
@@ -172,30 +169,34 @@ export default function LandingPage() {
               )}
             </div>
 
-            {/* Architectural Pillars (Clean & Minimalist) */}
-            <div className="pt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-ink-muted font-mono">
+            {/* Subtle Notion Sticker Dots (Pills matching DESIGN-notion.md sticker palette) */}
+            <div className="pt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-ink-muted">
               <span className="flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5 text-ink" />
+                <span className="h-2 w-2 rounded-full bg-accent-green" />
                 <span>Discrete Criteria Rubrics</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5 text-ink" />
+                <span className="h-2 w-2 rounded-full bg-primary" />
                 <span>Single-Document Ingestion</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="h-3.5 w-3.5 text-ink" />
+                <span className="h-2 w-2 rounded-full bg-accent-teal" />
                 <span>Human-Verified Appeals</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-accent-orange" />
+                <span>Campus RBAC Boundaries</span>
               </span>
             </div>
           </section>
 
           {/* 
             ========================================================================
-            2. INTERACTIVE SKELETON MOCK SHOWCASE
+            2. INTERACTIVE SKELETON MOCK SHOWCASE (Notion Card & Hairlines)
             ========================================================================
           */}
           <section className="space-y-4">
-            {/* Minimal Segmented Tab Switcher */}
+            {/* Notion-Style Segmented Tab Switcher */}
             <div className="flex items-center justify-center">
               <div className="inline-flex items-center p-1 rounded-lg border border-hairline bg-surface shadow-xs gap-1">
                 <button
@@ -207,7 +208,7 @@ export default function LandingPage() {
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <FileText className="h-3.5 w-3.5" />
+                  <FileText className="h-3.5 w-3.5 text-primary" />
                   <span>Document Evaluation Viewer</span>
                 </button>
                 <button
@@ -219,7 +220,7 @@ export default function LandingPage() {
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <Users className="h-3.5 w-3.5" />
+                  <Users className="h-3.5 w-3.5 text-accent-teal" />
                   <span>Batch Submissions Roster</span>
                 </button>
                 <button
@@ -231,7 +232,7 @@ export default function LandingPage() {
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <Sliders className="h-3.5 w-3.5" />
+                  <Sliders className="h-3.5 w-3.5 text-accent-purple-deep" />
                   <span>Marking Rubric Architecture</span>
                 </button>
               </div>
@@ -240,21 +241,20 @@ export default function LandingPage() {
             {/* MOCK COMPONENT CONTAINER (Non-Interactable Display Model) */}
             <div className="rounded-xl border border-hairline bg-surface shadow-notion-card overflow-hidden">
               
-              {/* Window Header Bar */}
-              <div className="px-4 py-3 border-b border-hairline bg-canvas-soft/60 flex items-center justify-between text-xs font-mono text-ink-muted">
+              {/* Window Chrome Header */}
+              <div className="px-4 py-3 border-b border-hairline bg-canvas-soft/80 flex items-center justify-between text-xs font-mono text-ink-muted">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-neutral-300" />
                   <span className="h-2 w-2 rounded-full bg-neutral-300" />
                   <span className="h-2 w-2 rounded-full bg-neutral-300" />
                   <span className="ml-2 text-ink text-[11px] font-medium truncate max-w-[200px] sm:max-w-none">
-                    {activeMock === "viewer" && "evaluation_session_candidate_1042.pdf • Page 2 of 4"}
-                    {activeMock === "submissions" && "academic_batch_roster • Autumn Term Session"}
-                    {activeMock === "rubric" && "physics_paper_02_rubric • 100 Max Allocation"}
+                    {activeMock === "viewer" && "candidate_physics_eval_1042.pdf • Page 2 of 4"}
+                    {activeMock === "submissions" && "academic_batch_autumn_2026 • 48 Candidates"}
+                    {activeMock === "rubric" && "physics_paper_02_rubric • 100.0 Allocation"}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-[11px]">
-                  <span className="hidden sm:inline">Read-only Inspector</span>
-                  <span className="px-1.5 py-0.5 rounded bg-surface border border-hairline text-[10px]">
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="px-2 py-0.5 rounded-full bg-surface border border-hairline text-primary font-medium text-[10px]">
                     Verified
                   </span>
                 </div>
@@ -267,7 +267,7 @@ export default function LandingPage() {
                   <div className="lg:col-span-7 rounded-lg border border-hairline bg-canvas-soft/40 p-4 space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-hairline text-xs font-mono text-ink-muted">
                       <span>SHEET #02 • THERMODYNAMICS</span>
-                      <span>PAGE BOUND: 100% CONFIDENCE</span>
+                      <span className="text-accent-green font-semibold">COORDINATE MATCH 100%</span>
                     </div>
 
                     {/* Question Header */}
@@ -280,7 +280,7 @@ export default function LandingPage() {
 
                     {/* Student Handwritten Derivation Box with Coordinate Stamp */}
                     <div className="p-3.5 rounded-md border border-neutral-300 bg-surface relative space-y-3 font-serif">
-                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-[10px] font-mono font-semibold text-ink">
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-[#eaf7ed] border border-[#c2ecd0] text-[10px] font-mono font-semibold text-accent-green">
                         +5.0 / 5.0 Marks
                       </div>
 
@@ -302,7 +302,7 @@ export default function LandingPage() {
                       {/* Visual Skeleton Marker */}
                       <div className="pt-2 border-t border-dashed border-hairline flex items-center justify-between text-[10px] font-mono text-ink-muted">
                         <span>Derived in Box B-1</span>
-                        <span>Criteria Matched: 3 of 3</span>
+                        <span className="text-accent-green font-medium">Criteria Matched: 3 of 3</span>
                       </div>
                     </div>
 
@@ -321,33 +321,33 @@ export default function LandingPage() {
                           <div className="text-xs font-semibold text-ink">Question 3 Evaluation</div>
                           <div className="text-[11px] text-ink-muted">Evaluated against Locked Rubric</div>
                         </div>
-                        <span className="font-mono text-xs font-bold text-ink px-2 py-0.5 bg-neutral-100 border border-hairline rounded">
+                        <span className="font-mono text-xs font-bold text-accent-green px-2 py-0.5 bg-[#eaf7ed] border border-[#c2ecd0] rounded">
                           5.0 / 5.0
                         </span>
                       </div>
 
                       {/* Discrete Criteria List */}
                       <div className="space-y-2">
-                        <div className="p-2.5 rounded border border-hairline bg-canvas-soft/50 space-y-1">
+                        <div className="p-2.5 rounded border border-hairline bg-canvas-soft/60 space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-medium text-ink">1. Carnot Formula Statement</span>
-                            <span className="font-mono font-semibold text-ink">+2.0 / 2.0</span>
+                            <span className="font-mono font-semibold text-accent-green">+2.0 / 2.0</span>
                           </div>
                           <div className="h-1.5 w-3/4 bg-neutral-200 rounded" />
                         </div>
 
-                        <div className="p-2.5 rounded border border-hairline bg-canvas-soft/50 space-y-1">
+                        <div className="p-2.5 rounded border border-hairline bg-canvas-soft/60 space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-medium text-ink">2. Temperature Substitution</span>
-                            <span className="font-mono font-semibold text-ink">+1.5 / 1.5</span>
+                            <span className="font-mono font-semibold text-accent-green">+1.5 / 1.5</span>
                           </div>
                           <div className="h-1.5 w-4/5 bg-neutral-200 rounded" />
                         </div>
 
-                        <div className="p-2.5 rounded border border-hairline bg-canvas-soft/50 space-y-1">
+                        <div className="p-2.5 rounded border border-hairline bg-canvas-soft/60 space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-medium text-ink">3. Efficiency Calculation</span>
-                            <span className="font-mono font-semibold text-ink">+1.5 / 1.5</span>
+                            <span className="font-mono font-semibold text-accent-green">+1.5 / 1.5</span>
                           </div>
                           <div className="h-1.5 w-2/3 bg-neutral-200 rounded" />
                         </div>
@@ -380,7 +380,7 @@ export default function LandingPage() {
                         <Search className="h-3 w-3" />
                         <span>Filter candidates...</span>
                       </div>
-                      <span className="px-2 py-1 rounded bg-surface border border-hairline text-[11px] font-mono text-ink">
+                      <span className="px-2 py-1 rounded-full bg-surface border border-hairline text-[11px] font-mono text-ink">
                         All (48)
                       </span>
                     </div>
@@ -404,8 +404,8 @@ export default function LandingPage() {
                           <td className="py-2.5 font-medium text-ink">Aarav Sharma</td>
                           <td className="py-2.5 text-ink-muted text-[11px]">Today, 14:22</td>
                           <td className="py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-hairline bg-canvas-soft text-[10px] font-mono text-ink">
-                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-600" />
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#c2ecd0] bg-[#eaf7ed] text-[10px] font-mono text-accent-green">
+                              <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
                               <span>Evaluated</span>
                             </span>
                           </td>
@@ -417,8 +417,8 @@ export default function LandingPage() {
                           <td className="py-2.5 font-medium text-ink">Diya Patel</td>
                           <td className="py-2.5 text-ink-muted text-[11px]">Today, 14:25</td>
                           <td className="py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-hairline bg-canvas-soft text-[10px] font-mono text-ink">
-                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-600" />
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#c2ecd0] bg-[#eaf7ed] text-[10px] font-mono text-accent-green">
+                              <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
                               <span>Evaluated</span>
                             </span>
                           </td>
@@ -430,8 +430,8 @@ export default function LandingPage() {
                           <td className="py-2.5 font-medium text-ink">Karan Verma</td>
                           <td className="py-2.5 text-ink-muted text-[11px]">Today, 14:28</td>
                           <td className="py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-hairline bg-surface text-[10px] font-mono text-ink-secondary">
-                              <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" />
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#fed7aa] bg-[#fff7ed] text-[10px] font-mono text-accent-orange">
+                              <span className="h-1.5 w-1.5 rounded-full bg-accent-orange" />
                               <span>Appeal Pending</span>
                             </span>
                           </td>
@@ -450,7 +450,7 @@ export default function LandingPage() {
                             <div className="h-2 w-16 bg-neutral-200 rounded" />
                           </td>
                           <td className="py-2.5">
-                            <div className="h-4 w-20 bg-neutral-200 rounded" />
+                            <div className="h-4 w-20 bg-neutral-200 rounded-full" />
                           </td>
                           <td className="py-2.5 text-right">
                             <div className="h-2 w-12 bg-neutral-200 rounded ml-auto" />
@@ -471,7 +471,7 @@ export default function LandingPage() {
                       <div className="text-[11px] text-ink-muted">Locked criteria distribution across 20 examination items</div>
                     </div>
                     <div className="flex items-center gap-2 font-mono text-xs text-ink">
-                      <span className="px-2 py-0.5 rounded bg-neutral-100 border border-hairline">
+                      <span className="px-2.5 py-0.5 rounded-full bg-surface border border-hairline text-primary font-semibold">
                         Total Allocation: 100.0 Marks
                       </span>
                     </div>
@@ -479,39 +479,39 @@ export default function LandingPage() {
 
                   {/* Question Rubric Group */}
                   <div className="space-y-3">
-                    <div className="rounded-lg border border-hairline bg-canvas-soft/30 p-3.5 space-y-2.5">
+                    <div className="rounded-lg border border-hairline bg-canvas-soft/40 p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-ink">Q1</span>
+                          <span className="font-mono text-xs font-bold text-primary">Q1</span>
                           <span className="text-xs font-medium text-ink">Gauss Divergence Theorem Application</span>
                         </div>
-                        <span className="font-mono text-xs text-ink-secondary">6.0 Marks</span>
+                        <span className="font-mono text-xs font-semibold text-ink">6.0 Marks</span>
                       </div>
 
                       {/* Criteria Items */}
-                      <div className="space-y-1.5 pl-3 border-l-2 border-hairline text-xs">
+                      <div className="space-y-1.5 pl-3 border-l-2 border-primary/30 text-xs">
                         <div className="flex items-center justify-between text-ink-secondary py-0.5">
                           <span>Criteria 1.1: Correct divergence expression in spherical coordinates</span>
-                          <span className="font-mono text-[11px]">2.0 Marks</span>
+                          <span className="font-mono text-[11px] text-primary font-medium">2.0 Marks</span>
                         </div>
                         <div className="flex items-center justify-between text-ink-secondary py-0.5">
                           <span>Criteria 1.2: Boundary volume integral conversion and limits</span>
-                          <span className="font-mono text-[11px]">2.5 Marks</span>
+                          <span className="font-mono text-[11px] text-primary font-medium">2.5 Marks</span>
                         </div>
                         <div className="flex items-center justify-between text-ink-secondary py-0.5">
                           <span>Criteria 1.3: Dimensional analysis and final scalar computation</span>
-                          <span className="font-mono text-[11px]">1.5 Marks</span>
+                          <span className="font-mono text-[11px] text-primary font-medium">1.5 Marks</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-hairline bg-canvas-soft/30 p-3.5 space-y-2.5">
+                    <div className="rounded-lg border border-hairline bg-canvas-soft/40 p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-ink">Q2</span>
+                          <span className="font-mono text-xs font-bold text-primary">Q2</span>
                           <span className="text-xs font-medium text-ink">Stokes Theorem Over Closed Loop</span>
                         </div>
-                        <span className="font-mono text-xs text-ink-secondary">4.0 Marks</span>
+                        <span className="font-mono text-xs font-semibold text-ink">4.0 Marks</span>
                       </div>
                       <div className="space-y-1 pl-3 border-l-2 border-hairline">
                         <div className="h-2 w-3/5 bg-neutral-200 rounded" />
@@ -546,8 +546,8 @@ export default function LandingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-lg border border-hairline bg-surface space-y-2">
-                <span className="font-mono text-xs font-semibold text-ink px-2 py-0.5 rounded bg-canvas-soft border border-hairline inline-block">
+              <div className="p-5 rounded-lg border border-hairline bg-surface space-y-2 shadow-xs">
+                <span className="font-mono text-xs font-semibold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 inline-block">
                   01
                 </span>
                 <h3 className="text-sm font-bold text-ink">Define Marking Criteria</h3>
@@ -556,8 +556,8 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div className="p-4 rounded-lg border border-hairline bg-surface space-y-2">
-                <span className="font-mono text-xs font-semibold text-ink px-2 py-0.5 rounded bg-canvas-soft border border-hairline inline-block">
+              <div className="p-5 rounded-lg border border-hairline bg-surface space-y-2 shadow-xs">
+                <span className="font-mono text-xs font-semibold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 inline-block">
                   02
                 </span>
                 <h3 className="text-sm font-bold text-ink">Ingest & Verify Answers</h3>
@@ -566,8 +566,8 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div className="p-4 rounded-lg border border-hairline bg-surface space-y-2">
-                <span className="font-mono text-xs font-semibold text-ink px-2 py-0.5 rounded bg-canvas-soft border border-hairline inline-block">
+              <div className="p-5 rounded-lg border border-hairline bg-surface space-y-2 shadow-xs">
+                <span className="font-mono text-xs font-semibold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 inline-block">
                   03
                 </span>
                 <h3 className="text-sm font-bold text-ink">Publish & Handle Appeals</h3>
@@ -592,51 +592,51 @@ export default function LandingPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Link
-                href="/auth/login"
-                className="group p-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors flex flex-col justify-between space-y-3"
+                href={currentUser ? "/overview" : "/auth/login?role=staff&portal=admin"}
+                className="group p-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors flex flex-col justify-between space-y-3 shadow-xs"
               >
                 <div className="space-y-1">
                   <div className="text-xs font-semibold text-ink flex items-center justify-between">
                     <span>Root Administrator</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-ink transition-colors" />
+                    <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-primary transition-colors" />
                   </div>
                   <p className="text-[11px] text-ink-muted leading-relaxed">
                     Institutional governance, exam definitions, and campus-wide parameters.
                   </p>
                 </div>
-                <span className="text-[11px] font-mono text-ink group-hover:underline">Sign In →</span>
+                <span className="text-[11px] font-mono text-primary font-medium group-hover:underline">Sign In →</span>
               </Link>
 
               <Link
-                href="/auth/login"
-                className="group p-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors flex flex-col justify-between space-y-3"
+                href={currentUser ? "/branch/batches" : "/auth/login?role=staff&portal=branch"}
+                className="group p-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors flex flex-col justify-between space-y-3 shadow-xs"
               >
                 <div className="space-y-1">
                   <div className="text-xs font-semibold text-ink flex items-center justify-between">
                     <span>Branch Manager</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-ink transition-colors" />
+                    <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-primary transition-colors" />
                   </div>
                   <p className="text-[11px] text-ink-muted leading-relaxed">
                     Batch enrollment, roster synchronization, and student inquiry handling.
                   </p>
                 </div>
-                <span className="text-[11px] font-mono text-ink group-hover:underline">Sign In →</span>
+                <span className="text-[11px] font-mono text-primary font-medium group-hover:underline">Sign In →</span>
               </Link>
 
               <Link
-                href="/student/portal"
-                className="group p-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors flex flex-col justify-between space-y-3"
+                href={currentUser ? "/student/portal" : "/auth/login?role=student"}
+                className="group p-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors flex flex-col justify-between space-y-3 shadow-xs"
               >
                 <div className="space-y-1">
                   <div className="text-xs font-semibold text-ink flex items-center justify-between">
                     <span>Student Portal</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-ink transition-colors" />
+                    <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-primary transition-colors" />
                   </div>
                   <p className="text-[11px] text-ink-muted leading-relaxed">
                     Paper submission, marks breakdown inspection, and score appeals.
                   </p>
                 </div>
-                <span className="text-[11px] font-mono text-ink group-hover:underline">Open Portal →</span>
+                <span className="text-[11px] font-mono text-primary font-medium group-hover:underline">Open Portal →</span>
               </Link>
             </div>
           </section>
@@ -648,30 +648,31 @@ export default function LandingPage() {
         ========================================================================
         UNDERLAYING REVEAL FOOTER
         Sits pinned beneath the main document and reveals itself when scrolled down.
+        Includes the requested big faded typography of "PaperGrade AI".
         ========================================================================
       */}
-      <footer className="sticky bottom-0 z-0 w-full bg-[#141413] text-[#8e8d8a] min-h-[340px] flex flex-col justify-between p-6 sm:p-12 md:p-16 select-none">
+      <footer className="sticky bottom-0 z-0 w-full bg-[#141413] text-[#8e8d8a] min-h-[380px] flex flex-col justify-between pt-10 sm:pt-14 pb-4 px-6 sm:px-12 md:px-16 select-none overflow-hidden">
         <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
           
-          {/* Brand & Mission */}
+          {/* Brand & Mission (Original Golden Logo + Notion Blue AI) */}
           <div className="md:col-span-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded bg-neutral-800 border border-neutral-700 flex items-center justify-center p-1">
-                <Image
-                  src="/logo-icon.png"
-                  alt="PaperGrade AI"
-                  width={18}
-                  height={18}
-                  className="object-contain invert"
-                />
-              </div>
-              <span className="text-sm font-bold text-white tracking-tight">PaperGrade AI</span>
+            <div className="flex items-center gap-2.5">
+              <Image
+                src="/logo-icon.png"
+                alt="PaperGrade AI"
+                width={26}
+                height={26}
+                className="h-6 w-6 object-contain"
+              />
+              <span className="text-sm font-bold text-white tracking-tight">
+                PaperGrade <span className="text-primary font-semibold">AI</span>
+              </span>
             </div>
             <p className="text-xs text-[#9b9994] leading-relaxed max-w-sm">
               Infrastructure for handwritten academic evaluations, itemized marking rubrics, and institutional grading integrity.
             </p>
-            <div className="pt-2 flex items-center gap-2 text-[11px] font-mono text-[#71706c]">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-[#71706c]">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
               <span>Assessment Services Active</span>
             </div>
           </div>
@@ -684,12 +685,12 @@ export default function LandingPage() {
               </div>
               <ul className="space-y-1.5">
                 <li>
-                  <Link href="/student/portal" className="hover:text-white transition-colors">
+                  <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
                     Examination Portal
                   </Link>
                 </li>
                 <li>
-                  <Link href="/auth/claim" className="hover:text-white transition-colors">
+                  <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
                     Claim Student ID
                   </Link>
                 </li>
@@ -735,13 +736,18 @@ export default function LandingPage() {
               </div>
               <ul className="space-y-1.5">
                 <li>
-                  <Link href="/auth/login" className="hover:text-white transition-colors">
-                    Sign In
+                  <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
+                    Student Login
                   </Link>
                 </li>
                 <li>
-                  <Link href="/auth/login" className="hover:text-white transition-colors">
+                  <Link href="/auth/login?role=staff" className="hover:text-white transition-colors">
                     Staff Login
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
+                    Claim Account
                   </Link>
                 </li>
               </ul>
@@ -750,10 +756,22 @@ export default function LandingPage() {
 
         </div>
 
+        {/* 
+          ========================================================================
+          FADED BIG TYPOGRAPHY OF "PaperGrade AI"
+          Requested architectural element grounding the footer
+          ========================================================================
+        */}
+        <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-10 sm:pt-14 pb-2">
+          <span className="text-5xl sm:text-7xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tighter text-white/[0.05] uppercase select-none block leading-none">
+            PaperGrade AI
+          </span>
+        </div>
+
         {/* Bottom Legal / Copyright Row */}
-        <div className="max-w-5xl mx-auto w-full pt-8 mt-8 border-t border-[#262624] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#6d6c68] font-mono">
+        <div className="max-w-5xl mx-auto w-full pt-4 border-t border-[#242422] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#6d6c68] font-mono">
           <div>© {new Date().getFullYear()} PaperGrade AI • All rights reserved.</div>
-          <div>High-Integrity Academic Evaluation Architecture</div>
+          <div>Academic Evaluation Architecture</div>
         </div>
       </footer>
     </div>

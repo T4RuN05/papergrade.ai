@@ -1,43 +1,53 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
   AlertCircle,
-  ShieldCheck,
   Smartphone,
-  ArrowRight,
   Download,
   KeyRound,
   Clock,
   CheckCircle2,
   ArrowLeft,
   Lock,
+  GraduationCap,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
-import { ButtonPrimary, ButtonUtility, FormInput, FeatureCard } from "@/components/ui";
-import { useToast } from "@/lib/ToastContext";
+import { ButtonPrimary, FormInput, FeatureCard } from "@/components/ui";
+import { useToast, queueToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { startNavigationProgress } from "@/components/NavigationProgressBar";
 
 type AuthViewMode = "LOGIN" | "FORGOT_REQUEST" | "AWAITING_APPROVAL" | "RESET_PASSWORD";
+type AuthRole = "STUDENT" | "STAFF" | "CLAIM";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { refreshTenancy } = useTenant();
 
   // Primary Login state
   const [viewMode, setViewMode] = useState<AuthViewMode>("LOGIN");
-  const [loginRole, setLoginRole] = useState<"STUDENT" | "STAFF">("STUDENT");
+  const [loginRole, setLoginRole] = useState<AuthRole>("STUDENT");
   const [isStandalone, setIsStandalone] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Claim account state
+  const [claimStudentId, setClaimStudentId] = useState("");
+  const [claimRollNumber, setClaimRollNumber] = useState("");
+  const [claimPassword, setClaimPassword] = useState("");
+  const [claimConfirmPassword, setClaimConfirmPassword] = useState("");
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSuccess, setClaimSuccess] = useState(false);
 
   // Forgot password flow state
   const [forgotIdentifier, setForgotIdentifier] = useState("");
@@ -48,6 +58,34 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
+
+  // Sync role from URL query parameters (?role=staff, ?role=student, ?role=claim, ?portal=admin, ?portal=branch)
+  useEffect(() => {
+    const roleParam = searchParams.get("role")?.toLowerCase();
+    const tabParam = searchParams.get("tab")?.toLowerCase();
+    const portalParam = searchParams.get("portal")?.toLowerCase();
+    const modeParam = searchParams.get("mode")?.toLowerCase();
+    const redirectParam = searchParams.get("redirect")?.toLowerCase();
+
+    if (roleParam === "claim" || tabParam === "claim" || modeParam === "claim") {
+      setLoginRole("CLAIM");
+    } else if (
+      roleParam === "staff" ||
+      roleParam === "faculty" ||
+      roleParam === "admin" ||
+      portalParam === "admin" ||
+      portalParam === "branch" ||
+      (redirectParam &&
+        (redirectParam.includes("/overview") ||
+          redirectParam.includes("/branch") ||
+          redirectParam.includes("/admin") ||
+          redirectParam.includes("/revaluation")))
+    ) {
+      setLoginRole("STAFF");
+    } else if (roleParam === "student" || (redirectParam && redirectParam.includes("/student"))) {
+      setLoginRole("STUDENT");
+    }
+  }, [searchParams]);
 
   // Check if user is already authenticated or launched in standalone PWA
   useEffect(() => {
@@ -96,8 +134,6 @@ export default function LoginPage() {
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, [toast]);
-
-
 
   // Live polling for Branch Manager approval while awaiting
   useEffect(() => {
@@ -186,14 +222,17 @@ export default function LoginPage() {
 
       const enteredEmail = email.trim();
       let roleTitle = "Welcome Administrator";
+      const redirectParam = searchParams.get("redirect");
       let dest = "/overview";
 
       if (user.role === "STUDENT") {
         roleTitle = "Welcome Student";
-        dest = "/student/portal";
+        dest = redirectParam && redirectParam.startsWith("/student") ? redirectParam : "/student/portal";
       } else if (user.role === "BRANCH_MANAGER") {
         roleTitle = "Welcome Branch Manager";
-        dest = "/branch/batches";
+        dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
+      } else {
+        dest = redirectParam && !redirectParam.startsWith("/student") ? redirectParam : "/overview";
       }
 
       const welcomeMsg = `Signed in as ${user.full_name || enteredEmail}.`;
@@ -220,6 +259,54 @@ export default function LoginPage() {
       toast.error(msg, { title: "Sign-In Failed" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClaimSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setClaimError(null);
+
+    if (claimPassword !== claimConfirmPassword) {
+      const msg = "Passwords do not match. Please re-enter.";
+      setClaimError(msg);
+      toast.error(msg, { title: "Validation Error" });
+      return;
+    }
+    if (claimPassword.length < 8) {
+      const msg = "Password must be at least 8 characters long.";
+      setClaimError(msg);
+      toast.warning(msg, { title: "Weak Password" });
+      return;
+    }
+
+    setClaimLoading(true);
+
+    try {
+      const res = await api.claimAccount({
+        student_id_num: claimStudentId.trim(),
+        roll_number: claimRollNumber.trim().toUpperCase(),
+        password: claimPassword,
+      });
+
+      setClaimSuccess(true);
+      toast.success("Your student account is now active!", { title: "Account Claimed" });
+      queueToast({
+        type: "success",
+        title: "Welcome Student",
+        message: "Your admission account has been claimed successfully.",
+        duration: 4500,
+      });
+      await refreshTenancy(res);
+      startNavigationProgress();
+      setTimeout(() => {
+        router.push("/student/portal");
+      }, 1200);
+    } catch (err: any) {
+      const msg = err.message || "Failed to claim account. Check your 6-digit Student ID and Roll Number.";
+      setClaimError(msg);
+      toast.error(msg, { title: "Claim Failed" });
+    } finally {
+      setClaimLoading(false);
     }
   };
 
@@ -331,7 +418,9 @@ export default function LoginPage() {
             {viewMode === "LOGIN"
               ? loginRole === "STUDENT"
                 ? "Student Portal Sign-In"
-                : "Staff & Faculty Sign-In"
+                : loginRole === "STAFF"
+                ? "Faculty & Staff Sign-In"
+                : "Claim Student Account"
               : viewMode === "FORGOT_REQUEST"
               ? "Reset Student Password"
               : viewMode === "AWAITING_APPROVAL"
@@ -342,7 +431,9 @@ export default function LoginPage() {
             {viewMode === "LOGIN"
               ? loginRole === "STUDENT"
                 ? "Enter your student Roll Number and password to access your dashboard."
-                : "Enter your institutional email to access administrative operations."
+                : loginRole === "STAFF"
+                ? "Enter your institutional email or Staff ID to access administrative operations."
+                : "Enter your 6-digit Student ID and Institute Roll Number to initialize your account."
               : viewMode === "FORGOT_REQUEST"
               ? "Requests are audited and approved by your assigned Branch Manager."
               : viewMode === "AWAITING_APPROVAL"
@@ -352,93 +443,207 @@ export default function LoginPage() {
         </div>
 
         <FeatureCard className="p-6">
-          {/* VIEW: LOGIN FORM */}
+          {/* VIEW: LOGIN OR CLAIM FORM */}
           {viewMode === "LOGIN" && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {/* Role Toggle Tabs */}
-              <div className="grid grid-cols-2 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs font-semibold">
+            <div className="space-y-4">
+              {/* Role Toggle Tabs: Student | Faculty / Staff | Claim ID */}
+              <div className="grid grid-cols-3 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs font-semibold">
                 <button
                   type="button"
+                  id="tab-role-student"
                   onClick={() => {
                     setLoginRole("STUDENT");
                     setError(null);
                   }}
-                  className={`py-1.5 px-3 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                     loginRole === "STUDENT"
                       ? "bg-surface text-ink shadow-2xs font-bold"
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <Smartphone className="h-3.5 w-3.5" />
-                  <span>Student Portal</span>
+                  <Smartphone className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Student</span>
                 </button>
+
                 <button
                   type="button"
+                  id="tab-role-staff"
                   onClick={() => {
                     setLoginRole("STAFF");
                     setError(null);
                   }}
-                  className={`py-1.5 px-3 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                     loginRole === "STAFF"
                       ? "bg-surface text-ink shadow-2xs font-bold"
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <Lock className="h-3.5 w-3.5" />
-                  <span>Faculty / Staff</span>
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Faculty / Staff</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="tab-role-claim"
+                  onClick={() => {
+                    setLoginRole("CLAIM");
+                    setError(null);
+                    setClaimError(null);
+                  }}
+                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                    loginRole === "CLAIM"
+                      ? "bg-surface text-ink shadow-2xs font-bold"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Claim ID</span>
                 </button>
               </div>
 
-              {error && (
-                <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                  <span className="leading-relaxed font-medium">{error}</span>
-                </div>
+              {/* TAB 1 & 2: STUDENT / STAFF CREDENTIALS SIGN-IN */}
+              {loginRole !== "CLAIM" && (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  {error && (
+                    <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                      <span className="leading-relaxed font-medium">{error}</span>
+                    </div>
+                  )}
+
+                  <FormInput
+                    id="login-identifier-input"
+                    label={loginRole === "STUDENT" ? "Student Roll Number" : "Email or Staff ID"}
+                    type="text"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={
+                      loginRole === "STUDENT"
+                        ? "e.g. C25-BVI-001 or ROLL-101"
+                        : "e.g. user@institute.edu or admin"
+                    }
+                  />
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-ink-secondary">Password</label>
+                      {loginRole === "STUDENT" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForgotIdentifier(email.trim());
+                            setForgotError(null);
+                            setViewMode("FORGOT_REQUEST");
+                          }}
+                          className="text-xs font-medium text-primary hover:underline cursor-pointer"
+                        >
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
+                    <FormInput
+                      id="login-password-input"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                    />
+                  </div>
+
+                  <ButtonPrimary
+                    id="btn-login-submit"
+                    type="submit"
+                    className="w-full"
+                    isLoading={loading}
+                  >
+                    {loginRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In to Console"}
+                  </ButtonPrimary>
+                </form>
               )}
 
-              <FormInput
-                id="login-identifier-input"
-                label={loginRole === "STUDENT" ? "Student Roll Number" : "Email or Staff ID"}
-                type="text"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={loginRole === "STUDENT" ? "e.g. C25-BVI-001 or ROLL-101" : "e.g. user@institute.edu"}
-              />
+              {/* TAB 3: CLAIM STUDENT ACCOUNT */}
+              {loginRole === "CLAIM" && (
+                <div>
+                  {claimSuccess ? (
+                    <div className="text-center py-4 space-y-3">
+                      <CheckCircle2 className="h-8 w-8 text-accent-green mx-auto animate-bounce" />
+                      <h2 className="text-sm font-bold text-ink">Account Claimed Successfully!</h2>
+                      <p className="text-xs text-ink-muted">
+                        Your account has been initialized. Redirecting to student portal...
+                      </p>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleClaimSubmit} className="space-y-4">
+                      {claimError && (
+                        <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
+                          <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                          <span className="leading-relaxed font-medium">{claimError}</span>
+                        </div>
+                      )}
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-ink-secondary">Password</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotIdentifier(email.trim());
-                      setForgotError(null);
-                      setViewMode("FORGOT_REQUEST");
-                    }}
-                    className="text-xs font-medium text-primary hover:underline cursor-pointer"
-                  >
-                    Forgot password?
-                  </button>
+                      <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-muted leading-relaxed">
+                        First time here? Enter your 6-digit admission ID and roll number to create your password and activate your account.
+                      </div>
+
+                      <FormInput
+                        id="claim-id-input"
+                        label="6-Digit Numeric Student ID"
+                        type="text"
+                        required
+                        maxLength={6}
+                        value={claimStudentId}
+                        onChange={(e) => setClaimStudentId(e.target.value)}
+                        placeholder="e.g. 315116"
+                      />
+
+                      <FormInput
+                        id="claim-roll-input"
+                        label="Institute Roll Number"
+                        type="text"
+                        required
+                        value={claimRollNumber}
+                        onChange={(e) => setClaimRollNumber(e.target.value)}
+                        placeholder="e.g. MECH-042 or ROLL-101"
+                      />
+
+                      <FormInput
+                        id="claim-password-input"
+                        label="Create Password"
+                        type="password"
+                        required
+                        minLength={8}
+                        value={claimPassword}
+                        onChange={(e) => setClaimPassword(e.target.value)}
+                        placeholder="Minimum 8 characters"
+                      />
+
+                      <FormInput
+                        id="claim-confirm-password-input"
+                        label="Confirm Password"
+                        type="password"
+                        required
+                        minLength={8}
+                        value={claimConfirmPassword}
+                        onChange={(e) => setClaimConfirmPassword(e.target.value)}
+                        placeholder="Repeat password"
+                      />
+
+                      <ButtonPrimary
+                        id="btn-claim-submit"
+                        type="submit"
+                        className="w-full"
+                        isLoading={claimLoading}
+                      >
+                        <GraduationCap className="h-4 w-4 mr-1.5" />
+                        Claim Account & Sign In
+                      </ButtonPrimary>
+                    </form>
+                  )}
                 </div>
-                <FormInput
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                />
-              </div>
-
-              <ButtonPrimary
-                id="btn-login-submit"
-                type="submit"
-                className="w-full"
-                isLoading={loading}
-              >
-                {loginRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In as Staff"}
-              </ButtonPrimary>
-            </form>
+              )}
+            </div>
           )}
 
           {/* VIEW: FORGOT PASSWORD REQUEST FORM */}
@@ -590,7 +795,7 @@ export default function LoginPage() {
             </form>
           )}
 
-          {deferredPrompt && !isStandalone && (
+          {deferredPrompt && !isStandalone && loginRole === "STUDENT" && (
             <div className="mt-4">
               <button
                 type="button"
@@ -604,14 +809,79 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="mt-3.5 pt-3 border-t border-hairline text-center text-xs text-ink-muted">
-            Are you a student with a new admission ID?{" "}
-            <Link href="/auth/claim" className="font-semibold text-primary hover:underline">
-              Claim Account →
-            </Link>
-          </div>
+          {/* Contextual Footer Navigation */}
+          {viewMode === "LOGIN" && (
+            <div className="mt-3.5 pt-3 border-t border-hairline text-center text-xs text-ink-muted">
+              {loginRole === "STUDENT" ? (
+                <>
+                  Are you a student with a new admission ID?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("CLAIM");
+                      setError(null);
+                    }}
+                    className="font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    Claim Account →
+                  </button>
+                </>
+              ) : loginRole === "STAFF" ? (
+                <>
+                  Are you a student accessing results?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("STUDENT");
+                      setError(null);
+                    }}
+                    className="font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    Student Portal Sign-In →
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already claimed your account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("STUDENT");
+                      setClaimError(null);
+                    }}
+                    className="font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    Sign In with Roll Number →
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </FeatureCard>
       </div>
     </div>
+  );
+}
+
+function LoginLoadingFallback() {
+  return (
+    <div className="flex min-h-[75vh] items-center justify-center py-8">
+      <div className="w-full max-w-sm p-6 rounded-xl border border-hairline bg-surface shadow-xs space-y-4">
+        <div className="h-12 w-12 bg-canvas-soft rounded-xl animate-pulse mx-auto" />
+        <div className="h-5 w-40 bg-canvas-soft rounded animate-pulse mx-auto" />
+        <div className="h-3 w-56 bg-canvas-soft rounded animate-pulse mx-auto" />
+        <div className="h-9 bg-canvas-soft rounded-lg animate-pulse" />
+        <div className="h-10 bg-canvas-soft rounded-lg animate-pulse" />
+        <div className="h-10 bg-canvas-soft rounded-lg animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoadingFallback />}>
+      <LoginForm />
+    </Suspense>
   );
 }
