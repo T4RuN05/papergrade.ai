@@ -68,7 +68,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
     isBranchManager,
     setInstituteId,
     setBranchId,
-    refreshTenancy,
+    logout,
   } = useTenant();
 
   const handleInstituteChange = (instId: string) => {
@@ -87,15 +87,8 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
     }
   };
 
-  const handleLogout = async () => {
-    api.logout();
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("papergrade_selected_institute_id");
-      localStorage.removeItem("papergrade_selected_branch_id");
-    }
-    toast.success("You have securely signed out of PaperGrade AI.", { title: "Logged Out" });
-    await refreshTenancy();
-    router.push("/auth/login");
+  const handleLogout = () => {
+    logout();
   };
 
   // Determine canonical 1:1 breadcrumb trail matching sidebar groups

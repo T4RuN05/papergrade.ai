@@ -17,7 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, getAuthToken } from "@/lib/api";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -33,7 +33,7 @@ import { useToast } from "@/lib/ToastContext";
 export default function TenancyManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { setBranchId, refreshTenancy, currentUser, isBranchManager } = useTenant();
+  const { setBranchId, refreshTenancy, currentUser, isBranchManager, isLoggingOut } = useTenant();
   const [institutes, setInstitutes] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
@@ -60,12 +60,18 @@ export default function TenancyManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (isLoggingOut) return;
+    const token = getAuthToken();
+    if (!token) {
+      router.replace("/auth/login?redirect=/admin/tenancy");
+      return;
+    }
     if (isBranchManager) {
       router.replace("/branch/batches");
       return;
     }
     loadAll();
-  }, [isBranchManager]);
+  }, [isBranchManager, isLoggingOut, router]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -169,7 +175,8 @@ export default function TenancyManagementPage() {
     }
   };
 
-  if (loading) {
+  const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
+  if (loading || isLoggingOut || !hasToken || isBranchManager) {
     return (
       <div className="space-y-8 max-w-6xl mx-auto pb-16">
         <TenancySkeleton />

@@ -59,10 +59,16 @@ export function Navbar() {
 
   const handleLogout = () => {
     api.logout();
-    setCurrentUser(null);
-    setHasToken(false);
-    toast.success("You have signed out successfully.", { title: "Logged Out" });
-    router.push("/auth/login");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("papergrade_selected_institute_id");
+      localStorage.removeItem("papergrade_selected_branch_id");
+      queueToast({
+        type: "success",
+        title: "Logged Out",
+        message: "You have signed out successfully.",
+      });
+      window.location.href = "/auth/login";
+    }
   };
 
   const isStudent = isMounted && currentUser?.role === "STUDENT";

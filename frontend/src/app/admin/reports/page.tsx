@@ -71,8 +71,16 @@ export default function AdminReportsPage() {
   useEffect(() => {
     const token = getAuthToken();
     const stored = getStoredUser();
-    if (!token || (stored && stored.role !== "ROOT_ADMIN")) {
-      router.push("/overview");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
+    }
+    if (stored && stored.role !== "ROOT_ADMIN") {
+      if (stored.role === "BRANCH_MANAGER") {
+        router.replace("/branch/batches");
+      } else {
+        router.replace("/student/portal");
+      }
     }
   }, [router]);
 

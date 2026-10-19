@@ -37,7 +37,7 @@ import {
 export default function RootAdminOverviewPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { switchTenancy, currentUser, loading: tenantLoading } = useTenant();
+  const { switchTenancy, currentUser, loading: tenantLoading, isLoggingOut } = useTenant();
   const [status, setStatus] = useState<any>(null);
   const [exams, setExams] = useState<Exam[]>([]);
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
@@ -68,12 +68,14 @@ export default function RootAdminOverviewPage() {
   };
 
   useEffect(() => {
-    if (tenantLoading) return;
+    if (tenantLoading || isLoggingOut) return;
+    const token = typeof window !== "undefined" ? getAuthToken() : null;
+    if (!token) {
+      router.replace("/auth/login?redirect=/overview");
+      return;
+    }
+
     if (!currentUser) {
-      if (typeof window !== "undefined" && getAuthToken()) {
-        return;
-      }
-      setLoading(false);
       return;
     }
 
@@ -85,9 +87,9 @@ export default function RootAdminOverviewPage() {
     if (currentUser.role === "ROOT_ADMIN") {
       loadOverviewData();
     } else {
-      setLoading(false);
+      router.replace("/student/portal");
     }
-  }, [currentUser, tenantLoading]);
+  }, [currentUser, tenantLoading, isLoggingOut, router]);
 
   const loadOverviewData = async () => {
     setLoading(true);
@@ -107,9 +109,16 @@ export default function RootAdminOverviewPage() {
     }
   };
 
-  // 1. Loading State
+  // 1. Loading State & Protective Auth Gates
   const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
-  if (loading || tenantLoading || (hasToken && !currentUser)) {
+  if (
+    loading ||
+    tenantLoading ||
+    isLoggingOut ||
+    !hasToken ||
+    !currentUser ||
+    currentUser.role === "BRANCH_MANAGER"
+  ) {
     return <DashboardSkeleton />;
   }
 

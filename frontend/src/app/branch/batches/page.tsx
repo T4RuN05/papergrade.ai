@@ -122,7 +122,7 @@ export default function BranchBatchesPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push("/auth/login");
+      router.replace("/auth/login");
       return;
     }
 
@@ -308,7 +308,8 @@ export default function BranchBatchesPage() {
     return students.filter((s) => s.account_claimed).length;
   }, [students]);
 
-  if (loadingBatches && batches.length === 0) {
+  const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
+  if ((loadingBatches && batches.length === 0) || !hasToken) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto pb-16">
         <BatchesRosterSkeleton />

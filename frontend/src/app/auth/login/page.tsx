@@ -57,6 +57,9 @@ export default function LoginPage() {
       if (storedUser.role === "STUDENT") {
         router.replace("/student/portal");
         return;
+      } else if (storedUser.role === "BRANCH_MANAGER") {
+        router.replace("/branch/batches");
+        return;
       } else {
         router.replace("/overview");
         return;

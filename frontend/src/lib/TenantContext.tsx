@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { api, getAuthToken, getStoredUser, setStoredUser, getStoredUserPayload } from "@/lib/api";
+import { queueToast } from "@/lib/ToastContext";
 
 export interface Institute {
   id: string;
@@ -29,6 +30,7 @@ interface TenantContextType {
   isMounted: boolean;
   isRootAdmin: boolean;
   isBranchManager: boolean;
+  isLoggingOut: boolean;
   setInstituteId: (id: string) => void;
   setBranchId: (id: string) => void;
   switchTenancy: (
@@ -38,6 +40,7 @@ interface TenantContextType {
     targetBranchName?: string | null
   ) => { instituteName?: string; branchName?: string; switched: boolean };
   refreshTenancy: (seedUser?: any) => Promise<void>;
+  logout: () => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -53,9 +56,25 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [selectedInstitute, setSelectedInstitute] = useState<Institute | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
 
   const isRootAdmin = currentUser?.role === "ROOT_ADMIN";
   const isBranchManager = currentUser?.role === "BRANCH_MANAGER";
+
+  const logout = useCallback(() => {
+    setIsLoggingOut(true);
+    api.logout();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_INST_KEY);
+      localStorage.removeItem(STORAGE_BRANCH_KEY);
+      queueToast({
+        type: "success",
+        title: "Logged Out",
+        message: "You have securely signed out of PaperGrade AI.",
+      });
+      window.location.href = "/auth/login";
+    }
+  }, []);
 
   const refreshTenancy = useCallback(async (seedUser?: any) => {
     const token = getAuthToken();
@@ -258,10 +277,12 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         isMounted,
         isRootAdmin,
         isBranchManager,
+        isLoggingOut,
         setInstituteId,
         setBranchId,
         switchTenancy,
         refreshTenancy,
+        logout,
       }}
     >
       {children}

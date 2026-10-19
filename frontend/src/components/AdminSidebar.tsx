@@ -38,7 +38,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser, isRootAdmin, isBranchManager, selectedBranch, refreshTenancy } = useTenant();
+  const { currentUser, isRootAdmin, isBranchManager, selectedBranch, logout } = useTenant();
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
@@ -46,15 +46,8 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
     setMounted(true);
   }, []);
 
-  const handleLogout = async () => {
-    api.logout();
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("papergrade_selected_institute_id");
-      localStorage.removeItem("papergrade_selected_branch_id");
-    }
-    toast.success("You have securely signed out of PaperGrade AI.", { title: "Logged Out" });
-    await refreshTenancy();
-    router.push("/auth/login");
+  const handleLogout = () => {
+    logout();
   };
 
   const navigationGroups = [
