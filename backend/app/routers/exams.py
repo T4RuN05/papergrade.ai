@@ -1,10 +1,11 @@
 import uuid
+import json
 import shutil
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
 from fastapi.responses import FileResponse, Response
 import fitz
 
@@ -23,11 +24,8 @@ from backend.app.services.auth import (
     require_branch_manager,
 )
 from backend.app.services.notification_service import (
-    send_notification,
-    notify_branch_students,
-    notify_branch_managers,
-    notify_root_admins,
-    get_branch_name,
+    background_dispatch_exam_created,
+    background_dispatch_results_published,
 )
 from backend.app.services.retention_service import RetentionService
 from backend.app.routers.windows import calculate_window_dict
@@ -100,6 +98,30 @@ def list_exams(
                     "is_expired": True,
                     "should_display": False
                 })
+
+        # Batch load scoped batches for specific batch exams
+        cursor.execute("""
+            SELECT eb.exam_id, b.id, b.name, b.code, b.academic_year
+            FROM exam_batches eb
+            JOIN batches b ON eb.batch_id = b.id
+            ORDER BY b.name ASC
+        """)
+        scoped_map: Dict[str, List[Dict[str, Any]]] = {}
+        for row in cursor.fetchall():
+            r = dict(row)
+            ex_id = r["exam_id"]
+            if ex_id not in scoped_map:
+                scoped_map[ex_id] = []
+            scoped_map[ex_id].append({
+                "id": r["id"],
+                "name": r["name"],
+                "code": r["code"],
+                "academic_year": r["academic_year"]
+            })
+
+        for e in exams:
+            e["scoped_batches"] = scoped_map.get(e["id"], [])
+
         return exams
 
 @router.get("/{exam_id}/evaluation-status")
@@ -182,9 +204,12 @@ def get_exam(exam_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_
 
 @router.post("")
 async def create_exam(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     subject: str = Form(...),
     branch_id: Optional[str] = Form(None),
+    batch_scope: Optional[str] = Form("ALL"),
+    batch_ids: Optional[str] = Form(None),
     question_paper: Optional[List[UploadFile]] = File(None),
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
@@ -196,6 +221,21 @@ async def create_exam(
     exam_id = f"exam_{uuid.uuid4().hex[:12]}"
     effective_branch = current_user.get("branch_id") if current_user.get("role") == "BRANCH_MANAGER" else branch_id
     
+    # Process batch scope and batch IDs
+    clean_batch_ids = []
+    if batch_ids:
+        try:
+            parsed = json.loads(batch_ids)
+            if isinstance(parsed, list):
+                clean_batch_ids = [str(b).strip() for b in parsed if str(b).strip()]
+            elif isinstance(parsed, str):
+                clean_batch_ids = [b.strip() for b in parsed.split(",") if b.strip()]
+        except Exception:
+            clean_batch_ids = [b.strip() for b in batch_ids.split(",") if b.strip()]
+
+    clean_scope = "SPECIFIC" if (batch_scope and batch_scope.upper() in ["SPECIFIC", "BATCHES"] and clean_batch_ids) else "ALL"
+    saved_batch_ids_json = json.dumps(clean_batch_ids) if clean_scope == "SPECIFIC" else None
+
     qp_path = None
     raw_qp_files = [f for f in (question_paper or []) if f and f.filename]
     
@@ -232,46 +272,41 @@ async def create_exam(
     )
     exam_id = created_exam["id"]
     created_exam["branch_id"] = effective_branch
+    created_exam["batch_scope"] = clean_scope
+    created_exam["batch_ids"] = saved_batch_ids_json
     
-    # Update branch affiliation and dispatch notifications
+    # Update branch affiliation and exam batches
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE exams SET branch_id = ?, created_by = ? WHERE id = ?", (effective_branch, current_user["sub"], exam_id))
-        
-        # 1. Notify all students enrolled in this branch
-        notify_branch_students(
-            cursor=cursor,
-            branch_id=effective_branch,
-            notif_type="EXAM_CREATED",
-            title="New Exam Scheduled",
-            message=f"A new examination '{title.strip()}' ({subject.strip()}) has been scheduled for your branch.",
-            link_url="/student/portal"
+        cursor.execute(
+            "UPDATE exams SET branch_id = ?, created_by = ?, batch_scope = ?, batch_ids = ? WHERE id = ?",
+            (effective_branch, current_user["sub"], clean_scope, saved_batch_ids_json, exam_id)
         )
         
-        # 2. Scoped Branch Manager & Root Admin notifications
-        if current_user.get("role") == "BRANCH_MANAGER":
-            branch_name = get_branch_name(cursor, effective_branch)
-            notify_root_admins(
-                cursor=cursor,
-                notif_type="EXAM_CREATED",
-                title="Branch Exam Created",
-                message=f"Branch '{branch_name}' created exam '{title.strip()}' ({subject.strip()}). Awaiting answer key upload.",
-                link_url=f"/exams",
-                exclude_user_id=current_user["sub"]
-            )
-        elif current_user.get("role") == "ROOT_ADMIN" and effective_branch:
-            # Root Admin created an exam for a specific branch -> notify that branch's manager
-            notify_branch_managers(
-                cursor=cursor,
-                branch_id=effective_branch,
-                notif_type="EXAM_CREATED",
-                title="New Exam Assigned to Branch",
-                message=f"Root Administration scheduled exam '{title.strip()}' ({subject.strip()}) for your branch.",
-                link_url=f"/exams",
-                exclude_user_id=current_user["sub"]
-            )
+        # Populate exam_batches table for multi-batch joins
+        if clean_scope == "SPECIFIC" and clean_batch_ids:
+            now_iso = get_iso_now()
+            for b_id in clean_batch_ids:
+                eb_id = f"eb_{uuid.uuid4().hex[:12]}"
+                cursor.execute(
+                    "INSERT INTO exam_batches (id, exam_id, batch_id, created_at) VALUES (?, ?, ?, ?)",
+                    (eb_id, exam_id, b_id, now_iso)
+                )
+
+    # FastAPI BackgroundTask: Dispatch notifications asynchronously after HTTP response returns
+    background_tasks.add_task(
+        background_dispatch_exam_created,
+        exam_id=exam_id,
+        title=title.strip(),
+        subject=subject.strip(),
+        branch_id=effective_branch,
+        batch_scope=clean_scope,
+        batch_ids=clean_batch_ids if clean_scope == "SPECIFIC" else None,
+        creator_id=current_user["sub"],
+        creator_role=current_user.get("role", "BRANCH_MANAGER")
+    )
     
-    return created_exam
+    return exam_service.get_exam(exam_id) or created_exam
 
 @router.post("/{exam_id}/answer-key")
 async def upload_answer_key(
@@ -638,12 +673,13 @@ def start_evaluation(
 @router.post("/{exam_id}/publish-results")
 def publish_results(
     exam_id: str,
+    background_tasks: BackgroundTasks,
     current_user: Dict[str, Any] = Depends(require_root_admin)
 ):
     """
     Root Admin explicitly publishes results.
     Decoupled state: marks, breakdowns, and graded PDFs become visible to students.
-    Triggers in-app inbox notification delivery.
+    Triggers in-app inbox notification delivery via FastAPI BackgroundTasks.
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -670,51 +706,11 @@ def publish_results(
         
         cursor.execute("""
             UPDATE exams 
-            SET is_published = 1, published_at = ?, lifecycle_status = 'PUBLISHED', status = 'PUBLISHED', updated_at = ?
+            SET is_published = 1, published_at = ?, lifecycle_status = 'PUBLISHED', status = 'PUBLISHED',
+                retention_expires_at = COALESCE(retention_expires_at, ?), is_document_purged = 0, updated_at = ?
             WHERE id = ?
-        """, (now, now, exam_id))
-        
-        # Dispatch in-app notifications to all enrolled students
-        cursor.execute("""
-            SELECT DISTINCT s.id as submission_id, st.user_id 
-            FROM submissions s 
-            JOIN students st ON s.student_id = st.id OR UPPER(s.roll_number) = UPPER(st.roll_number)
-            WHERE s.exam_id = ? AND st.user_id IS NOT NULL AND s.publication_status = 'PUBLISHED'
-        """, (exam_id,))
-        students_to_notify = cursor.fetchall()
-        
-        for st in students_to_notify:
-            send_notification(
-                cursor=cursor,
-                user_id=st["user_id"],
-                notif_type="RESULT_PUBLISHED",
-                title="Results Published",
-                message=f"Results for '{exam['title']}' have been officially published. Tap to view your score breakdown.",
-                link_url=f"/student/submissions/{st['submission_id']}"
-            )
-        
-        # Scoped notification to Branch Manager
-        branch_id = exam.get("branch_id")
-        notify_branch_managers(
-            cursor=cursor,
-            branch_id=branch_id,
-            notif_type="RESULT_PUBLISHED",
-            title="Results Published to Students",
-            message=f"Results for '{exam['title']}' ({published_subs_count} papers) have been officially published. 7-day revaluation window is active.",
-            link_url=f"/exams",
-            exclude_user_id=current_user["sub"]
-        )
-        if current_user.get("role") == "BRANCH_MANAGER":
-            b_name = get_branch_name(cursor, branch_id)
-            notify_root_admins(
-                cursor=cursor,
-                notif_type="RESULT_PUBLISHED",
-                title="Branch Results Published",
-                message=f"{b_name} published results for '{exam['title']}' ({published_subs_count} papers).",
-                link_url=f"/exams",
-                exclude_user_id=current_user["sub"]
-            )
-        
+        """, (now, retention_expiry, now, exam_id))
+
         # Audit log
         cursor.execute("""
             INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
@@ -723,17 +719,28 @@ def publish_results(
             f"aud_{uuid.uuid4().hex[:12]}",
             current_user["sub"],
             exam_id,
-            f'{{"published_papers": {published_subs_count}, "notifications_sent": {len(students_to_notify)}}}',
+            f'{{"published_papers": {published_subs_count}}}',
             now
         ))
-        
-        return {
-            "status": "success",
-            "exam_id": exam_id,
-            "published_papers": published_subs_count,
-            "notifications_sent": len(students_to_notify),
-            "published_at": now
-        }
+
+    # FastAPI BackgroundTask: Dispatch student, manager, and admin notifications asynchronously
+    background_tasks.add_task(
+        background_dispatch_results_published,
+        exam_id=exam_id,
+        exam_title=exam["title"],
+        branch_id=exam.get("branch_id"),
+        published_subs_count=published_subs_count,
+        publisher_role=current_user.get("role", "ROOT_ADMIN"),
+        publisher_id=current_user["sub"]
+    )
+    
+    return {
+        "status": "success",
+        "exam_id": exam_id,
+        "is_published": True,
+        "published_at": now,
+        "published_submissions_count": published_subs_count
+    }
 
 @router.post("/{exam_id}/rubric/unlock")
 def unlock_rubric(
@@ -871,7 +878,25 @@ async def get_exam_question_paper(
 ):
     """
     Stream or download the Question Paper PDF for an examination.
+    Students can access it once results are officially published.
+    Enforces 15-day TTL purge.
     """
+    exam = exam_service.get_exam(exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    if exam.get("is_document_purged"):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Document unavailable: Question paper was permanently purged in accordance with the 15-day storage retention policy."
+        )
+
+    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Question paper is available to students once exam results are published."
+        )
+
     pdf_path = _resolve_exam_artifact_pdf(exam_id, "question-paper")
     if not pdf_path or not pdf_path.exists():
         raise HTTPException(status_code=404, detail="Question paper document not found.")
@@ -889,10 +914,18 @@ async def get_exam_answer_key(
 ):
     """
     Stream or download the Official Answer Key PDF for an examination.
+    Students can access it once results are officially published.
+    Enforces 15-day TTL purge.
     """
     exam = exam_service.get_exam(exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    if exam.get("is_document_purged"):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Document unavailable: Official answer key was permanently purged in accordance with the 15-day storage retention policy."
+        )
 
     # Security guard: Enrolled students cannot access the answer key before results publication
     if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
@@ -929,8 +962,19 @@ async def get_exam_artifact_meta(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if clean_art == "answer-key" and current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
-        raise HTTPException(status_code=403, detail="Official answer key is confidential until exam results are published.")
+    if exam.get("is_document_purged"):
+        return {
+            "exam_id": exam_id,
+            "artifact_type": clean_art,
+            "has_document": False,
+            "is_purged": True,
+            "page_count": 0,
+            "title": exam.get("title", ""),
+            "notice": "Document permanently purged in accordance with the 15-day retention policy."
+        }
+
+    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+        raise HTTPException(status_code=403, detail="Official examination documents are confidential until results are published.")
 
     pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
     if not pdf_path or not pdf_path.exists():
@@ -938,6 +982,7 @@ async def get_exam_artifact_meta(
             "exam_id": exam_id,
             "artifact_type": clean_art,
             "has_document": False,
+            "is_purged": False,
             "page_count": 0,
             "title": exam.get("title", "")
         }
@@ -957,6 +1002,7 @@ async def get_exam_artifact_meta(
         "exam_id": exam_id,
         "artifact_type": clean_art,
         "has_document": True,
+        "is_purged": False,
         "page_count": page_count,
         "title": exam.get("title", ""),
         "subject": exam.get("subject", "")
@@ -981,8 +1027,14 @@ async def get_exam_artifact_page_image(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if clean_art == "answer-key" and current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
-        raise HTTPException(status_code=403, detail="Official answer key is confidential until exam results are published.")
+    if exam.get("is_document_purged"):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Document page unavailable: Permanently purged after 15 days."
+        )
+
+    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+        raise HTTPException(status_code=403, detail="Official examination documents are confidential until results are published.")
 
     render_key = f"exam_{exam_id}_{clean_art}"
     render_dir = settings.RENDERS_DIR / render_key

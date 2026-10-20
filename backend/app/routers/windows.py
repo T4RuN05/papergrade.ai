@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
 from pydantic import BaseModel
 
 from backend.app.config import settings
@@ -12,8 +12,7 @@ from backend.app.services.auth import (
     require_root_admin,
 )
 from backend.app.services.notification_service import (
-    notify_branch_students,
-    notify_branch_managers,
+    background_dispatch_window_event,
 )
 
 router = APIRouter(prefix="/api/v1/windows", tags=["Submission Windows & Lifecycles"])
@@ -114,6 +113,7 @@ def get_window_status(exam_id: str, current_user: Dict[str, Any] = Depends(get_c
 @router.post("/{exam_id}/open")
 def open_submission_window(
     exam_id: str,
+    background_tasks: BackgroundTasks,
     req: OpenWindowRequest = OpenWindowRequest(),
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
@@ -166,29 +166,6 @@ def open_submission_window(
             WHERE id = ?
         """, (now_iso, exam_id))
         
-        # Dispatch notification to students in the branch & exam batches
-        notify_branch_students(
-            cursor=cursor,
-            branch_id=exam["branch_id"],
-            notif_type="WINDOW_OPENED",
-            title="Submission Window Open",
-            message=f"The {duration}-minute submission window for '{exam['title']}' is now open! Upload your answer sheet before the deadline.",
-            link_url="/student/portal",
-            exam_id=exam_id
-        )
-        
-        # Notify branch manager if opened by Root Admin
-        if current_user.get("role") == "ROOT_ADMIN" and exam.get("branch_id"):
-            notify_branch_managers(
-                cursor=cursor,
-                branch_id=exam["branch_id"],
-                notif_type="WINDOW_OPENED",
-                title="Submission Window Activated",
-                message=f"Submission window for '{exam['title']}' was opened by Root Administration ({duration} min).",
-                link_url="/overview",
-                exclude_user_id=current_user["sub"]
-            )
-        
         # Audit log
         cursor.execute("""
             INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
@@ -200,21 +177,34 @@ def open_submission_window(
             f'{{"duration_minutes": {duration}, "grace_minutes": {grace}, "deadline": "{deadline_iso}"}}',
             now_iso
         ))
+
+    # FastAPI BackgroundTask: Dispatch student & manager notifications asynchronously
+    background_tasks.add_task(
+        background_dispatch_window_event,
+        exam_id=exam_id,
+        exam_title=exam["title"],
+        branch_id=exam["branch_id"],
+        duration=duration,
+        opened_by_role=current_user.get("role", ""),
+        opened_by_id=current_user["sub"],
+        action="OPEN"
+    )
         
-        return {
-            "status": "success",
-            "window_id": window_id,
-            "opened_at": now_iso,
-            "deadline_at": deadline_iso,
-            "grace_deadline_at": grace_iso,
-            "duration_minutes": duration,
-            "grace_minutes": grace
-        }
+    return {
+        "status": "success",
+        "window_id": window_id,
+        "opened_at": now_iso,
+        "deadline_at": deadline_iso,
+        "grace_deadline_at": grace_iso,
+        "duration_minutes": duration,
+        "grace_minutes": grace
+    }
 
 @router.post("/{exam_id}/reopen")
 def reopen_submission_window(
     exam_id: str,
     req: ReopenWindowRequest,
+    background_tasks: BackgroundTasks,
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
     """
@@ -272,29 +262,6 @@ def reopen_submission_window(
             WHERE id = ?
         """, (now_iso, exam_id))
         
-        # Dispatch notifications to branch & exam students
-        notify_branch_students(
-            cursor=cursor,
-            branch_id=exam["branch_id"],
-            notif_type="WINDOW_REOPENED",
-            title="Submission Window Reopened",
-            message=f"The submission window for '{exam['title']}' has been reopened for {duration} min. Reason: {clean_reason}.",
-            link_url="/student/portal",
-            exam_id=exam_id
-        )
-        
-        # Notify branch manager if reopened by Root Admin
-        if current_user.get("role") == "ROOT_ADMIN" and exam.get("branch_id"):
-            notify_branch_managers(
-                cursor=cursor,
-                branch_id=exam["branch_id"],
-                notif_type="WINDOW_REOPENED",
-                title="Submission Window Reopened",
-                message=f"Submission window for '{exam['title']}' was reopened by Root Admin ({duration} min). Reason: {clean_reason}.",
-                link_url="/overview",
-                exclude_user_id=current_user["sub"]
-            )
-        
         # Audit log
         cursor.execute("""
             INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
@@ -306,21 +273,35 @@ def reopen_submission_window(
             f'{{"reason": "{clean_reason}", "scope": "{req.reopen_scope}", "new_deadline": "{deadline_iso}"}}',
             now_iso
         ))
+
+    # FastAPI BackgroundTask: Dispatch reopen notifications asynchronously
+    background_tasks.add_task(
+        background_dispatch_window_event,
+        exam_id=exam_id,
+        exam_title=exam["title"],
+        branch_id=exam["branch_id"],
+        duration=duration,
+        opened_by_role=current_user.get("role", ""),
+        opened_by_id=current_user["sub"],
+        action="REOPEN",
+        reason=clean_reason
+    )
         
-        return {
-            "status": "success",
-            "window_id": window_id,
-            "window_number": win_count,
-            "opened_at": now_iso,
-            "deadline_at": deadline_iso,
-            "grace_deadline_at": grace_iso,
-            "reopen_reason": clean_reason,
-            "reopen_scope": req.reopen_scope
-        }
+    return {
+        "status": "success",
+        "window_id": window_id,
+        "window_number": win_count,
+        "opened_at": now_iso,
+        "deadline_at": deadline_iso,
+        "grace_deadline_at": grace_iso,
+        "reopen_reason": clean_reason,
+        "reopen_scope": req.reopen_scope
+    }
 
 @router.post("/{exam_id}/close")
 def close_submission_window(
     exam_id: str,
+    background_tasks: BackgroundTasks,
     req: CloseWindowRequest = CloseWindowRequest(),
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
@@ -385,29 +366,6 @@ def close_submission_window(
             WHERE id = ?
         """, (new_lifecycle, new_status, now_iso, exam_id))
         
-        # Dispatch notifications to branch & exam students
-        notify_branch_students(
-            cursor=cursor,
-            branch_id=exam["branch_id"],
-            notif_type="WINDOW_CLOSED",
-            title="Submission Window Closed",
-            message=f"The submission window for '{exam['title']}' has been closed. Reason: {clean_reason}.",
-            link_url="/student/portal",
-            exam_id=exam_id
-        )
-        
-        # Notify branch manager if closed by Root Admin
-        if current_user.get("role") == "ROOT_ADMIN" and exam.get("branch_id"):
-            notify_branch_managers(
-                cursor=cursor,
-                branch_id=exam["branch_id"],
-                notif_type="WINDOW_CLOSED",
-                title="Submission Window Closed Early",
-                message=f"Submission window for '{exam['title']}' was Closed early by Root Admin. Reason: {clean_reason}.",
-                link_url="/overview",
-                exclude_user_id=current_user["sub"]
-            )
-        
         # Audit log
         cursor.execute("""
             INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
@@ -419,12 +377,25 @@ def close_submission_window(
             f'{{"window_id": "{window["id"]}", "closed_early": true, "reason": "{clean_reason}"}}',
             now_iso
         ))
+
+    # FastAPI BackgroundTask: Dispatch close notifications asynchronously
+    background_tasks.add_task(
+        background_dispatch_window_event,
+        exam_id=exam_id,
+        exam_title=exam["title"],
+        branch_id=exam["branch_id"],
+        duration=0,
+        opened_by_role=current_user.get("role", ""),
+        opened_by_id=current_user["sub"],
+        action="CLOSE",
+        reason=clean_reason
+    )
         
-        return {
-            "status": "success",
-            "window_id": window["id"],
-            "closed_at": now_iso,
-            "is_active": False,
-            "message": "Submission window successfully closed."
-        }
+    return {
+        "status": "success",
+        "window_id": window["id"],
+        "closed_at": now_iso,
+        "is_active": False,
+        "message": "Submission window successfully closed."
+    }
 
