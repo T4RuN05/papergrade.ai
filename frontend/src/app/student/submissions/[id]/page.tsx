@@ -18,10 +18,12 @@ import {
   Info,
   AlertCircle,
   Archive,
+  BookOpen,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { StudentQuestionModal } from "@/components/StudentQuestionModal";
+import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
@@ -37,6 +39,7 @@ export default function StudentSubmissionViewerPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<GradedAnswer | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [artifactModalOpen, setArtifactModalOpen] = useState(false);
 
   const loadSubmission = async () => {
     try {
@@ -153,46 +156,61 @@ export default function StudentSubmissionViewerPage() {
           <span>Back to Student Portal</span>
         </Link>
 
-        {/* Download Graded PDF Button */}
-        {!isPublished ? (
-          <button
-            type="button"
-            disabled
-            className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
-            title="Graded PDF copy with annotations will become available once results are officially published by faculty."
-          >
-            <Clock className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-            <span>Graded PDF Pending Publication</span>
-          </button>
-        ) : isPurged ? (
-          <button
-            type="button"
-            disabled
-            className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
-            title="Scanned PDF was permanently deleted after 15 days to preserve storage."
-          >
-            <AlertCircle className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-            <span>PDF Expired (15-Day Storage Retention)</span>
-          </button>
-        ) : (
-          <a
-            href={api.getAnnotatedPdfUrl(submission.id)}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() =>
-              toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
-            }
-            className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-surface border border-hairline hover:bg-canvas-soft text-ink px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all w-full sm:w-auto text-center"
-          >
-            <Download className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-            <span>Download Graded Answer Sheet</span>
-            {submission.days_remaining !== undefined && submission.days_remaining !== null && (
-              <span className="text-[10px] text-primary font-mono font-bold">
-                ({submission.days_remaining}d left)
-              </span>
-            )}
-          </a>
-        )}
+        {/* Actions Group: View QP/Answer Key & Download Graded PDF */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {isPublished && (submission.exam?.has_question_paper || submission.exam?.has_answer_key || submission.has_question_paper || submission.has_answer_key) && (
+            <button
+              type="button"
+              onClick={() => setArtifactModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-surface border border-hairline hover:bg-canvas-soft text-ink px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all w-full sm:w-auto text-center cursor-pointer"
+              title="View Question Paper and Official Answer Key"
+            >
+              <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>Question Paper & Key</span>
+            </button>
+          )}
+
+          {/* Download Graded PDF Button */}
+          {!isPublished ? (
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
+              title="Graded PDF copy with annotations will become available once results are officially published by faculty."
+            >
+              <Clock className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+              <span>Graded PDF Pending Publication</span>
+            </button>
+          ) : isPurged ? (
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
+              title="Scanned PDF was permanently deleted after 15 days to preserve storage."
+            >
+              <AlertCircle className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+              <span>PDF Expired (15-Day Storage Retention)</span>
+            </button>
+          ) : (
+            <a
+              href={api.getAnnotatedPdfUrl(submission.id)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() =>
+                toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-surface border border-hairline hover:bg-canvas-soft text-ink px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all w-full sm:w-auto text-center"
+            >
+              <Download className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+              <span>Download Graded Answer Sheet</span>
+              {submission.days_remaining !== undefined && submission.days_remaining !== null && (
+                <span className="text-[10px] text-primary font-mono font-bold">
+                  ({submission.days_remaining}d left)
+                </span>
+              )}
+            </a>
+          )}
+        </div>
       </div>
 
       {/* 15-Day Storage Retention Notice Banner (Active only post-publication) */}
@@ -569,6 +587,21 @@ export default function StudentSubmissionViewerPage() {
         onClose={() => setIsModalOpen(false)}
         onRevaluationSubmitted={handleRevaluationSubmitted}
       />
+
+      {/* Official Question Paper & Answer Key Modal */}
+      {submission && (
+        <ArtifactViewerModal
+          isOpen={artifactModalOpen}
+          onClose={() => setArtifactModalOpen(false)}
+          examId={submission.exam_id || submission.exam?.id}
+          examTitle={submission.exam?.title || submission.exam_title || "Examination Paper"}
+          examSubject={submission.exam?.subject || submission.exam_subject}
+          initialArtifact="question-paper"
+          hasQuestionPaper={submission.exam?.has_question_paper ?? true}
+          hasAnswerKey={submission.exam?.has_answer_key ?? true}
+          isExamDocumentPurged={submission.exam?.is_document_purged ?? false}
+        />
+      )}
     </div>
   );
 }

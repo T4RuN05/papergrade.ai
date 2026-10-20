@@ -153,6 +153,19 @@ class ExamService:
                 exam_dict["is_rubric_approved"] = False
                 exam_dict["has_approved_rubric"] = False
 
+            # Attach scoped batches if specific batch scope
+            if exam_dict.get("batch_scope") in ("SPECIFIC", "BATCHES"):
+                cursor.execute("""
+                    SELECT b.id, b.name, b.code, b.academic_year
+                    FROM exam_batches eb
+                    JOIN batches b ON eb.batch_id = b.id
+                    WHERE eb.exam_id = ?
+                    ORDER BY b.name ASC
+                """, (exam_id,))
+                exam_dict["scoped_batches"] = [dict(b) for b in cursor.fetchall()]
+            else:
+                exam_dict["scoped_batches"] = []
+
             return exam_dict
 
     @staticmethod
@@ -173,9 +186,30 @@ class ExamService:
                 LEFT JOIN institutes ib ON b.institute_id = ib.id
                 ORDER BY e.created_at DESC
             """)
-            exams = []
+            raw_exams = [dict(r) for r in cursor.fetchall()]
+
+            # Fetch all exam-batch mappings in one query
+            cursor.execute("""
+                SELECT eb.exam_id, b.id, b.name, b.code, b.academic_year
+                FROM exam_batches eb
+                JOIN batches b ON eb.batch_id = b.id
+                ORDER BY b.name ASC
+            """)
+            scoped_map: Dict[str, List[Dict[str, Any]]] = {}
             for row in cursor.fetchall():
-                e = dict(row)
+                r = dict(row)
+                ex_id = r["exam_id"]
+                if ex_id not in scoped_map:
+                    scoped_map[ex_id] = []
+                scoped_map[ex_id].append({
+                    "id": r["id"],
+                    "name": r["name"],
+                    "code": r["code"],
+                    "academic_year": r["academic_year"]
+                })
+
+            exams = []
+            for e in raw_exams:
                 cursor.execute("""
                 SELECT is_approved, version_num FROM rubric_versions
                 WHERE exam_id = ?
@@ -184,6 +218,7 @@ class ExamService:
                 r = cursor.fetchone()
                 e["has_approved_rubric"] = bool(r["is_approved"]) if r else False
                 e["is_rubric_approved"] = bool(r["is_approved"]) if r else False
+                e["scoped_batches"] = scoped_map.get(e["id"], [])
                 exams.append(e)
             return exams
 

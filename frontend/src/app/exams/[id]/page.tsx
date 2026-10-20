@@ -41,6 +41,7 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 import { api, API_BASE, getAuthToken, getCached, clearApiCache } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -815,9 +816,22 @@ export default function ExamDetailPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">
               {exam.title}
             </h1>
-            <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
-              Academic assessment ledger for <span className="font-semibold text-ink">{exam.subject}</span>. Maximum achievable score: <span className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A (Awaiting Rubric)"}</span>.
-            </p>
+            <div className="flex items-center gap-2 flex-wrap text-xs sm:text-sm text-ink-muted leading-relaxed">
+              <span>
+                Assessment ledger for <span className="font-semibold text-ink">{exam.subject}</span>. Max achievable score: <span className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A (Awaiting Rubric)"}</span>.
+              </span>
+              <span className="hidden sm:inline text-ink-faint">•</span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary text-xs font-medium">
+                <Users className="h-3 w-3 text-ink-secondary" />
+                <span>
+                  {exam.batch_scope === "SPECIFIC" && exam.scoped_batches && exam.scoped_batches.length > 0
+                    ? exam.scoped_batches.length === 1
+                      ? `Batch: ${exam.scoped_batches[0].name}`
+                      : `Batches: ${exam.scoped_batches.map((b) => b.name).join(", ")}`
+                    : "Scope: Whole Branch"}
+                </span>
+              </span>
+            </div>
           </div>
 
           {/* Quick Action Buttons */}

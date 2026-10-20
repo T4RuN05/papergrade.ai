@@ -8,6 +8,7 @@ during high-traffic student upload bursts.
 """
 
 import time
+import json
 import asyncio
 import threading
 from datetime import datetime, timezone
@@ -149,7 +150,7 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         if branch_id:
             cursor.execute(
                 f"""
-                SELECT id, title, subject, total_marks, status, lifecycle_status, is_published, branch_id, created_at
+                SELECT id, title, subject, total_marks, status, lifecycle_status, is_published, branch_id, batch_scope, batch_ids, created_at
                 FROM exams
                 WHERE branch_id = {param} OR branch_id IS NULL
                 ORDER BY created_at DESC
@@ -158,11 +159,39 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
             )
         else:
             cursor.execute("""
-                SELECT id, title, subject, total_marks, status, lifecycle_status, is_published, branch_id, created_at
+                SELECT id, title, subject, total_marks, status, lifecycle_status, is_published, branch_id, batch_scope, batch_ids, created_at
                 FROM exams
                 ORDER BY created_at DESC
             """)
-        exam_rows = [dict(r) for r in cursor.fetchall()]
+        raw_exam_rows = [dict(r) for r in cursor.fetchall()]
+
+        # Filter exams by batch scoping:
+        # If batch_scope == 'ALL': visible to all in branch
+        # If batch_scope in ('SPECIFIC', 'BATCHES'): visible only if student's batch_id is in allowed batches
+        exam_rows = []
+        for ex in raw_exam_rows:
+            scope = ex.get("batch_scope") or "ALL"
+            if scope == "ALL":
+                exam_rows.append(ex)
+            else:
+                allowed_bids = set()
+                raw_bids = ex.get("batch_ids")
+                if raw_bids:
+                    try:
+                        parsed = json.loads(raw_bids)
+                        if isinstance(parsed, list):
+                            allowed_bids = set(str(b).strip() for b in parsed if str(b).strip())
+                    except Exception:
+                        allowed_bids = set(b.strip() for b in raw_bids.split(",") if b.strip())
+                if not allowed_bids:
+                    cursor.execute(
+                        f"SELECT batch_id FROM exam_batches WHERE exam_id = {param}",
+                        (ex["id"],)
+                    )
+                    allowed_bids = set(r["batch_id"] for r in cursor.fetchall() if r["batch_id"])
+
+                if batch_id and str(batch_id) in allowed_bids:
+                    exam_rows.append(ex)
 
         # 3. Check Windows for these exams (with short-lived memory cache to prevent pool exhaustion)
         cache_key = f"windows_{branch_id or 'all'}"
@@ -189,27 +218,34 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                             windows_by_exam[ex_id] = dict(w)
                 _window_cache[cache_key] = {"time": now_ts, "data": windows_by_exam}
 
-        # Match active exam and window
-        # Priority 1: Currently active window (status == OPEN and within deadline/grace)
-        # Priority 2: Window closed within the last 2 hours (most recently closed candidate)
-        # Otherwise: None (card will not show)
-        active_exam = None
-        active_window_status = None
+        # Match active exam windows
+        # Priority 1: All currently active windows (status == OPEN and within deadline/grace)
+        # Priority 2: Windows closed within the last 2 hours (most recently closed candidate)
+        # Otherwise: Empty list (card will not show)
+        active_windows = []
         recently_closed_candidates = []
         
         for ex in exam_rows:
             w_row = windows_by_exam.get(ex["id"])
             w_stat = _compute_window_status(w_row)
             if w_stat.get("is_active"):
-                active_exam = ex
-                active_window_status = w_stat
-                break
+                active_windows.append({
+                    "exam": ex,
+                    "window_status": w_stat
+                })
             elif w_stat.get("should_display"):
-                recently_closed_candidates.append((w_stat.get("seconds_since_closed", 999999), ex, w_stat))
+                recently_closed_candidates.append({
+                    "exam": ex,
+                    "window_status": w_stat,
+                    "seconds_since_closed": w_stat.get("seconds_since_closed", 999999)
+                })
         
-        if not active_exam and recently_closed_candidates:
-            recently_closed_candidates.sort(key=lambda item: item[0])
-            _, active_exam, active_window_status = recently_closed_candidates[0]
+        # Sort recently closed candidates by most recently closed first
+        recently_closed_candidates.sort(key=lambda item: item["seconds_since_closed"])
+
+        displayable_windows = active_windows if active_windows else recently_closed_candidates[:1]
+        active_exam = displayable_windows[0]["exam"] if displayable_windows else None
+        active_window_status = displayable_windows[0]["window_status"] if displayable_windows else None
 
         # 4. Fetch Submissions for this student
         submissions = []
@@ -228,7 +264,10 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         where_clause = " OR ".join(conds)
         cursor.execute(
             f"""
-            SELECT s.*, e.title as exam_title, e.is_published as exam_is_published
+            SELECT s.*, e.title as exam_title, e.subject as exam_subject, e.total_marks as exam_total_marks, e.is_published as exam_is_published,
+                   e.question_paper_path as exam_question_paper_path,
+                   e.answer_key_path as exam_answer_key_path,
+                   e.is_document_purged as exam_is_document_purged
             FROM submissions s
             JOIN exams e ON s.exam_id = e.id
             WHERE ({where_clause})
@@ -238,10 +277,14 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         )
         sub_rows = [dict(r) for r in cursor.fetchall()]
 
-        # Attach revaluation and retention info
+        # Attach revaluation, artifact, and retention info
         for sub in sub_rows:
             is_pub = bool(sub.get("publication_status") == "PUBLISHED" or sub.get("exam_is_published") == 1)
             sub["is_published"] = is_pub
+            exam_purged = bool(sub.get("exam_is_document_purged"))
+            sub["has_question_paper"] = bool(is_pub and sub.get("exam_question_paper_path") and not exam_purged)
+            sub["has_answer_key"] = bool(is_pub and sub.get("exam_answer_key_path") and not exam_purged)
+            sub["exam_is_document_purged"] = exam_purged
 
             if user_role == "STUDENT" and not is_pub:
                 # Strictly decouple and mask internal AI grading marks and answers before official publication!
@@ -291,6 +334,7 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
             "user": user_dict,
             "active_exam": active_exam,
             "window_status": active_window_status,
+            "active_windows": displayable_windows,
             "exams": exam_rows,
             "submissions": submissions
         }

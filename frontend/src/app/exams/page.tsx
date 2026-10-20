@@ -20,6 +20,7 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -314,9 +315,22 @@ export default function ExamsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-base font-bold text-ink leading-tight">{exam.title}</h3>
-                      <p className="text-xs text-ink-muted mt-0.5">
-                        Subject: <span className="font-medium text-ink-secondary">{exam.subject}</span>
-                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <p className="text-xs text-ink-muted">
+                          Subject: <span className="font-medium text-ink-secondary">{exam.subject}</span>
+                        </p>
+                        <span className="text-ink-faint text-[10px]">•</span>
+                        <div className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted">
+                          <Users className="h-3 w-3 text-ink-secondary" />
+                          <span>
+                            {exam.batch_scope === "SPECIFIC" && exam.scoped_batches && exam.scoped_batches.length > 0
+                              ? exam.scoped_batches.length === 1
+                                ? exam.scoped_batches[0].name
+                                : `${exam.scoped_batches.length} Batches`
+                              : "Whole Branch"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap justify-end">

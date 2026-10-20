@@ -13,6 +13,7 @@ import {
   Clock,
   Layers,
   ArrowRight,
+  BookOpen,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
@@ -125,13 +126,24 @@ export function Navbar() {
           <Link
             href="/student/portal"
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              pathname.startsWith("/student")
+              pathname === "/student/portal"
                 ? "bg-canvas-soft text-ink font-semibold"
                 : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
             }`}
           >
             <Clock className="h-3.5 w-3.5 text-ink-muted" />
             Student Portal
+          </Link>
+          <Link
+            href="/student/exams"
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              pathname.startsWith("/student/exams")
+                ? "bg-canvas-soft text-ink font-semibold"
+                : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
+            Past Exams
           </Link>
           {isAdminUser && (
             <Link
@@ -236,10 +248,26 @@ export function Navbar() {
             <Link
               href="/student/portal"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-ink-secondary hover:bg-canvas-soft"
+              className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium ${
+                pathname === "/student/portal"
+                  ? "bg-canvas-soft text-ink font-semibold"
+                  : "text-ink-secondary hover:bg-canvas-soft"
+              }`}
             >
               <Clock className="h-4 w-4 text-ink-muted" />
               Student Portal
+            </Link>
+            <Link
+              href="/student/exams"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium ${
+                pathname.startsWith("/student/exams")
+                  ? "bg-canvas-soft text-ink font-semibold"
+                  : "text-ink-secondary hover:bg-canvas-soft"
+              }`}
+            >
+              <BookOpen className="h-4 w-4 text-ink-muted" />
+              Past Exams
             </Link>
             {isAdminUser && (
               <Link

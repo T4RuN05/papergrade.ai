@@ -424,7 +424,9 @@ class GradingService:
                     c = conn.cursor()
                     c.execute("""
                     SELECT s.*, 
-                           e.title AS exam_title, e.subject AS exam_subject, e.total_marks AS exam_total_marks
+                           e.title AS exam_title, e.subject AS exam_subject, e.total_marks AS exam_total_marks,
+                           e.is_published AS exam_is_published, e.question_paper_path AS exam_question_paper_path,
+                           e.answer_key_path AS exam_answer_key_path, e.is_document_purged AS exam_is_document_purged
                     FROM submissions s
                     LEFT JOIN exams e ON s.exam_id = e.id
                     WHERE s.id = ?
@@ -438,6 +440,10 @@ class GradingService:
                         "title": res.pop("exam_title", None),
                         "subject": res.pop("exam_subject", None),
                         "total_marks": res.pop("exam_total_marks", None),
+                        "is_published": res.pop("exam_is_published", 0),
+                        "has_question_paper": bool(res.pop("exam_question_paper_path", None)),
+                        "has_answer_key": bool(res.pop("exam_answer_key_path", None)),
+                        "is_document_purged": bool(res.pop("exam_is_document_purged", 0)),
                     }
                     c.execute("""
                     SELECT rubric_data FROM rubric_versions
@@ -494,7 +500,9 @@ class GradingService:
                 cursor = conn.cursor()
                 cursor.execute("""
                 SELECT s.*, 
-                       e.title AS exam_title, e.subject AS exam_subject, e.total_marks AS exam_total_marks
+                       e.title AS exam_title, e.subject AS exam_subject, e.total_marks AS exam_total_marks,
+                       e.is_published AS exam_is_published, e.question_paper_path AS exam_question_paper_path,
+                       e.answer_key_path AS exam_answer_key_path, e.is_document_purged AS exam_is_document_purged
                 FROM submissions s
                 LEFT JOIN exams e ON s.exam_id = e.id
                 WHERE s.id = ?
@@ -508,6 +516,10 @@ class GradingService:
                     "title": res.pop("exam_title", None),
                     "subject": res.pop("exam_subject", None),
                     "total_marks": res.pop("exam_total_marks", None),
+                    "is_published": res.pop("exam_is_published", 0),
+                    "has_question_paper": bool(res.pop("exam_question_paper_path", None)),
+                    "has_answer_key": bool(res.pop("exam_answer_key_path", None)),
+                    "is_document_purged": bool(res.pop("exam_is_document_purged", 0)),
                 }
 
                 cursor.execute("""

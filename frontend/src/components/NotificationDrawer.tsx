@@ -70,7 +70,14 @@ export function NotificationDrawer() {
     sendTestNotification,
   } = useNotifications();
 
-  const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread">("unread");
+
+  // Reset to unread tab whenever the drawer opens
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab("unread");
+    }
+  }, [isOpen]);
 
   const handleRefresh = async () => {
     try {
@@ -177,16 +184,6 @@ export function NotificationDrawer() {
         <div className="flex items-center justify-between px-5 py-2.5 bg-canvas-soft/70 border-b border-hairline text-xs">
           <div className="flex items-center gap-1 bg-surface p-0.5 rounded-md border border-hairline">
             <button
-              onClick={() => setActiveTab("all")}
-              className={`px-3 py-1 rounded-xs font-medium transition-colors ${
-                activeTab === "all"
-                  ? "bg-primary text-white shadow-xs"
-                  : "text-ink-secondary hover:text-ink"
-              }`}
-            >
-              All ({notifications.length})
-            </button>
-            <button
               onClick={() => setActiveTab("unread")}
               className={`px-3 py-1 rounded-xs font-medium transition-colors ${
                 activeTab === "unread"
@@ -195,6 +192,16 @@ export function NotificationDrawer() {
               }`}
             >
               Unread ({unreadCount})
+            </button>
+            <button
+              onClick={() => setActiveTab("all")}
+              className={`px-3 py-1 rounded-xs font-medium transition-colors ${
+                activeTab === "all"
+                  ? "bg-primary text-white shadow-xs"
+                  : "text-ink-secondary hover:text-ink"
+              }`}
+            >
+              All ({notifications.length})
             </button>
           </div>
 
