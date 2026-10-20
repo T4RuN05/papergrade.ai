@@ -145,14 +145,14 @@ export default function StudentSubmissionViewerPage() {
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4 md:px-6">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pt-4 sm:pt-6 pb-16 px-3 sm:px-6">
       {/* Top Breadcrumb & Actions Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-hairline">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
         <Link
           href="/student/portal"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink transition-colors py-1"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-4 w-4" />
           <span>Back to Student Portal</span>
         </Link>
 
@@ -186,10 +186,10 @@ export default function StudentSubmissionViewerPage() {
               type="button"
               disabled
               className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
-              title="Scanned PDF was permanently deleted after 15 days to preserve storage."
+              title="Scanned PDF was permanently deleted after retention period."
             >
               <AlertCircle className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-              <span>PDF Expired (15-Day Storage Retention)</span>
+              <span>Document Expired</span>
             </button>
           ) : (
             <a
@@ -213,17 +213,17 @@ export default function StudentSubmissionViewerPage() {
         </div>
       </div>
 
-      {/* 15-Day Storage Retention Notice Banner (Active only post-publication) */}
+      {/* Storage Retention Notice Banner (Active only post-publication) */}
       {isPublished ? (
         isPurged ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-800 space-y-1">
             <div className="flex items-center gap-2 font-bold text-slate-900">
               <Info className="h-4 w-4 text-slate-600 shrink-0" />
-              <span>15-Day Storage Retention Policy: Scanned Document Purged</span>
+              <span>Storage Retention Policy: Scanned Document Purged</span>
             </div>
             <p className="text-slate-600 leading-relaxed">
-              In accordance with the 15-day storage retention policy, the student's raw uploaded answer sheets, page scans, and visual bounding box overlays were permanently deleted on{" "}
-              <strong>{submission.purged_at ? new Date(submission.purged_at).toLocaleDateString() : "schedule"}</strong> to preserve system storage. All verified question marks, totals, and faculty review decisions remain permanently archived in the official marks ledger below.
+              In accordance with storage retention policies, raw uploaded answer sheet files were purged on{" "}
+              <strong>{submission.purged_at ? new Date(submission.purged_at).toLocaleDateString() : "schedule"}</strong>. All verified question marks, totals, and faculty review decisions remain permanently archived in the official marks ledger below.
             </p>
           </div>
         ) : (
@@ -231,7 +231,7 @@ export default function StudentSubmissionViewerPage() {
             <div className="flex items-center gap-2.5">
               <Clock className="h-4 w-4 text-amber-600 shrink-0 animate-pulse" />
               <div>
-                <span className="font-bold">15-Day Storage Retention Active:</span> This graded answer sheet will be permanently deleted on{" "}
+                <span className="font-bold">Document Retention Active:</span> This graded answer sheet is scheduled to expire on{" "}
                 <strong>{submission.retention_expires_at ? new Date(submission.retention_expires_at).toLocaleDateString() : "in 15 days"}</strong> ({submission.days_remaining !== undefined && submission.days_remaining !== null ? `${submission.days_remaining} days remaining` : "15 days"}).
                 <span className="block text-[11px] text-amber-800 mt-0.5">Please download your graded copy now to maintain a personal archive. Revaluation appeals remain open for 7 days post-publication.</span>
               </div>

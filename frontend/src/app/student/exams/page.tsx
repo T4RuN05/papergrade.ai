@@ -221,9 +221,9 @@ export default function StudentPastExamsPage() {
           <div className="space-y-1">
             <Link
               href="/student/portal"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors mb-1"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit mb-1"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-4 w-4" />
               <span>Back to Student Portal</span>
             </Link>
             <div className="flex items-center gap-2.5">

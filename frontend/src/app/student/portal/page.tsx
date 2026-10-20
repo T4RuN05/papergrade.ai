@@ -605,6 +605,19 @@ export default function StudentPortalPage() {
   const activeExam = currentActiveItem?.exam || null;
   const windowStatus = currentActiveItem?.window_status || null;
 
+  // Track if student wants to replace/re-upload an already submitted answer sheet
+  const [isReplacingUpload, setIsReplacingUpload] = useState(false);
+
+  // Submission for the active exam (if student has already uploaded)
+  const activeExamSubmission = useMemo(() => {
+    if (!activeExam) return null;
+    return submissions.find((s) => s.exam_id === activeExam.id) || null;
+  }, [submissions, activeExam]);
+
+  useEffect(() => {
+    setIsReplacingUpload(false);
+  }, [selectedExamId]);
+
   // Question Paper & Answer Key Viewer Modal state
   const [artifactModalOpen, setArtifactModalOpen] = useState(false);
   const [artifactModalExam, setArtifactModalExam] = useState<any>(null);
@@ -934,13 +947,13 @@ export default function StudentPortalPage() {
       if (scannedPages.length === 1 && scannedPages[0].isPdf) {
         finalPdfFile = scannedPages[0].file;
       } else {
-        // Industry Standard: Downscale and compile into clean PDF directly on student device
+        // Prepare and compile images into high-quality PDF
         setAssemblyProgress({
           currentPage: 1,
           totalPages: scannedPages.length,
           percent: 5,
           stage: "optimizing",
-          statusMessage: "Optimizing & assembling pages on device...",
+          statusMessage: "Preparing pages for upload...",
         });
 
         finalPdfFile = await assembleFilesToCanonicalPdf(
@@ -956,17 +969,17 @@ export default function StudentPortalPage() {
 
       const formData = new FormData();
       formData.append("file", finalPdfFile);
-      formData.append("files", finalPdfFile);
       formData.append("roll_number", roll);
       formData.append("student_name", studentName);
 
       const result = await api.uploadSingleMultipart(activeExam.id, formData);
       const successMsg = result.is_replacement
-        ? "Answer sheet replaced atomically!"
+        ? "Answer sheet replaced successfully!"
         : "Answer sheet uploaded successfully!";
       setUploadSuccess(successMsg);
       toast.success(successMsg, { title: "Submission Received" });
       handleClearAllPages();
+      setIsReplacingUpload(false);
 
       // Refresh submissions
       await loadPortalData();
@@ -1022,6 +1035,15 @@ export default function StudentPortalPage() {
     }
     return `${mins}m`;
   };
+
+  // Past submissions list: if the active exam submission is already displayed
+  // in the active window card above, exclude it from past submissions below to avoid clutter and duplicate display
+  const pastSubmissionsList = useMemo(() => {
+    if (shouldShowExamWindowCard && activeExam && activeExamSubmission) {
+      return submissions.filter((s) => s.exam_id !== activeExam.id);
+    }
+    return submissions;
+  }, [submissions, shouldShowExamWindowCard, activeExam, activeExamSubmission]);
 
   // Open Revaluation Modal for a specific submission
   const handleOpenRevalModal = async (sub: any) => {
@@ -1172,9 +1194,6 @@ export default function StudentPortalPage() {
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
               Active Student
             </span>
-            <div className="sm:hidden">
-              <BadgePill label="PWA Student Portal" color="sky" />
-            </div>
           </div>
           <p className="text-xs text-ink-muted mt-1 leading-normal">
             Roll No: <strong className="text-ink font-medium">{rollNumber}</strong> • Student ID:{" "}
@@ -1200,9 +1219,6 @@ export default function StudentPortalPage() {
             <AlertTriangle className="h-3.5 w-3.5" />
             <span>Report Issue</span>
           </button>
-          <div className="hidden sm:block">
-            <BadgePill label="PWA Student Portal" color="sky" />
-          </div>
         </div>
       </div>
 
@@ -1210,7 +1226,7 @@ export default function StudentPortalPage() {
       <div className="flex items-center gap-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
         <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink bg-surface shadow-2xs border border-hairline/60">
           <Layers className="h-3.5 w-3.5 text-primary" />
-          <span>Dashboard & Active Windows</span>
+          <span>Dashboard</span>
           {activeWindows.length > 0 && (
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           )}
@@ -1433,8 +1449,107 @@ export default function StudentPortalPage() {
 
           {/* Submission Section */}
           <div className="mt-5 space-y-4">
-            {windowStatus?.is_active ? (
+            {activeExamSubmission && !isReplacingUpload ? (
+              /* Already submitted answer sheet card */
+              <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-ink">Answer Sheet Submitted</h3>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Recorded
+                        </span>
+                      </div>
+                      <p className="text-xs text-ink-muted mt-0.5">
+                        Submitted on{" "}
+                        {activeExamSubmission.created_at
+                          ? new Date(activeExamSubmission.created_at).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Recently recorded"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 self-start sm:self-auto">
+                    <Clock className="h-3.5 w-3.5" />
+                    {activeExamSubmission.status === "EVALUATED" || activeExamSubmission.publication_status === "PUBLISHED"
+                      ? "Evaluation Complete"
+                      : "Grading in Progress"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-3 text-ink-muted">
+                    <span>
+                      Roll No: <strong className="text-ink font-semibold">{activeExamSubmission.roll_number}</strong>
+                    </span>
+                    {activeExamSubmission.page_count && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          Pages: <strong className="text-ink font-semibold">{activeExamSubmission.page_count}</strong>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-ink-muted">
+                    Answer sheet recorded securely. Detailed marks unlock upon publication.
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                  <Link
+                    href={`/student/submissions/${activeExamSubmission.id}`}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs active:scale-[0.98] transition-all text-center"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>View Submitted Script →</span>
+                  </Link>
+
+                  {windowStatus?.is_active && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsReplacingUpload(true);
+                        handleClearAllPages();
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-surface border border-hairline hover:bg-canvas-soft text-ink hover:text-primary text-xs font-semibold transition-colors cursor-pointer text-center"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
+                      <span>Replace Answer Sheet</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : windowStatus?.is_active ? (
               <form onSubmit={handleUploadSubmit} className="space-y-4">
+                {isReplacingUpload && (
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Uploading a new file will replace your existing submitted answer sheet.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsReplacingUpload(false);
+                        handleClearAllPages();
+                      }}
+                      className="text-xs font-semibold text-amber-950 underline hover:no-underline shrink-0 cursor-pointer"
+                    >
+                      Keep Current
+                    </button>
+                  </div>
+                )}
                 {/* Hidden File Inputs */}
                 {/* 1. Camera Input (Environment Camera for Direct Page Scanning) */}
                 <input
@@ -1650,7 +1765,7 @@ export default function StudentPortalPage() {
                       />
                     </div>
                     <p className="text-[11px] text-brand-600/80">
-                      Processing on your device to keep upload fast and ultra-lightweight.
+                      Preparing high-quality PDF for submission...
                     </p>
                   </div>
                 )}
@@ -1673,7 +1788,6 @@ export default function StudentPortalPage() {
                         {(scannedPages.reduce((acc, p) => acc + p.size, 0) / (1024 * 1024)).toFixed(2)} MB
                       </span>{" "}
                       across {scannedPages.length} {scannedPages.length === 1 ? "page" : "pages"}
-                      {!scannedPages[0]?.isPdf && " (auto-assembled & optimized on device)"}
                     </div>
                     <ButtonPrimary
                       type="submit"
@@ -1682,7 +1796,7 @@ export default function StudentPortalPage() {
                     >
                       {uploading
                         ? assemblyProgress && assemblyProgress.stage !== "ready"
-                          ? "Assembling on Device..."
+                          ? "Preparing Document..."
                           : "Uploading PDF..."
                         : "Submit Answer Sheet"}
                     </ButtonPrimary>
@@ -1693,7 +1807,7 @@ export default function StudentPortalPage() {
               <div className="flex items-center gap-2.5 text-xs text-ink-muted py-1">
                 <Info className="h-4 w-4 text-ink-faint shrink-0" />
                 <span>
-                  The upload window for <strong className="text-ink">{activeExam.title}</strong> is currently closed. This notice will remain visible for 2 hours post-closure. All evaluated past papers are listed below.
+                  The upload window for <strong className="text-ink">{activeExam.title}</strong> is currently closed.
                 </span>
               </div>
             )}
@@ -1711,60 +1825,34 @@ export default function StudentPortalPage() {
               Review evaluated answer sheets, question-by-question marks, and faculty revaluations.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="hidden sm:inline-block text-xs font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline whitespace-nowrap">
-              {submissions.length} {submissions.length === 1 ? "Paper" : "Papers"}
-            </span>
-            <Link
-              href="/student/exams"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/15 border border-primary/25 px-3 py-1.5 rounded-lg transition-colors shadow-2xs whitespace-nowrap"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>View All ({submissions.length}) →</span>
-            </Link>
-          </div>
+          {pastSubmissionsList.length > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="hidden sm:inline-block text-xs font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline whitespace-nowrap">
+                {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
+              </span>
+              <Link
+                href="/student/exams"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/15 border border-primary/25 px-3 py-1.5 rounded-lg transition-colors shadow-2xs whitespace-nowrap"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>View All ({pastSubmissionsList.length}) →</span>
+              </Link>
+            </div>
+          )}
         </div>
 
-        {submissions.length === 0 ? (
-          <div className="rounded-lg border border-hairline bg-surface p-8 text-center space-y-2">
-            <FileText className="h-8 w-8 text-ink-faint mx-auto" />
-            <h3 className="text-sm font-semibold text-ink">No exam submissions found</h3>
-            <p className="text-xs text-ink-muted max-w-md mx-auto">
-              When you upload your answer sheets during an active examination window, your verified submissions, AI evaluations, and faculty remarks will appear here.
+        {pastSubmissionsList.length === 0 ? (
+          <div className="rounded-xl border border-hairline bg-surface p-6 sm:p-8 text-center space-y-2">
+            <FileText className="h-7 w-7 text-ink-faint mx-auto" />
+            <h3 className="text-sm font-semibold text-ink">No past exam submissions</h3>
+            <p className="text-xs text-ink-muted max-w-sm mx-auto">
+              Your evaluated answer sheets and marks from completed exams will appear here.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Dedicated Past Exams Hub Callout */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-canvas-soft to-surface border border-hairline shadow-2xs">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-ink">Past Exams Archive Hub</span>
-                  <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                    Search & Collapsed Cards
-                  </span>
-                </div>
-                <p className="text-[11px] text-ink-muted">
-                  Search by title or subject, browse collapsed exam cards, and view question papers with official answer keys.
-                </p>
-              </div>
-              <Link
-                href="/student/exams"
-                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 rounded-lg transition-colors shrink-0 shadow-2xs whitespace-nowrap"
-              >
-                <span>Browse All {submissions.length} Past Papers</span>
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            {/* Most Recent Submission Preview */}
-            <div className="space-y-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-ink-muted px-0.5 flex items-center justify-between">
-                <span>Latest Evaluated Exam</span>
-                <span className="text-[11px] font-normal lowercase text-ink-muted">Showing 1 of {submissions.length} on dashboard</span>
-              </div>
-              <div className="grid grid-cols-1 gap-4">
-                {submissions.slice(0, 1).map((sub) => {
+            <div className="grid grid-cols-1 gap-4">
+              {pastSubmissionsList.slice(0, 1).map((sub) => {
               const isPublished =
                 sub.publication_status === "PUBLISHED" ||
                 (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
@@ -2098,11 +2186,10 @@ export default function StudentPortalPage() {
                 </FeatureCard>
               );
             })}
-              </div>
             </div>
 
-            {/* If there are more submissions, show link to dedicated page */}
-            {submissions.length > 1 && (
+            {/* If there are more submissions, show link to view all */}
+            {pastSubmissionsList.length > 1 && (
               <div className="pt-1">
                 <Link
                   href="/student/exams"
@@ -2110,7 +2197,7 @@ export default function StudentPortalPage() {
                 >
                   <BookOpen className="h-4 w-4 text-primary" />
                   <span>
-                    View Remaining {submissions.length - 1} Past {submissions.length - 1 === 1 ? "Paper" : "Papers"} in Dedicated Hub →
+                    View All {pastSubmissionsList.length} Past Exam Submissions →
                   </span>
                 </Link>
               </div>
