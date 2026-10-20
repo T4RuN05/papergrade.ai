@@ -17,6 +17,8 @@ import {
   AlertCircle,
   BookOpen,
   X,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, getAuthToken } from "@/lib/api";
@@ -62,6 +64,12 @@ export default function TenancyManagementPage() {
   const [newMgrName, setNewMgrName] = useState("");
   const [newMgrEmail, setNewMgrEmail] = useState("");
   const [newMgrPassword, setNewMgrPassword] = useState("");
+
+  // Delete Institute States
+  const [isDeleteInstModalOpen, setIsDeleteInstModalOpen] = useState(false);
+  const [instToDelete, setInstToDelete] = useState<any | null>(null);
+  const [deleteConfirmCode, setDeleteConfirmCode] = useState("");
+  const [isDeletingInst, setIsDeletingInst] = useState(false);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -147,6 +155,30 @@ export default function TenancyManagementPage() {
       toast.error(msg, { title: "Update Failed" });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteInstitute = async () => {
+    if (!instToDelete) return;
+    setIsDeletingInst(true);
+    setActionError(null);
+    try {
+      const res = await api.deleteInstitute(instToDelete.id);
+      setIsDeleteInstModalOpen(false);
+      setInstToDelete(null);
+      setDeleteConfirmCode("");
+      toast.success(
+        res.message || `Institute "${instToDelete.name}" and all cascaded data were permanently deleted.`,
+        { title: "Institute Deleted" }
+      );
+      await refreshTenancy();
+      await loadAll();
+    } catch (err: any) {
+      const msg = err.message || "Failed to delete institute";
+      setActionError(msg);
+      toast.error(msg, { title: "Deletion Failed" });
+    } finally {
+      setIsDeletingInst(false);
     }
   };
 
@@ -287,17 +319,34 @@ export default function TenancyManagementPage() {
                     </p>
                   </div>
 
-                  <ButtonUtility
-                    onClick={() => {
-                      setActionError(null);
-                      setTargetInstId(inst.id);
-                      setIsBranchModalOpen(true);
-                    }}
-                    className="self-start sm:self-auto font-semibold py-1.5 px-3 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1 text-primary" />
-                    Add Physical Branch
-                  </ButtonUtility>
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    <ButtonUtility
+                      onClick={() => {
+                        setActionError(null);
+                        setTargetInstId(inst.id);
+                        setIsBranchModalOpen(true);
+                      }}
+                      className="font-semibold py-1.5 px-3 text-xs"
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1 text-primary" />
+                      Add Physical Branch
+                    </ButtonUtility>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionError(null);
+                        setInstToDelete(inst);
+                        setDeleteConfirmCode("");
+                        setIsDeleteInstModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-critical hover:bg-critical/10 border border-critical/30 transition-colors cursor-pointer"
+                      title="Cascade delete institute, branches, batches, exams, scores, and cloud files"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Institute
+                    </button>
+                  </div>
                 </div>
 
                 {/* Institute Curriculum & Subjects */}
@@ -757,6 +806,115 @@ export default function TenancyManagementPage() {
           </div>
         </form>
       </ModalCard>
+
+      {/* Cascade Delete Institute Confirmation Modal */}
+      {isDeleteInstModalOpen && instToDelete && (
+        <ModalCard
+          isOpen={isDeleteInstModalOpen}
+          onClose={() => !isDeletingInst && setIsDeleteInstModalOpen(false)}
+          title={`Delete Institute: ${instToDelete.name}`}
+          maxWidth="max-w-lg"
+          preventBackdropClose={isDeletingInst}
+          disableClose={isDeletingInst}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-1 border-b border-hairline">
+              <span className="text-xs text-ink-muted">
+                Permanent cascade deletion for code: <strong className="font-mono text-ink">{instToDelete.code}</strong>
+              </span>
+              <BadgePill label="High Risk Operation" color="pink" className="bg-red-50 text-red-700 border-red-200" />
+            </div>
+            {/* Warning Banner */}
+            <div className="rounded-lg border border-red-200 bg-red-50/70 p-4 space-y-2.5">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-red-900 uppercase tracking-wider">
+                    Permanent Irreversible Action
+                  </h4>
+                  <p className="text-xs text-red-700 leading-relaxed">
+                    Deleting <strong>{instToDelete.name}</strong> will trigger a complete cascade wipe. Everything associated with this coaching institute will be permanently eradicated:
+                  </p>
+                </div>
+              </div>
+
+              <ul className="text-xs text-red-800 list-disc list-inside space-y-1 pl-6">
+                <li>All campus branches and physical centres</li>
+                <li>All academic batches and student rosters</li>
+                <li>All student and branch manager user accounts</li>
+                <li>All examinations, question papers, and official rubrics</li>
+                <li>All answer sheet submissions and AI evaluation scores</li>
+                <li>All revaluations, audits, and telemetry logs</li>
+                <li>All Cloudinary files (raw PDFs, annotated PDFs, renders)</li>
+              </ul>
+            </div>
+
+            {actionError && (
+              <div className="p-3 bg-[#fdf2f2] border border-[#f8b4b4] rounded-md text-xs text-critical flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+            )}
+
+            {/* Confirmation Input */}
+            <div className="space-y-2 pt-1">
+              <label className="text-xs font-semibold text-ink block">
+                To confirm deletion, please type the institute code{" "}
+                <span className="font-mono px-1.5 py-0.5 rounded bg-surface border border-hairline font-bold text-critical">
+                  {instToDelete.code}
+                </span>{" "}
+                below:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmCode}
+                onChange={(e) => setDeleteConfirmCode(e.target.value)}
+                placeholder={`Type "${instToDelete.code}" to confirm`}
+                disabled={isDeletingInst}
+                className="w-full text-xs font-mono px-3 py-2 rounded-md border border-hairline bg-surface focus:outline-none focus:ring-1 focus:ring-critical focus:border-critical"
+                autoFocus
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-hairline">
+              <ButtonUtility
+                type="button"
+                onClick={() => {
+                  setIsDeleteInstModalOpen(false);
+                  setInstToDelete(null);
+                  setDeleteConfirmCode("");
+                }}
+                disabled={isDeletingInst}
+              >
+                Cancel
+              </ButtonUtility>
+
+              <button
+                type="button"
+                onClick={handleDeleteInstitute}
+                disabled={
+                  isDeletingInst ||
+                  deleteConfirmCode.trim().toUpperCase() !== instToDelete.code.trim().toUpperCase()
+                }
+                className="inline-flex items-center justify-center px-4 py-2 rounded-md text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs cursor-pointer"
+              >
+                {isDeletingInst ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Wiping Institute & Cloud Storage...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Cascade Delete Institute
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </ModalCard>
+      )}
     </div>
   );
 }

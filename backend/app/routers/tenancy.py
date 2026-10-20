@@ -2,17 +2,23 @@ import uuid
 import random
 import io
 import json
+import shutil
+import logging
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
 from pydantic import BaseModel
 import openpyxl
 
+from backend.app.config import settings
 from backend.app.database import get_db, get_iso_now, is_postgres
 from backend.app.services.auth import (
     get_current_user,
     require_root_admin,
     require_branch_manager,
 )
+from backend.app.services.storage import get_storage_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/tenancy", tags=["Tenancy & Student Onboarding"])
 
@@ -480,4 +486,379 @@ def delete_student_from_batch(batch_id: str, student_id: str, current_user: Dict
         
         cursor.execute("DELETE FROM students WHERE id = ? AND batch_id = ?", (student_id, batch_id))
         return {"status": "success", "message": "Student removed successfully"}
+
+
+def _chunked_delete(cursor, table: str, column: str, ids: List[str], chunk_size: int = 500):
+    """Helper to safely execute DELETE queries in chunks to avoid variable parameter limits."""
+    if not ids:
+        return
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i : i + chunk_size]
+        ph = ",".join(["?"] * len(chunk))
+        cursor.execute(f"DELETE FROM {table} WHERE {column} IN ({ph})", tuple(chunk))
+
+
+@router.delete("/institutes/{institute_id}")
+def delete_institute(institute_id: str, current_user: Dict[str, Any] = Depends(require_root_admin)):
+    """
+    Permanently delete an entire coaching institute and cascade delete everything under it:
+    - Branches and Subjects
+    - Batches and Students
+    - Staff/Branch Manager and Student user accounts (strictly excludes ROOT_ADMIN)
+    - Exams, Exam Batches, Submission Windows, Rubrics
+    - Submissions, Answers, Criterion Scores, Answer Regions, Evaluation Queue, Revaluations
+    - Cloudinary and Object Storage assets (answer sheets, canonical PDFs, annotated PDFs, question papers, answer keys, reports)
+    - Local renders, uploads, and cached files
+    """
+    storage = get_storage_service()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Verify institute exists
+        cursor.execute("SELECT id, name, code FROM institutes WHERE id = ?", (institute_id,))
+        inst = cursor.fetchone()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institute not found")
+        inst_name = inst["name"]
+        inst_code = inst["code"]
+
+        # 2. Collect Branch IDs
+        cursor.execute("SELECT id FROM branches WHERE institute_id = ?", (institute_id,))
+        branch_ids = [r["id"] for r in cursor.fetchall()]
+
+        # 3. Collect Batch IDs
+        batch_ids = []
+        if branch_ids:
+            ph = ",".join(["?"] * len(branch_ids))
+            cursor.execute(f"SELECT id FROM batches WHERE branch_id IN ({ph})", tuple(branch_ids))
+            batch_ids = [r["id"] for r in cursor.fetchall()]
+
+        # 4. Collect Exams (belonging to institute directly, or its branches, or linked via exam_batches)
+        exam_ids_set = set()
+        exams_list = []
+
+        cursor.execute("SELECT id, title, question_paper_path, answer_key_path FROM exams WHERE institute_id = ?", (institute_id,))
+        for r in cursor.fetchall():
+            exam_ids_set.add(r["id"])
+            exams_list.append(dict(r))
+
+        if branch_ids:
+            ph = ",".join(["?"] * len(branch_ids))
+            cursor.execute(f"SELECT id, title, question_paper_path, answer_key_path FROM exams WHERE branch_id IN ({ph})", tuple(branch_ids))
+            for r in cursor.fetchall():
+                if r["id"] not in exam_ids_set:
+                    exam_ids_set.add(r["id"])
+                    exams_list.append(dict(r))
+
+        if batch_ids:
+            ph = ",".join(["?"] * len(batch_ids))
+            cursor.execute(f"SELECT DISTINCT exam_id FROM exam_batches WHERE batch_id IN ({ph})", tuple(batch_ids))
+            linked_exam_ids = [r["exam_id"] for r in cursor.fetchall() if r["exam_id"] not in exam_ids_set]
+            if linked_exam_ids:
+                ph_e = ",".join(["?"] * len(linked_exam_ids))
+                cursor.execute(f"SELECT id, title, question_paper_path, answer_key_path FROM exams WHERE id IN ({ph_e})", tuple(linked_exam_ids))
+                for r in cursor.fetchall():
+                    if r["id"] not in exam_ids_set:
+                        exam_ids_set.add(r["id"])
+                        exams_list.append(dict(r))
+
+        exam_ids_list = list(exam_ids_set)
+
+        # 5. Collect Students & their user accounts
+        student_ids = []
+        student_user_ids = []
+        if batch_ids:
+            ph = ",".join(["?"] * len(batch_ids))
+            cursor.execute(f"SELECT id, user_id FROM students WHERE batch_id IN ({ph})", tuple(batch_ids))
+            for r in cursor.fetchall():
+                student_ids.append(r["id"])
+                if r["user_id"]:
+                    student_user_ids.append(r["user_id"])
+
+        # 6. Collect Submissions
+        sub_ids_set = set()
+        subs_list = []
+
+        def _add_submissions(query_sql: str, params: tuple):
+            cursor.execute(query_sql, params)
+            for r in cursor.fetchall():
+                if r["id"] not in sub_ids_set:
+                    sub_ids_set.add(r["id"])
+                    subs_list.append(dict(r))
+
+        if exam_ids_list:
+            for i in range(0, len(exam_ids_list), 500):
+                chunk = exam_ids_list[i : i + 500]
+                ph = ",".join(["?"] * len(chunk))
+                _add_submissions(
+                    f"SELECT id, exam_id, original_file_path, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE exam_id IN ({ph})",
+                    tuple(chunk)
+                )
+
+        if batch_ids:
+            for i in range(0, len(batch_ids), 500):
+                chunk = batch_ids[i : i + 500]
+                ph = ",".join(["?"] * len(chunk))
+                _add_submissions(
+                    f"SELECT id, exam_id, original_file_path, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE batch_id IN ({ph})",
+                    tuple(chunk)
+                )
+
+        if student_ids:
+            for i in range(0, len(student_ids), 500):
+                chunk = student_ids[i : i + 500]
+                ph = ",".join(["?"] * len(chunk))
+                _add_submissions(
+                    f"SELECT id, exam_id, original_file_path, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE student_id IN ({ph})",
+                    tuple(chunk)
+                )
+
+        sub_ids_list = list(sub_ids_set)
+
+        # 7. Collect User Accounts to delete (STRICTLY exclude ROOT_ADMIN)
+        user_ids_to_delete = set()
+
+        cursor.execute("SELECT id, role FROM users WHERE institute_id = ?", (institute_id,))
+        for r in cursor.fetchall():
+            if r["role"] != "ROOT_ADMIN":
+                user_ids_to_delete.add(r["id"])
+
+        if branch_ids:
+            ph = ",".join(["?"] * len(branch_ids))
+            cursor.execute(f"SELECT id, role FROM users WHERE branch_id IN ({ph})", tuple(branch_ids))
+            for r in cursor.fetchall():
+                if r["role"] != "ROOT_ADMIN":
+                    user_ids_to_delete.add(r["id"])
+
+        for u_id in student_user_ids:
+            cursor.execute("SELECT id, role FROM users WHERE id = ?", (u_id,))
+            u_row = cursor.fetchone()
+            if u_row and u_row["role"] != "ROOT_ADMIN":
+                user_ids_to_delete.add(u_row["id"])
+
+        user_ids_list = list(user_ids_to_delete)
+
+        # 8. Collect Technical Report Screenshots
+        report_files_to_delete = []
+        if user_ids_list or branch_ids:
+            conds = []
+            c_params = []
+            if user_ids_list:
+                ph_u = ",".join(["?"] * len(user_ids_list))
+                conds.append(f"user_id IN ({ph_u})")
+                c_params.extend(user_ids_list)
+            if branch_ids:
+                ph_b = ",".join(["?"] * len(branch_ids))
+                conds.append(f"branch_id IN ({ph_b})")
+                c_params.extend(branch_ids)
+            cursor.execute(f"SELECT id, screenshots_json FROM technical_reports WHERE {' OR '.join(conds)}", tuple(c_params))
+            for tr in cursor.fetchall():
+                if tr["screenshots_json"]:
+                    try:
+                        shots = json.loads(tr["screenshots_json"])
+                        for s_file in shots:
+                            report_files_to_delete.append((tr["id"], s_file))
+                    except Exception:
+                        pass
+
+    # Outside DB lock: Delete Cloudinary & Object Storage & Local Files
+    deleted_files_count = 0
+
+    # A. Submissions Cloudinary files and local folders
+    for sub in subs_list:
+        s_id = sub["id"]
+        for path_key in [sub.get("original_file_path"), sub.get("canonical_pdf_path"), sub.get("annotated_pdf_path")]:
+            if path_key:
+                try:
+                    storage.delete_file(path_key)
+                    deleted_files_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete submission cloud file {path_key}: {e}")
+
+        # Local submission directory
+        local_sub_dir = settings.DATA_DIR / "uploads" / "submissions" / s_id
+        if local_sub_dir.exists():
+            try:
+                shutil.rmtree(local_sub_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+        # Local submission render cache
+        render_sub_dir = settings.RENDERS_DIR / f"sub_{s_id}"
+        if render_sub_dir.exists():
+            try:
+                shutil.rmtree(render_sub_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+        # Local annotated PDF export
+        annotated_pdf = settings.EXPORTS_DIR / f"{s_id}_annotated.pdf"
+        if annotated_pdf.exists():
+            try:
+                annotated_pdf.unlink()
+            except Exception:
+                pass
+
+    # B. Exam Question Papers & Answer Keys
+    for ex in exams_list:
+        ex_id = ex["id"]
+        for art_key in [
+            ex.get("question_paper_path"),
+            ex.get("answer_key_path"),
+            f"exams/{ex_id}/question_paper.pdf",
+            f"exams/{ex_id}/answer_key.pdf",
+        ]:
+            if art_key:
+                try:
+                    storage.delete_file(art_key)
+                    deleted_files_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete exam cloud file {art_key}: {e}")
+
+        # Local exam directory
+        local_exam_dir = settings.UPLOADS_DIR / f"exam_{ex_id}"
+        if local_exam_dir.exists():
+            try:
+                shutil.rmtree(local_exam_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+        # Local exam renders
+        for clean_art in ["question-paper", "answer-key"]:
+            r_dir = settings.RENDERS_DIR / f"exam_{ex_id}_{clean_art}"
+            if r_dir.exists():
+                try:
+                    shutil.rmtree(r_dir, ignore_errors=True)
+                except Exception:
+                    pass
+
+    # C. Technical Report Screenshots
+    for rep_id, filename in report_files_to_delete:
+        try:
+            storage.delete_file(f"reports/{rep_id}/{filename}")
+            deleted_files_count += 1
+        except Exception:
+            pass
+        local_rep_file = settings.REPORTS_DIR / filename
+        if local_rep_file.exists():
+            try:
+                local_rep_file.unlink()
+            except Exception:
+                pass
+
+    # Inside DB lock: Atomic Bottom-Up Cascade Deletion
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Criterion scores & Answer regions
+        if sub_ids_list:
+            for i in range(0, len(sub_ids_list), 500):
+                chunk = sub_ids_list[i : i + 500]
+                ph = ",".join(["?"] * len(chunk))
+                cursor.execute(f"""
+                    DELETE FROM criterion_scores WHERE answer_id IN (
+                        SELECT id FROM answers WHERE submission_id IN ({ph})
+                    )
+                """, tuple(chunk))
+                cursor.execute(f"""
+                    DELETE FROM answer_regions WHERE answer_id IN (
+                        SELECT id FROM answers WHERE submission_id IN ({ph})
+                    )
+                """, tuple(chunk))
+
+        # 2. Answers
+        _chunked_delete(cursor, "answers", "submission_id", sub_ids_list)
+
+        # 3. Evaluation Queue & Revaluations & Benchmarks
+        _chunked_delete(cursor, "evaluation_queue", "submission_id", sub_ids_list)
+        _chunked_delete(cursor, "evaluation_queue", "exam_id", exam_ids_list)
+
+        _chunked_delete(cursor, "revaluation_requests", "submission_id", sub_ids_list)
+        _chunked_delete(cursor, "revaluation_requests", "exam_id", exam_ids_list)
+        _chunked_delete(cursor, "revaluation_requests", "student_id", student_ids)
+
+        _chunked_delete(cursor, "experiment_benchmarks", "submission_id", sub_ids_list)
+        _chunked_delete(cursor, "experiment_benchmarks", "exam_id", exam_ids_list)
+
+        # 4. Submissions
+        _chunked_delete(cursor, "submissions", "id", sub_ids_list)
+        _chunked_delete(cursor, "submissions", "exam_id", exam_ids_list)
+
+        # 5. Rubrics, Windows, Batches association, Telemetry
+        _chunked_delete(cursor, "rubric_versions", "exam_id", exam_ids_list)
+        _chunked_delete(cursor, "submission_windows", "exam_id", exam_ids_list)
+        _chunked_delete(cursor, "submission_windows", "branch_id", branch_ids)
+
+        _chunked_delete(cursor, "exam_batches", "exam_id", exam_ids_list)
+        _chunked_delete(cursor, "exam_batches", "batch_id", batch_ids)
+
+        _chunked_delete(cursor, "api_usage_events", "submission_id", sub_ids_list)
+        _chunked_delete(cursor, "api_usage_events", "exam_id", exam_ids_list)
+        _chunked_delete(cursor, "api_usage_events", "batch_id", batch_ids)
+
+        # 6. Exams
+        _chunked_delete(cursor, "exams", "id", exam_ids_list)
+        cursor.execute("DELETE FROM exams WHERE institute_id = ?", (institute_id,))
+        if branch_ids:
+            _chunked_delete(cursor, "exams", "branch_id", branch_ids)
+
+        # 7. Password reset requests & Students & Batches
+        _chunked_delete(cursor, "password_reset_requests", "user_id", user_ids_list)
+        _chunked_delete(cursor, "password_reset_requests", "student_id", student_ids)
+        _chunked_delete(cursor, "password_reset_requests", "branch_id", branch_ids)
+
+        _chunked_delete(cursor, "students", "id", student_ids)
+        _chunked_delete(cursor, "students", "batch_id", batch_ids)
+
+        _chunked_delete(cursor, "batches", "id", batch_ids)
+        _chunked_delete(cursor, "batches", "branch_id", branch_ids)
+
+        # 8. Push subscriptions, Notifications, Technical reports, Audit logs
+        _chunked_delete(cursor, "push_subscriptions", "user_id", user_ids_list)
+        _chunked_delete(cursor, "notifications", "user_id", user_ids_list)
+        cursor.execute("DELETE FROM notifications WHERE link_url LIKE ?", (f"%{institute_id}%",))
+        for ex_id in exam_ids_list:
+            cursor.execute("DELETE FROM notifications WHERE link_url LIKE ?", (f"%{ex_id}%",))
+
+        _chunked_delete(cursor, "technical_reports", "user_id", user_ids_list)
+        _chunked_delete(cursor, "technical_reports", "branch_id", branch_ids)
+
+        _chunked_delete(cursor, "audit_logs", "user_id", user_ids_list)
+        _chunked_delete(cursor, "audit_logs", "submission_id", sub_ids_list)
+        _chunked_delete(cursor, "audit_logs", "resource_id", exam_ids_list + branch_ids + [institute_id])
+
+        # 9. Clean ROOT_ADMIN references if any were tied to this institute/branch
+        cursor.execute("UPDATE users SET institute_id = NULL, branch_id = NULL WHERE institute_id = ? AND role = 'ROOT_ADMIN'", (institute_id,))
+        if branch_ids:
+            for b_id in branch_ids:
+                cursor.execute("UPDATE users SET institute_id = NULL, branch_id = NULL WHERE branch_id = ? AND role = 'ROOT_ADMIN'", (b_id,))
+
+        # 10. Delete non-ROOT_ADMIN user accounts
+        _chunked_delete(cursor, "users", "id", user_ids_list)
+
+        # 11. Subjects, Branches, Institute
+        cursor.execute("DELETE FROM subjects WHERE institute_id = ?", (institute_id,))
+        _chunked_delete(cursor, "subjects", "branch_id", branch_ids)
+
+        cursor.execute("DELETE FROM branches WHERE institute_id = ?", (institute_id,))
+        cursor.execute("DELETE FROM institutes WHERE id = ?", (institute_id,))
+
+    logger.info(
+        f"Institute '{inst_name}' ({institute_id}) and all cascaded entities permanently deleted by {current_user.get('email')}."
+    )
+
+    return {
+        "status": "success",
+        "message": f"Institute '{inst_name}' ({inst_code}) and all associated branches, batches, exams, submissions, evaluation scores, and cloud files have been permanently deleted.",
+        "institute_id": institute_id,
+        "deleted_branches_count": len(branch_ids),
+        "deleted_batches_count": len(batch_ids),
+        "deleted_exams_count": len(exam_ids_list),
+        "deleted_submissions_count": len(subs_list),
+        "deleted_students_count": len(student_ids),
+        "deleted_users_count": len(user_ids_list),
+        "deleted_files_count": deleted_files_count,
+    }
+
 

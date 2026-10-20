@@ -439,6 +439,23 @@ export const api = {
     return res.json();
   },
 
+  async deleteInstitute(instituteId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes/${instituteId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to delete institute" }));
+      throw new Error(parseErrorDetail(err, "Failed to delete institute"));
+    }
+    clearApiCache("tenancy:institutes");
+    clearApiCache("tenancy:branches");
+    clearApiCache("tenancy:batches");
+    clearApiCache("tenancy:subjects");
+    clearApiCache("exams:list");
+    return res.json();
+  },
+
   async listBranches(instituteId?: string): Promise<any[]> {
     const key = `tenancy:branches:${instituteId || "all"}`;
     return fetchWithCache(key, async () => {
