@@ -1,4 +1,5 @@
 import uuid
+import json
 import shutil
 import hashlib
 import asyncio
@@ -28,6 +29,10 @@ from backend.app.services.notification_service import (
 from backend.app.services.retention_service import RetentionService
 
 router = APIRouter(tags=["Submissions & Uploads"])
+
+# Bounded concurrency guard for legacy/fallback server-side image stitching
+# Guarantees Render 512MB RAM cannot be overwhelmed by concurrent raw camera bitmaps
+_backend_stitching_semaphore = asyncio.Semaphore(1)
 
 @router.get("")
 def list_submissions(
@@ -285,9 +290,40 @@ def request_presigned_upload(
         verify_active_submission_window(exam_id, cursor, allow_grace=False)
         
         # Verify exam exists
-        cursor.execute("SELECT id, title FROM exams WHERE id = ?", (exam_id,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT id, title, branch_id, batch_scope, batch_ids FROM exams WHERE id = ?", (exam_id,))
+        exam = cursor.fetchone()
+        if not exam:
             raise HTTPException(status_code=404, detail="Exam not found.")
+        
+        # Enforce batch scoping
+        if exam.get("batch_scope") in ("SPECIFIC", "BATCHES"):
+            student_batch = req.batch_id
+            if not student_batch:
+                cursor.execute(
+                    "SELECT batch_id FROM students WHERE UPPER(roll_number) = ? OR id = ? OR user_id = ? LIMIT 1",
+                    (clean_roll, req.student_id or "", (current_user or {}).get("sub", ""))
+                )
+                st_row = cursor.fetchone()
+                if st_row:
+                    student_batch = st_row["batch_id"]
+
+            allowed_bids = set()
+            if exam.get("batch_ids"):
+                try:
+                    p = json.loads(exam["batch_ids"])
+                    if isinstance(p, list):
+                        allowed_bids = set(str(x).strip() for x in p if str(x).strip())
+                except Exception:
+                    allowed_bids = set(b.strip() for b in exam["batch_ids"].split(",") if b.strip())
+            if not allowed_bids:
+                cursor.execute("SELECT batch_id FROM exam_batches WHERE exam_id = ?", (exam_id,))
+                allowed_bids = set(r["batch_id"] for r in cursor.fetchall() if r["batch_id"])
+
+            if not student_batch or str(student_batch) not in allowed_bids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="This examination is restricted to specific batches. Your batch is not eligible to submit."
+                )
         
         upload_session_id = f"upsess_{uuid.uuid4().hex}"
         student_tag = req.student_id or clean_roll
@@ -490,9 +526,39 @@ def _process_submission_sync(
         cursor = conn.cursor()
         verify_active_submission_window(exam_id, cursor, allow_grace=False)
         
-        cursor.execute("SELECT title, branch_id, total_marks FROM exams WHERE id = ?", (exam_id,))
+        cursor.execute("SELECT title, branch_id, total_marks, batch_scope, batch_ids FROM exams WHERE id = ?", (exam_id,))
         exam = cursor.fetchone()
         exam_total = exam["total_marks"] if exam else 0.0
+
+        # Enforce batch scoping
+        if exam and exam.get("batch_scope") in ("SPECIFIC", "BATCHES"):
+            student_batch = batch_id
+            if not student_batch:
+                cursor.execute(
+                    "SELECT batch_id FROM students WHERE UPPER(roll_number) = ? OR user_id = ? LIMIT 1",
+                    (clean_roll, current_sub or "")
+                )
+                st_row = cursor.fetchone()
+                if st_row:
+                    student_batch = st_row["batch_id"]
+
+            allowed_bids = set()
+            if exam.get("batch_ids"):
+                try:
+                    p = json.loads(exam["batch_ids"])
+                    if isinstance(p, list):
+                        allowed_bids = set(str(x).strip() for x in p if str(x).strip())
+                except Exception:
+                    allowed_bids = set(b.strip() for b in exam["batch_ids"].split(",") if b.strip())
+            if not allowed_bids:
+                cursor.execute("SELECT batch_id FROM exam_batches WHERE exam_id = ?", (exam_id,))
+                allowed_bids = set(r["batch_id"] for r in cursor.fetchall() if r["batch_id"])
+
+            if not student_batch or str(student_batch) not in allowed_bids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="This examination is restricted to specific batches. Your batch is not eligible to submit."
+                )
     
     sub_id = f"sub_{uuid.uuid4().hex[:12]}"
     dest_key = f"submissions/{exam_id}/{clean_roll}/original_{sub_id}.pdf"
@@ -611,20 +677,83 @@ async def upload_single_multipart(
     roll_number: str = Form(...),
     student_name: Optional[str] = Form(""),
     batch_id: Optional[str] = Form(None),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
 ):
     """
-    Standard multipart upload endpoint for single-PDF submissions.
-    Supports local dev testing and direct file picker upload in PWA.
+    Multipart upload endpoint for student submissions.
+    Supports:
+    - Single PDF upload
+    - Single photo / image upload
+    - Multi-page camera scans / gallery photos (stitched into a canonical upright PDF)
+    - Mixed PDF and image pages
     Upload validation and DB transactions run non-blocking with zero eager rasterization.
     """
     clean_roll = roll_number.strip().upper()
-    content = await file.read()
-    file_size = len(content)
-    
-    if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=400, detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB.")
+
+    # Collect all provided files (backward compatible with 'file' and 'files')
+    all_files: List[UploadFile] = []
+    if files:
+        all_files.extend([f for f in files if f and f.filename])
+    if file and file.filename and file not in all_files:
+        all_files.append(file)
+
+    if not all_files:
+        raise HTTPException(status_code=400, detail="No answer sheet file provided for upload.")
+
+    # Check if single PDF
+    is_single_pdf = len(all_files) == 1 and Path(all_files[0].filename).suffix.lower() == ".pdf"
+
+    if is_single_pdf:
+        content = await all_files[0].read()
+        file_size = len(content)
+        if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB.")
+    else:
+        # Multiple files or image files: validate, save temporary parts, and assemble canonical PDF
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            saved_paths: List[Path] = []
+            total_raw_size = 0
+
+            for idx, uf in enumerate(all_files):
+                raw_bytes = await uf.read()
+                total_raw_size += len(raw_bytes)
+                if total_raw_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024 * 3:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Total uploaded size exceeds allowable limit of {settings.MAX_UPLOAD_SIZE_MB} MB."
+                    )
+
+                ext = Path(uf.filename).suffix.lower() or ".jpg"
+                part_path = tmp_path / f"page_{idx+1:03d}{ext}"
+                with open(part_path, "wb") as f_out:
+                    f_out.write(raw_bytes)
+
+                valid, msg = pdf_service.validate_file(part_path, max_size_mb=settings.MAX_UPLOAD_SIZE_MB)
+                if not valid:
+                    raise HTTPException(status_code=400, detail=f"Invalid page {idx+1} ({uf.filename}): {msg}")
+                saved_paths.append(part_path)
+
+            out_pdf = tmp_path / "canonical_assembled.pdf"
+            try:
+                # Concurrency guard: strict limit of 1 simultaneous image stitching job on 512MB RAM
+                async with _backend_stitching_semaphore:
+                    await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_paths, out_pdf)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to assemble pages into canonical PDF: {str(e)}")
+
+            with open(out_pdf, "rb") as f_pdf:
+                content = f_pdf.read()
+            file_size = len(content)
+
+            if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Assembled PDF ({file_size / (1024*1024):.1f} MB) exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB."
+                )
 
     current_sub = current_user.get("sub") if current_user else None
     current_role = current_user.get("role") if current_user else None

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -37,11 +37,19 @@ import {
   Cpu,
   LifeBuoy,
   AlertTriangle,
+  Camera,
+  Trash2,
+  Plus,
+  ArrowUp,
+  ArrowDown,
+  Image as ImageIcon,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { ReportIssueModal } from "@/components/ReportIssueModal";
+import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
+import { assembleFilesToCanonicalPdf, AssemblyProgress } from "@/lib/pdfAssembler";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -70,8 +78,6 @@ function StudentMarksTrajectory({
 }: {
   submissions: any[];
 }) {
-  const [selectedSubject, setSelectedSubject] = useState<string>("ALL");
-
   // Extract published submissions
   const publishedSubmissions = useMemo(() => {
     return submissions.filter((s) => {
@@ -82,22 +88,48 @@ function StudentMarksTrajectory({
     });
   }, [submissions]);
 
-  // Unique subjects
-  const subjects = useMemo(() => {
-    const set = new Set<string>();
+  // Canonical branch subjects + any other subjects in submissions
+  const standardSubjects = useMemo(() => ["Physics", "Chemistry", "Maths", "Biology"], []);
+  const allSubjects = useMemo(() => {
+    const set = new Set<string>(standardSubjects);
     publishedSubmissions.forEach((s) => {
-      if (s.exam_subject) set.add(s.exam_subject.trim());
+      if (s.exam_subject && s.exam_subject.trim()) {
+        // Find existing case-insensitive match or add
+        const trimmed = s.exam_subject.trim();
+        const existing = Array.from(set).find((item) => item.toLowerCase() === trimmed.toLowerCase());
+        if (!existing) {
+          set.add(trimmed);
+        }
+      }
     });
     return Array.from(set);
-  }, [publishedSubmissions]);
+  }, [publishedSubmissions, standardSubjects]);
 
-  // Filter and sort chronologically
+  // Default to Physics if available, or first subject with papers, or Physics
+  const [selectedSubject, setSelectedSubject] = useState<string>("Physics");
+
+  // Paper count per subject
+  const subjectCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const sub of allSubjects) {
+      map[sub.toLowerCase()] = 0;
+    }
+    publishedSubmissions.forEach((s) => {
+      const sub = (s.exam_subject || "").trim().toLowerCase();
+      if (sub) {
+        map[sub] = (map[sub] || 0) + 1;
+      }
+    });
+    return map;
+  }, [allSubjects, publishedSubmissions]);
+
+  // Filter and sort chronologically for selected subject or ALL
   const points: TrajectoryPoint[] = useMemo(() => {
     const filtered =
       selectedSubject === "ALL"
         ? publishedSubmissions
         : publishedSubmissions.filter(
-            (s) => s.exam_subject && s.exam_subject.trim() === selectedSubject
+            (s) => (s.exam_subject || "").trim().toLowerCase() === selectedSubject.toLowerCase()
           );
 
     return filtered
@@ -217,15 +249,18 @@ function StudentMarksTrajectory({
   }
 
   return (
-    <FeatureCard className="p-4 sm:p-5 space-y-3">
-      {/* Top Header: Minimal - Metrics & Title Only */}
+    <FeatureCard className="p-4 sm:p-5 space-y-3.5">
+      {/* Top Header: Subject Title & Metrics */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <div className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <TrendingUp className="h-3.5 w-3.5" />
           </div>
-          <h2 className="text-sm sm:text-base font-bold text-ink">
-            Marks Trajectory
+          <h2 className="text-sm sm:text-base font-bold text-ink flex items-center gap-1.5">
+            <span>Marks Trajectory:</span>
+            <span className="text-primary font-bold">
+              {selectedSubject === "ALL" ? "All Subjects" : selectedSubject}
+            </span>
           </h2>
           {revalUpgradesCount > 0 && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -237,6 +272,12 @@ function StudentMarksTrajectory({
 
         {/* Minimal Metrics Badges */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {count > 0 && (
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
+              <span>{count} {count === 1 ? "Paper" : "Papers"}</span>
+            </div>
+          )}
+
           {trendDiff !== null && (
             <div
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${
@@ -280,234 +321,268 @@ function StudentMarksTrajectory({
         </div>
       </div>
 
-      {/* Subject Filter Pills (if multiple subjects exist) */}
-      {subjects.length > 1 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
-          <button
-            type="button"
-            onClick={() => setSelectedSubject("ALL")}
-            className={`px-2.5 py-0.5 rounded-full font-medium transition-colors cursor-pointer shrink-0 text-[11px] ${
-              selectedSubject === "ALL"
-                ? "bg-primary text-white shadow-2xs"
-                : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-muted hover:text-ink"
-            }`}
-          >
-            All Subjects
-          </button>
-          {subjects.map((subj) => {
-            const isSelected = selectedSubject === subj;
-            return (
-              <button
-                key={subj}
-                type="button"
-                onClick={() => setSelectedSubject(subj)}
-                className={`px-2.5 py-0.5 rounded-full font-medium transition-colors cursor-pointer shrink-0 text-[11px] ${
+      {/* Subject Tabs Navigation (Physics, Chemistry, Maths, Biology, All Subjects) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-hairline/60">
+        {allSubjects.map((subj) => {
+          const isSelected = selectedSubject.toLowerCase() === subj.toLowerCase();
+          const pCount = subjectCounts[subj.toLowerCase()] || 0;
+          return (
+            <button
+              key={subj}
+              type="button"
+              onClick={() => setSelectedSubject(subj)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
+                isSelected
+                  ? "bg-primary text-white shadow-2xs font-semibold"
+                  : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
+              }`}
+            >
+              <span>{subj}</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                   isSelected
-                    ? "bg-primary text-white shadow-2xs"
-                    : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-muted hover:text-ink"
+                    ? "bg-white/20 text-white font-bold"
+                    : pCount > 0
+                    ? "bg-primary/10 text-primary font-bold"
+                    : "bg-surface text-ink-muted"
                 }`}
               >
-                {subj}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Seamless Dynamic SVG Chart Container (No letterboxing, fills container) */}
-      <div className="relative w-full overflow-hidden pt-1">
-        <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full h-auto select-none overflow-visible block"
+                {pCount}
+              </span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setSelectedSubject("ALL")}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
+            selectedSubject === "ALL"
+              ? "bg-primary text-white shadow-2xs font-semibold"
+              : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
+          }`}
         >
-          <defs>
-            <linearGradient id="pgMarksTrajectoryGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
-            </linearGradient>
-            <filter id="pgPointGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.25" />
-            </filter>
-          </defs>
+          <span>All Subjects</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+              selectedSubject === "ALL"
+                ? "bg-white/20 text-white font-bold"
+                : "bg-surface text-ink-muted"
+            }`}
+          >
+            {publishedSubmissions.length}
+          </span>
+        </button>
+      </div>
 
-          {/* Grid lines and Y-axis percentage labels */}
-          {[100, 75, 50, 25, 0].map((pct) => {
-            const y = getY(pct);
-            return (
-              <g key={pct}>
+      {/* Chart Canvas or Subject-Specific Empty State */}
+      {count === 0 ? (
+        <div className="py-7 px-4 text-center rounded-lg border border-dashed border-hairline bg-canvas-soft/40 space-y-1.5">
+          <div className="h-8 w-8 rounded-full bg-surface border border-hairline flex items-center justify-center mx-auto text-ink-muted">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <p className="text-xs font-semibold text-ink">
+            No published results in {selectedSubject} yet
+          </p>
+          <p className="text-[11px] text-ink-muted max-w-sm mx-auto">
+            Evaluated test papers and score progression for {selectedSubject} will automatically appear here once results are published.
+          </p>
+        </div>
+      ) : (
+        /* Seamless Dynamic SVG Chart Container */
+        <div className="relative w-full overflow-hidden pt-1">
+          <svg
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            className="w-full h-auto select-none overflow-visible block"
+          >
+            <defs>
+              <linearGradient id="pgMarksTrajectoryGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+              </linearGradient>
+              <filter id="pgPointGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.25" />
+              </filter>
+            </defs>
+
+            {/* Grid lines and Y-axis percentage labels */}
+            {[100, 75, 50, 25, 0].map((pct) => {
+              const y = getY(pct);
+              return (
+                <g key={pct}>
+                  <line
+                    x1={padLeft}
+                    y1={y}
+                    x2={svgWidth - padRight}
+                    y2={y}
+                    stroke="#e2e8f0"
+                    strokeWidth="1"
+                    strokeDasharray={pct === 0 ? "none" : "3 3"}
+                  />
+                  <text
+                    x={padLeft - 6}
+                    y={y + 3.5}
+                    textAnchor="end"
+                    className="fill-slate-400 font-mono text-[8.5px] select-none"
+                  >
+                    {pct}%
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Dotted Average Benchmark Line */}
+            {avgPct !== null && count >= 2 && (
+              <g>
                 <line
                   x1={padLeft}
-                  y1={y}
+                  y1={getY(Number(avgPct))}
                   x2={svgWidth - padRight}
-                  y2={y}
-                  stroke="#e2e8f0"
-                  strokeWidth="1"
-                  strokeDasharray={pct === 0 ? "none" : "3 3"}
+                  y2={getY(Number(avgPct))}
+                  stroke="#a855f7"
+                  strokeWidth="1.5"
+                  strokeDasharray="4 4"
+                  strokeOpacity="0.75"
                 />
                 <text
-                  x={padLeft - 6}
-                  y={y + 3.5}
-                  textAnchor="end"
-                  className="fill-slate-400 font-mono text-[8.5px] select-none"
+                  x={svgWidth - padRight + 4}
+                  y={getY(Number(avgPct)) + 3}
+                  className="fill-purple-600 font-mono text-[8.5px] font-bold"
                 >
-                  {pct}%
+                  Avg {avgPct}%
                 </text>
               </g>
-            );
-          })}
+            )}
 
-          {/* Dotted Average Benchmark Line */}
-          {avgPct !== null && count >= 2 && (
-            <g>
-              <line
-                x1={padLeft}
-                y1={getY(Number(avgPct))}
-                x2={svgWidth - padRight}
-                y2={getY(Number(avgPct))}
-                stroke="#a855f7"
-                strokeWidth="1.5"
-                strokeDasharray="4 4"
-                strokeOpacity="0.75"
-              />
-              <text
-                x={svgWidth - padRight + 4}
-                y={getY(Number(avgPct)) + 3}
-                className="fill-purple-600 font-mono text-[8.5px] font-bold"
-              >
-                Avg {avgPct}%
-              </text>
-            </g>
-          )}
-
-          {/* Area Fill with Fade In */}
-          {areaD && (
-            <path
-              d={areaD}
-              fill="url(#pgMarksTrajectoryGrad)"
-              style={{
-                opacity: lineAnimated ? 1 : 0,
-                transition: "opacity 0.6s ease 0.3s",
-              }}
-            />
-          )}
-
-          {/* Line Path with Lightweight Smooth Draw Animation */}
-          {pathD && (
-            <path
-              d={pathD}
-              fill="none"
-              stroke="#2563eb"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                strokeDasharray: 1200,
-                strokeDashoffset: lineAnimated ? 0 : 1200,
-                transition: "stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)",
-              }}
-            />
-          )}
-
-          {/* Data Nodes with Pop-in Animation */}
-          {points.map((p, idx) => {
-            const cx = getX(idx);
-            const cy = getY(p.percentage);
-
-            return (
-              <g
-                key={p.id}
-                className="group transition-all"
+            {/* Area Fill with Fade In */}
+            {areaD && (
+              <path
+                d={areaD}
+                fill="url(#pgMarksTrajectoryGrad)"
                 style={{
                   opacity: lineAnimated ? 1 : 0,
-                  transform: lineAnimated ? "scale(1)" : "scale(0.3)",
-                  transformOrigin: `${cx}px ${cy}px`,
-                  transition: `opacity 0.35s ease ${0.25 + idx * 0.08}s, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${0.25 + idx * 0.08}s`,
+                  transition: "opacity 0.6s ease 0.3s",
                 }}
-              >
-                <title>{`${p.title} (${p.subject}): ${p.marks}/${p.maxMarks} (${p.percentage}%)`}</title>
+              />
+            )}
 
-                {/* Revaluation Upgraded Halo */}
-                {p.isMarksRevised && (
+            {/* Line Path with Lightweight Smooth Draw Animation */}
+            {pathD && (
+              <path
+                d={pathD}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  strokeDasharray: 1200,
+                  strokeDashoffset: lineAnimated ? 0 : 1200,
+                  transition: "stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+              />
+            )}
+
+            {/* Data Nodes with Pop-in Animation */}
+            {points.map((p, idx) => {
+              const cx = getX(idx);
+              const cy = getY(p.percentage);
+
+              return (
+                <g
+                  key={p.id}
+                  className="group transition-all"
+                  style={{
+                    opacity: lineAnimated ? 1 : 0,
+                    transform: lineAnimated ? "scale(1)" : "scale(0.3)",
+                    transformOrigin: `${cx}px ${cy}px`,
+                    transition: `opacity 0.35s ease ${0.25 + idx * 0.08}s, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${0.25 + idx * 0.08}s`,
+                  }}
+                >
+                  <title>{`${p.title} (${p.subject}): ${p.marks}/${p.maxMarks} (${p.percentage}%)`}</title>
+
+                  {/* Revaluation Upgraded Halo */}
+                  {p.isMarksRevised && (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r="10"
+                      fill="#10b981"
+                      fillOpacity="0.22"
+                      className="animate-pulse"
+                    />
+                  )}
+
+                  {/* Node Center Dot */}
                   <circle
                     cx={cx}
                     cy={cy}
-                    r="10"
-                    fill="#10b981"
-                    fillOpacity="0.22"
-                    className="animate-pulse"
+                    r="5"
+                    fill={
+                      p.isMarksRevised
+                        ? "#10b981"
+                        : p.isRevalPending
+                        ? "#f59e0b"
+                        : "#2563eb"
+                    }
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    filter="url(#pgPointGlow)"
+                    className="transition-all duration-150 group-hover:r-[6.5px]"
                   />
-                )}
 
-                {/* Node Center Dot */}
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r="5"
-                  fill={
-                    p.isMarksRevised
-                      ? "#10b981"
-                      : p.isRevalPending
-                      ? "#f59e0b"
-                      : "#2563eb"
-                  }
-                  stroke="#ffffff"
-                  strokeWidth="2"
-                  filter="url(#pgPointGlow)"
-                  className="transition-all duration-150 group-hover:r-[6.5px]"
-                />
+                  {/* Score Label above node */}
+                  <text
+                    x={cx}
+                    y={cy - 9}
+                    textAnchor="middle"
+                    className={`font-mono text-[9px] font-bold select-none ${
+                      p.isMarksRevised ? "fill-emerald-700" : "fill-slate-700"
+                    }`}
+                  >
+                    {p.percentage}%
+                  </text>
 
-                {/* Score Label above node */}
-                <text
-                  x={cx}
-                  y={cy - 9}
-                  textAnchor="middle"
-                  className={`font-mono text-[9px] font-bold select-none ${
-                    p.isMarksRevised ? "fill-emerald-700" : "fill-slate-700"
-                  }`}
-                >
-                  {p.percentage}%
-                </text>
+                  {/* X-axis Date/Exam Label */}
+                  <text
+                    x={cx}
+                    y={svgHeight - 8}
+                    textAnchor="middle"
+                    className="font-sans text-[8.5px] fill-slate-500 select-none"
+                  >
+                    {p.dateStr}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
 
-                {/* X-axis Date/Exam Label */}
-                <text
-                  x={cx}
-                  y={svgHeight - 8}
-                  textAnchor="middle"
-                  className="font-sans text-[8.5px] fill-slate-500 select-none"
-                >
-                  {p.dateStr}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-
-        {/* Minimal Legend Footer */}
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1.5 mt-1 border-t border-hairline/60 text-[11px] text-ink-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-primary" />
-            <span>Standard</span>
-          </span>
-          {points.some((p) => p.isMarksRevised) && (
+          {/* Minimal Legend Footer */}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1.5 mt-1 border-t border-hairline/60 text-[11px] text-ink-muted">
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="font-medium text-emerald-800">Revaluation Upgraded</span>
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              <span>Standard</span>
             </span>
-          )}
-          {points.some((p) => p.isRevalPending) && (
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              <span>In Review</span>
-            </span>
-          )}
-          {count >= 2 && (
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 border-t-2 border-dashed border-purple-500" />
-              <span>Average</span>
-            </span>
-          )}
+            {points.some((p) => p.isMarksRevised) && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="font-medium text-emerald-800">Revaluation Upgraded</span>
+              </span>
+            )}
+            {points.some((p) => p.isRevalPending) && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                <span>In Review</span>
+              </span>
+            )}
+            {count >= 2 && (
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 border-t-2 border-dashed border-purple-500" />
+                <span>Average</span>
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </FeatureCard>
   );
 }
@@ -519,16 +594,130 @@ export default function StudentPortalPage() {
   const [hideNotifBanner, setHideNotifBanner] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [exams, setExams] = useState<any[]>([]);
-  const [activeExam, setActiveExam] = useState<any>(null);
-  const [windowStatus, setWindowStatus] = useState<any>(null);
+  const [activeWindows, setActiveWindows] = useState<Array<{ exam: any; window_status: any }>>([]);
+  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Upload state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Derived current active exam and window status
+  const currentActiveItem =
+    activeWindows.find((w) => w.exam?.id === selectedExamId) || activeWindows[0] || null;
+  const activeExam = currentActiveItem?.exam || null;
+  const windowStatus = currentActiveItem?.window_status || null;
+
+  // Question Paper & Answer Key Viewer Modal state
+  const [artifactModalOpen, setArtifactModalOpen] = useState(false);
+  const [artifactModalExam, setArtifactModalExam] = useState<any>(null);
+  const [artifactModalInitialTab, setArtifactModalInitialTab] = useState<"question-paper" | "answer-key">("question-paper");
+
+  // Multi-page Scanning & Upload state
+  const [scannedPages, setScannedPages] = useState<Array<{
+    id: string;
+    file: File;
+    name: string;
+    size: number;
+    previewUrl?: string;
+    isPdf: boolean;
+  }>>([]);
   const [uploading, setUploading] = useState(false);
+  const [assemblyProgress, setAssemblyProgress] = useState<AssemblyProgress | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const filePickerRef = useRef<HTMLInputElement | null>(null);
+
+  // Revoke preview object URLs when items are removed
+  const cleanupPreviews = (items: typeof scannedPages) => {
+    items.forEach((item) => {
+      if (item.previewUrl && !item.isPdf) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+  };
+
+  const handleAddFiles = (newFiles: FileList | File[]) => {
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    const addedList = Array.from(newFiles);
+    if (addedList.length === 0) return;
+
+    // Check if user is uploading a single PDF
+    const hasPdf = addedList.some((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+
+    if (hasPdf) {
+      const pdfFile = addedList.find((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"))!;
+      if (pdfFile.size > 7 * 1024 * 1024) {
+        setUploadError("PDF file exceeds 7 MB limit.");
+        toast.error("PDF exceeds 7 MB limit.");
+        return;
+      }
+      cleanupPreviews(scannedPages);
+      setScannedPages([
+        {
+          id: `pdf_${Date.now()}`,
+          file: pdfFile,
+          name: pdfFile.name,
+          size: pdfFile.size,
+          isPdf: true,
+        },
+      ]);
+      return;
+    }
+
+    // It's image pages (from camera or gallery)
+    const currentIsPdf = scannedPages.length === 1 && scannedPages[0].isPdf;
+    const baseItems = currentIsPdf ? [] : [...scannedPages];
+    if (currentIsPdf) cleanupPreviews(scannedPages);
+
+    const newItems: typeof scannedPages = [];
+    for (const f of addedList) {
+      if (baseItems.length + newItems.length >= 15) {
+        toast.warning("Maximum 15 pages allowed per answer sheet.");
+        break;
+      }
+      const previewUrl = URL.createObjectURL(f);
+      newItems.push({
+        id: `page_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        file: f,
+        name: f.name,
+        size: f.size,
+        previewUrl,
+        isPdf: false,
+      });
+    }
+
+    setScannedPages([...baseItems, ...newItems]);
+  };
+
+  const handleRemovePage = (index: number) => {
+    setScannedPages((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl && !target.isPdf) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleMovePage = (index: number, direction: "up" | "down") => {
+    setScannedPages((prev) => {
+      const targetIdx = direction === "up" ? index - 1 : index + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  const handleClearAllPages = () => {
+    cleanupPreviews(scannedPages);
+    setScannedPages([]);
+    setUploadError(null);
+  };
 
   // Detailed Breakdown Modal state
   const [breakdownModalOpen, setBreakdownModalOpen] = useState(false);
@@ -585,8 +774,17 @@ export default function StudentPortalPage() {
           setUser(state.user);
           setExams(state.exams || []);
           setSubmissions(state.submissions || []);
-          setActiveExam(state.active_exam || null);
-          setWindowStatus(state.window_status || null);
+          const wins =
+            state.active_windows && state.active_windows.length > 0
+              ? state.active_windows
+              : state.active_exam && state.window_status
+              ? [{ exam: state.active_exam, window_status: state.window_status }]
+              : [];
+          setActiveWindows(wins);
+          setSelectedExamId((prev) => {
+            if (prev && wins.some((w: any) => w.exam?.id === prev)) return prev;
+            return wins.length > 0 ? wins[0].exam.id : null;
+          });
           return;
         }
       } catch (portalErr) {
@@ -617,10 +815,16 @@ export default function StudentPortalPage() {
           })
         );
 
-        const activeResult = windowResults.find((r) => r.win && r.win.is_active);
-        if (activeResult) {
-          setActiveExam(activeResult.exam);
-          setWindowStatus(activeResult.win);
+        const activeResults = windowResults
+          .filter((r) => r.win && r.win.is_active)
+          .map((r) => ({ exam: r.exam, window_status: r.win }));
+
+        if (activeResults.length > 0) {
+          setActiveWindows(activeResults);
+          setSelectedExamId((prev) => {
+            if (prev && activeResults.some((w: any) => w.exam?.id === prev)) return prev;
+            return activeResults[0].exam.id;
+          });
         } else {
           // Check for windows closed within the last 2 hours (<= 7200000 ms)
           const twoHoursMs = 2 * 60 * 60 * 1000;
@@ -637,19 +841,20 @@ export default function StudentPortalPage() {
               const timeA = new Date(a.win?.grace_deadline_at || a.win?.deadline_at || a.win?.closed_at || 0).getTime();
               const timeB = new Date(b.win?.grace_deadline_at || b.win?.deadline_at || b.win?.closed_at || 0).getTime();
               return timeB - timeA;
-            });
+            })
+            .map((r) => ({ exam: r.exam, window_status: r.win }));
 
           if (recentlyClosed.length > 0) {
-            setActiveExam(recentlyClosed[0].exam);
-            setWindowStatus(recentlyClosed[0].win);
+            setActiveWindows([recentlyClosed[0]]);
+            setSelectedExamId(recentlyClosed[0].exam.id);
           } else {
-            setActiveExam(null);
-            setWindowStatus(null);
+            setActiveWindows([]);
+            setSelectedExamId(null);
           }
         }
       } else {
-        setActiveExam(null);
-        setWindowStatus(null);
+        setActiveWindows([]);
+        setSelectedExamId(null);
       }
     } catch (err) {
       console.error("Failed to load student portal data", err);
@@ -674,24 +879,34 @@ export default function StudentPortalPage() {
     return () => clearInterval(pollInterval);
   }, [router]);
 
-  // Window countdown timer effect
+  // Window countdown timer effect (ticks all active windows)
   useEffect(() => {
-    if (!windowStatus || !windowStatus.is_active || windowStatus.seconds_remaining <= 0) return;
+    const anyActive = activeWindows.some(
+      (w) => w.window_status?.is_active && w.window_status.seconds_remaining > 0
+    );
+    if (!anyActive) return;
 
     const interval = setInterval(() => {
-      setWindowStatus((prev: any) => {
-        if (!prev) return null;
-        const newSec = Math.max(0, prev.seconds_remaining - 1);
-        return {
-          ...prev,
-          seconds_remaining: newSec,
-          is_active: newSec > 0 || prev.is_in_grace,
-        };
-      });
+      setActiveWindows((prevList) =>
+        prevList.map((item) => {
+          if (!item.window_status?.is_active || item.window_status.seconds_remaining <= 0) {
+            return item;
+          }
+          const newSec = Math.max(0, item.window_status.seconds_remaining - 1);
+          return {
+            ...item,
+            window_status: {
+              ...item.window_status,
+              seconds_remaining: newSec,
+              is_active: newSec > 0 || item.window_status.is_in_grace,
+            },
+          };
+        })
+      );
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [windowStatus?.is_active]);
+  }, [activeWindows]);
 
   const formatCountdown = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
@@ -699,20 +914,51 @@ export default function StudentPortalPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Upload handler (Multipart Single PDF)
+  // Upload handler (Client-Side Document Assembly -> Canonical PDF)
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile || !activeExam) return;
+    if (scannedPages.length === 0 || !activeExam) return;
 
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(null);
+    setAssemblyProgress(null);
 
     try {
+      const roll = user?.roll_number || user?.student?.roll_number || "ROLL-101";
+      const studentName = user?.full_name || "Enrolled Student";
+
+      let finalPdfFile: File;
+
+      // Fast path: if already a single PDF, no client compilation needed
+      if (scannedPages.length === 1 && scannedPages[0].isPdf) {
+        finalPdfFile = scannedPages[0].file;
+      } else {
+        // Industry Standard: Downscale and compile into clean PDF directly on student device
+        setAssemblyProgress({
+          currentPage: 1,
+          totalPages: scannedPages.length,
+          percent: 5,
+          stage: "optimizing",
+          statusMessage: "Optimizing & assembling pages on device...",
+        });
+
+        finalPdfFile = await assembleFilesToCanonicalPdf(
+          scannedPages.map((p) => p.file),
+          {
+            outputFilename: `answersheet_${roll.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+            maxPageDimension: 1600,
+            jpegQuality: 0.82,
+            onProgress: (p) => setAssemblyProgress(p),
+          }
+        );
+      }
+
       const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("roll_number", user?.roll_number || user?.student?.roll_number || "ROLL-101");
-      formData.append("student_name", user?.full_name || "Enrolled Student");
+      formData.append("file", finalPdfFile);
+      formData.append("files", finalPdfFile);
+      formData.append("roll_number", roll);
+      formData.append("student_name", studentName);
 
       const result = await api.uploadSingleMultipart(activeExam.id, formData);
       const successMsg = result.is_replacement
@@ -720,7 +966,7 @@ export default function StudentPortalPage() {
         : "Answer sheet uploaded successfully!";
       setUploadSuccess(successMsg);
       toast.success(successMsg, { title: "Submission Received" });
-      setSelectedFile(null);
+      handleClearAllPages();
 
       // Refresh submissions
       await loadPortalData();
@@ -730,6 +976,7 @@ export default function StudentPortalPage() {
       toast.error(errorMsg, { title: "Upload Failed" });
     } finally {
       setUploading(false);
+      setAssemblyProgress(null);
     }
   };
 
@@ -936,6 +1183,14 @@ export default function StudentPortalPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/student/exams"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-ink bg-surface hover:bg-canvas-soft border border-hairline transition-all shadow-2xs"
+            title="Browse your past exam papers"
+          >
+            <BookOpen className="h-3.5 w-3.5 text-primary" />
+            <span>Past Exams ({submissions.length})</span>
+          </Link>
           <button
             type="button"
             onClick={() => setReportModalOpen(true)}
@@ -949,6 +1204,27 @@ export default function StudentPortalPage() {
             <BadgePill label="PWA Student Portal" color="sky" />
           </div>
         </div>
+      </div>
+
+      {/* Portal Top Navigation Switcher */}
+      <div className="flex items-center gap-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
+        <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink bg-surface shadow-2xs border border-hairline/60">
+          <Layers className="h-3.5 w-3.5 text-primary" />
+          <span>Dashboard & Active Windows</span>
+          {activeWindows.length > 0 && (
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          )}
+        </div>
+        <Link
+          href="/student/exams"
+          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface/60 transition-colors"
+        >
+          <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
+          <span>Past Exams</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline text-ink-muted">
+            {submissions.length}
+          </span>
+        </Link>
       </div>
 
       {/* Push Notification Permission Opt-in Prompt */}
@@ -1036,7 +1312,80 @@ export default function StudentPortalPage() {
 
       {/* Active Exam Submission Window Card (Only displayed if open, or if closed within the last 2 hours) */}
       {shouldShowExamWindowCard && activeExam && (
-        <FeatureCard className="p-6">
+        <div className="space-y-3">
+          {/* Multi-Window Selector (Rendered whenever 2 or more exam windows are open concurrently) */}
+          {activeWindows.length > 1 && (
+            <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/70 border border-blue-200/90 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-blue-950 uppercase tracking-wider">
+                    {activeWindows.length} Exam Windows Currently Open
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-blue-700">Select paper to submit:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {activeWindows.map((winItem) => {
+                  const isSelected = winItem.exam?.id === activeExam?.id;
+                  const remaining = winItem.window_status?.seconds_remaining || 0;
+                  return (
+                    <button
+                      key={winItem.exam.id}
+                      type="button"
+                      onClick={() => {
+                        if (scannedPages.length > 0 && !isSelected) {
+                          if (
+                            !confirm(
+                              "You have scanned pages staged for upload. Switching exams will clear them. Continue?"
+                            )
+                          ) {
+                            return;
+                          }
+                          setScannedPages([]);
+                        }
+                        setSelectedExamId(winItem.exam.id);
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-lg text-left transition-all border ${
+                        isSelected
+                          ? "bg-white border-primary shadow-sm ring-1.5 ring-primary"
+                          : "bg-white/80 hover:bg-white border-blue-200/80 text-ink-secondary hover:border-blue-400"
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`h-2 w-2 rounded-full shrink-0 ${
+                              isSelected ? "bg-primary" : "bg-slate-300"
+                            }`}
+                          />
+                          <span className="text-xs font-bold text-ink truncate">
+                            {winItem.exam.title}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-ink-muted truncate pl-3.5">
+                          {winItem.exam.subject || "General"}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span
+                          className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded ${
+                            remaining < 300
+                              ? "bg-amber-100 text-amber-900 border border-amber-200"
+                              : "bg-blue-100/80 text-blue-900 border border-blue-200"
+                          }`}
+                        >
+                          {formatCountdown(remaining)}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <FeatureCard className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -1086,30 +1435,225 @@ export default function StudentPortalPage() {
           <div className="mt-5 space-y-4">
             {windowStatus?.is_active ? (
               <form onSubmit={handleUploadSubmit} className="space-y-4">
-                <div className="rounded-lg border-2 border-dashed border-hairline hover:border-primary/50 bg-canvas-soft/50 p-6 text-center transition-colors">
-                  <input
-                    type="file"
-                    id="paper-upload"
-                    accept="application/pdf,image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setSelectedFile(e.target.files[0]);
-                      }
-                    }}
-                  />
-                  <label htmlFor="paper-upload" className="cursor-pointer block space-y-2">
-                    <div className="mx-auto h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <Upload className="h-5 w-5" />
+                {/* Hidden File Inputs */}
+                {/* 1. Camera Input (Environment Camera for Direct Page Scanning) */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) handleAddFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                {/* 2. File / Gallery Picker Input (Multi-Image or PDF) */}
+                <input
+                  ref={filePickerRef}
+                  type="file"
+                  accept=".pdf,image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) handleAddFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+
+                {scannedPages.length === 0 ? (
+                  /* Empty state: Choice between Camera Scan and File Picker */
+                  <div className="rounded-xl border-2 border-dashed border-hairline hover:border-primary/50 bg-canvas-soft/40 p-6 sm:p-8 text-center transition-all">
+                    <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
+                      <Camera className="h-6 w-6" />
                     </div>
-                    <div className="text-sm font-semibold text-ink">
-                      {selectedFile ? selectedFile.name : "Choose Single Combined PDF or Scan Pages"}
-                    </div>
-                    <p className="text-xs text-ink-muted max-w-sm mx-auto">
-                      Single PDF document. Maximum 7 MB, up to 15 canonical pages.
+                    <h3 className="text-sm font-bold text-ink">
+                      Capture or Upload Answer Sheet
+                    </h3>
+                    <p className="text-xs text-ink-muted max-w-sm mx-auto mt-1 mb-5">
+                      Snap pages sequentially with your phone camera, or upload a single combined PDF (Max 15 pages, 7 MB).
                     </p>
-                  </label>
-                </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                      >
+                        <Camera className="h-4 w-4" />
+                        <span>Scan Page (Camera)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => filePickerRef.current?.click()}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-surface border border-hairline text-ink hover:bg-canvas-soft text-xs font-semibold shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                      >
+                        <Upload className="h-4 w-4 text-ink-muted" />
+                        <span>Choose Photos / PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Scanned Pages List / Review Section */
+                  <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-4">
+                    <div className="flex items-center justify-between border-b border-hairline pb-3">
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-ink">
+                          {scannedPages.length === 1 && scannedPages[0].isPdf
+                            ? "Document Ready"
+                            : `Scanned Pages (${scannedPages.length} of 15)`}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleClearAllPages}
+                        className="text-[11px] font-medium text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Reset
+                      </button>
+                    </div>
+
+                    {scannedPages.length === 1 && scannedPages[0].isPdf ? (
+                      /* Single PDF Preview Card */
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-hairline bg-canvas-soft/60">
+                        <div className="flex items-center gap-3 min-w-0 pr-2">
+                          <div className="h-10 w-10 rounded-md bg-red-100 dark:bg-red-950/40 text-red-600 flex items-center justify-center shrink-0">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-ink truncate break-all max-w-[200px] sm:max-w-md">
+                              {scannedPages[0].name}
+                            </p>
+                            <p className="text-[11px] text-ink-muted font-mono">
+                              {(scannedPages[0].size / (1024 * 1024)).toFixed(2)} MB • Combined PDF
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => filePickerRef.current?.click()}
+                          className="text-xs text-primary font-medium hover:underline shrink-0 cursor-pointer"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      /* Scanned Image Pages Grid with Reorder / Delete Controls */
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
+                          {scannedPages.map((page, idx) => (
+                            <div
+                              key={page.id}
+                              className="flex items-center justify-between p-2.5 rounded-lg border border-hairline bg-canvas-soft/40 hover:bg-canvas-soft/80 transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                {page.previewUrl ? (
+                                  <img
+                                    src={page.previewUrl}
+                                    alt={`Page ${idx + 1}`}
+                                    className="h-12 w-9 rounded object-cover border border-hairline shrink-0 shadow-2xs"
+                                  />
+                                ) : (
+                                  <div className="h-12 w-9 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                    <ImageIcon className="h-4 w-4" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                      Page {idx + 1}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] font-mono text-ink-muted truncate break-all max-w-[120px] sm:max-w-[160px] mt-0.5">
+                                    {page.name}
+                                  </p>
+                                  <p className="text-[10px] text-ink-faint">
+                                    {(page.size / 1024).toFixed(0)} KB
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMovePage(idx, "up")}
+                                  title="Move earlier"
+                                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                >
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === scannedPages.length - 1}
+                                  onClick={() => handleMovePage(idx, "down")}
+                                  title="Move later"
+                                  className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                >
+                                  <ArrowDown className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePage(idx)}
+                                  title="Delete page"
+                                  className="p-1 rounded text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Page Add Controls */}
+                        {scannedPages.length < 15 && (
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => cameraInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline hover:border-primary text-xs font-medium text-ink hover:text-primary transition-colors cursor-pointer"
+                            >
+                              <Camera className="h-3.5 w-3.5" />
+                              <span>+ Scan Next Page (Camera)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => filePickerRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline hover:border-primary text-xs font-medium text-ink hover:text-primary transition-colors cursor-pointer"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              <span>+ Add Photos</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {uploading && assemblyProgress && (
+                  <div className="rounded-xs bg-brand-50 border border-brand-200 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-brand-700 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <Cpu className="h-3.5 w-3.5 animate-spin text-brand-600" />
+                        {assemblyProgress.statusMessage}
+                      </span>
+                      <span>{assemblyProgress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-brand-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-brand-600 h-1.5 transition-all duration-200 ease-out rounded-full"
+                        style={{ width: `${assemblyProgress.percent}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-brand-600/80">
+                      Processing on your device to keep upload fast and ultra-lightweight.
+                    </p>
+                  </div>
+                )}
 
                 {uploadError && (
                   <div className="rounded-xs bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
@@ -1122,16 +1666,25 @@ export default function StudentPortalPage() {
                   </div>
                 )}
 
-                {selectedFile && (
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-xs text-ink-muted">
-                      {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB ready to upload
-                    </span>
+                {scannedPages.length > 0 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                    <div className="text-xs text-ink-muted">
+                      <span className="font-semibold text-ink">
+                        {(scannedPages.reduce((acc, p) => acc + p.size, 0) / (1024 * 1024)).toFixed(2)} MB
+                      </span>{" "}
+                      across {scannedPages.length} {scannedPages.length === 1 ? "page" : "pages"}
+                      {!scannedPages[0]?.isPdf && " (auto-assembled & optimized on device)"}
+                    </div>
                     <ButtonPrimary
                       type="submit"
                       isLoading={uploading}
+                      className="w-full sm:w-auto"
                     >
-                      Submit Answer Sheet
+                      {uploading
+                        ? assemblyProgress && assemblyProgress.stage !== "ready"
+                          ? "Assembling on Device..."
+                          : "Uploading PDF..."
+                        : "Submit Answer Sheet"}
                     </ButtonPrimary>
                   </div>
                 )}
@@ -1146,6 +1699,7 @@ export default function StudentPortalPage() {
             )}
           </div>
         </FeatureCard>
+        </div>
       )}
 
       {/* SECTION: PAST EXAM SUBMISSIONS */}
@@ -1157,9 +1711,18 @@ export default function StudentPortalPage() {
               Review evaluated answer sheets, question-by-question marks, and faculty revaluations.
             </p>
           </div>
-          <span className="text-xs font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline whitespace-nowrap shrink-0">
-            {submissions.length} {submissions.length === 1 ? "Paper" : "Papers"}
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="hidden sm:inline-block text-xs font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline whitespace-nowrap">
+              {submissions.length} {submissions.length === 1 ? "Paper" : "Papers"}
+            </span>
+            <Link
+              href="/student/exams"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/15 border border-primary/25 px-3 py-1.5 rounded-lg transition-colors shadow-2xs whitespace-nowrap"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>View All ({submissions.length}) →</span>
+            </Link>
+          </div>
         </div>
 
         {submissions.length === 0 ? (
@@ -1171,8 +1734,37 @@ export default function StudentPortalPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {submissions.map((sub) => {
+          <div className="space-y-4">
+            {/* Dedicated Past Exams Hub Callout */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-canvas-soft to-surface border border-hairline shadow-2xs">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-ink">Past Exams Archive Hub</span>
+                  <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                    Search & Collapsed Cards
+                  </span>
+                </div>
+                <p className="text-[11px] text-ink-muted">
+                  Search by title or subject, browse collapsed exam cards, and view question papers with official answer keys.
+                </p>
+              </div>
+              <Link
+                href="/student/exams"
+                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 rounded-lg transition-colors shrink-0 shadow-2xs whitespace-nowrap"
+              >
+                <span>Browse All {submissions.length} Past Papers</span>
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* Most Recent Submission Preview */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-ink-muted px-0.5 flex items-center justify-between">
+                <span>Latest Evaluated Exam</span>
+                <span className="text-[11px] font-normal lowercase text-ink-muted">Showing 1 of {submissions.length} on dashboard</span>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {submissions.slice(0, 1).map((sub) => {
               const isPublished =
                 sub.publication_status === "PUBLISHED" ||
                 (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
@@ -1415,6 +2007,30 @@ export default function StudentPortalPage() {
                           </button>
                         )}
 
+                        {/* Question Paper & Answer Key Viewer */}
+                        {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArtifactModalExam({
+                                id: sub.exam_id,
+                                title: sub.exam_title,
+                                subject: sub.exam_subject,
+                                has_question_paper: sub.has_question_paper,
+                                has_answer_key: sub.has_answer_key,
+                                is_document_purged: sub.exam_is_document_purged,
+                              });
+                              setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
+                              setArtifactModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                            title="View Question Paper & Official Answer Key"
+                          >
+                            <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>QP & Key</span>
+                          </button>
+                        )}
+
                         {/* Download Graded PDF */}
                         {isPublished ? (
                           sub.is_document_purged ? (
@@ -1482,6 +2098,23 @@ export default function StudentPortalPage() {
                 </FeatureCard>
               );
             })}
+              </div>
+            </div>
+
+            {/* If there are more submissions, show link to dedicated page */}
+            {submissions.length > 1 && (
+              <div className="pt-1">
+                <Link
+                  href="/student/exams"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-ink hover:text-primary transition-colors group shadow-2xs text-center"
+                >
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  <span>
+                    View Remaining {submissions.length - 1} Past {submissions.length - 1 === 1 ? "Paper" : "Papers"} in Dedicated Hub →
+                  </span>
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1979,6 +2612,24 @@ export default function StudentPortalPage() {
         onClose={() => setReportModalOpen(false)}
         userRole="STUDENT"
       />
+
+      {/* Official Question Paper & Answer Key Modal */}
+      {artifactModalExam && (
+        <ArtifactViewerModal
+          isOpen={artifactModalOpen}
+          onClose={() => {
+            setArtifactModalOpen(false);
+            setArtifactModalExam(null);
+          }}
+          examId={artifactModalExam.id}
+          examTitle={artifactModalExam.title}
+          examSubject={artifactModalExam.subject}
+          initialArtifact={artifactModalInitialTab}
+          hasQuestionPaper={artifactModalExam.has_question_paper}
+          hasAnswerKey={artifactModalExam.has_answer_key}
+          isExamDocumentPurged={artifactModalExam.is_document_purged}
+        />
+      )}
     </div>
   );
 }
