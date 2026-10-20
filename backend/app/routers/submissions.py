@@ -694,10 +694,19 @@ async def upload_single_multipart(
 
     # Collect all provided files (backward compatible with 'file' and 'files')
     all_files: List[UploadFile] = []
-    if files:
-        all_files.extend([f for f in files if f and f.filename])
-    if file and file.filename and file not in all_files:
+    seen_filenames = set()
+
+    # Prioritize main upload if 'file' provided
+    if file and file.filename:
         all_files.append(file)
+        seen_filenames.add(file.filename)
+
+    # Add any files from 'files' parameter that are not duplicate references
+    if files:
+        for f in files:
+            if f and f.filename and f.filename not in seen_filenames:
+                all_files.append(f)
+                seen_filenames.add(f.filename)
 
     if not all_files:
         raise HTTPException(status_code=400, detail="No answer sheet file provided for upload.")
