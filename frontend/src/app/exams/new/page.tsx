@@ -19,6 +19,10 @@ import {
   Cpu,
   ShieldCheck,
   Clock,
+  Users,
+  Check,
+  Layers,
+  ChevronDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import {
@@ -72,6 +76,89 @@ export default function NewExamPage() {
 
   const qpInputRef = useRef<HTMLInputElement>(null);
   const akInputRef = useRef<HTMLInputElement>(null);
+
+  // Batch Scoping: "ALL" (Whole branch) or "SPECIFIC" (Selected batches)
+  const [batchScopeMode, setBatchScopeMode] = useState<"ALL" | "SPECIFIC">("ALL");
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+
+  // Subject Dropdown Selection
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [isCustomSubject, setIsCustomSubject] = useState(false);
+  const [customSubjectText, setCustomSubjectText] = useState("");
+
+  // Fetch subjects for current branch/institute
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchSubjects() {
+      setLoadingSubjects(true);
+      try {
+        const subs = await api.listSubjects(selectedBranch?.id);
+        if (isMounted) {
+          const list = Array.isArray(subs) && subs.length > 0 ? subs : ["Physics", "Chemistry", "Maths", "Biology"];
+          setAvailableSubjects(list);
+          if (!subject && list.length > 0) {
+            setSubject(list[0]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load subjects:", e);
+        if (isMounted) {
+          const fallback = ["Physics", "Chemistry", "Maths", "Biology"];
+          setAvailableSubjects(fallback);
+          if (!subject) setSubject(fallback[0]);
+        }
+      } finally {
+        if (isMounted) setLoadingSubjects(false);
+      }
+    }
+    fetchSubjects();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBranch?.id]);
+
+  // Fetch batches when selected branch changes
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchBatches() {
+      setLoadingBatches(true);
+      try {
+        const list = await api.listBatches(selectedBranch?.id);
+        if (isMounted) {
+          setBatches(Array.isArray(list) ? list : []);
+        }
+      } catch (err) {
+        console.error("Failed to load batches:", err);
+        if (isMounted) setBatches([]);
+      } finally {
+        if (isMounted) setLoadingBatches(false);
+      }
+    }
+    fetchBatches();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBranch?.id]);
+
+  const handleToggleBatch = (id: string) => {
+    if (isSubmitting) return;
+    setSelectedBatchIds((prev) =>
+      prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllBatches = () => {
+    if (isSubmitting) return;
+    setSelectedBatchIds(batches.map((b) => b.id));
+  };
+
+  const handleClearBatches = () => {
+    if (isSubmitting) return;
+    setSelectedBatchIds([]);
+  };
 
   // Rubric synthesis is strictly active only when Root Admin provides both Question Paper and Answer Key
   const isSynthesizingRubric = isRootAdmin && qpFiles.length > 0 && akFiles.length > 0;
@@ -165,6 +252,13 @@ export default function NewExamPage() {
       return;
     }
 
+    if (batchScopeMode === "SPECIFIC" && selectedBatchIds.length === 0) {
+      toast.warning("Please select at least one batch for this examination, or switch to 'Whole Branch'.", {
+        title: "No Batches Selected",
+      });
+      return;
+    }
+
     const shouldGenerateRubric = isRootAdmin && qpFiles.length > 0 && akFiles.length > 0;
     setIsSubmitting(true);
 
@@ -174,6 +268,10 @@ export default function NewExamPage() {
       formData.append("subject", subject.trim());
       if (selectedBranch?.id) {
         formData.append("branch_id", selectedBranch.id);
+      }
+      formData.append("batch_scope", batchScopeMode);
+      if (batchScopeMode === "SPECIFIC") {
+        formData.append("batch_ids", JSON.stringify(selectedBatchIds));
       }
       if (extraNotes.trim()) formData.append("extra_notes", extraNotes.trim());
 
@@ -439,19 +537,300 @@ export default function NewExamPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
-                  Subject *
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={isSubmitting}
-                  placeholder="e.g. Physics / Mathematics / Chemistry"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-ink-secondary block">
+                    Subject *
+                  </label>
+                  {!isCustomSubject ? (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        setIsCustomSubject(true);
+                        setCustomSubjectText("");
+                        setSubject("");
+                      }}
+                      className="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Custom
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        setIsCustomSubject(false);
+                        if (availableSubjects.length > 0) {
+                          setSubject(availableSubjects[0]);
+                        }
+                      }}
+                      className="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                    >
+                      Choose from list
+                    </button>
+                  )}
+                </div>
+
+                {!isCustomSubject ? (
+                  <div className="relative">
+                    <select
+                      required
+                      disabled={isSubmitting || loadingSubjects}
+                      value={subject}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "__CUSTOM__") {
+                          setIsCustomSubject(true);
+                          setCustomSubjectText("");
+                          setSubject("");
+                        } else {
+                          setSubject(val);
+                        }
+                      }}
+                      className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink focus:border-primary focus:outline-none transition-colors appearance-none pr-8 cursor-pointer font-medium"
+                    >
+                      <option value="" disabled>Select Subject...</option>
+                      {availableSubjects.map((sub) => (
+                        <option key={sub} value={sub}>
+                          {sub}
+                        </option>
+                      ))}
+                      <option value="__CUSTOM__">+ Other / Custom Subject...</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-ink-muted">
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      disabled={isSubmitting}
+                      placeholder="Type custom subject name (e.g. Computer Science)"
+                      value={customSubjectText}
+                      onChange={(e) => {
+                        setCustomSubjectText(e.target.value);
+                        setSubject(e.target.value);
+                      }}
+                      className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+                    />
+                    <p className="text-[11px] text-ink-muted">
+                      Custom subject will be attached to this exam.
+                    </p>
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* Examination Scope & Batch Targeting */}
+            <div className="rounded-xl border border-hairline bg-canvas-soft/60 p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-hairline">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
+                      Student Access & Batch Scope
+                    </h3>
+                    <p className="text-[11px] text-ink-muted">
+                      Define which cohorts can view this exam and submit answer sheets.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                  <span className="text-[11px] font-medium text-ink-muted">Target:</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface border border-hairline text-ink">
+                    {batchScopeMode === "ALL"
+                      ? "Whole Branch"
+                      : `${selectedBatchIds.length} of ${batches.length} Batches`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Mode Switcher Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Option 1: Whole Branch */}
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setBatchScopeMode("ALL")}
+                  className={`p-3.5 rounded-lg border text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                    batchScopeMode === "ALL"
+                      ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20"
+                      : "bg-surface border-hairline hover:border-ink/20 hover:bg-canvas-soft"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`h-5 w-5 rounded-full flex items-center justify-center border transition-colors ${
+                          batchScopeMode === "ALL"
+                            ? "border-primary bg-primary text-white"
+                            : "border-hairline bg-surface"
+                        }`}
+                      >
+                        {batchScopeMode === "ALL" && <Check className="h-3 w-3 stroke-[3]" />}
+                      </div>
+                      <span className="text-xs font-bold text-ink">
+                        Whole Branch (All Batches)
+                      </span>
+                    </div>
+                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider bg-surface border border-hairline text-ink-muted">
+                      Default
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-2 pl-7 leading-relaxed">
+                    Active for all cohorts in{" "}
+                    <strong className="text-ink-secondary">
+                      {selectedBranch?.name || "this branch"}
+                    </strong>
+                    . Every student enrolled in the branch can see and submit.
+                  </p>
+                </button>
+
+                {/* Option 2: Specific Batches */}
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setBatchScopeMode("SPECIFIC")}
+                  className={`p-3.5 rounded-lg border text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                    batchScopeMode === "SPECIFIC"
+                      ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20"
+                      : "bg-surface border-hairline hover:border-ink/20 hover:bg-canvas-soft"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`h-5 w-5 rounded-full flex items-center justify-center border transition-colors ${
+                          batchScopeMode === "SPECIFIC"
+                            ? "border-primary bg-primary text-white"
+                            : "border-hairline bg-surface"
+                        }`}
+                      >
+                        {batchScopeMode === "SPECIFIC" && <Check className="h-3 w-3 stroke-[3]" />}
+                      </div>
+                      <span className="text-xs font-bold text-ink">
+                        Select Batches (Single / Multiple)
+                      </span>
+                    </div>
+                    <span
+                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider ${
+                        batchScopeMode === "SPECIFIC" && selectedBatchIds.length > 0
+                          ? "bg-primary text-white"
+                          : "bg-surface border border-hairline text-ink-muted"
+                      }`}
+                    >
+                      {selectedBatchIds.length} Selected
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-2 pl-7 leading-relaxed">
+                    Limit this examination to single or multiple designated batches. Only enrolled
+                    students in selected batches can view and submit.
+                  </p>
+                </button>
+              </div>
+
+              {/* Specific Batches Selector Drawer */}
+              {batchScopeMode === "SPECIFIC" && (
+                <div className="pt-2 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-ink-secondary">
+                        Choose Active Batches:
+                      </span>
+                      {selectedBatchIds.length === 0 && (
+                        <span className="text-[11px] text-amber-600 font-medium">
+                          (Select at least one batch)
+                        </span>
+                      )}
+                    </div>
+                    {batches.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllBatches}
+                          disabled={isSubmitting}
+                          className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
+                        >
+                          Select All ({batches.length})
+                        </button>
+                        <span className="text-ink-faint text-[10px]">•</span>
+                        <button
+                          type="button"
+                          onClick={handleClearBatches}
+                          disabled={isSubmitting}
+                          className="text-[11px] font-medium text-ink-muted hover:text-red-600 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {loadingBatches ? (
+                    <div className="p-4 rounded-lg bg-surface border border-hairline flex items-center justify-center gap-2 text-xs text-ink-muted">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span>Loading branch batches...</span>
+                    </div>
+                  ) : batches.length === 0 ? (
+                    <div className="p-4 rounded-lg bg-surface border border-hairline text-center space-y-1">
+                      <p className="text-xs font-semibold text-ink">No batches found</p>
+                      <p className="text-[11px] text-ink-muted">
+                        No batches have been created in this branch yet. You can create batches in
+                        Branch Management &gt; Batches, or keep Whole Branch scope.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 rounded-lg border border-hairline/60 bg-surface/50">
+                      {batches.map((batch) => {
+                        const isSelected = selectedBatchIds.includes(batch.id);
+                        return (
+                          <div
+                            key={batch.id}
+                            onClick={() => handleToggleBatch(batch.id)}
+                            className={`p-2.5 rounded-lg border transition-all cursor-pointer select-none flex items-start gap-2.5 ${
+                              isSelected
+                                ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20"
+                                : "bg-surface border-hairline hover:border-ink/20 hover:bg-canvas-soft"
+                            }`}
+                          >
+                            <div
+                              className={`mt-0.5 h-4 w-4 rounded shrink-0 flex items-center justify-center border transition-colors ${
+                                isSelected
+                                  ? "bg-primary border-primary text-white"
+                                  : "border-hairline bg-surface"
+                              }`}
+                            >
+                              {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-semibold text-ink truncate leading-tight">
+                                {batch.name}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-ink-muted">
+                                {batch.code && (
+                                  <span className="font-mono bg-canvas-soft px-1.5 py-0.2 rounded border border-hairline text-ink-secondary">
+                                    {batch.code}
+                                  </span>
+                                )}
+                                {batch.academic_year && (
+                                  <span>{batch.academic_year}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Hidden File Inputs */}

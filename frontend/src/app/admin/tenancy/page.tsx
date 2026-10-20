@@ -15,6 +15,8 @@ import {
   Mail,
   UserCheck,
   AlertCircle,
+  BookOpen,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, getAuthToken } from "@/lib/api";
@@ -43,6 +45,11 @@ export default function TenancyManagementPage() {
   const [isInstModalOpen, setIsInstModalOpen] = useState(false);
   const [newInstName, setNewInstName] = useState("");
   const [newInstCode, setNewInstCode] = useState("");
+  const [newInstSubjects, setNewInstSubjects] = useState<string[]>(["Physics", "Chemistry", "Maths", "Biology"]);
+  const [newSubjectInput, setNewSubjectInput] = useState("");
+
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [existingInstSubjectInput, setExistingInstSubjectInput] = useState("");
 
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [targetInstId, setTargetInstId] = useState("");
@@ -100,10 +107,13 @@ export default function TenancyManagementPage() {
       await api.createInstitute({
         name: instName,
         code: newInstCode.trim(),
+        subjects: newInstSubjects,
       });
       setIsInstModalOpen(false);
       setNewInstName("");
       setNewInstCode("");
+      setNewInstSubjects(["Physics", "Chemistry", "Maths", "Biology"]);
+      setNewSubjectInput("");
       toast.success(`Institute "${instName}" created successfully!`, { title: "Institute Created" });
       await refreshTenancy();
       await loadAll();
@@ -111,6 +121,30 @@ export default function TenancyManagementPage() {
       const msg = err.message || "Failed to create institute";
       setActionError(msg);
       toast.error(msg, { title: "Creation Failed" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddSubjectToExistingInst = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!existingInstSubjectInput.trim() || !targetInstId) return;
+    setActionError(null);
+    setIsSubmitting(true);
+    const subList = existingInstSubjectInput
+      .split(/[,;\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    try {
+      await api.addInstituteSubjects(targetInstId, subList);
+      setIsSubjectModalOpen(false);
+      setExistingInstSubjectInput("");
+      toast.success(`Subject(s) added successfully!`, { title: "Subjects Updated" });
+      await loadAll();
+    } catch (err: any) {
+      const msg = err.message || "Failed to add subjects";
+      setActionError(msg);
+      toast.error(msg, { title: "Update Failed" });
     } finally {
       setIsSubmitting(false);
     }
@@ -266,6 +300,38 @@ export default function TenancyManagementPage() {
                   </ButtonUtility>
                 </div>
 
+                {/* Institute Curriculum & Subjects */}
+                <div className="flex flex-wrap items-center gap-1.5 py-2 px-3 rounded-lg bg-surface border border-hairline">
+                  <span className="text-[11px] font-semibold text-ink-muted flex items-center gap-1 mr-1">
+                    <BookOpen className="h-3.5 w-3.5 text-primary" />
+                    Curriculum Subjects:
+                  </span>
+                  {(inst.subjects && Array.isArray(inst.subjects) && inst.subjects.length > 0
+                    ? inst.subjects
+                    : ["Physics", "Chemistry", "Maths", "Biology"]
+                  ).map((sub: string) => (
+                    <span
+                      key={sub}
+                      className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-canvas-soft border border-hairline text-ink"
+                    >
+                      {sub}
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionError(null);
+                      setTargetInstId(inst.id);
+                      setExistingInstSubjectInput("");
+                      setIsSubjectModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active px-2 py-0.5 rounded-md hover:bg-primary/5 transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Subject
+                  </button>
+                </div>
+
                 {/* Branches List */}
                 {instBranches.length === 0 ? (
                   <div className="rounded-md border border-dashed border-hairline bg-canvas-soft/60 p-6 text-center space-y-2">
@@ -417,6 +483,92 @@ export default function TenancyManagementPage() {
             onChange={(e) => setNewInstCode(e.target.value.toUpperCase())}
           />
 
+          {/* Curriculum Subjects */}
+          <div className="space-y-2 pt-1 border-t border-hairline">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink-secondary">
+                Curriculum Subjects
+              </label>
+              <span className="text-[10px] text-ink-muted font-mono">
+                {newInstSubjects.length} subjects configured
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-canvas-soft rounded-md border border-hairline">
+              {newInstSubjects.map((sub, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"
+                >
+                  {sub}
+                  <button
+                    type="button"
+                    onClick={() => setNewInstSubjects(newInstSubjects.filter((_, i) => i !== idx))}
+                    className="hover:text-red-500 rounded-full"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Type subject name (e.g. Computer Science) & press Add"
+                value={newSubjectInput}
+                onChange={(e) => setNewSubjectInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (newSubjectInput.trim()) {
+                      const clean = newSubjectInput.trim();
+                      if (!newInstSubjects.map((s) => s.toLowerCase()).includes(clean.toLowerCase())) {
+                        setNewInstSubjects([...newInstSubjects, clean]);
+                      }
+                      setNewSubjectInput("");
+                    }
+                  }
+                }}
+                className="flex-1 rounded-md border border-hairline bg-surface p-2 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
+              />
+              <ButtonUtility
+                type="button"
+                onClick={() => {
+                  if (newSubjectInput.trim()) {
+                    const clean = newSubjectInput.trim();
+                    if (!newInstSubjects.map((s) => s.toLowerCase()).includes(clean.toLowerCase())) {
+                      setNewInstSubjects([...newInstSubjects, clean]);
+                    }
+                    setNewSubjectInput("");
+                  }
+                }}
+                className="text-xs py-2 px-3"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add
+              </ButtonUtility>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-muted pt-0.5">
+              <span>Quick add:</span>
+              {["Physics", "Chemistry", "Maths", "Biology", "English", "Informatics"].map((suggested) => (
+                <button
+                  key={suggested}
+                  type="button"
+                  onClick={() => {
+                    if (!newInstSubjects.map((s) => s.toLowerCase()).includes(suggested.toLowerCase())) {
+                      setNewInstSubjects([...newInstSubjects, suggested]);
+                    }
+                  }}
+                  className="hover:text-primary text-[11px] font-medium px-1.5 py-0.5 rounded bg-surface border border-hairline hover:border-primary/40 cursor-pointer"
+                >
+                  +{suggested}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
             <ButtonUtility
               type="button"
@@ -539,6 +691,68 @@ export default function TenancyManagementPage() {
             </ButtonUtility>
             <ButtonPrimary type="submit" isLoading={isSubmitting}>
               Provision Manager
+            </ButtonPrimary>
+          </div>
+        </form>
+      </ModalCard>
+
+      {/* MODAL 4: Add Subject to Existing Institute */}
+      <ModalCard
+        isOpen={isSubjectModalOpen}
+        onClose={() => setIsSubjectModalOpen(false)}
+        title="Add Curriculum Subject to Institute"
+      >
+        <form onSubmit={handleAddSubjectToExistingInst} className="space-y-4">
+          {actionError && (
+            <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{actionError}</span>
+            </div>
+          )}
+
+          <p className="text-xs text-ink-muted leading-relaxed">
+            Configure approved academic subjects for this institute. Teachers and branch managers can select these subjects when creating exams and entering results.
+          </p>
+
+          <FormInput
+            label="Subject Name(s)"
+            required
+            placeholder="e.g. Physics, Chemistry, Computer Science"
+            value={existingInstSubjectInput}
+            onChange={(e) => setExistingInstSubjectInput(e.target.value)}
+          />
+
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-muted">
+            <span>Quick add:</span>
+            {["Physics", "Chemistry", "Maths", "Biology", "English", "Informatics", "Accountancy"].map((suggested) => (
+              <button
+                key={suggested}
+                type="button"
+                onClick={() => {
+                  const current = existingInstSubjectInput.trim();
+                  if (!current) {
+                    setExistingInstSubjectInput(suggested);
+                  } else if (!current.toLowerCase().includes(suggested.toLowerCase())) {
+                    setExistingInstSubjectInput(`${current}, ${suggested}`);
+                  }
+                }}
+                className="hover:text-primary text-[11px] font-medium px-1.5 py-0.5 rounded bg-surface border border-hairline hover:border-primary/40 cursor-pointer"
+              >
+                +{suggested}
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
+            <ButtonUtility
+              type="button"
+              onClick={() => setIsSubjectModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </ButtonUtility>
+            <ButtonPrimary type="submit" isLoading={isSubmitting}>
+              Add Subject
             </ButtonPrimary>
           </div>
         </form>

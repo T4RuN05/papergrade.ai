@@ -392,7 +392,7 @@ export const api = {
     }, 60000); // 60s cache
   },
 
-  async createInstitute(data: { name: string; code: string }): Promise<any> {
+  async createInstitute(data: { name: string; code: string; subjects?: string[] }): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -403,6 +403,39 @@ export const api = {
       throw new Error(parseErrorDetail(err, "Failed to create institute"));
     }
     clearApiCache("tenancy:institutes");
+    clearApiCache("tenancy:subjects");
+    return res.json();
+  },
+
+  async listSubjects(branchId?: string, instituteId?: string): Promise<string[]> {
+    const params = new URLSearchParams();
+    if (branchId) params.append("branch_id", branchId);
+    if (instituteId) params.append("institute_id", instituteId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const key = `tenancy:subjects:${branchId || ""}:${instituteId || ""}`;
+    return fetchWithCache(key, async () => {
+      const res = await fetch(`${API_BASE}/api/v1/tenancy/subjects${query}`, {
+        headers: { ...getAuthHeaders() },
+        cache: "no-store",
+      });
+      if (!res.ok) return ["Physics", "Chemistry", "Maths", "Biology"];
+      const data = await res.json();
+      return Array.isArray(data) ? data : ["Physics", "Chemistry", "Maths", "Biology"];
+    }, 30000);
+  },
+
+  async addInstituteSubjects(instituteId: string, subjects: string[]): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes/${instituteId}/subjects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ subjects }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to add subjects" }));
+      throw new Error(parseErrorDetail(err, "Failed to add subjects"));
+    }
+    clearApiCache("tenancy:institutes");
+    clearApiCache("tenancy:subjects");
     return res.json();
   },
 
@@ -623,6 +656,7 @@ export const api = {
     user: any;
     active_exam: any;
     window_status: any;
+    active_windows?: Array<{ exam: any; window_status: any }>;
     exams: any[];
     submissions: any[];
   }> {
@@ -792,9 +826,11 @@ export const api = {
     exam_id: string;
     artifact_type: string;
     has_document: boolean;
+    is_purged?: boolean;
     page_count: number;
     title: string;
     subject?: string;
+    notice?: string;
   }> {
     const token = getAuthToken();
     const res = await fetch(
@@ -817,6 +853,22 @@ export const api = {
   ): string {
     const token = getAuthToken();
     return `${API_BASE}/api/v1/exams/${examId}/${artifactType}/pages/${pageNum}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  },
+
+  getExamArtifactPdfUrl(
+    examId: string,
+    artifactType: "question-paper" | "answer-key"
+  ): string {
+    const token = getAuthToken();
+    return `${API_BASE}/api/v1/exams/${examId}/${artifactType}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  },
+
+  getQuestionPaperPdfUrl(examId: string): string {
+    return this.getExamArtifactPdfUrl(examId, "question-paper");
+  },
+
+  getAnswerKeyPdfUrl(examId: string): string {
+    return this.getExamArtifactPdfUrl(examId, "answer-key");
   },
 
   async generateRubric(examId: string): Promise<any> {

@@ -6,6 +6,9 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import logging
+
+logger = logging.getLogger(__name__)
 
 from backend.app.config import settings
 
@@ -251,6 +254,7 @@ def init_db():
             id {text_type} PRIMARY KEY,
             name {text_type} NOT NULL,
             code {text_type} NOT NULL UNIQUE,
+            subjects {text_type},
             created_at {text_type} NOT NULL
         );
         """)
@@ -263,6 +267,19 @@ def init_db():
             name {text_type} NOT NULL,
             code {text_type} NOT NULL,
             city {text_type} NOT NULL,
+            subjects {text_type},
+            created_at {text_type} NOT NULL
+        );
+        """)
+
+        # 2b. Subjects Table
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS subjects (
+            id {text_type} PRIMARY KEY,
+            institute_id {text_type} REFERENCES institutes(id) ON DELETE CASCADE,
+            branch_id {text_type} REFERENCES branches(id) ON DELETE CASCADE,
+            name {text_type} NOT NULL,
+            code {text_type} NOT NULL DEFAULT '',
             created_at {text_type} NOT NULL
         );
         """)
@@ -333,10 +350,25 @@ def init_db():
             lifecycle_status {text_type} NOT NULL DEFAULT 'DRAFT',
             is_published {int_type} NOT NULL DEFAULT 0,
             published_at {text_type},
+            retention_expires_at {text_type},
+            is_document_purged {int_type} NOT NULL DEFAULT 0,
+            purged_at {text_type},
             created_by {text_type},
+            batch_scope {text_type} NOT NULL DEFAULT 'ALL',
+            batch_ids {text_type},
             status {text_type} NOT NULL DEFAULT 'DRAFT',
             created_at {text_type} NOT NULL,
             updated_at {text_type} NOT NULL
+        );
+        """)
+
+        # 6b. Exam Batches Association Table (Multi-batch scoping)
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS exam_batches (
+            id {text_type} PRIMARY KEY,
+            exam_id {text_type} NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+            batch_id {text_type} NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+            created_at {text_type} NOT NULL
         );
         """)
 
@@ -701,6 +733,16 @@ def init_db():
                 cursor.execute("ALTER TABLE exams ADD COLUMN published_at TEXT")
             if "created_by" not in exam_cols:
                 cursor.execute("ALTER TABLE exams ADD COLUMN created_by TEXT")
+            if "retention_expires_at" not in exam_cols:
+                cursor.execute("ALTER TABLE exams ADD COLUMN retention_expires_at TEXT")
+            if "is_document_purged" not in exam_cols:
+                cursor.execute("ALTER TABLE exams ADD COLUMN is_document_purged INTEGER NOT NULL DEFAULT 0")
+            if "purged_at" not in exam_cols:
+                cursor.execute("ALTER TABLE exams ADD COLUMN purged_at TEXT")
+            if "batch_scope" not in exam_cols:
+                cursor.execute("ALTER TABLE exams ADD COLUMN batch_scope TEXT NOT NULL DEFAULT 'ALL'")
+            if "batch_ids" not in exam_cols:
+                cursor.execute("ALTER TABLE exams ADD COLUMN batch_ids TEXT")
 
             cursor.execute("PRAGMA table_info(batches)")
             batch_info = cursor.fetchall()
@@ -766,6 +808,26 @@ def init_db():
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN details_json TEXT")
             if "ip_address" not in audit_cols:
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN ip_address TEXT")
+            cursor.execute("PRAGMA table_info(institutes)")
+            inst_cols = [row[1] for row in cursor.fetchall()]
+            if "subjects" not in inst_cols:
+                cursor.execute("ALTER TABLE institutes ADD COLUMN subjects TEXT")
+
+            cursor.execute("PRAGMA table_info(branches)")
+            br_cols = [row[1] for row in cursor.fetchall()]
+            if "subjects" not in br_cols:
+                cursor.execute("ALTER TABLE branches ADD COLUMN subjects TEXT")
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS subjects (
+                id TEXT PRIMARY KEY,
+                institute_id TEXT REFERENCES institutes(id) ON DELETE CASCADE,
+                branch_id TEXT REFERENCES branches(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                code TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+            """)
         else:
             try:
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS graded_at TEXT;")
@@ -773,6 +835,31 @@ def init_db():
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS retention_expires_at TEXT;")
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_document_purged INTEGER NOT NULL DEFAULT 0;")
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS purged_at TEXT;")
+                cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS retention_expires_at TEXT;")
+                cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_document_purged INTEGER NOT NULL DEFAULT 0;")
+                cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS purged_at TEXT;")
+                cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS batch_scope TEXT NOT NULL DEFAULT 'ALL';")
+                cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS batch_ids TEXT;")
+                cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS subjects TEXT;")
+                cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS subjects TEXT;")
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS exam_batches (
+                    id TEXT PRIMARY KEY,
+                    exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+                    batch_id TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+                    created_at TEXT NOT NULL
+                );
+                """)
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS subjects (
+                    id TEXT PRIMARY KEY,
+                    institute_id TEXT REFERENCES institutes(id) ON DELETE CASCADE,
+                    branch_id TEXT REFERENCES branches(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    code TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                );
+                """)
                 conn.commit()
             except Exception:
                 conn.rollback()
@@ -784,6 +871,9 @@ def init_db():
             ("idx_students_num", "students", "student_id_num"),
             ("idx_students_batch", "students", "batch_id"),
             ("idx_exams_inst", "exams", "institute_id"),
+            ("idx_exams_retention", "exams", "is_document_purged, retention_expires_at"),
+            ("idx_exam_batches_exam", "exam_batches", "exam_id"),
+            ("idx_exam_batches_batch", "exam_batches", "batch_id"),
             ("idx_submissions_exam", "submissions", "exam_id"),
             ("idx_submissions_student", "submissions", "student_id"),
             ("idx_submissions_status", "submissions", "status"),
@@ -797,6 +887,8 @@ def init_db():
             ("idx_tech_rep_user", "technical_reports", "user_id"),
             ("idx_tech_rep_status", "technical_reports", "status"),
             ("idx_tech_rep_branch", "technical_reports", "branch_id"),
+            ("idx_subjects_inst", "subjects", "institute_id"),
+            ("idx_subjects_branch", "subjects", "branch_id"),
             ("idx_audit_resource", "audit_logs", "resource_type, resource_id"),
         ]
         for idx_name, tbl, cols in indexes:
@@ -819,6 +911,9 @@ def init_db():
 
         # Seed Root Admin if no users exist
         seed_default_admin(cursor)
+
+        # Seed Borivali Branch subjects (Physics, Chemistry, Maths, Biology) and KTG exams
+        seed_borivali_subjects_and_ktg(cursor, conn)
 
 def seed_default_admin(cursor):
     """Seed initial Root Admin account if users table is empty."""
@@ -857,6 +952,58 @@ def seed_default_admin(cursor):
         VALUES ({param}, {param}, {param}, {param}, {param}, {param}, {param}, 1, {param})
         """, (admin_id, inst_id, branch_id, admin_email, "ROOT_ADMIN", hashed_pass, "System Administrator", now))
 
+def seed_borivali_subjects_and_ktg(cursor, conn):
+    """Seed Physics, Chemistry, Maths, Biology for Borivali branch & CATCH 25 institute, and assign KTG exams to Physics."""
+    param = "%s" if is_postgres() else "?"
+    default_subjects = ["Physics", "Chemistry", "Maths", "Biology"]
+    subjects_json = json.dumps(default_subjects)
+    now = get_iso_now()
+
+    try:
+        # 1. Update Borivali branch and its institute
+        cursor.execute("SELECT id, institute_id FROM branches WHERE id = 'br_28c2a5dfe193' OR LOWER(name) LIKE '%borivali%'")
+        b_rows = cursor.fetchall()
+        for b in b_rows:
+            b_id = b["id"]
+            inst_id = b["institute_id"]
+            cursor.execute(f"UPDATE branches SET subjects = {param} WHERE id = {param}", (subjects_json, b_id))
+            if inst_id:
+                cursor.execute(f"UPDATE institutes SET subjects = {param} WHERE id = {param}", (subjects_json, inst_id))
+            
+            for s_name in default_subjects:
+                cursor.execute(f"""
+                    SELECT id FROM subjects 
+                    WHERE (branch_id = {param} OR institute_id = {param}) AND LOWER(name) = {param}
+                """, (b_id, inst_id or "", s_name.lower()))
+                if not cursor.fetchone():
+                    s_id = f"sub_{uuid.uuid4().hex[:12]}"
+                    cursor.execute(f"""
+                        INSERT INTO subjects (id, institute_id, branch_id, name, code, created_at)
+                        VALUES ({param}, {param}, {param}, {param}, {param}, {param})
+                    """, (s_id, inst_id, b_id, s_name, s_name[:4].upper(), now))
+
+        # Also find CATCH 25 institute directly
+        cursor.execute("SELECT id FROM institutes WHERE id = 'inst_e1eeda3473c3' OR UPPER(code) = 'C25'")
+        c25_rows = cursor.fetchall()
+        for c in c25_rows:
+            c_id = c["id"]
+            cursor.execute(f"UPDATE institutes SET subjects = {param} WHERE id = {param}", (subjects_json, c_id))
+
+        # 2. Update KTG and KTG PROD TEST exams to subject = 'Physics'
+        cursor.execute("""
+            UPDATE exams 
+            SET subject = 'Physics' 
+            WHERE UPPER(title) LIKE '%KTG%'
+        """)
+
+        if is_postgres():
+            conn.commit()
+    except Exception as e:
+        if is_postgres():
+            conn.rollback()
+        logger.warning(f"Error seeding Borivali subjects: {e}")
+
 if __name__ == "__main__":
     init_db()
     print("Database initialized and verified successfully.")
+

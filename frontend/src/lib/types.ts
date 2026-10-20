@@ -58,6 +58,14 @@ export interface Exam {
   updated_at: string;
   has_approved_rubric?: boolean;
   is_rubric_approved?: boolean | number;
+  batch_scope?: "ALL" | "SPECIFIC" | string;
+  batch_ids?: string;
+  scoped_batches?: Array<{
+    id: string;
+    name: string;
+    code: string;
+    academic_year?: string;
+  }>;
   window_status?: any;
   rubric_version?: {
     id: string;

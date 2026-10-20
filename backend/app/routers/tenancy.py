@@ -1,6 +1,7 @@
 import uuid
 import random
 import io
+import json
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
 from pydantic import BaseModel
@@ -18,6 +19,10 @@ router = APIRouter(prefix="/api/v1/tenancy", tags=["Tenancy & Student Onboarding
 class CreateInstituteRequest(BaseModel):
     name: str
     code: str
+    subjects: Optional[List[str]] = None
+
+class AddSubjectsRequest(BaseModel):
+    subjects: List[str]
 
 class CreateBranchRequest(BaseModel):
     institute_id: str
@@ -65,7 +70,18 @@ def list_institutes(current_user: Dict[str, Any] = Depends(get_current_user)):
             cursor.execute(f"SELECT * FROM institutes WHERE id = {param}", (inst_id,))
         else:
             return []
-        return [dict(r) for r in cursor.fetchall()]
+        
+        insts = [dict(r) for r in cursor.fetchall()]
+        for inst in insts:
+            sub = inst.get("subjects")
+            if isinstance(sub, str):
+                try:
+                    inst["subjects"] = json.loads(sub)
+                except Exception:
+                    inst["subjects"] = [s.strip() for s in sub.split(",") if s.strip()]
+            elif not sub:
+                inst["subjects"] = []
+        return insts
 
 @router.post("/institutes")
 def create_institute(req: CreateInstituteRequest, current_user: Dict[str, Any] = Depends(require_root_admin)):
@@ -79,11 +95,162 @@ def create_institute(req: CreateInstituteRequest, current_user: Dict[str, Any] =
         
         inst_id = f"inst_{uuid.uuid4().hex[:12]}"
         now = get_iso_now()
+        
+        clean_subjects = [s.strip() for s in (req.subjects or []) if s.strip()]
+        if not clean_subjects:
+            clean_subjects = ["Physics", "Chemistry", "Maths", "Biology"]
+        subjects_json = json.dumps(clean_subjects)
+        
         cursor.execute(f"""
-            INSERT INTO institutes (id, name, code, created_at)
-            VALUES ({param}, {param}, {param}, {param})
-        """, (inst_id, req.name.strip(), clean_code, now))
-        return {"status": "success", "id": inst_id, "name": req.name, "code": clean_code}
+            INSERT INTO institutes (id, name, code, subjects, created_at)
+            VALUES ({param}, {param}, {param}, {param}, {param})
+        """, (inst_id, req.name.strip(), clean_code, subjects_json, now))
+        
+        for s_name in clean_subjects:
+            s_id = f"sub_{uuid.uuid4().hex[:12]}"
+            cursor.execute(f"""
+                INSERT INTO subjects (id, institute_id, branch_id, name, code, created_at)
+                VALUES ({param}, {param}, NULL, {param}, {param}, {param})
+            """, (s_id, inst_id, s_name, s_name[:4].upper(), now))
+            
+        return {
+            "status": "success",
+            "id": inst_id,
+            "name": req.name,
+            "code": clean_code,
+            "subjects": clean_subjects
+        }
+
+@router.get("/subjects")
+def list_subjects(
+    branch_id: Optional[str] = None,
+    institute_id: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        eff_branch = branch_id or current_user.get("branch_id")
+        eff_inst = institute_id or current_user.get("institute_id")
+        
+        if eff_branch and not eff_inst:
+            cursor.execute(f"SELECT institute_id FROM branches WHERE id = {param}", (eff_branch,))
+            b_row = cursor.fetchone()
+            if b_row and b_row["institute_id"]:
+                eff_inst = b_row["institute_id"]
+
+        subjects_set = set()
+        subjects_ordered = []
+
+        def add_subject(s: str):
+            clean = s.strip()
+            if clean and clean.lower() not in subjects_set:
+                subjects_set.add(clean.lower())
+                subjects_ordered.append(clean)
+
+        # 1. Query branches.subjects
+        if eff_branch:
+            cursor.execute(f"SELECT subjects FROM branches WHERE id = {param}", (eff_branch,))
+            row = cursor.fetchone()
+            if row and row["subjects"]:
+                try:
+                    for s in json.loads(row["subjects"]):
+                        add_subject(str(s))
+                except Exception:
+                    for s in str(row["subjects"]).split(","):
+                        add_subject(s)
+
+        # 2. Query institutes.subjects
+        if eff_inst:
+            cursor.execute(f"SELECT subjects FROM institutes WHERE id = {param}", (eff_inst,))
+            row = cursor.fetchone()
+            if row and row["subjects"]:
+                try:
+                    for s in json.loads(row["subjects"]):
+                        add_subject(str(s))
+                except Exception:
+                    for s in str(row["subjects"]).split(","):
+                        add_subject(s)
+
+        # 3. Query subjects table
+        if eff_branch or eff_inst:
+            conditions = []
+            params = []
+            if eff_branch:
+                conditions.append(f"branch_id = {param}")
+                params.append(eff_branch)
+            if eff_inst:
+                conditions.append(f"institute_id = {param}")
+                params.append(eff_inst)
+            cond_str = " OR ".join(conditions)
+            cursor.execute(f"SELECT DISTINCT name FROM subjects WHERE {cond_str} ORDER BY name ASC", tuple(params))
+            for r in cursor.fetchall():
+                add_subject(r["name"])
+
+        # 4. Check exams table
+        if eff_branch or eff_inst:
+            ex_cond = f"branch_id = {param}" if eff_branch else f"institute_id = {param}"
+            ex_arg = eff_branch if eff_branch else eff_inst
+            cursor.execute(f"SELECT DISTINCT subject FROM exams WHERE {ex_cond} AND subject IS NOT NULL", (ex_arg,))
+            for r in cursor.fetchall():
+                if r["subject"]:
+                    add_subject(r["subject"])
+
+        # Fallback if none found
+        if not subjects_ordered:
+            for d in ["Physics", "Chemistry", "Maths", "Biology"]:
+                add_subject(d)
+
+        return subjects_ordered
+
+@router.post("/institutes/{institute_id}/subjects")
+def add_institute_subjects(
+    institute_id: str,
+    req: AddSubjectsRequest,
+    current_user: Dict[str, Any] = Depends(require_root_admin)
+):
+    param = "%s" if is_postgres() else "?"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT id, subjects FROM institutes WHERE id = {param}", (institute_id,))
+        inst = cursor.fetchone()
+        if not inst:
+            raise HTTPException(status_code=404, detail="Institute not found")
+
+        current_subs: List[str] = []
+        if inst["subjects"]:
+            try:
+                current_subs = json.loads(inst["subjects"])
+            except Exception:
+                current_subs = [s.strip() for s in inst["subjects"].split(",") if s.strip()]
+
+        existing_lower = {s.lower() for s in current_subs}
+        added = []
+        now = get_iso_now()
+
+        for s in req.subjects:
+            clean = s.strip()
+            if clean and clean.lower() not in existing_lower:
+                current_subs.append(clean)
+                existing_lower.add(clean.lower())
+                added.append(clean)
+                s_id = f"sub_{uuid.uuid4().hex[:12]}"
+                cursor.execute(f"""
+                    INSERT INTO subjects (id, institute_id, branch_id, name, code, created_at)
+                    VALUES ({param}, {param}, NULL, {param}, {param}, {param})
+                """, (s_id, institute_id, clean, clean[:4].upper(), now))
+
+        new_json = json.dumps(current_subs)
+        cursor.execute(f"UPDATE institutes SET subjects = {param} WHERE id = {param}", (new_json, institute_id))
+        
+        # Propagate to branches under this institute that don't have subjects
+        cursor.execute(f"SELECT id, subjects FROM branches WHERE institute_id = {param}", (institute_id,))
+        for b in cursor.fetchall():
+            b_subs = b.get("subjects")
+            if not b_subs or b_subs == "[]":
+                cursor.execute(f"UPDATE branches SET subjects = {param} WHERE id = {param}", (new_json, b["id"]))
+
+        return {"status": "success", "subjects": current_subs, "added": added}
 
 @router.get("/branches")
 def list_branches(current_user: Dict[str, Any] = Depends(get_current_user)):
