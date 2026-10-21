@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, GraduationCap, Building2, Plus, FileText, FileSpreadsheet } from "lucide-react";
 import { api } from "@/lib/api";
@@ -9,10 +10,14 @@ import { useTenant } from "@/lib/TenantContext";
 import { MarksTable } from "@/components/MarksTable";
 import { FeatureCard, BadgePill, ButtonPrimary, MarksMatrixSkeleton, Skeleton } from "@/components/ui";
 
-export default function ClassMarksPage() {
+function ClassMarksPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryExamId = searchParams.get("exam_id") || searchParams.get("examId") || "";
+
   const { selectedBranch, loading: tenantLoading } = useTenant();
   const [exams, setExams] = useState<Exam[]>([]);
-  const [selectedExamId, setSelectedExamId] = useState<string>("");
+  const [selectedExamId, setSelectedExamId] = useState<string>(queryExamId);
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +33,13 @@ export default function ClassMarksPage() {
         const examList = Array.isArray(list) ? list : [];
         setExams(examList);
         if (examList.length > 0) {
-          setSelectedExamId(examList[0].id);
+          const match = queryExamId ? examList.find((e) => e.id === queryExamId) : null;
+          const chosen = match
+            ? match.id
+            : selectedExamId && examList.some((e) => e.id === selectedExamId)
+            ? selectedExamId
+            : examList[0].id;
+          setSelectedExamId(chosen);
         } else {
           setSelectedExamId("");
           setCurrentExam(null);
@@ -41,7 +52,27 @@ export default function ClassMarksPage() {
         setExams([]);
         setLoading(false);
       });
-  }, [selectedBranch?.id, tenantLoading]);
+  }, [selectedBranch?.id, tenantLoading, queryExamId]);
+
+  // Synchronize when queryExamId changes
+  useEffect(() => {
+    if (queryExamId && queryExamId !== selectedExamId) {
+      if (exams.length > 0) {
+        const match = exams.find((e) => e.id === queryExamId);
+        if (match) {
+          setSelectedExamId(queryExamId);
+        }
+      } else {
+        setSelectedExamId(queryExamId);
+      }
+    }
+  }, [queryExamId, exams]);
+
+  // Handle dropdown exam change
+  const handleExamChange = (newExamId: string) => {
+    setSelectedExamId(newExamId);
+    router.replace(`/marks?exam_id=${newExamId}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!selectedExamId) {
@@ -112,7 +143,7 @@ export default function ClassMarksPage() {
             <span className="text-xs font-semibold text-ink-secondary">Exam:</span>
             <select
               value={selectedExamId}
-              onChange={(e) => setSelectedExamId(e.target.value)}
+              onChange={(e) => handleExamChange(e.target.value)}
               className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-bold text-ink focus:border-primary focus:outline-none shadow-2xs cursor-pointer"
             >
               {exams.map((e) => (
@@ -182,5 +213,19 @@ export default function ClassMarksPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ClassMarksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6 max-w-7xl mx-auto pb-16">
+          <MarksMatrixSkeleton />
+        </div>
+      }
+    >
+      <ClassMarksPageContent />
+    </Suspense>
   );
 }

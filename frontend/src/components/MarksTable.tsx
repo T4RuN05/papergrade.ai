@@ -109,7 +109,7 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
       </div>
 
       {/* Spreadsheet Matrix Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto sleek-scrollbar">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-hairline bg-canvas-soft text-[11px] font-bold text-ink-secondary uppercase tracking-wider">

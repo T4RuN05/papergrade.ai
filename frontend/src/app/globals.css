@@ -20,23 +20,66 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Notion calm scrollbar */
+/* Custom Sleek Floating Scrollbar (Cross-browser: Chrome, Edge, Safari, Firefox, Mobile PWA) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 135, 130, 0.35) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f6f5f4;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d8d6d2;
-  border-radius: 4px;
+  background-color: rgba(140, 135, 130, 0.35);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a39e98;
+  background-color: rgba(90, 85, 80, 0.6);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: rgba(50, 45, 40, 0.85);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Custom sleek scrollbar utility class for dense tables, sidebars, matrices & modals */
+.sleek-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 135, 130, 0.35) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sleek-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.sleek-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sleek-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(140, 135, 130, 0.35);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.sleek-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(90, 85, 80, 0.6);
 }
 
 /* Notion toast micro-animations */

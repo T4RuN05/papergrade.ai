@@ -467,7 +467,7 @@ export default function ExamsPage() {
                     </Link>
 
                     <Link
-                      href={`/marks`}
+                      href={`/marks?exam_id=${exam.id}`}
                       className="inline-flex items-center justify-center gap-1 py-2 px-2 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink font-semibold text-xs transition-colors shadow-2xs text-center active:scale-[0.98]"
                     >
                       <FileSpreadsheet className="h-3.5 w-3.5 text-ink-muted shrink-0" />
