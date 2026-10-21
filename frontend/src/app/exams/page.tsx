@@ -238,17 +238,17 @@ export default function ExamsPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-hairline">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <BadgePill label="Academic Operations" color="purple" />
             {selectedBranch && (
-              <span className="text-xs font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md">
+              <span className="text-xs font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md truncate max-w-[220px] sm:max-w-none">
                 {selectedBranch.name} • {selectedBranch.city}
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink mt-1">
             Examinations & Evaluation Rubrics
           </h1>
           <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
@@ -257,7 +257,7 @@ export default function ExamsPage() {
           </p>
         </div>
 
-        <ButtonPrimary href="/exams/new" size="sm" className="self-start sm:self-auto">
+        <ButtonPrimary href="/exams/new" size="sm" className="w-full sm:w-auto justify-center">
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           Create New Exam
         </ButtonPrimary>
@@ -288,7 +288,7 @@ export default function ExamsPage() {
           </div>
         </FeatureCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
           {exams.map((exam) => {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;
@@ -308,66 +308,76 @@ export default function ExamsPage() {
             return (
               <FeatureCard
                 key={exam.id}
-                className="p-5 flex flex-col justify-between space-y-4 hover:border-[#d0d0d0] transition-colors"
+                className="p-3.5 sm:p-5 flex flex-col justify-between space-y-3.5 sm:space-y-4 hover:border-[#c5c5c5] transition-colors"
               >
                 {/* Top Section */}
                 <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-base font-bold text-ink leading-tight">{exam.title}</h3>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <p className="text-xs text-ink-muted">
-                          Subject: <span className="font-medium text-ink-secondary">{exam.subject}</span>
-                        </p>
-                        <span className="text-ink-faint text-[10px]">•</span>
-                        <div className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted">
-                          <Users className="h-3 w-3 text-ink-secondary" />
-                          <span>
-                            {exam.batch_scope === "SPECIFIC" && exam.scoped_batches && exam.scoped_batches.length > 0
-                              ? exam.scoped_batches.length === 1
-                                ? exam.scoped_batches[0].name
-                                : `${exam.scoped_batches.length} Batches`
-                              : "Whole Branch"}
-                          </span>
-                        </div>
+                  <div className="space-y-2">
+                    {/* Title and Badges */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <h3 className="text-sm sm:text-base font-bold text-ink leading-snug break-words min-w-0 flex-1">
+                        {exam.title}
+                      </h3>
+
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                        {exam.is_published ? (
+                          <BadgePill label="Published" color="purple" />
+                        ) : exam.status === "EVALUATED" || exam.lifecycle_status === "EVALUATED" ? (
+                          <BadgePill label="Evaluated" color="teal" />
+                        ) : exam.status === "EVALUATING" || exam.lifecycle_status === "EVALUATING" ? (
+                          <BadgePill label="Evaluating" color="purple" />
+                        ) : null}
+
+                        <BadgePill
+                          label={
+                            isRubricApproved
+                              ? "Rubric Approved"
+                              : exam.current_rubric_version_id
+                              ? "Draft Rubric"
+                              : "No Rubric"
+                          }
+                          color={
+                            isRubricApproved
+                              ? "green"
+                              : exam.current_rubric_version_id
+                              ? "orange"
+                              : "gray"
+                          }
+                        />
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                      {exam.is_published ? (
-                        <BadgePill label="Published" color="purple" />
-                      ) : exam.status === "EVALUATED" || exam.lifecycle_status === "EVALUATED" ? (
-                        <BadgePill label="Evaluated" color="teal" />
-                      ) : exam.status === "EVALUATING" || exam.lifecycle_status === "EVALUATING" ? (
-                        <BadgePill label="Evaluating" color="purple" />
-                      ) : null}
-
-                      <BadgePill
-                        label={
-                          isRubricApproved
-                            ? "Rubric Approved"
-                            : exam.current_rubric_version_id
-                            ? "Draft Rubric"
-                            : "No Rubric"
-                        }
-                        color={
-                          isRubricApproved
-                            ? "green"
-                            : exam.current_rubric_version_id
-                            ? "orange"
-                            : "gray"
-                        }
-                      />
+                    {/* Subject & Scoped Batch Meta Tags */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="inline-flex items-center text-[11px] font-semibold text-ink-secondary bg-canvas-soft px-2 py-0.5 rounded border border-hairline/80">
+                        {exam.subject}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted bg-canvas-soft px-2 py-0.5 rounded border border-hairline/80">
+                        <Users className="h-3 w-3 text-ink-secondary shrink-0" />
+                        <span className="truncate max-w-[200px] sm:max-w-none">
+                          {exam.batch_scope === "SPECIFIC" && exam.scoped_batches && exam.scoped_batches.length > 0
+                            ? exam.scoped_batches.length === 1
+                              ? exam.scoped_batches[0].name
+                              : `${exam.scoped_batches.length} Batches`
+                            : "Whole Branch"}
+                        </span>
+                      </span>
                     </div>
                   </div>
 
                   {/* Submission Window Pill / Controller */}
-                  <div className="p-2.5 sm:p-3 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-between gap-2.5 sm:gap-3">
-                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                      <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-surface border border-hairline shrink-0">
-                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-ink-secondary" />
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                      <div className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md border shrink-0 ${
+                        isWindowActive
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                          : isInGrace
+                          ? "bg-amber-50 border-amber-200 text-amber-600"
+                          : "bg-surface border-hairline text-ink-secondary"
+                      }`}>
+                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-ink flex items-center gap-1.5 flex-wrap">
                           <span className="whitespace-nowrap">Submission Window:</span>
                           {isWindowActive ? (
@@ -382,15 +392,15 @@ export default function ExamsPage() {
                             <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>
                           )}
                         </div>
-                        <div className="text-[10px] text-ink-faint truncate max-w-[190px] xs:max-w-[240px] sm:max-w-none">
+                        <p className="text-[10.5px] sm:text-[11px] text-ink-muted leading-tight mt-0.5">
                           {isWindowActive
                             ? "Eligible students can submit or replace PDF."
                             : "Uploads blocked until opened by operator."}
-                        </div>
+                        </p>
                       </div>
                     </div>
 
-                    <div className="shrink-0 flex items-center gap-1.5">
+                    <div className="shrink-0 flex items-center">
                       {!isWindowActive && !isInGrace ? (
                         <ButtonPrimary
                           size="sm"
@@ -401,9 +411,9 @@ export default function ExamsPage() {
                             setReopenScope("ALL_STUDENTS");
                             setReopenModalOpen(true);
                           }}
-                          className="whitespace-nowrap px-3 py-1.5 text-xs shadow-xs cursor-pointer"
+                          className="w-full sm:w-auto justify-center whitespace-nowrap px-3 py-1.5 text-xs shadow-xs cursor-pointer"
                         >
-                          <Clock className="h-3.5 w-3.5 mr-1.5" />
+                          <Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                           Open Window
                         </ButtonPrimary>
                       ) : (
@@ -411,10 +421,10 @@ export default function ExamsPage() {
                           size="sm"
                           onClick={() => handleHardCloseWindow(exam.id, exam.title)}
                           disabled={closingExamId === exam.id}
-                          className="whitespace-nowrap px-2.5 py-1.5 text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold cursor-pointer"
+                          className="w-full sm:w-auto justify-center whitespace-nowrap px-2.5 py-1.5 text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold cursor-pointer"
                           title="Terminate active submission window immediately"
                         >
-                          <Square className="h-3 w-3 mr-1 fill-red-600 text-red-600" />
+                          <Square className="h-3 w-3 mr-1 fill-red-600 text-red-600 shrink-0" />
                           {closingExamId === exam.id ? "Closing..." : "Close"}
                         </ButtonUtility>
                       )}
@@ -423,34 +433,14 @@ export default function ExamsPage() {
                 </div>
 
                 {/* Bottom Action Footer */}
-                <div className="flex items-center justify-between text-xs text-ink-muted border-t border-hairline pt-3">
-                  <span>
-                    Total Marks: <span className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}</span>
-                  </span>
-
-                  <div className="flex items-center gap-3">
-                    <Link
-                      href={`/exams/${exam.id}/rubric`}
-                      className="text-ink-secondary hover:text-ink font-semibold text-xs transition-colors"
-                    >
-                      Rubric
-                    </Link>
-
-                    <Link
-                      href={`/marks`}
-                      className="text-ink-secondary hover:text-ink font-semibold text-xs transition-colors flex items-center gap-1"
-                    >
-                      <FileSpreadsheet className="h-3 w-3" />
-                      Marks
-                    </Link>
-
-                    <Link
-                      href={`/exams/${exam.id}`}
-                      className="inline-flex items-center gap-1 font-bold text-primary hover:text-primary-active transition-colors text-xs"
-                    >
-                      <span>Submissions</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
+                <div className="border-t border-hairline pt-3 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs text-ink-muted">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-muted text-xs">Total Marks:</span>
+                      <span className="font-mono font-bold text-ink bg-canvas-soft px-1.5 py-0.5 rounded border border-hairline/70 text-xs">
+                        {exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}
+                      </span>
+                    </div>
 
                     {canDeleteExam(exam) && (
                       <button
@@ -459,12 +449,38 @@ export default function ExamsPage() {
                           setTargetExamForDelete(exam);
                           setDeleteConfirmText("");
                         }}
-                        className="p-1 rounded text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-xs font-medium"
                         title="Permanently Delete Exam"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                        <span className="text-[11px] sm:hidden">Delete</span>
                       </button>
                     )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                    <Link
+                      href={`/exams/${exam.id}/rubric`}
+                      className="inline-flex items-center justify-center py-2 px-2 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink font-semibold text-xs transition-colors shadow-2xs text-center active:scale-[0.98]"
+                    >
+                      <span>Rubric</span>
+                    </Link>
+
+                    <Link
+                      href={`/marks`}
+                      className="inline-flex items-center justify-center gap-1 py-2 px-2 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink font-semibold text-xs transition-colors shadow-2xs text-center active:scale-[0.98]"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                      <span>Marks</span>
+                    </Link>
+
+                    <Link
+                      href={`/exams/${exam.id}`}
+                      className="inline-flex items-center justify-center gap-1 py-2 px-2 rounded-md bg-primary hover:bg-primary-hover text-white font-bold text-xs transition-colors shadow-xs text-center active:scale-[0.98]"
+                    >
+                      <span className="truncate">Submissions</span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                    </Link>
                   </div>
                 </div>
               </FeatureCard>
