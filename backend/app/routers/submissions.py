@@ -11,6 +11,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
 
+import logging
+
 from backend.app.config import settings
 from backend.app.database import get_db, get_iso_now
 from backend.app.services.storage import get_storage_service
@@ -28,11 +30,106 @@ from backend.app.services.notification_service import (
 )
 from backend.app.services.retention_service import RetentionService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["Submissions & Uploads"])
 
 # Bounded concurrency guard for legacy/fallback server-side image stitching
 # Guarantees Render 512MB RAM cannot be overwhelmed by concurrent raw camera bitmaps
 _backend_stitching_semaphore = asyncio.Semaphore(1)
+
+def _purge_and_replace_previous_submissions(
+    cursor,
+    exam_id: str,
+    clean_roll: str,
+    student_id: Optional[str] = None,
+    new_sub_id: Optional[str] = None,
+    current_user_id: Optional[str] = None
+) -> int:
+    """
+    Purges any previous active or superseded submissions for the same student & exam.
+    Deletes Cloudinary/storage files, cancels evaluation queue entries, deletes DB rows,
+    and logs an audit record so there are no duplicate submissions or orphaned cloud files.
+    """
+    conds = ["exam_id = ?"]
+    params = [exam_id]
+    if student_id:
+        conds.append("(UPPER(roll_number) = ? OR student_id = ?)")
+        params.extend([clean_roll, student_id])
+    else:
+        conds.append("UPPER(roll_number) = ?")
+        params.append(clean_roll)
+
+    if new_sub_id:
+        conds.append("id != ?")
+        params.append(new_sub_id)
+
+    query = f"""
+        SELECT id, original_file_path, canonical_pdf_path, annotated_pdf_path 
+        FROM submissions 
+        WHERE {' AND '.join(conds)}
+    """
+    cursor.execute(query, tuple(params))
+    prev_subs = [dict(r) for r in cursor.fetchall()]
+
+    if not prev_subs:
+        return 0
+
+    storage = get_storage_service()
+    now = get_iso_now()
+
+    for ps in prev_subs:
+        pid = ps["id"]
+        # Delete files from Cloudinary / storage
+        for file_key in [ps.get("original_file_path"), ps.get("canonical_pdf_path"), ps.get("annotated_pdf_path")]:
+            if file_key:
+                try:
+                    storage.delete_file(file_key)
+                except Exception as e:
+                    logger.warning(f"Could not delete replaced submission storage file {file_key}: {e}")
+
+        # Delete local artifacts if any exist
+        try:
+            local_renders = settings.RENDERS_DIR / pid
+            if local_renders.exists():
+                shutil.rmtree(local_renders, ignore_errors=True)
+            local_page_renders = settings.PAGE_RENDERS_DIR / f"sub_{pid}"
+            if local_page_renders.exists():
+                shutil.rmtree(local_page_renders, ignore_errors=True)
+            local_annotated = settings.EXPORTS_DIR / f"{pid}_annotated.pdf"
+            if local_annotated.exists():
+                local_annotated.unlink(missing_ok=True)
+            local_uploads = settings.UPLOADS_DIR / "submissions" / pid
+            if local_uploads.exists():
+                shutil.rmtree(local_uploads, ignore_errors=True)
+        except Exception as e:
+            logger.warning(f"Could not delete local submission files for {pid}: {e}")
+
+        # Delete evaluation queue entries
+        cursor.execute("DELETE FROM evaluation_queue WHERE submission_id = ?", (pid,))
+
+        # Delete child answers, criterion scores, revaluations
+        cursor.execute("DELETE FROM criterion_scores WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (pid,))
+        cursor.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (pid,))
+        cursor.execute("DELETE FROM answers WHERE submission_id = ?", (pid,))
+        cursor.execute("DELETE FROM revaluation_requests WHERE submission_id = ?", (pid,))
+
+        # Delete the previous submission record
+        cursor.execute("DELETE FROM submissions WHERE id = ?", (pid,))
+
+        # Audit log
+        cursor.execute("""
+            INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
+            VALUES (?, ?, 'REPLACE_SUBMISSION', 'SUBMISSION', ?, ?, ?)
+        """, (
+            f"aud_{uuid.uuid4().hex[:12]}",
+            current_user_id or "system",
+            pid,
+            json.dumps({"replaced_by": new_sub_id, "exam_id": exam_id, "roll_number": clean_roll}),
+            now
+        ))
+
+    return len(prev_subs)
 
 @router.get("")
 def list_submissions(
@@ -219,10 +316,10 @@ def get_submission_pdf_stream(
 
 @router.get("/exam/{exam_id}")
 def get_submissions_for_exam(exam_id: str):
-    """Return all submissions for an exam with their nested answer breakdown for the marks ledger."""
+    """Return all active submissions for an exam with their nested answer breakdown for the marks ledger."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM submissions WHERE exam_id = ? ORDER BY roll_number ASC", (exam_id,))
+        cursor.execute("SELECT * FROM submissions WHERE exam_id = ? AND submission_status = 'SUBMITTED' ORDER BY roll_number ASC", (exam_id,))
         subs = [dict(r) for r in cursor.fetchall()]
         
         for s in subs:
@@ -406,32 +503,6 @@ def confirm_presigned_upload(
         exam = cursor.fetchone()
         exam_total = exam["total_marks"] if exam else 0.0
         
-        # ATOMIC REPLACEMENT: Find existing active submission for this student
-        cursor.execute("""
-            SELECT id FROM submissions 
-            WHERE exam_id = ? AND UPPER(roll_number) = ? AND submission_status = 'SUBMITTED'
-        """, (exam_id, clean_roll))
-        prev_sub = cursor.fetchone()
-        
-        if prev_sub:
-            # Mark previous submission as SUPERSEDED
-            cursor.execute("""
-                UPDATE submissions 
-                SET submission_status = 'SUPERSEDED', updated_at = ?
-                WHERE id = ?
-            """, (now, prev_sub["id"]))
-            
-            cursor.execute("""
-                INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
-                VALUES (?, ?, 'SUPERSEDE_SUBMISSION', 'SUBMISSION', ?, ?, ?)
-            """, (
-                f"aud_{uuid.uuid4().hex[:12]}",
-                current_user["sub"] if current_user else "system",
-                prev_sub["id"],
-                f'{{"superseded_by": "{sub_id}", "roll_number": "{clean_roll}"}}',
-                now
-            ))
-        
         s_name = req.student_name or f"Student {clean_roll}"
         student_id = req.student_id
         if not student_id:
@@ -448,6 +519,16 @@ def confirm_presigned_upload(
                     student_id = stu_rec["id"]
                     if not req.student_name:
                         s_name = stu_rec["full_name"]
+
+        # ATOMIC REPLACEMENT: Purge any existing submission for this student on this exam
+        replaced_count = _purge_and_replace_previous_submissions(
+            cursor=cursor,
+            exam_id=exam_id,
+            clean_roll=clean_roll,
+            student_id=student_id,
+            new_sub_id=sub_id,
+            current_user_id=current_user["sub"] if current_user else None
+        )
         
         # Client renders PDF canvas directly via PDF.js; fallback JIT is handled in grading.py
         
@@ -506,7 +587,7 @@ def confirm_presigned_upload(
             "roll_number": clean_roll,
             "page_count": page_count,
             "file_size_bytes": file_size,
-            "is_replacement": bool(prev_sub),
+            "is_replacement": bool(replaced_count > 0),
             "submitted_at": now,
             "student_status": "Submitted"
         }
@@ -607,15 +688,15 @@ def _process_submission_sync(
                 if not batch_id and stu_rec["batch_id"]:
                     batch_id = stu_rec["batch_id"]
 
-        # Atomic replacement
-        cursor.execute("""
-            SELECT id FROM submissions 
-            WHERE exam_id = ? AND UPPER(roll_number) = ? AND submission_status = 'SUBMITTED'
-        """, (exam_id, clean_roll))
-        prev_sub = cursor.fetchone()
-        
-        if prev_sub:
-            cursor.execute("UPDATE submissions SET submission_status = 'SUPERSEDED', updated_at = ? WHERE id = ?", (now, prev_sub["id"]))
+        # Atomic replacement: purge previous submissions for this student on this exam
+        replaced_count = _purge_and_replace_previous_submissions(
+            cursor=cursor,
+            exam_id=exam_id,
+            clean_roll=clean_roll,
+            student_id=student_id,
+            new_sub_id=sub_id,
+            current_user_id=current_sub
+        )
         
         cursor.execute("""
             INSERT INTO submissions (
@@ -666,7 +747,7 @@ def _process_submission_sync(
             "roll_number": clean_roll,
             "page_count": page_count,
             "file_size_bytes": file_size,
-            "is_replacement": bool(prev_sub),
+            "is_replacement": bool(replaced_count > 0),
             "student_status": "Submitted"
         }
         return payload, str(local_path), sub_id

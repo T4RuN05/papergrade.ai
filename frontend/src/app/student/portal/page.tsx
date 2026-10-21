@@ -611,7 +611,11 @@ export default function StudentPortalPage() {
   // Submission for the active exam (if student has already uploaded)
   const activeExamSubmission = useMemo(() => {
     if (!activeExam) return null;
-    return submissions.find((s) => s.exam_id === activeExam.id) || null;
+    return (
+      submissions.find(
+        (s) => s.exam_id === activeExam.id && s.submission_status !== "SUPERSEDED"
+      ) || null
+    );
   }, [submissions, activeExam]);
 
   useEffect(() => {
@@ -790,7 +794,19 @@ export default function StudentPortalPage() {
         if (state) {
           setUser(state.user);
           setExams(state.exams || []);
-          setSubmissions(state.submissions || []);
+          const rawSubs = (state.submissions || []).filter(
+            (s: any) => s.submission_status !== "SUPERSEDED"
+          );
+          const seenExams = new Set<string>();
+          const dedupedSubs: any[] = [];
+          for (const s of rawSubs) {
+            const key = s.exam_id || s.id;
+            if (!seenExams.has(key)) {
+              seenExams.add(key);
+              dedupedSubs.push(s);
+            }
+          }
+          setSubmissions(dedupedSubs);
           const wins =
             state.active_windows && state.active_windows.length > 0
               ? state.active_windows
@@ -818,7 +834,19 @@ export default function StudentPortalPage() {
       ]);
 
       setExams(examList);
-      setSubmissions(subList);
+      const rawFallback = (subList || []).filter(
+        (s: any) => s.submission_status !== "SUPERSEDED"
+      );
+      const seenFallback = new Set<string>();
+      const dedupedFallback: any[] = [];
+      for (const s of rawFallback) {
+        const key = s.exam_id || s.id;
+        if (!seenFallback.has(key)) {
+          seenFallback.add(key);
+          dedupedFallback.push(s);
+        }
+      }
+      setSubmissions(dedupedFallback);
 
       if (examList.length > 0) {
         const windowResults = await Promise.all(
@@ -1043,10 +1071,20 @@ export default function StudentPortalPage() {
   // Past submissions list: if the active exam submission is already displayed
   // in the active window card above, exclude it from past submissions below to avoid clutter and duplicate display
   const pastSubmissionsList = useMemo(() => {
+    let list = submissions.filter((s) => s.submission_status !== "SUPERSEDED");
     if (shouldShowExamWindowCard && activeExam && activeExamSubmission) {
-      return submissions.filter((s) => s.exam_id !== activeExam.id);
+      list = list.filter((s) => s.exam_id !== activeExam.id);
     }
-    return submissions;
+    const seen = new Set<string>();
+    const deduped: any[] = [];
+    for (const item of list) {
+      const key = item.exam_id || item.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(item);
+      }
+    }
+    return deduped;
   }, [submissions, shouldShowExamWindowCard, activeExam, activeExamSubmission]);
 
   // Open Revaluation Modal for a specific submission

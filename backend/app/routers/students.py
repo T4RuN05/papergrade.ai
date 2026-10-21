@@ -270,12 +270,21 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                    e.is_document_purged as exam_is_document_purged
             FROM submissions s
             JOIN exams e ON s.exam_id = e.id
-            WHERE ({where_clause})
+            WHERE ({where_clause}) AND s.submission_status = 'SUBMITTED'
             ORDER BY s.created_at DESC
             """,
             tuple(sub_params)
         )
-        sub_rows = [dict(r) for r in cursor.fetchall()]
+        raw_sub_rows = [dict(r) for r in cursor.fetchall()]
+
+        # Deduplicate submissions by exam_id (keep only the newest active submission per exam)
+        sub_rows = []
+        seen_exam_ids = set()
+        for sub in raw_sub_rows:
+            e_id = sub.get("exam_id")
+            if e_id not in seen_exam_ids:
+                seen_exam_ids.add(e_id)
+                sub_rows.append(sub)
 
         # Attach revaluation, artifact, and retention info
         for sub in sub_rows:

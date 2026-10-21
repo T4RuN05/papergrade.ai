@@ -26,7 +26,7 @@ class ExportService:
         zip_path = settings.EXPORTS_DIR / f"batch_{batch_id}_graded_pdfs.zip"
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, roll_number, student_name FROM submissions WHERE batch_id = ?", (batch_id,))
+            cursor.execute("SELECT id, roll_number, student_name FROM submissions WHERE batch_id = ? AND submission_status = 'SUBMITTED'", (batch_id,))
             submissions = cursor.fetchall()
 
         if not submissions:
@@ -70,7 +70,7 @@ class ExportService:
             SELECT id, student_name, roll_number, total_awarded_marks, max_marks,
                    percentage, status, is_manual_override
             FROM submissions
-            WHERE exam_id = ?
+            WHERE exam_id = ? AND submission_status = 'SUBMITTED'
             ORDER BY roll_number ASC
             """, (exam_id,))
             submissions = cursor.fetchall()

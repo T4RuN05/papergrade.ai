@@ -63,18 +63,31 @@ export default function StudentPastExamsPage() {
   const loadSubmissions = async () => {
     try {
       setLoading(true);
+      let list: any[] = [];
       try {
         const state = await api.getStudentPortalState();
         if (state && state.submissions) {
-          setSubmissions(state.submissions);
-          return;
+          list = state.submissions;
         }
       } catch (err) {
         console.warn("Portal state endpoint failed, falling back to listSubmissions", err);
       }
 
-      const list = await api.listSubmissions().catch(() => []);
-      setSubmissions(list);
+      if (list.length === 0) {
+        list = await api.listSubmissions().catch(() => []);
+      }
+
+      const activeList = list.filter((s: any) => s.submission_status !== "SUPERSEDED");
+      const seen = new Set<string>();
+      const deduped: any[] = [];
+      for (const item of activeList) {
+        const key = item.exam_id || item.id;
+        if (!seen.has(key)) {
+          seen.add(key);
+          deduped.push(item);
+        }
+      }
+      setSubmissions(deduped);
     } catch (err: any) {
       toast.error(err.message || "Failed to load past exams");
     } finally {
