@@ -650,6 +650,7 @@ export default function StudentPortalPage() {
   };
 
   const handleAddFiles = (newFiles: FileList | File[]) => {
+    if (uploading) return;
     setUploadError(null);
     setUploadSuccess(null);
 
@@ -705,6 +706,7 @@ export default function StudentPortalPage() {
   };
 
   const handleRemovePage = (index: number) => {
+    if (uploading) return;
     setScannedPages((prev) => {
       const target = prev[index];
       if (target?.previewUrl && !target.isPdf) {
@@ -715,6 +717,7 @@ export default function StudentPortalPage() {
   };
 
   const handleMovePage = (index: number, direction: "up" | "down") => {
+    if (uploading) return;
     setScannedPages((prev) => {
       const targetIdx = direction === "up" ? index - 1 : index + 1;
       if (targetIdx < 0 || targetIdx >= prev.length) return prev;
@@ -727,6 +730,7 @@ export default function StudentPortalPage() {
   };
 
   const handleClearAllPages = () => {
+    if (uploading) return;
     cleanupPreviews(scannedPages);
     setScannedPages([]);
     setUploadError(null);
@@ -1349,7 +1353,9 @@ export default function StudentPortalPage() {
                     <button
                       key={winItem.exam.id}
                       type="button"
+                      disabled={uploading}
                       onClick={() => {
+                        if (uploading) return;
                         if (scannedPages.length > 0 && !isSelected) {
                           if (
                             !confirm(
@@ -1366,7 +1372,7 @@ export default function StudentPortalPage() {
                         isSelected
                           ? "bg-white border-primary shadow-sm ring-1.5 ring-primary"
                           : "bg-white/80 hover:bg-white border-blue-200/80 text-ink-secondary hover:border-blue-400"
-                      }`}
+                      } ${uploading ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                     >
                       <div className="min-w-0 pr-2">
                         <div className="flex items-center gap-1.5">
@@ -1623,8 +1629,13 @@ export default function StudentPortalPage() {
                       </div>
                       <button
                         type="button"
+                        disabled={uploading}
                         onClick={handleClearAllPages}
-                        className="text-[11px] font-medium text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
+                        className={`text-[11px] font-medium flex items-center gap-1 transition-colors ${
+                          uploading
+                            ? "text-red-400/40 opacity-40 cursor-not-allowed pointer-events-none"
+                            : "text-red-600 hover:text-red-700 hover:underline cursor-pointer"
+                        }`}
                       >
                         <Trash2 className="h-3 w-3" />
                         Reset
@@ -1633,7 +1644,9 @@ export default function StudentPortalPage() {
 
                     {scannedPages.length === 1 && scannedPages[0].isPdf ? (
                       /* Single PDF Preview Card */
-                      <div className="flex items-center justify-between p-3 rounded-lg border border-hairline bg-canvas-soft/60">
+                      <div className={`flex items-center justify-between p-3 rounded-lg border border-hairline transition-all ${
+                        uploading ? "bg-canvas-soft/30 opacity-60 pointer-events-none select-none" : "bg-canvas-soft/60"
+                      }`}>
                         <div className="flex items-center gap-3 min-w-0 pr-2">
                           <div className="h-10 w-10 rounded-md bg-red-100 dark:bg-red-950/40 text-red-600 flex items-center justify-center shrink-0">
                             <FileText className="h-5 w-5" />
@@ -1649,8 +1662,13 @@ export default function StudentPortalPage() {
                         </div>
                         <button
                           type="button"
+                          disabled={uploading}
                           onClick={() => filePickerRef.current?.click()}
-                          className="text-xs text-primary font-medium hover:underline shrink-0 cursor-pointer"
+                          className={`text-xs font-medium shrink-0 transition-colors ${
+                            uploading
+                              ? "text-primary/40 opacity-40 cursor-not-allowed pointer-events-none"
+                              : "text-primary hover:underline cursor-pointer"
+                          }`}
                         >
                           Change
                         </button>
@@ -1662,7 +1680,11 @@ export default function StudentPortalPage() {
                           {scannedPages.map((page, idx) => (
                             <div
                               key={page.id}
-                              className="flex items-center justify-between p-2.5 rounded-lg border border-hairline bg-canvas-soft/40 hover:bg-canvas-soft/80 transition-colors"
+                              className={`flex items-center justify-between p-2.5 rounded-lg border border-hairline transition-all ${
+                                uploading
+                                  ? "bg-canvas-soft/30 opacity-60 pointer-events-none select-none"
+                                  : "bg-canvas-soft/40 hover:bg-canvas-soft/80"
+                              }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                 {page.previewUrl ? (
@@ -1694,7 +1716,7 @@ export default function StudentPortalPage() {
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
-                                  disabled={idx === 0}
+                                  disabled={uploading || idx === 0}
                                   onClick={() => handleMovePage(idx, "up")}
                                   title="Move earlier"
                                   className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
@@ -1703,7 +1725,7 @@ export default function StudentPortalPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={idx === scannedPages.length - 1}
+                                  disabled={uploading || idx === scannedPages.length - 1}
                                   onClick={() => handleMovePage(idx, "down")}
                                   title="Move later"
                                   className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
@@ -1712,9 +1734,14 @@ export default function StudentPortalPage() {
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={uploading}
                                   onClick={() => handleRemovePage(idx)}
                                   title="Delete page"
-                                  className="p-1 rounded text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                  className={`p-1 rounded transition-colors ${
+                                    uploading
+                                      ? "text-ink-muted/30 opacity-30 cursor-not-allowed pointer-events-none"
+                                      : "text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                  }`}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -1728,16 +1755,26 @@ export default function StudentPortalPage() {
                           <div className="flex flex-wrap items-center gap-2 pt-1">
                             <button
                               type="button"
+                              disabled={uploading}
                               onClick={() => cameraInputRef.current?.click()}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline hover:border-primary text-xs font-medium text-ink hover:text-primary transition-colors cursor-pointer"
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline text-xs font-medium transition-colors ${
+                                uploading
+                                  ? "opacity-40 cursor-not-allowed pointer-events-none text-ink-muted"
+                                  : "hover:border-primary text-ink hover:text-primary cursor-pointer"
+                              }`}
                             >
                               <Camera className="h-3.5 w-3.5" />
                               <span>+ Scan Next Page (Camera)</span>
                             </button>
                             <button
                               type="button"
+                              disabled={uploading}
                               onClick={() => filePickerRef.current?.click()}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline hover:border-primary text-xs font-medium text-ink hover:text-primary transition-colors cursor-pointer"
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline text-xs font-medium transition-colors ${
+                                uploading
+                                  ? "opacity-40 cursor-not-allowed pointer-events-none text-ink-muted"
+                                  : "hover:border-primary text-ink hover:text-primary cursor-pointer"
+                              }`}
                             >
                               <Plus className="h-3.5 w-3.5" />
                               <span>+ Add Photos</span>
