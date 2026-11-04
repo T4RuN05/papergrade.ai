@@ -44,24 +44,24 @@ class Settings:
     R2_PUBLIC_URL: str = os.getenv("R2_PUBLIC_URL", "").strip() # Optional custom domain / r2.dev URL
 
     # Cloudinary Storage Settings (Free tier zero-billing alternative)
-    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "dijssimbb").strip()
-    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "499744465829232").strip()
-    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "BeE8QrnuIuIPw4xhI79FRE5tKNs").strip()
-    CLOUDINARY_URL: str = os.getenv("CLOUDINARY_URL", "cloudinary://499744465829232:BeE8QrnuIuIPw4xhI79FRE5tKNs@dijssimbb").strip()
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "").strip()
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "").strip()
+    CLOUDINARY_URL: str = os.getenv("CLOUDINARY_URL", "").strip()
 
     # Supabase Settings
-    SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "https://wxslwjwlutrcucieossv.supabase.co").strip()
-    SUPABASE_KEY: str = os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_BTrPRAq5lUFULfPZ8JSWjQ_g_aktYKe").strip()
-    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "sb_secret_jatcjAgcn3ccVgdY3JpcBw_gfBFLUHY").strip()
+    SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "").strip()
+    SUPABASE_KEY: str = os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "").strip()
+    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 
     # Authentication & Security
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "pg_dev_jwt_secret_antigravity_replace_in_prod_key_92817").strip()
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "pg_dev_jwt_secret_change_in_production").strip()
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7))) # 7 days
 
     # Web Push / VAPID Settings (100% Free W3C Browser Push)
-    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "BI1I5SnHVzzA1xq19X5M56EdzidtReiFM40_u9MTepwcZPy_H1G45nswZCVjVJCZpzFO7R5trsMlT2_i_kmbmDk").strip()
-    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "uO96ke6CeqAprAJgxrVs45c4i2X9Y5E516QGGVfKim8").strip()
+    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "").strip()
     VAPID_CLAIMS_EMAIL: str = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:notifications@papergrade.ai").strip()
 
     # Submission & Evaluation Lifecycle Constraints

@@ -1325,15 +1325,15 @@ GRACE_PERIOD_MINUTES=2
 # CLOUDINARY CDN (OBJECT STORAGE)
 # ==============================================================================
 STORAGE_BACKEND=cloudinary
-CLOUDINARY_CLOUD_NAME=dijssimbb
-CLOUDINARY_API_KEY=499744465829232
-CLOUDINARY_API_SECRET=BeE8QrnuIuIPw4xhI79FRE5tKNs
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
 # ==============================================================================
 # W3C BROWSER WEB PUSH (VAPID KEYS)
 # ==============================================================================
-VAPID_PUBLIC_KEY=BI1I5SnHVzzA1xq19X5M56EdzidtReiFM40_u9MTepwcZPy_H1G45nswZCVjVJCZpzFO7R5trsMlT2_i_kmbmDk
-VAPID_PRIVATE_KEY=uO96ke6CeqAprAJgxrVs45c4i2X9Y5E516QGGVfKim8
+VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_PRIVATE_KEY=your_vapid_private_key
 VAPID_CLAIMS_EMAIL=mailto:notifications@papergrade.ai
 
 # ==============================================================================
