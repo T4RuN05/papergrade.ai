@@ -77,15 +77,21 @@ class RetentionService:
         }
 
     @staticmethod
-    def get_retention_info(sub: Dict[str, Any]) -> Dict[str, Any]:
+    def get_retention_info(sub: Any) -> Dict[str, Any]:
         """
         Calculates time remaining and purge state for a submission.
+        Supports both dictionary records and SQLAlchemy ORM Submission models.
         """
-        is_purged = bool(sub.get("is_document_purged"))
-        graded_at = sub.get("graded_at")
-        expires_at = sub.get("retention_expires_at")
-        purged_at = sub.get("purged_at")
-        ttl_days = sub.get("ttl_days") or settings.SUBMISSION_RETENTION_DAYS
+        def _get(key: str, default: Any = None) -> Any:
+            if isinstance(sub, dict):
+                return sub.get(key, default)
+            return getattr(sub, key, default)
+
+        is_purged = bool(_get("is_document_purged"))
+        graded_at = _get("graded_at")
+        expires_at = _get("retention_expires_at")
+        purged_at = _get("purged_at")
+        ttl_days = _get("ttl_days") or settings.SUBMISSION_RETENTION_DAYS
 
         if not expires_at and graded_at:
             expires_at = RetentionService.calculate_retention_expiry(graded_at, ttl_days)
@@ -116,7 +122,7 @@ class RetentionService:
             seconds_remaining = 0
 
         # Also calculate revaluation days remaining (7-day window from publication/grading)
-        pub_iso = sub.get("published_at") or graded_at or sub.get("created_at")
+        pub_iso = _get("published_at") or graded_at or _get("created_at")
         reval_days_left = 0.0
         reval_open = False
         if pub_iso:

@@ -260,8 +260,10 @@ def get_my_revaluation_requests(
             "question_ids_json": r.question_ids_json,
             "student_reason": r.student_reason,
             "status": r.status,
-            "resolution_notes": r.resolution_notes,
-            "delta_marks": r.delta_marks,
+            "decision": r.decision,
+            "reviewer_notes": r.reviewer_notes,
+            "resolution_notes": r.reviewer_notes,
+            "delta_marks": getattr(r, "delta_marks", None),
             "resolved_by": r.resolved_by,
             "requested_at": r.requested_at,
             "resolved_at": r.resolved_at,
@@ -308,8 +310,10 @@ def list_revaluation_requests(
             "question_ids_json": r.question_ids_json,
             "student_reason": r.student_reason,
             "status": r.status,
-            "resolution_notes": r.resolution_notes,
-            "delta_marks": r.delta_marks,
+            "decision": r.decision,
+            "reviewer_notes": r.reviewer_notes,
+            "resolution_notes": r.reviewer_notes,
+            "delta_marks": getattr(r, "delta_marks", None),
             "resolved_by": r.resolved_by,
             "requested_at": r.requested_at,
             "resolved_at": r.resolved_at,
@@ -377,7 +381,8 @@ def resolve_revaluation_request(
 
     # Resolve request
     reval.status = 'RESOLVED'
-    reval.resolution_notes = req.reviewer_notes.strip()
+    reval.decision = req.decision
+    reval.reviewer_notes = req.reviewer_notes.strip() if req.reviewer_notes else None
     reval.resolved_by = current_user["sub"]
     reval.resolved_at = now
 
