@@ -514,8 +514,9 @@ export const api = {
     return res.json();
   },
 
-  async listBatches(branchId?: string): Promise<any[]> {
+  async listBatches(branchId?: string, forceRefresh = false): Promise<any[]> {
     const key = `tenancy:batches:${branchId || "all"}`;
+    if (forceRefresh) clearApiCache("tenancy:batches");
     return fetchWithCache(key, async () => {
       const url = branchId
         ? `${API_BASE}/api/v1/tenancy/batches?branch_id=${branchId}`
@@ -523,7 +524,7 @@ export const api = {
       const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (!res.ok) throw new Error("Failed to list batches");
       return res.json();
-    }, 60000); // 60s cache
+    }, 30000); // 30s cache with auto-invalidation on create/delete/update
   },
 
   async createBatch(data: { branch_id: string; name: string; code: string; academic_year: string }): Promise<any> {
@@ -536,6 +537,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to create batch" }));
       throw new Error(err.detail || "Failed to create batch");
     }
+    clearApiCache("tenancy:batches");
     return res.json();
   },
 
@@ -549,6 +551,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to add student" }));
       throw new Error(err.detail || "Failed to add student");
     }
+    clearApiCache("tenancy:batches");
     return res.json();
   },
 
@@ -564,6 +567,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to import roster" }));
       throw new Error(err.detail || "Failed to import roster");
     }
+    clearApiCache("tenancy:batches");
     return res.json();
   },
 
@@ -576,6 +580,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to delete batch" }));
       throw new Error(err.detail || "Failed to delete batch");
     }
+    clearApiCache("tenancy:batches");
     return res.json();
   },
 
@@ -588,6 +593,7 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to delete student" }));
       throw new Error(err.detail || "Failed to delete student");
     }
+    clearApiCache("tenancy:batches");
     return res.json();
   },
 

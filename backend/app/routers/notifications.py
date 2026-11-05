@@ -34,7 +34,11 @@ def save_push_subscription(
 ):
     """Store or refresh client device push subscription token for background WebPush delivery."""
     user_id = current_user["sub"]
-    ua = payload.user_agent or user_agent or ""
+    ua = ""
+    if isinstance(payload.user_agent, str) and payload.user_agent:
+        ua = payload.user_agent
+    elif isinstance(user_agent, str) and user_agent:
+        ua = user_agent
     now = get_iso_now()
 
     with get_db() as conn:

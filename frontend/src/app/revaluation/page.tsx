@@ -22,13 +22,21 @@ import {
   ChevronRight,
   Edit3,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { api, getAuthToken } from "@/lib/api";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
-import { DocumentViewer } from "@/components/DocumentViewer";
 import { AdminRevaluationModal } from "@/components/AdminRevaluationModal";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, RevaluationDeskSkeleton, EvaluationViewerSkeleton } from "@/components/ui";
 import { GradedAnswer } from "@/lib/types";
+
+const DocumentViewer = dynamic(
+  () => import("@/components/DocumentViewer").then((mod) => mod.DocumentViewer),
+  {
+    ssr: false,
+    loading: () => <EvaluationViewerSkeleton />,
+  }
+);
 
 interface StudentPaperGroup {
   submission_id: string;
@@ -399,7 +407,7 @@ export default function RevaluationDeskPage() {
   ).length;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-16 px-2 sm:px-4 md:px-6">
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-16 px-2 sm:px-4 md:px-6 cascade-group">
       {/* 1. Header & Branch Info */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
         <div>
@@ -580,7 +588,7 @@ export default function RevaluationDeskPage() {
       ) : loadingSubmission || !submission ? (
         <EvaluationViewerSkeleton />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 cascade-group">
           {/* Active Paper Banner with Multi-Request Tabs */}
           <FeatureCard className="p-4 bg-surface border-hairline space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

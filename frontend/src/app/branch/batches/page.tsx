@@ -139,10 +139,10 @@ export default function BranchBatchesPage() {
     loadBatchesForBranch(selectedBranch.id);
   }, [selectedBranch?.id, tenantLoading, router]);
 
-  const loadBatchesForBranch = async (branchId: string) => {
+  const loadBatchesForBranch = async (branchId: string, force = false) => {
     setLoadingBatches(true);
     try {
-      const batchList = await api.listBatches(branchId);
+      const batchList = await api.listBatches(branchId, force);
       setBatches(batchList);
       if (batchList.length > 0) {
         // Keep current selected if it still exists in this branch, else pick first
@@ -186,18 +186,35 @@ export default function BranchBatchesPage() {
     if (!selectedBranch?.id || !newBatchName.trim()) return;
 
     const bName = newBatchName.trim();
+    const bCode = (newBatchCode || newBatchName.slice(0, 4)).trim().toUpperCase();
+    const bYear = newBatchYear.trim() || "2026";
     try {
-      await api.createBatch({
+      const res = await api.createBatch({
         branch_id: selectedBranch.id,
         name: bName,
-        code: (newBatchCode || newBatchName.slice(0, 4)).trim().toUpperCase(),
-        academic_year: newBatchYear.trim(),
+        code: bCode,
+        academic_year: bYear,
       });
       setCreateBatchOpen(false);
       setNewBatchName("");
       setNewBatchCode("");
       toast.success(`Batch "${bName}" created successfully!`, { title: "Batch Created" });
-      await loadBatchesForBranch(selectedBranch.id);
+
+      // Optimistically add and select the new batch immediately
+      const newBatchObj = {
+        id: res?.id || `batch_${Date.now()}`,
+        branch_id: selectedBranch.id,
+        name: res?.name || bName,
+        code: res?.code || bCode,
+        academic_year: bYear,
+        total_submissions: 0,
+        created_at: new Date().toISOString(),
+      };
+      setBatches((prev) => [newBatchObj, ...prev.filter((b) => b.id !== newBatchObj.id)]);
+      setSelectedBatch(newBatchObj);
+
+      // Fresh sync from backend
+      await loadBatchesForBranch(selectedBranch.id, true);
     } catch (err: any) {
       const msg = err.message || "Failed to create batch.";
       toast.error(msg, { title: "Creation Failed" });
@@ -221,8 +238,11 @@ export default function BranchBatchesPage() {
       setStuName("");
       setStuEmail("");
       toast.success(`Student "${sName}" enrolled. Claim ID: ${res.student_id_num}`, { title: "Student Enrolled" });
-      // Reload students
-      const updated = await api.listStudentsInBatch(selectedBatch.id);
+      // Reload students & sync batch card counts
+      const [updated] = await Promise.all([
+        api.listStudentsInBatch(selectedBatch.id),
+        selectedBranch?.id ? loadBatchesForBranch(selectedBranch.id, true) : Promise.resolve(),
+      ]);
       setStudents(updated);
     } catch (err: any) {
       const msg = err.message || "Failed to add student.";
@@ -240,7 +260,10 @@ export default function BranchBatchesPage() {
       setImportStats(res);
       const count = res.imported_count || res.students_imported || "students";
       toast.success(`Imported ${count} students into "${selectedBatch.name}" roster!`, { title: "Roster Imported" });
-      const updated = await api.listStudentsInBatch(selectedBatch.id);
+      const [updated] = await Promise.all([
+        api.listStudentsInBatch(selectedBatch.id),
+        selectedBranch?.id ? loadBatchesForBranch(selectedBranch.id, true) : Promise.resolve(),
+      ]);
       setStudents(updated);
     } catch (err: any) {
       const msg = err.message || "Excel import failed.";
@@ -261,8 +284,20 @@ export default function BranchBatchesPage() {
     try {
       await api.deleteBatch(batchId);
       toast.success(`Batch "${batchName}" deleted.`, { title: "Batch Removed" });
+
+      // Optimistically remove batch from UI immediately
+      setBatches((prev) => {
+        const remaining = prev.filter((b) => b.id !== batchId);
+        if (selectedBatch?.id === batchId) {
+          const nextSelected = remaining.length > 0 ? remaining[0] : null;
+          setSelectedBatch(nextSelected);
+          if (!nextSelected) setStudents([]);
+        }
+        return remaining;
+      });
+
       if (selectedBranch) {
-        await loadBatchesForBranch(selectedBranch.id);
+        await loadBatchesForBranch(selectedBranch.id, true);
       }
     } catch (err: any) {
       const msg = err.message || "Failed to delete batch.";
@@ -285,6 +320,9 @@ export default function BranchBatchesPage() {
       await api.deleteStudent(selectedBatch.id, studentId);
       setStudents((prev) => prev.filter((s) => s.id !== studentId));
       toast.success(`Student "${studentName}" removed from roster.`, { title: "Student Removed" });
+      if (selectedBranch?.id) {
+        loadBatchesForBranch(selectedBranch.id, true);
+      }
     } catch (err: any) {
       const msg = err.message || "Failed to delete student.";
       toast.error(msg, { title: "Removal Failed" });
@@ -318,7 +356,7 @@ export default function BranchBatchesPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 max-w-7xl mx-auto pb-16 px-1 sm:px-0">
+    <div className="space-y-5 sm:space-y-6 max-w-7xl mx-auto pb-16 px-1 sm:px-0 cascade-group">
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
         <div>
@@ -387,7 +425,7 @@ export default function BranchBatchesPage() {
 
 
       {/* 3. Branch Overview Stats (Responsive 3-Column Strip) */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 cascade-fast">
         <FeatureCard className="p-3 sm:p-4 space-y-1">
           <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
             Active Batches
@@ -433,8 +471,8 @@ export default function BranchBatchesPage() {
               </span>
             </h2>
             <button
-              onClick={() => selectedBranch && loadBatchesForBranch(selectedBranch.id)}
-              className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
+              onClick={() => selectedBranch && loadBatchesForBranch(selectedBranch.id, true)}
+              className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
               title="Refresh Batches"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -742,124 +780,122 @@ export default function BranchBatchesPage() {
       </div>
 
       {/* MODAL: Create Batch */}
-      {createBatchOpen && (
-        <ModalCard
-          title="Create New Academic Batch"
-          onClose={() => setCreateBatchOpen(false)}
-        >
-          <form onSubmit={handleCreateBatch} className="space-y-4">
+      <ModalCard
+        isOpen={createBatchOpen}
+        title="Create New Academic Batch"
+        onClose={() => setCreateBatchOpen(false)}
+      >
+        <form onSubmit={handleCreateBatch} className="space-y-4">
+          <FormInput
+            label="Batch Name"
+            placeholder="e.g. KTG 12th Batch, JEE Morning 2026"
+            value={newBatchName}
+            onChange={(e) => setNewBatchName(e.target.value)}
+            required
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormInput
-              label="Batch Name"
-              placeholder="e.g. KTG 12th Batch, JEE Morning 2026"
-              value={newBatchName}
-              onChange={(e) => setNewBatchName(e.target.value)}
+              label="Batch Code"
+              placeholder="e.g. KTG_2026"
+              value={newBatchCode}
+              onChange={(e) => setNewBatchCode(e.target.value)}
               required
             />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FormInput
-                label="Batch Code"
-                placeholder="e.g. KTG_2026"
-                value={newBatchCode}
-                onChange={(e) => setNewBatchCode(e.target.value)}
-                required
-              />
-              <FormInput
-                label="Academic Year"
-                placeholder="2026"
-                value={newBatchYear}
-                onChange={(e) => setNewBatchYear(e.target.value)}
-                required
-              />
+            <FormInput
+              label="Academic Year"
+              placeholder="2026"
+              value={newBatchYear}
+              onChange={(e) => setNewBatchYear(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
+            <ButtonUtility type="button" onClick={() => setCreateBatchOpen(false)} className="w-full sm:w-auto justify-center">
+              Cancel
+            </ButtonUtility>
+            <ButtonPrimary type="submit" className="w-full sm:w-auto justify-center">
+              Create Batch
+            </ButtonPrimary>
+          </div>
+        </form>
+      </ModalCard>
+
+      {/* MODAL: Add Student */}
+      <ModalCard
+        isOpen={addStudentOpen}
+        title={`Add Student to ${selectedBatch?.name}`}
+        onClose={() => {
+          setAddStudentOpen(false);
+          setAddedStudentIdNum(null);
+        }}
+      >
+        {addedStudentIdNum ? (
+          <div className="text-center py-4 space-y-4">
+            <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-6 w-6" />
             </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-ink">Student Enrolled Successfully</h4>
+              <p className="text-xs text-ink-muted">Share this one-time 6-digit claim ID with the student:</p>
+              <div className="text-2xl font-mono font-bold tracking-widest text-primary pt-1">
+                {addedStudentIdNum}
+              </div>
+            </div>
+            <ButtonPrimary
+              onClick={() => {
+                setAddedStudentIdNum(null);
+                setAddStudentOpen(false);
+              }}
+              className="w-full sm:w-auto justify-center"
+            >
+              Done
+            </ButtonPrimary>
+          </div>
+        ) : (
+          <form onSubmit={handleAddStudent} className="space-y-4">
+            <FormInput
+              label="Roll Number"
+              placeholder="e.g. ROLL-101"
+              value={stuRoll}
+              onChange={(e) => setStuRoll(e.target.value)}
+              required
+            />
+            <FormInput
+              label="Full Name"
+              placeholder="e.g. Aarav Sharma"
+              value={stuName}
+              onChange={(e) => setStuName(e.target.value)}
+              required
+            />
+            <FormInput
+              label="Email (Optional)"
+              type="email"
+              placeholder="student@example.com"
+              value={stuEmail}
+              onChange={(e) => setStuEmail(e.target.value)}
+            />
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-              <ButtonUtility type="button" onClick={() => setCreateBatchOpen(false)} className="w-full sm:w-auto justify-center">
+              <ButtonUtility type="button" onClick={() => setAddStudentOpen(false)} className="w-full sm:w-auto justify-center">
                 Cancel
               </ButtonUtility>
               <ButtonPrimary type="submit" className="w-full sm:w-auto justify-center">
-                Create Batch
+                Enroll Student
               </ButtonPrimary>
             </div>
           </form>
-        </ModalCard>
-      )}
-
-      {/* MODAL: Add Student */}
-      {addStudentOpen && (
-        <ModalCard
-          title={`Add Student to ${selectedBatch?.name}`}
-          onClose={() => {
-            setAddStudentOpen(false);
-            setAddedStudentIdNum(null);
-          }}
-        >
-          {addedStudentIdNum ? (
-            <div className="text-center py-4 space-y-4">
-              <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold text-ink">Student Enrolled Successfully</h4>
-                <p className="text-xs text-ink-muted">Share this one-time 6-digit claim ID with the student:</p>
-                <div className="text-2xl font-mono font-bold tracking-widest text-primary pt-1">
-                  {addedStudentIdNum}
-                </div>
-              </div>
-              <ButtonPrimary
-                onClick={() => {
-                  setAddedStudentIdNum(null);
-                  setAddStudentOpen(false);
-                }}
-                className="w-full sm:w-auto justify-center"
-              >
-                Done
-              </ButtonPrimary>
-            </div>
-          ) : (
-            <form onSubmit={handleAddStudent} className="space-y-4">
-              <FormInput
-                label="Roll Number"
-                placeholder="e.g. ROLL-101"
-                value={stuRoll}
-                onChange={(e) => setStuRoll(e.target.value)}
-                required
-              />
-              <FormInput
-                label="Full Name"
-                placeholder="e.g. Aarav Sharma"
-                value={stuName}
-                onChange={(e) => setStuName(e.target.value)}
-                required
-              />
-              <FormInput
-                label="Email (Optional)"
-                type="email"
-                placeholder="student@example.com"
-                value={stuEmail}
-                onChange={(e) => setStuEmail(e.target.value)}
-              />
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-                <ButtonUtility type="button" onClick={() => setAddStudentOpen(false)} className="w-full sm:w-auto justify-center">
-                  Cancel
-                </ButtonUtility>
-                <ButtonPrimary type="submit" className="w-full sm:w-auto justify-center">
-                  Enroll Student
-                </ButtonPrimary>
-              </div>
-            </form>
-          )}
-        </ModalCard>
-      )}
+        )}
+      </ModalCard>
 
       {/* MODAL: Import Excel Roster */}
-      {importRosterOpen && (
-        <ModalCard
-          title={`Import Student Roster (${selectedBatch?.name})`}
-          onClose={() => {
-            setImportRosterOpen(false);
-            setImportStats(null);
-            setRosterFile(null);
-          }}
-        >
+      <ModalCard
+        isOpen={importRosterOpen}
+        title={`Import Student Roster (${selectedBatch?.name})`}
+        onClose={() => {
+          setImportRosterOpen(false);
+          setImportStats(null);
+          setRosterFile(null);
+        }}
+      >
           {importStats ? (
             <div className="text-center py-4 space-y-4">
               <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
@@ -925,7 +961,6 @@ export default function BranchBatchesPage() {
             </form>
           )}
         </ModalCard>
-      )}
 
       {/* PASSWORD RESET APPROVAL MODAL */}
       <ModalCard

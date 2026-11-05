@@ -177,3 +177,178 @@ body {
   will-change: background-position;
 }
 
+/* ==========================================================================
+   Cascading Soft Fade-In Animation Engine
+   Provides a buttery-smooth, staggered top-to-bottom mount transition
+   eliminating component flash after skeleton unmounts.
+   ========================================================================== */
+@keyframes cascadeFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-cascade {
+  animation: cascadeFadeInUp 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Automatic child-cascading group: any container with .cascade-group
+   automatically cascades its direct children from top to bottom */
+.cascade-group > * {
+  animation: cascadeFadeInUp 0.44s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cascade-group > *:nth-child(1) { animation-delay: 20ms; }
+.cascade-group > *:nth-child(2) { animation-delay: 60ms; }
+.cascade-group > *:nth-child(3) { animation-delay: 100ms; }
+.cascade-group > *:nth-child(4) { animation-delay: 140ms; }
+.cascade-group > *:nth-child(5) { animation-delay: 180ms; }
+.cascade-group > *:nth-child(6) { animation-delay: 220ms; }
+.cascade-group > *:nth-child(7) { animation-delay: 260ms; }
+.cascade-group > *:nth-child(8) { animation-delay: 300ms; }
+.cascade-group > *:nth-child(9) { animation-delay: 340ms; }
+.cascade-group > *:nth-child(10) { animation-delay: 380ms; }
+.cascade-group > *:nth-child(11) { animation-delay: 420ms; }
+.cascade-group > *:nth-child(12) { animation-delay: 460ms; }
+.cascade-group > *:nth-child(13) { animation-delay: 500ms; }
+.cascade-group > *:nth-child(14) { animation-delay: 540ms; }
+.cascade-group > *:nth-child(15) { animation-delay: 580ms; }
+.cascade-group > *:nth-child(16) { animation-delay: 620ms; }
+
+/* Micro-cascade for dense card grids */
+.cascade-fast > * {
+  animation: cascadeFadeInUp 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.cascade-fast > *:nth-child(1) { animation-delay: 15ms; }
+.cascade-fast > *:nth-child(2) { animation-delay: 45ms; }
+.cascade-fast > *:nth-child(3) { animation-delay: 75ms; }
+.cascade-fast > *:nth-child(4) { animation-delay: 105ms; }
+.cascade-fast > *:nth-child(5) { animation-delay: 135ms; }
+.cascade-fast > *:nth-child(6) { animation-delay: 165ms; }
+.cascade-fast > *:nth-child(7) { animation-delay: 195ms; }
+.cascade-fast > *:nth-child(8) { animation-delay: 225ms; }
+
+/* Explicit delay utilities */
+.cascade-delay-1 { animation-delay: 30ms; }
+.cascade-delay-2 { animation-delay: 70ms; }
+.cascade-delay-3 { animation-delay: 110ms; }
+.cascade-delay-4 { animation-delay: 150ms; }
+.cascade-delay-5 { animation-delay: 190ms; }
+.cascade-delay-6 { animation-delay: 230ms; }
+
+/* ==========================================================================
+   Smooth Modal Fade-In & Fade-Out Transitions
+   Backdrop fade with blur and subtle card scale/translate easing
+   ========================================================================== */
+@keyframes modalBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modalContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modalContentOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+
+.animate-modal-backdrop-in {
+  animation: modalBackdropIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-modal-backdrop-out {
+  animation: modalBackdropOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-modal-content-in {
+  animation: modalContentIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-modal-content-out {
+  animation: modalContentOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ==========================================================================
+   Notification Cascading Slide-Out Top-Down Exit Animation
+   Smooth horizontal slide out with graceful vertical collapse
+   ========================================================================== */
+@keyframes notificationSlideOut {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 180px;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  45% {
+    opacity: 0.45;
+    transform: translateX(45%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(105%);
+    max-height: 0px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    border-color: transparent;
+  }
+}
+
+.animate-notification-slide-out {
+  animation: notificationSlideOut 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cascade,
+  .cascade-group > *,
+  .cascade-fast > *,
+  .animate-modal-backdrop-in,
+  .animate-modal-backdrop-out,
+  .animate-modal-content-in,
+  .animate-modal-content-out,
+  .animate-notification-slide-out {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .animate-modal-backdrop-out,
+  .animate-modal-content-out {
+    opacity: 0 !important;
+  }
+}
+

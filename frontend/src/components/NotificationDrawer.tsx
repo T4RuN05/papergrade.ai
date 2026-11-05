@@ -72,10 +72,16 @@ export function NotificationDrawer() {
 
   const [activeTab, setActiveTab] = useState<"all" | "unread">("unread");
 
+  // Cascading slide-out clearing state for top-down exit animation
+  const [clearingIds, setClearingIds] = useState<Set<string>>(new Set());
+  const [isClearingAll, setIsClearingAll] = useState(false);
+
   // Reset to unread tab whenever the drawer opens
   useEffect(() => {
     if (isOpen) {
       setActiveTab("unread");
+      setClearingIds(new Set());
+      setIsClearingAll(false);
     }
   }, [isOpen]);
 
@@ -89,12 +95,48 @@ export function NotificationDrawer() {
   };
 
   const handleMarkAll = async () => {
-    try {
-      await markAllRead();
-      toast.success("All notifications marked as read.", { title: "Notifications Cleared" });
-    } catch {
-      toast.error("Failed to mark notifications as read");
-    }
+    if (isClearingAll) return;
+    const unreadNotifications = filteredNotifications.filter(
+      (n) => !n.is_read || n.is_read === 0
+    );
+    if (unreadNotifications.length === 0) return;
+
+    setIsClearingAll(true);
+    const unreadIds = new Set(unreadNotifications.map((n) => n.id));
+    setClearingIds(unreadIds);
+
+    // Staggered top-down cascade: top item starts at 0ms, each following item delayed by 55ms
+    const staggerStep = 55;
+    const animDuration = 380;
+    const totalDuration = (unreadNotifications.length - 1) * staggerStep + animDuration;
+
+    setTimeout(async () => {
+      try {
+        await markAllRead();
+        toast.success("All notifications marked as read.", { title: "Notifications Cleared" });
+      } catch {
+        toast.error("Failed to mark notifications as read");
+      } finally {
+        setClearingIds(new Set());
+        setIsClearingAll(false);
+      }
+    }, Math.min(totalDuration, 950));
+  };
+
+  const handleSingleClear = (id: string) => {
+    if (clearingIds.has(id)) return;
+    setClearingIds((prev) => new Set(prev).add(id));
+    setTimeout(async () => {
+      try {
+        await markAsRead(id);
+      } finally {
+        setClearingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    }, 380);
   };
 
   // Close on Escape key
@@ -208,10 +250,11 @@ export function NotificationDrawer() {
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAll}
-              className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active transition-colors hover:underline"
+              disabled={isClearingAll}
+              className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active transition-colors hover:underline disabled:opacity-50 cursor-pointer"
             >
               <Check className="h-3 w-3" />
-              Mark all read
+              <span>{isClearingAll ? "Clearing..." : "Mark all read"}</span>
             </button>
           )}
         </div>
@@ -270,12 +313,18 @@ export function NotificationDrawer() {
           {loading && notifications.length === 0 ? (
             <NotificationDrawerSkeleton />
           ) : filteredNotifications.length > 0 ? (
-            filteredNotifications.map((n) => {
+            filteredNotifications.map((n, index) => {
               const isUnread = !n.is_read || n.is_read === 0;
+              const isClearing = clearingIds.has(n.id);
+              const cascadeDelay = isClearing && isClearingAll ? `${index * 55}ms` : undefined;
+
               return (
                 <div
                   key={n.id}
+                  style={cascadeDelay ? { animationDelay: cascadeDelay } : undefined}
                   className={`p-4 transition-colors relative flex gap-3 ${
+                    isClearing ? "animate-notification-slide-out" : ""
+                  } ${
                     isUnread ? "bg-primary/[0.03] hover:bg-primary/[0.06]" : "hover:bg-canvas-soft/60"
                   }`}
                 >
@@ -319,8 +368,9 @@ export function NotificationDrawer() {
 
                       {isUnread && (
                         <button
-                          onClick={() => markAsRead(n.id)}
-                          className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink px-2 py-0.5 rounded-sm hover:bg-canvas-soft border border-hairline transition-colors"
+                          onClick={() => handleSingleClear(n.id)}
+                          disabled={isClearing || isClearingAll}
+                          className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink px-2 py-0.5 rounded-sm hover:bg-canvas-soft border border-hairline transition-colors cursor-pointer disabled:opacity-50"
                           title="Mark as read"
                         >
                           <Check className="h-3 w-3" />

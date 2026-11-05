@@ -192,7 +192,7 @@ export default function RootAdminOverviewPage() {
 
   // 4. Authorized Root Admin Operations Console
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 max-w-6xl mx-auto pb-12 cascade-group">
       {/* Hero Header Card */}
       <div className="relative overflow-hidden rounded-xl border border-hairline bg-surface p-6 sm:p-8 shadow-notion-card">
         <div className="relative z-10 max-w-3xl space-y-3">
@@ -227,7 +227,7 @@ export default function RootAdminOverviewPage() {
       </div>
 
       {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 cascade-fast">
         <Link href="/admin/tenancy" className="group">
           <FeatureCard hoverable className="h-full flex flex-col justify-between">
             <div className="space-y-2">
@@ -310,7 +310,7 @@ export default function RootAdminOverviewPage() {
       </div>
 
       {/* Metrics & System Health Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 cascade-fast">
         <FeatureCard className="space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-hairline">
             <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">Examinations</span>

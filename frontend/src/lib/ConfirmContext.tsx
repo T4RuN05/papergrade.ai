@@ -39,6 +39,8 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
   const resolverRef = useRef<((value: boolean) => void) | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [isRendered, setIsRendered] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -50,6 +52,8 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
     return new Promise<boolean>((resolve) => {
       resolverRef.current = resolve;
+      setIsRendered(true);
+      setIsExiting(false);
       setModalState({
         isOpen: true,
         options: parsedOptions,
@@ -58,24 +62,36 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleConfirm = useCallback(() => {
-    setModalState((prev) => ({ ...prev, isOpen: false }));
-    if (resolverRef.current) {
-      resolverRef.current(true);
-      resolverRef.current = null;
-    }
-  }, []);
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      setModalState((prev) => ({ ...prev, isOpen: false }));
+      setIsRendered(false);
+      setIsExiting(false);
+      if (resolverRef.current) {
+        resolverRef.current(true);
+        resolverRef.current = null;
+      }
+    }, 200);
+  }, [isExiting]);
 
   const handleCancel = useCallback(() => {
-    setModalState((prev) => ({ ...prev, isOpen: false }));
-    if (resolverRef.current) {
-      resolverRef.current(false);
-      resolverRef.current = null;
-    }
-  }, []);
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      setModalState((prev) => ({ ...prev, isOpen: false }));
+      setIsRendered(false);
+      setIsExiting(false);
+      if (resolverRef.current) {
+        resolverRef.current(false);
+        resolverRef.current = null;
+      }
+    }, 200);
+  }, [isExiting]);
 
   // Lock body scroll and listen for Escape / Enter
   useEffect(() => {
-    if (!modalState.isOpen) return;
+    if (!isRendered) return;
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -95,9 +111,9 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [modalState.isOpen, handleCancel, handleConfirm]);
+  }, [isRendered, handleCancel, handleConfirm]);
 
-  const { isOpen, options } = modalState;
+  const { options } = modalState;
   const isDanger = options.variant === "danger" || options.destructive;
   const isWarning = options.variant === "warning";
   const isPrimary = options.variant === "primary";
@@ -124,10 +140,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
       {mounted &&
-        isOpen &&
+        isRendered &&
         createPortal(
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+            className={`fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 ${
+              isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+            }`}
             role="dialog"
             aria-modal="true"
           >
@@ -139,7 +157,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             />
 
             {/* Modal Card */}
-            <div className="relative w-full max-w-md bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden transform transition-all p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div
+              className={`relative w-full max-w-md bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden p-5 sm:p-6 space-y-4 ${
+                isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+              }`}
+            >
               <div className="flex items-start gap-3.5">
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${iconBgClass}`}

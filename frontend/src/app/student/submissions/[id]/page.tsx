@@ -20,13 +20,21 @@ import {
   Archive,
   BookOpen,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { api, getAuthToken } from "@/lib/api";
-import { DocumentViewer } from "@/components/DocumentViewer";
 import { StudentQuestionModal } from "@/components/StudentQuestionModal";
 import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
+
+const DocumentViewer = dynamic(
+  () => import("@/components/DocumentViewer").then((mod) => mod.DocumentViewer),
+  {
+    ssr: false,
+    loading: () => <EvaluationViewerSkeleton />,
+  }
+);
 
 export default function StudentSubmissionViewerPage() {
   const params = useParams();
@@ -145,7 +153,7 @@ export default function StudentSubmissionViewerPage() {
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pt-4 sm:pt-6 pb-16 px-3 sm:px-6">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pt-4 sm:pt-6 pb-16 px-3 sm:px-6 cascade-group">
       {/* Top Breadcrumb & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
         <Link
@@ -357,16 +365,16 @@ export default function StudentSubmissionViewerPage() {
             </div>
 
             {/* Question Breakdown Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto -mx-1 sm:mx-0">
+              <table className="w-full min-w-[640px] text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-hairline text-ink-muted uppercase font-semibold text-[10px] tracking-wider">
-                    <th className="py-2.5 px-3">Question</th>
-                    <th className="py-2.5 px-3">Awarded Marks</th>
-                    <th className="py-2.5 px-3">Max Marks</th>
-                    <th className="py-2.5 px-3">Score %</th>
-                    <th className="py-2.5 px-3">Evaluation Rationale</th>
-                    <th className="py-2.5 px-3 text-right">Actions</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Question</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Awarded Marks</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Max Marks</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Score %</th>
+                    <th className="py-2.5 px-3 min-w-[220px]">Evaluation Rationale</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap w-[130px] min-w-[130px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
@@ -379,21 +387,23 @@ export default function StudentSubmissionViewerPage() {
 
                     return (
                       <tr key={ans.id} className="hover:bg-canvas-soft/50 transition-colors">
-                        <td className="py-3 px-3 font-bold text-ink flex items-center gap-1.5">
-                          <span>{ans.question_id}</span>
-                          {ans.is_manual_override && (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-normal">
-                              Override
-                            </span>
-                          )}
+                        <td className="py-3 px-3 font-bold text-ink whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span>{ans.question_id}</span>
+                            {ans.is_manual_override && (
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-normal">
+                                Override
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-3 px-3 font-mono font-bold text-ink">
+                        <td className="py-3 px-3 font-mono font-bold text-ink whitespace-nowrap">
                           {ansScore.toFixed(1)}
                         </td>
-                        <td className="py-3 px-3 font-mono text-ink-muted">
+                        <td className="py-3 px-3 font-mono text-ink-muted whitespace-nowrap">
                           {ansMax.toFixed(1)}
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           <span className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
                             isFull
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -404,16 +414,17 @@ export default function StudentSubmissionViewerPage() {
                             {ansPct}%
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-ink-secondary max-w-xs truncate">
+                        <td className="py-3 px-3 text-ink-secondary max-w-xs min-w-[200px] truncate" title={ans.grading_rationale}>
                           {ans.grading_rationale || "Evaluated against approved rubric."}
                         </td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-3 px-3 text-right whitespace-nowrap w-[130px] min-w-[130px]">
                           <button
                             type="button"
                             onClick={() => handleSelectAnswer(ans, true)}
-                            className="text-primary hover:underline font-semibold text-xs cursor-pointer"
+                            className="inline-flex items-center gap-1 text-primary hover:underline font-semibold text-xs cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            Inspect Details →
+                            <span>Inspect Details</span>
+                            <span aria-hidden="true">→</span>
                           </button>
                         </td>
                       </tr>

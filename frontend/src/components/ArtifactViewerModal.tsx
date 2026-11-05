@@ -108,12 +108,44 @@ export function ArtifactViewerModal({
   }, [fetchMetadata]);
 
   // Keyboard navigation: Escape to close, Left/Right arrows for page
+  const [mounted, setMounted] = useState(false);
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isExiting, setIsExiting] = useState(false);
+
   useEffect(() => {
-    if (!isOpen) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true);
+      setIsExiting(false);
+    } else if (isRendered) {
+      setIsExiting(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsExiting(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isRendered]);
+
+  const handleRequestClose = useCallback(() => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      onClose();
+      setIsRendered(false);
+      setIsExiting(false);
+    }, 200);
+  }, [isExiting, onClose]);
+
+  useEffect(() => {
+    if (!isRendered) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        handleRequestClose();
       } else if (e.key === "ArrowLeft" && !loadingMeta && hasDoc && !isPurged) {
         setPage((prev) => (prev > 1 ? prev - 1 : prev));
       } else if (e.key === "ArrowRight" && !loadingMeta && hasDoc && !isPurged) {
@@ -123,52 +155,54 @@ export function ArtifactViewerModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose, loadingMeta, hasDoc, isPurged, totalPages]);
+  }, [isRendered, handleRequestClose, loadingMeta, hasDoc, isPurged, totalPages]);
 
   // Lock body scroll while open
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isRendered) return;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen]);
+  }, [isRendered]);
 
-  if (!isOpen) return null;
+  if (!isRendered || !mounted) return null;
 
   const pdfUrl = api.getExamArtifactPdfUrl(examId, activeArtifact);
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+      className={`fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs ${
+        isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+      }`}
       role="dialog"
       aria-modal="true"
     >
       {/* Backdrop */}
-      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-0" onClick={handleRequestClose} aria-hidden="true" />
 
       {/* Main Container */}
-      <div className="relative w-full max-w-5xl h-[92vh] sm:h-[90vh] flex flex-col bg-surface rounded-xl sm:rounded-2xl shadow-notion-modal border border-hairline z-10 overflow-hidden">
+      <div className={`relative w-full max-w-5xl h-[92vh] sm:h-[90vh] flex flex-col bg-surface rounded-xl sm:rounded-2xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${
+        isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+      }`}>
         {/* Top Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-3 sm:px-5 py-3 border-b border-hairline bg-surface shrink-0">
-          {/* Exam info & tabs */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-ink truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
-                  {examTitle || "Examination Paper"}
-                </h3>
-                {examSubject && (
-                  <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded bg-canvas-soft border border-hairline text-ink-muted shrink-0">
-                    {examSubject}
-                  </span>
-                )}
-              </div>
+        <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-b border-hairline bg-surface shrink-0">
+          <div className="flex items-center justify-between gap-2.5">
+            {/* Exam info (Left) */}
+            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+              <h3 className="text-xs sm:text-sm font-bold text-ink truncate max-w-[170px] xs:max-w-[220px] sm:max-w-xs md:max-w-sm">
+                {examTitle || "Examination Paper"}
+              </h3>
+              {examSubject && (
+                <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                  {examSubject}
+                </span>
+              )}
             </div>
 
-            {/* Artifact Tabs: Question Paper & Answer Key */}
-            <div className="inline-flex items-center p-0.5 bg-canvas-soft rounded-lg border border-hairline">
+            {/* Artifact Tabs (Desktop sm+ inline in center/header) */}
+            <div className="hidden sm:inline-flex items-center p-0.5 bg-canvas-soft rounded-lg border border-hairline shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -203,19 +237,58 @@ export function ArtifactViewerModal({
                 <span>Answer Key</span>
               </button>
             </div>
+
+            {/* Close button (Always anchored to top right of modal) */}
+            <div className="flex items-center shrink-0 -mr-1">
+              <button
+                type="button"
+                onClick={handleRequestClose}
+                className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                title="Close viewer (Esc)"
+                aria-label="Close viewer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          {/* Close button (top right) */}
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
-              title="Close viewer (Esc)"
-              aria-label="Close viewer"
-            >
-              <X className="h-4 w-4" />
-            </button>
+          {/* Artifact Tabs (Mobile view: rendered on their own row beneath the title, never shifting the close button) */}
+          <div className="sm:hidden mt-2 pt-2 border-t border-hairline/60">
+            <div className="inline-flex items-center p-0.5 bg-canvas-soft rounded-lg border border-hairline w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeArtifact !== "question-paper") {
+                    setActiveArtifact("question-paper");
+                  }
+                }}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  activeArtifact === "question-paper"
+                    ? "bg-surface text-ink shadow-2xs font-bold"
+                    : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>Question Paper</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeArtifact !== "answer-key") {
+                    setActiveArtifact("answer-key");
+                  }
+                }}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  activeArtifact === "answer-key"
+                    ? "bg-surface text-ink shadow-2xs font-bold"
+                    : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                <Key className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span>Answer Key</span>
+              </button>
+            </div>
           </div>
         </div>
 

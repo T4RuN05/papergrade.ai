@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 max-w-6xl mx-auto pb-12 cascade-group">
       {/* Header */}
       <div className="pb-3 border-b border-hairline">
         <div className="flex items-center gap-2 mb-1">

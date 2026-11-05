@@ -55,20 +55,56 @@ export function GradingModal({
   );
   const [selectedRegionIndex, setSelectedRegionIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Lock body scroll while modal is open
   useEffect(() => {
-    if (!isOpen || !mounted) return;
+    if (isOpen) {
+      setIsRendered(true);
+      setIsExiting(false);
+    } else if (isRendered) {
+      setIsExiting(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsExiting(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isRendered]);
+
+  const handleRequestClose = React.useCallback(() => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      onClose();
+      setIsRendered(false);
+      setIsExiting(false);
+    }, 200);
+  }, [isExiting, onClose]);
+
+  // Lock body scroll while modal is open & Escape to close
+  useEffect(() => {
+    if (!isRendered || !mounted) return;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleRequestClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, mounted]);
+  }, [isRendered, mounted, handleRequestClose]);
 
   useEffect(() => {
     if (answer) {
@@ -127,11 +163,24 @@ export function GradingModal({
 
   const cropUrl = api.getCropImageUrl(submission.id, answer.id);
 
-  if (!isOpen || !answer || !mounted) return null;
+  if (!isRendered || !answer || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div className="relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink">
+    <div
+      className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overflow-y-auto ${
+        isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+      }`}
+    >
+      <div
+        className="fixed inset-0"
+        onClick={handleRequestClose}
+        aria-hidden="true"
+      />
+      <div
+        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${
+          isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+        }`}
+      >
         {/* Mobile drag affordance */}
         <div className="sm:hidden w-10 h-1 bg-ink-muted/30 rounded-full mx-auto my-2 shrink-0" />
 
@@ -167,8 +216,8 @@ export function GradingModal({
           </div>
 
           <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-ink-muted hover:bg-surface hover:text-ink transition-colors shrink-0"
+            onClick={handleRequestClose}
+            className="rounded-md p-1.5 text-ink-muted hover:bg-surface hover:text-ink transition-colors shrink-0 cursor-pointer"
             title="Close dialog"
           >
             <X className="h-5 w-5" />

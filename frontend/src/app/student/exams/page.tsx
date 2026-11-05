@@ -23,6 +23,7 @@ import {
   Info,
   Sliders,
   Sparkles,
+  Layers,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -228,17 +229,10 @@ export default function StudentPastExamsPage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-20">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-        {/* Navigation Breadcrumb / Header */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6 cascade-group">
+        {/* Navigation Breadcrumb & Student Portal Top Switcher */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-hairline">
           <div className="space-y-1">
-            <Link
-              href="/student/portal"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit mb-1"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span>Back to Student Portal</span>
-            </Link>
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
                 Past Exam Submissions
@@ -252,48 +246,68 @@ export default function StudentPastExamsPage() {
             </p>
           </div>
 
-          {/* Quick Expand / Collapse All Controls */}
-          {filteredSubmissions.length > 0 && (
-            <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => handleToggleAllCards(true)}
-                className="text-[11px] font-semibold text-ink-secondary hover:text-ink px-2.5 py-1 rounded border border-hairline bg-surface hover:bg-canvas-soft transition-colors"
-              >
-                Expand All
-              </button>
-              <button
-                type="button"
-                onClick={() => handleToggleAllCards(false)}
-                className="text-[11px] font-semibold text-ink-secondary hover:text-ink px-2.5 py-1 rounded border border-hairline bg-surface hover:bg-canvas-soft transition-colors"
-              >
-                Collapse All
-              </button>
+          {/* Portal Top Navigation Switcher (Matches /student/portal for seamless two-way switching) */}
+          <div className="flex items-center gap-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto shrink-0">
+            <Link
+              href="/student/portal"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface/60 transition-colors"
+            >
+              <Layers className="h-3.5 w-3.5 text-ink-muted" />
+              <span>Dashboard</span>
+            </Link>
+            <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink bg-surface shadow-2xs border border-hairline/60">
+              <BookOpen className="h-3.5 w-3.5 text-primary" />
+              <span>Past Exams</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline text-ink-muted">
+                {submissions.length}
+              </span>
             </div>
-          )}
+          </div>
         </div>
 
         {/* SEARCH & FILTER CONTROLS */}
         <div className="space-y-3">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search exams by title or subject (e.g. Storage Optimization, Physics, KTG)..."
-              className="w-full pl-10 pr-10 py-2.5 bg-surface text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-md transition-colors"
-                title="Clear search"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+          {/* Search Bar & Expand/Collapse All Row */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search exams by title or subject (e.g. Storage Optimization, Physics, KTG)..."
+                className="w-full pl-10 pr-10 py-2.5 bg-surface text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-md transition-colors"
+                  title="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Quick Expand / Collapse All Controls */}
+            {filteredSubmissions.length > 0 && (
+              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllCards(true)}
+                  className="text-[11px] font-semibold text-ink-secondary hover:text-ink px-2.5 py-2 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors cursor-pointer"
+                >
+                  Expand All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllCards(false)}
+                  className="text-[11px] font-semibold text-ink-secondary hover:text-ink px-2.5 py-2 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft transition-colors cursor-pointer"
+                >
+                  Collapse All
+                </button>
+              </div>
             )}
           </div>
 
@@ -419,7 +433,7 @@ export default function StudentPastExamsPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 cascade-fast">
             {filteredSubmissions.map((sub) => {
               const isExpanded = Boolean(expandedCardIds[sub.id]);
               const isPublished =

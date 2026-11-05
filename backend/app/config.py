@@ -60,9 +60,9 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7))) # 7 days
 
     # Web Push / VAPID Settings (100% Free W3C Browser Push)
-    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "").strip()
-    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-    VAPID_CLAIMS_EMAIL: str = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:notifications@papergrade.ai").strip()
+    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "").strip("\"' ")
+    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "").strip("\"' ")
+    VAPID_CLAIMS_EMAIL: str = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:notifications@papergrade.ai").strip("\"' ")
 
     # Submission & Evaluation Lifecycle Constraints
     WINDOW_DURATION_MINUTES: int = int(os.getenv("WINDOW_DURATION_MINUTES", "30"))

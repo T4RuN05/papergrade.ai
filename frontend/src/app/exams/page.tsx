@@ -236,7 +236,7 @@ export default function ExamsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 cascade-group">
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
         <div>
@@ -288,7 +288,7 @@ export default function ExamsPage() {
           </div>
         </FeatureCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast">
           {exams.map((exam) => {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;

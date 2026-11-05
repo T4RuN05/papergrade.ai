@@ -71,21 +71,52 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       if (!reg) {
         reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       }
+      reg = await navigator.serviceWorker.ready;
       if (!reg || !reg.pushManager) return;
 
       const vapidPublicKey = await api.getVapidPublicKey();
       if (!vapidPublicKey) return;
 
+      const expectedKey = urlBase64ToUint8Array(vapidPublicKey);
       let sub = await reg.pushManager.getSubscription();
+
+      if (sub) {
+        // If an existing subscription has mismatched applicationServerKey, unsubscribe and recreate
+        const rawKey = sub.options?.applicationServerKey;
+        if (rawKey) {
+          const currentKey = new Uint8Array(rawKey);
+          let matches = currentKey.length === expectedKey.length;
+          if (matches) {
+            for (let i = 0; i < currentKey.length; i++) {
+              if (currentKey[i] !== expectedKey[i]) {
+                matches = false;
+                break;
+              }
+            }
+          }
+          if (!matches) {
+            await sub.unsubscribe();
+            sub = null;
+          }
+        } else {
+          await sub.unsubscribe();
+          sub = null;
+        }
+      }
+
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          applicationServerKey: expectedKey,
         });
       }
 
       if (sub) {
-        await api.savePushSubscription(sub.toJSON());
+        const subJson = sub.toJSON();
+        await api.savePushSubscription({
+          ...subJson,
+          user_agent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        });
       }
     } catch (err) {
       console.warn("Web Push registration notice:", err);

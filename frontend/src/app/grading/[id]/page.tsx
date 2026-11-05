@@ -23,10 +23,10 @@ import {
   Lock,
   Clock,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import { Submission, GradedAnswer } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
-import { DocumentViewer } from "@/components/DocumentViewer";
 import { GradingModal } from "@/components/GradingModal";
 import { useToast } from "@/lib/ToastContext";
 import {
@@ -36,6 +36,14 @@ import {
   BadgePill,
   EvaluationViewerSkeleton,
 } from "@/components/ui";
+
+const DocumentViewer = dynamic(
+  () => import("@/components/DocumentViewer").then((mod) => mod.DocumentViewer),
+  {
+    ssr: false,
+    loading: () => <EvaluationViewerSkeleton />,
+  }
+);
 
 export default function GradingPage() {
   const params = useParams();
@@ -259,7 +267,7 @@ export default function GradingPage() {
   const scoreBadgeColor = pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 cascade-group">
       {/* Page Actions */}
       <div className="flex items-center justify-end pb-1 border-b border-hairline">
         {/* Annotated PDF Export Download */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { AlertTriangle, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
@@ -144,6 +144,25 @@ export function FeatureCard({
   );
 }
 
+export interface CascadeContainerProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+  speed?: "normal" | "fast";
+}
+
+export function CascadeContainer({
+  children,
+  speed = "normal",
+  className = "",
+  ...props
+}: CascadeContainerProps) {
+  const groupClass = speed === "fast" ? "cascade-fast" : "cascade-group";
+  return (
+    <div className={`${groupClass} ${className}`} {...props}>
+      {children}
+    </div>
+  );
+}
+
 export type StickerColor =
   | "green"
   | "teal"
@@ -252,21 +271,47 @@ export function ModalCard({
   disableClose = false,
 }: ModalCardProps) {
   const [mounted, setMounted] = useState(false);
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true);
+      setIsExiting(false);
+    } else if (isRendered) {
+      setIsExiting(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsExiting(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isRendered]);
+
+  const handleRequestClose = useCallback(() => {
+    if (disableClose || isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      onClose();
+      setIsRendered(false);
+      setIsExiting(false);
+    }, 200);
+  }, [disableClose, isExiting, onClose]);
+
   // Lock body scroll and handle Escape key while modal is open
   useEffect(() => {
-    if (!isOpen || !mounted) return;
+    if (!isRendered || !mounted) return;
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !disableClose) {
-        onClose();
+        handleRequestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -275,27 +320,33 @@ export function ModalCard({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, mounted, onClose, disableClose]);
+  }, [isRendered, mounted, disableClose, handleRequestClose]);
 
-  if (!isOpen || !mounted) return null;
+  if (!isRendered || !mounted) return null;
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (preventBackdropClose || disableClose) {
+    if (preventBackdropClose || disableClose || isExiting) {
       // Prevent accidental dismissal of modal on outside click
       return;
     }
-    onClose();
+    handleRequestClose();
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+    <div
+      className={`fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-xs ${
+        isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+      }`}
+    >
       <div
         className="fixed inset-0"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
       <div
-        className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${className}`}
+        className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${
+          isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+        } ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-card-title"
@@ -308,9 +359,9 @@ export function ModalCard({
           {!disableClose && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleRequestClose}
               className="text-ink-muted hover:text-ink p-1 rounded-md hover:bg-canvas-soft transition-colors cursor-pointer shrink-0 text-xs sm:text-sm"
-              title="Close modal immediately"
+              title="Close modal"
             >
               ✕
             </button>
@@ -354,23 +405,59 @@ export function ConfirmModal({
   destructive = false,
 }: ConfirmModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen) {
+      setIsRendered(true);
+      setIsExiting(false);
+    } else if (isRendered) {
+      setIsExiting(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsExiting(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isRendered]);
+
+  const handleRequestClose = useCallback(() => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      onClose();
+      setIsRendered(false);
+      setIsExiting(false);
+    }, 200);
+  }, [isExiting, onClose]);
+
+  const handleRequestConfirm = useCallback(() => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setTimeout(() => {
+      onConfirm();
+      setIsRendered(false);
+      setIsExiting(false);
+    }, 200);
+  }, [isExiting, onConfirm]);
+
+  useEffect(() => {
+    if (!isRendered || !mounted) return;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        handleRequestClose();
       } else if (e.key === "Enter") {
         e.preventDefault();
-        onConfirm();
+        handleRequestConfirm();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -378,9 +465,9 @@ export function ConfirmModal({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, onConfirm]);
+  }, [isRendered, mounted, handleRequestClose, handleRequestConfirm]);
 
-  if (!isOpen || !mounted) return null;
+  if (!isRendered || !mounted) return null;
 
   const isDanger = variant === "danger" || destructive;
   const isWarning = variant === "warning";
@@ -401,16 +488,22 @@ export function ConfirmModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+      className={`fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 ${
+        isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+      }`}
       role="dialog"
       aria-modal="true"
     >
       <div
         className="fixed inset-0 bg-black/45 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
+        onClick={handleRequestClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-md bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+      <div
+        className={`relative w-full max-w-md bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden p-5 sm:p-6 space-y-4 ${
+          isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+        }`}
+      >
         <div className="flex items-start gap-3.5">
           <div className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${iconBgClass}`}>
             {icon}
@@ -423,14 +516,14 @@ export function ConfirmModal({
         <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-hairline">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleRequestClose}
             className="px-3.5 py-1.5 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink text-xs sm:text-sm font-medium transition-colors"
           >
             {cancelText}
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={handleRequestConfirm}
             autoFocus
             className={`px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition-colors shadow-xs ${confirmBtnClass}`}
           >
