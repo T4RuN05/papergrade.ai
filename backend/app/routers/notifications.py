@@ -2,35 +2,46 @@ import uuid
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Header
-from backend.app.database import get_db, get_iso_now
-from backend.app.services.auth import get_current_user
+from sqlalchemy.orm import Session
+from sqlalchemy import select, delete, update
+
 from backend.app.config import settings
+from backend.app.db.session import get_db
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import Notification, PushSubscription
+from backend.app.services.auth import get_current_user
 from backend.app.services.notification_service import dispatch_webpush_for_user
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["In-App Notifications"])
 
+
 class PushSubscriptionKeys(BaseModel):
     p256dh: str
     auth: str
+
 
 class PushSubscriptionPayload(BaseModel):
     endpoint: str
     keys: PushSubscriptionKeys
     user_agent: Optional[str] = None
 
+
 class PushUnsubscribePayload(BaseModel):
     endpoint: str
+
 
 @router.get("/vapid-public-key")
 def get_vapid_public_key():
     """Expose the server's VAPID public key so client PWAs can subscribe to browser push."""
     return {"public_key": settings.VAPID_PUBLIC_KEY}
 
+
 @router.post("/push-subscription")
 def save_push_subscription(
     payload: PushSubscriptionPayload,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    user_agent: Optional[str] = Header(None)
+    user_agent: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
 ):
     """Store or refresh client device push subscription token for background WebPush delivery."""
     user_id = current_user["sub"]
@@ -41,35 +52,41 @@ def save_push_subscription(
         ua = user_agent
     now = get_iso_now()
 
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM push_subscriptions WHERE endpoint = ?", (payload.endpoint,))
-        existing = cursor.fetchone()
+    sub = db.scalar(select(PushSubscription).where(PushSubscription.endpoint == payload.endpoint))
+    if sub:
+        sub.user_id = user_id
+        sub.p256dh = payload.keys.p256dh
+        sub.auth = payload.keys.auth
+        sub.user_agent = ua
+        sub.created_at = now
+    else:
+        sub_id = f"sub_{uuid.uuid4().hex[:12]}"
+        new_sub = PushSubscription(
+            id=sub_id,
+            user_id=user_id,
+            endpoint=payload.endpoint,
+            p256dh=payload.keys.p256dh,
+            auth=payload.keys.auth,
+            user_agent=ua,
+            created_at=now,
+        )
+        db.add(new_sub)
 
-        if existing:
-            cursor.execute("""
-                UPDATE push_subscriptions
-                SET user_id = ?, p256dh = ?, auth = ?, user_agent = ?, created_at = ?
-                WHERE endpoint = ?
-            """, (user_id, payload.keys.p256dh, payload.keys.auth, ua, now, payload.endpoint))
-        else:
-            sub_id = f"sub_{uuid.uuid4().hex[:12]}"
-            cursor.execute("""
-                INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (sub_id, user_id, payload.endpoint, payload.keys.p256dh, payload.keys.auth, ua, now))
+    db.commit()
     return {"status": "subscribed"}
+
 
 @router.post("/push-unsubscribe")
 def remove_push_subscription(
     payload: PushUnsubscribePayload,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Remove a device push subscription upon logout or permission revoke."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (payload.endpoint,))
+    db.execute(delete(PushSubscription).where(PushSubscription.endpoint == payload.endpoint))
+    db.commit()
     return {"status": "unsubscribed"}
+
 
 @router.post("/test-closed-app-push")
 def test_closed_app_push(current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -83,36 +100,62 @@ def test_closed_app_push(current_user: Dict[str, Any] = Depends(get_current_user
     )
     return {"status": "dispatched"}
 
+
 @router.get("")
-def list_my_notifications(current_user: Dict[str, Any] = Depends(get_current_user)):
+def list_my_notifications(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Fetch all in-app notifications for the authenticated user."""
     user_id = current_user["sub"]
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
-            (user_id,)
-        )
-        return [dict(r) for r in cursor.fetchall()]
+    notifs = db.scalars(
+        select(Notification)
+        .where(Notification.user_id == user_id)
+        .order_by(Notification.created_at.desc())
+        .limit(50)
+    ).all()
+
+    return [
+        {
+            "id": n.id,
+            "user_id": n.user_id,
+            "type": n.type,
+            "title": n.title,
+            "message": n.message,
+            "link_url": n.link_url,
+            "is_read": n.is_read,
+            "created_at": n.created_at,
+        }
+        for n in notifs
+    ]
+
 
 @router.post("/{notification_id}/read")
-def mark_notification_read(notification_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+def mark_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     user_id = current_user["sub"]
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
-            (notification_id, user_id)
-        )
-        return {"status": "success", "id": notification_id}
+    db.execute(
+        update(Notification)
+        .where(Notification.id == notification_id, Notification.user_id == user_id)
+        .values(is_read=1)
+    )
+    db.commit()
+    return {"status": "success", "id": notification_id}
+
 
 @router.post("/read-all")
-def mark_all_read(current_user: Dict[str, Any] = Depends(get_current_user)):
+def mark_all_read(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     user_id = current_user["sub"]
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE notifications SET is_read = 1 WHERE user_id = ?",
-            (user_id,)
-        )
-        return {"status": "success"}
+    db.execute(
+        update(Notification)
+        .where(Notification.user_id == user_id)
+        .values(is_read=1)
+    )
+    db.commit()
+    return {"status": "success"}

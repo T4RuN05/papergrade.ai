@@ -3,13 +3,26 @@ import json
 import logging
 import threading
 from typing import Optional, List, Dict, Any
-from backend.app.database import get_db, get_iso_now
-from backend.app.config import settings
-
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
+
+from backend.app.config import settings
+from backend.app.db.session import get_session
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import (
+    Notification,
+    PushSubscription,
+    User,
+    Student,
+    Batch,
+    Branch,
+    Exam,
+    ExamBatch,
+    Submission,
+)
 
 logger = logging.getLogger(__name__)
+
 
 def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, payload_str: str):
     """Deliver a Web Push encrypted packet to Google FCM / Apple APNs / Mozilla push servers."""
@@ -36,13 +49,15 @@ def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, pay
         status_code = getattr(response, "status_code", None)
         if status_code in (404, 410):
             try:
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM push_subscriptions WHERE id = ?", (sub_id,))
+                with get_session() as session:
+                    sub = session.scalar(select(PushSubscription).where(PushSubscription.id == sub_id))
+                    if sub:
+                        session.delete(sub)
             except Exception:
                 pass
         else:
             logger.debug("WebPush delivery notice: %s", ex)
+
 
 def dispatch_webpush_for_users(user_ids: List[str], title: str, message: str, link_url: Optional[str] = None):
     """Batch-fetch push subscriptions in 1 single DB query and dispatch in background with bounded concurrency."""
@@ -55,42 +70,39 @@ def dispatch_webpush_for_users(user_ids: List[str], title: str, message: str, li
 
     def _worker():
         try:
-            with get_db() as conn:
-                cursor = conn.cursor()
-                placeholders = ",".join(["?"] * len(clean_uids))
-                cursor.execute(
-                    f"SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN ({placeholders})",
-                    tuple(clean_uids),
-                )
-                subs = [dict(r) for r in cursor.fetchall()]
+            with get_session() as session:
+                subs = session.scalars(
+                    select(PushSubscription).where(PushSubscription.user_id.in_(clean_uids))
+                ).all()
 
-            if not subs:
-                return
+                if not subs:
+                    return
 
-            payload = json.dumps({
-                "title": title,
-                "body": message,
-                "url": link_url or "/student/portal",
-            })
+                payload = json.dumps({
+                    "title": title,
+                    "body": message,
+                    "url": link_url or "/student/portal",
+                })
 
-            # Process subscriptions sequentially in a single lightweight thread (reusing TLS, ~0 extra RAM)
-            for s in subs:
-                _send_single_webpush(
-                    sub_id=s["id"],
-                    endpoint=s["endpoint"],
-                    p256dh=s["p256dh"],
-                    auth=s["auth"],
-                    payload_str=payload,
-                )
+                for s in subs:
+                    _send_single_webpush(
+                        sub_id=s.id,
+                        endpoint=s.endpoint,
+                        p256dh=s.p256dh,
+                        auth=s.auth,
+                        payload_str=payload,
+                    )
         except Exception as err:
             logger.debug("Failed in dispatch_webpush_for_users: %s", err)
 
     threading.Thread(target=_worker, daemon=True).start()
 
+
 def dispatch_webpush_for_user(user_id: str, title: str, message: str, link_url: Optional[str] = None):
     """Trigger webpush for a single user."""
     if user_id:
         dispatch_webpush_for_users([user_id], title, message, link_url)
+
 
 def send_notification(
     cursor,
@@ -106,7 +118,6 @@ def send_notification(
     notif_id = f"notif_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
     if isinstance(cursor, Session):
-        from backend.app.db.models.telemetry import Notification
         notif = Notification(
             id=notif_id,
             user_id=user_id,
@@ -123,9 +134,10 @@ def send_notification(
             INSERT INTO notifications (id, user_id, type, title, message, link_url, is_read, created_at)
             VALUES (?, ?, ?, ?, ?, ?, 0, ?)
         """, (notif_id, user_id, notif_type, title, message, link_url, now))
-    
+
     dispatch_webpush_for_user(user_id, title, message, link_url)
     return notif_id
+
 
 def notify_user_direct(
     user_id: str,
@@ -135,10 +147,10 @@ def notify_user_direct(
     link_url: Optional[str] = None
 ) -> str:
     """Send a notification in an isolated DB connection."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        notif_id = send_notification(cursor, user_id, notif_type, title, message, link_url)
+    with get_session() as session:
+        notif_id = send_notification(session, user_id, notif_type, title, message, link_url)
         return notif_id
+
 
 def notify_branch_students(
     cursor,
@@ -152,12 +164,81 @@ def notify_branch_students(
 ) -> int:
     """
     Dispatch notifications strictly to students enrolled in a specific branch, exam, or batch(es).
-    Uses high-speed bulk SQL INSERT (1 network roundtrip) and bounded background push delivery.
+    Supports both SQLAlchemy Session and DBAPI cursor.
     """
     scoped_batch_ids: List[str] = []
     if batch_ids:
         scoped_batch_ids = [str(b).strip() for b in batch_ids if str(b).strip()]
-    elif exam_id:
+
+    if isinstance(cursor, Session):
+        if not scoped_batch_ids and exam_id:
+            ex = cursor.scalar(select(Exam).where(Exam.id == exam_id))
+            if ex and ex.batch_scope in ("SPECIFIC", "BATCHES"):
+                scoped_batch_ids = cursor.scalars(
+                    select(ExamBatch.batch_id).where(ExamBatch.exam_id == exam_id)
+                ).all()
+                if not scoped_batch_ids and ex.batch_ids:
+                    try:
+                        parsed = json.loads(ex.batch_ids)
+                        if isinstance(parsed, list):
+                            scoped_batch_ids = [str(x).strip() for x in parsed if str(x).strip()]
+                    except Exception:
+                        scoped_batch_ids = [b.strip() for b in ex.batch_ids.split(",") if b.strip()]
+
+        uids = []
+        if scoped_batch_ids:
+            uids = cursor.scalars(
+                select(Student.user_id)
+                .where(Student.batch_id.in_(scoped_batch_ids), Student.user_id.isnot(None))
+                .distinct()
+            ).all()
+        elif branch_id or exam_id:
+            student_conds = []
+            if branch_id:
+                student_conds.append(Batch.branch_id == branch_id)
+            if exam_id:
+                student_conds.append(Batch.exam_id == exam_id)
+
+            stu_uids = cursor.scalars(
+                select(Student.user_id)
+                .join(Batch, Student.batch_id == Batch.id)
+                .where(or_(*student_conds), Student.user_id.isnot(None))
+                .distinct()
+            ).all()
+
+            user_stmt = select(User.id).where(User.role == "STUDENT", User.is_active == 1)
+            if branch_id:
+                user_stmt = user_stmt.where(User.branch_id == branch_id)
+            branch_uids = cursor.scalars(user_stmt).all()
+
+            uids = list(set(stu_uids) | set(branch_uids))
+        else:
+            uids = cursor.scalars(
+                select(User.id).where(User.role == "STUDENT", User.is_active == 1)
+            ).all()
+
+        uids = [uid for uid in uids if uid]
+        if not uids:
+            return 0
+
+        now = get_iso_now()
+        for uid in uids:
+            cursor.add(Notification(
+                id=f"notif_{uuid.uuid4().hex[:12]}",
+                user_id=uid,
+                type=notif_type,
+                title=title,
+                message=message,
+                link_url=link_url,
+                is_read=0,
+                created_at=now,
+            ))
+
+        dispatch_webpush_for_users(uids, title, message, link_url)
+        return len(uids)
+
+    # Legacy raw cursor fallback
+    if not scoped_batch_ids and exam_id:
         try:
             cursor.execute("SELECT batch_scope, batch_ids FROM exams WHERE id = ?", (exam_id,))
             ex_row = cursor.fetchone()
@@ -208,10 +289,8 @@ def notify_branch_students(
             )
         """, tuple(params + user_params))
     else:
-        cursor.execute("""
-            SELECT id as user_id FROM users WHERE role = 'STUDENT' AND is_active = 1
-        """)
-    
+        cursor.execute("SELECT id as user_id FROM users WHERE role = 'STUDENT' AND is_active = 1")
+
     rows = cursor.fetchall()
     uids = list({r["user_id"] for r in rows if r and r["user_id"]})
     if not uids:
@@ -230,6 +309,7 @@ def notify_branch_students(
     dispatch_webpush_for_users(uids, title, message, link_url)
     return len(uids)
 
+
 def notify_branch_managers(
     cursor,
     branch_id: Optional[str],
@@ -239,13 +319,9 @@ def notify_branch_managers(
     link_url: Optional[str] = None,
     exclude_user_id: Optional[str] = None
 ) -> int:
-    """
-    Dispatch notifications to branch managers using bulk SQL insertion or ORM session.
-    """
+    """Dispatch notifications to branch managers using bulk SQL insertion or ORM session."""
     now = get_iso_now()
     if isinstance(cursor, Session):
-        from backend.app.db.models.auth import User
-        from backend.app.db.models.telemetry import Notification
         stmt = select(User.id).where(User.role == "BRANCH_MANAGER", User.is_active == 1)
         if branch_id:
             stmt = stmt.where(User.branch_id == branch_id)
@@ -276,7 +352,7 @@ def notify_branch_managers(
             SELECT id FROM users 
             WHERE role = 'BRANCH_MANAGER' AND is_active = 1
         """)
-    
+
     rows = cursor.fetchall()
     uids = [r["id"] for r in rows if r["id"] and r["id"] != exclude_user_id]
     if not uids:
@@ -293,6 +369,7 @@ def notify_branch_managers(
 
     dispatch_webpush_for_users(uids, title, message, link_url)
     return len(uids)
+
 
 def notify_root_admins(
     cursor,
@@ -302,9 +379,27 @@ def notify_root_admins(
     link_url: Optional[str] = None,
     exclude_user_id: Optional[str] = None
 ) -> int:
-    """
-    Dispatch notifications to all active Root Admins using bulk SQL insertion.
-    """
+    """Dispatch notifications to all active Root Admins."""
+    now = get_iso_now()
+    if isinstance(cursor, Session):
+        stmt = select(User.id).where(User.role == "ROOT_ADMIN", User.is_active == 1)
+        uids = [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+        if not uids:
+            return 0
+        for uid in uids:
+            cursor.add(Notification(
+                id=f"notif_{uuid.uuid4().hex[:12]}",
+                user_id=uid,
+                type=notif_type,
+                title=title,
+                message=message,
+                link_url=link_url,
+                is_read=0,
+                created_at=now,
+            ))
+        dispatch_webpush_for_users(uids, title, message, link_url)
+        return len(uids)
+
     cursor.execute("""
         SELECT id FROM users 
         WHERE role = 'ROOT_ADMIN' AND is_active = 1
@@ -314,7 +409,6 @@ def notify_root_admins(
     if not uids:
         return 0
 
-    now = get_iso_now()
     records = [
         (f"notif_{uuid.uuid4().hex[:12]}", uid, notif_type, title, message, link_url, 0, now)
         for uid in uids
@@ -327,13 +421,19 @@ def notify_root_admins(
     dispatch_webpush_for_users(uids, title, message, link_url)
     return len(uids)
 
+
 def get_branch_name(cursor, branch_id: Optional[str]) -> str:
     """Fetch human readable branch name or 'Main Campus' default."""
     if not branch_id:
         return "All Branches"
+    if isinstance(cursor, Session):
+        br = cursor.scalar(select(Branch).where(Branch.id == branch_id))
+        return br.name if br and br.name else "Branch"
+
     cursor.execute("SELECT name FROM branches WHERE id = ?", (branch_id,))
     row = cursor.fetchone()
     return row["name"] if row and row["name"] else "Branch"
+
 
 def background_dispatch_exam_created(
     exam_id: str,
@@ -347,15 +447,13 @@ def background_dispatch_exam_created(
 ):
     """
     FastAPI BackgroundTask: Asynchronously notifies students, branch managers,
-    and root admins after the exam creation HTTP response has already returned to the client.
-    Uses zero extra RAM, avoids blocking UI, and batches all operations safely.
+    and root admins after the exam creation HTTP response has already returned.
     """
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
+        with get_session() as session:
             scope_msg = "your batch" if batch_scope == "SPECIFIC" else "your branch"
             notify_branch_students(
-                cursor=cursor,
+                cursor=session,
                 branch_id=branch_id,
                 notif_type="EXAM_CREATED",
                 title="New Exam Scheduled",
@@ -366,9 +464,9 @@ def background_dispatch_exam_created(
             )
 
             if creator_role == "BRANCH_MANAGER" and branch_id:
-                branch_name = get_branch_name(cursor, branch_id)
+                branch_name = get_branch_name(session, branch_id)
                 notify_root_admins(
-                    cursor=cursor,
+                    cursor=session,
                     notif_type="EXAM_CREATED",
                     title="Branch Exam Created",
                     message=f"Branch '{branch_name}' created exam '{title}' ({subject}). Awaiting answer key upload.",
@@ -377,7 +475,7 @@ def background_dispatch_exam_created(
                 )
             elif creator_role == "ROOT_ADMIN" and branch_id:
                 notify_branch_managers(
-                    cursor=cursor,
+                    cursor=session,
                     branch_id=branch_id,
                     notif_type="EXAM_CREATED",
                     title="New Exam Scheduled",
@@ -386,6 +484,7 @@ def background_dispatch_exam_created(
                 )
     except Exception as e:
         logger.error(f"Failed in background_dispatch_exam_created: {e}", exc_info=True)
+
 
 def background_dispatch_window_event(
     exam_id: str,
@@ -397,12 +496,9 @@ def background_dispatch_window_event(
     action: str = "OPEN",
     reason: Optional[str] = None
 ):
-    """
-    FastAPI BackgroundTask: Dispatches submission window open/reopen/close alerts asynchronously.
-    """
+    """FastAPI BackgroundTask: Dispatches submission window open/reopen/close alerts asynchronously."""
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
+        with get_session() as session:
             clean_reason = (reason or "").strip()
             reason_part = f" Reason: {clean_reason}." if clean_reason else ""
 
@@ -429,7 +525,7 @@ def background_dispatch_window_event(
                 manager_link = f"/exams/{exam_id}"
 
             notify_branch_students(
-                cursor=cursor,
+                cursor=session,
                 branch_id=branch_id,
                 notif_type=notif_type,
                 title=title,
@@ -440,7 +536,7 @@ def background_dispatch_window_event(
 
             if opened_by_role == "ROOT_ADMIN" and branch_id:
                 notify_branch_managers(
-                    cursor=cursor,
+                    cursor=session,
                     branch_id=branch_id,
                     notif_type=notif_type,
                     title=manager_title,
@@ -450,6 +546,7 @@ def background_dispatch_window_event(
                 )
     except Exception as e:
         logger.error(f"Failed in background_dispatch_window_event ({action}): {e}", exc_info=True)
+
 
 def background_dispatch_window_opened(
     exam_id: str,
@@ -470,6 +567,7 @@ def background_dispatch_window_opened(
         action="OPEN"
     )
 
+
 def background_dispatch_results_published(
     exam_id: str,
     exam_title: str,
@@ -478,42 +576,42 @@ def background_dispatch_results_published(
     publisher_role: str,
     publisher_id: str
 ):
-    """
-    FastAPI BackgroundTask: Dispatches RESULT_PUBLISHED notifications using bulk SQL insert and WebPush.
-    Runs asynchronously after the results publication HTTP response has already returned.
-    """
+    """FastAPI BackgroundTask: Dispatches RESULT_PUBLISHED notifications using ORM."""
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT s.id as submission_id, st.user_id 
-                FROM submissions s 
-                JOIN students st ON s.student_id = st.id OR UPPER(s.roll_number) = UPPER(st.roll_number)
-                WHERE s.exam_id = ? AND st.user_id IS NOT NULL AND s.publication_status = 'PUBLISHED'
-            """, (exam_id,))
-            students_to_notify = cursor.fetchall()
+        with get_session() as session:
+            stmt = (
+                select(Submission.id.label("submission_id"), Student.user_id)
+                .join(
+                    Student,
+                    or_(
+                        Submission.student_id == Student.id,
+                        func.upper(Submission.roll_number) == func.upper(Student.roll_number)
+                    )
+                )
+                .where(
+                    Submission.exam_id == exam_id,
+                    Student.user_id.isnot(None),
+                    Submission.publication_status == "PUBLISHED"
+                )
+                .distinct()
+            )
+            students_to_notify = session.execute(stmt).all()
 
             if students_to_notify:
                 now = get_iso_now()
-                records = [
-                    (
-                        f"notif_{uuid.uuid4().hex[:12]}",
-                        st["user_id"],
-                        "RESULT_PUBLISHED",
-                        "Results Published",
-                        f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown.",
-                        f"/student/submissions/{st['submission_id']}",
-                        0,
-                        now
-                    )
-                    for st in students_to_notify
-                ]
-                cursor.executemany("""
-                    INSERT INTO notifications (id, user_id, type, title, message, link_url, is_read, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, records)
+                for sub_id, u_id in students_to_notify:
+                    session.add(Notification(
+                        id=f"notif_{uuid.uuid4().hex[:12]}",
+                        user_id=u_id,
+                        type="RESULT_PUBLISHED",
+                        title="Results Published",
+                        message=f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown.",
+                        link_url=f"/student/submissions/{sub_id}",
+                        is_read=0,
+                        created_at=now,
+                    ))
 
-                uids = [st["user_id"] for st in students_to_notify if st["user_id"]]
+                uids = [u_id for _, u_id in students_to_notify if u_id]
                 dispatch_webpush_for_users(
                     uids,
                     "Results Published",
@@ -521,28 +619,25 @@ def background_dispatch_results_published(
                     "/student/portal"
                 )
 
-            # Scoped notification to Branch Manager
-            notify_branch_managers(
-                cursor=cursor,
-                branch_id=branch_id,
-                notif_type="RESULT_PUBLISHED",
-                title="Results Published to Students",
-                message=f"Results for '{exam_title}' ({published_subs_count} papers) have been officially published. 7-day revaluation window is active.",
-                link_url="/exams",
-                exclude_user_id=publisher_id
-            )
-
-            if publisher_role == "BRANCH_MANAGER" and branch_id:
-                b_name = get_branch_name(cursor, branch_id)
+            # Notify Root Admin and Branch Manager
+            branch_name = get_branch_name(session, branch_id)
+            if branch_id and publisher_role == "ROOT_ADMIN":
+                notify_branch_managers(
+                    cursor=session,
+                    branch_id=branch_id,
+                    notif_type="RESULT_PUBLISHED",
+                    title="Results Published",
+                    message=f"Results for '{exam_title}' ({branch_name}) were officially published by Root Admin ({published_subs_count} papers).",
+                    link_url=f"/exams/{exam_id}"
+                )
+            elif branch_id and publisher_role == "BRANCH_MANAGER":
                 notify_root_admins(
-                    cursor=cursor,
+                    cursor=session,
                     notif_type="RESULT_PUBLISHED",
                     title="Branch Results Published",
-                    message=f"{b_name} published results for '{exam_title}' ({published_subs_count} papers).",
-                    link_url="/exams",
+                    message=f"Branch '{branch_name}' published results for '{exam_title}' ({published_subs_count} papers).",
+                    link_url=f"/exams/{exam_id}",
                     exclude_user_id=publisher_id
                 )
     except Exception as e:
         logger.error(f"Failed in background_dispatch_results_published: {e}", exc_info=True)
-
-

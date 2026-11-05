@@ -14,8 +14,6 @@ import {
   Search,
   BookOpen,
   Loader2,
-  Volume2,
-  VolumeX,
   Play,
   ExternalLink,
 } from "lucide-react";
@@ -28,7 +26,6 @@ export default function LandingPage() {
   const [activeMock, setActiveMock] = useState<"viewer" | "submissions" | "rubric">("viewer");
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const footerRef = useRef<HTMLElement>(null);
@@ -66,17 +63,6 @@ export default function LandingPage() {
       }
     }
   }, []);
-
-  const toggleSound = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!videoRef.current) return;
-    const nextMuted = !videoRef.current.muted;
-    videoRef.current.muted = nextMuted;
-    setIsMuted(nextMuted);
-    if (!nextMuted && videoRef.current.paused) {
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
-  };
 
   const handlePlayToggle = () => {
     if (!videoRef.current) return;
@@ -313,7 +299,7 @@ export default function LandingPage() {
                 <video
                   ref={videoRef}
                   className="w-full h-full object-contain cursor-pointer"
-                  poster="/demo-poster.jpg"
+                  poster="https://res.cloudinary.com/dijssimbb/video/upload/v1793886472/papergrade_demo_walkthrough.jpg"
                   preload="auto"
                   playsInline
                   autoPlay
@@ -322,10 +308,6 @@ export default function LandingPage() {
                   controls
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
-                  onVolumeChange={(e) => {
-                    const v = e.currentTarget;
-                    setIsMuted(v.muted || v.volume === 0);
-                  }}
                   onClick={handlePlayToggle}
                 >
                   <source
@@ -351,27 +333,6 @@ export default function LandingPage() {
                     </button>
                   </div>
                 )}
-
-                {/* Floating Sound Toggle Badge Overlay */}
-                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 pointer-events-auto">
-                  <button
-                    type="button"
-                    onClick={(e) => toggleSound(e)}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-900/85 hover:bg-neutral-900 text-white text-xs font-medium backdrop-blur-md border border-white/20 shadow-lg transition-transform active:scale-95 cursor-pointer"
-                  >
-                    {isMuted ? (
-                      <>
-                        <VolumeX className="h-3.5 w-3.5 text-amber-400" />
-                        <span>Sound Off • Click to Unmute</span>
-                      </>
-                    ) : (
-                      <>
-                        <Volume2 className="h-3.5 w-3.5 text-emerald-400" />
-                        <span>Sound On</span>
-                      </>
-                    )}
-                  </button>
-                </div>
               </div>
 
               {/* Window Chrome Footer */}
