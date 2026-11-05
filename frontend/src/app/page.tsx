@@ -31,6 +31,25 @@ export default function LandingPage() {
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  const footerRef = useRef<HTMLElement>(null);
+  const [footerHeight, setFooterHeight] = useState<number>(440);
+
+  // Measure exact footer height dynamically for pixel-perfect parallax curtain reveal
+  useEffect(() => {
+    const updateFooterHeight = () => {
+      if (footerRef.current) {
+        setFooterHeight(footerRef.current.offsetHeight);
+      }
+    };
+    updateFooterHeight();
+    window.addEventListener("resize", updateFooterHeight);
+    const timer = setTimeout(updateFooterHeight, 500);
+    return () => {
+      window.removeEventListener("resize", updateFooterHeight);
+      clearTimeout(timer);
+    };
+  }, []);
+
   // Guarantee default sound is OFF and attempt autoplay across all mobile/desktop browser engines
   useEffect(() => {
     if (videoRef.current) {
@@ -109,7 +128,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="relative w-full overflow-x-hidden">
+    <div className="relative w-full">
       {/* 
         ========================================================================
         MAIN PAGE CONTENT LAYER (Warm Paper-Soft Canvas #f6f5f4 per DESIGN-notion.md)
@@ -117,7 +136,7 @@ export default function LandingPage() {
         ========================================================================
       */}
       <div
-        className="relative z-10 w-full bg-canvas-soft border-b border-hairline shadow-[0_20px_45px_-10px_rgba(0,0,0,0.06)]"
+        className="relative z-10 w-full bg-canvas-soft border-b border-hairline shadow-[0_25px_50px_-12px_rgba(0,0,0,0.18)]"
         style={{
           backgroundColor: "#f6f5f4",
           backgroundImage: `
@@ -242,7 +261,7 @@ export default function LandingPage() {
             ========================================================================
           */}
           <section className="space-y-4 sm:space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-1 border-b border-hairline pb-3">
+            <div className="px-1 border-b border-hairline pb-3">
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-2 text-[11px] font-bold text-primary tracking-wider uppercase font-mono">
                   <span className="relative flex h-2 w-2">
@@ -257,34 +276,6 @@ export default function LandingPage() {
                 <p className="text-xs text-ink-muted max-w-xl">
                   Watch handwritten candidate papers ingested, aligned to discrete criteria rubrics, evaluated step-by-step, and published with transparent score breakdowns.
                 </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="px-2.5 py-1 rounded-full border border-hairline bg-surface font-mono text-[11px] text-ink-muted">
-                  1440p QHD • 5:48
-                </span>
-                <button
-                  type="button"
-                  onClick={toggleSound}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${
-                    isMuted
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/15"
-                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15"
-                  }`}
-                  title={isMuted ? "Click to unmute audio" : "Click to mute audio"}
-                >
-                  {isMuted ? (
-                    <>
-                      <VolumeX className="h-3.5 w-3.5" />
-                      <span>Sound Off</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="h-3.5 w-3.5" />
-                      <span>Sound On</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
 
@@ -856,133 +847,146 @@ export default function LandingPage() {
       {/* 
         ========================================================================
         UNDERLAYING REVEAL FOOTER
-        Sits pinned beneath the main document and reveals itself when scrolled down.
+        Sits pinned beneath the main document with clip-path and reveals itself 
+        with a smooth parallax curtain effect as the page is scrolled down.
         Includes the requested big faded typography of "PaperGrade AI".
         ========================================================================
       */}
-      <footer className="sticky bottom-0 z-0 w-full bg-[#141413] text-[#8e8d8a] min-h-[360px] flex flex-col justify-between pt-8 sm:pt-14 pb-4 px-4 sm:px-12 md:px-16 select-none overflow-hidden">
-        <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
-          
-          {/* Brand & Mission (Original Golden Logo + Notion Blue AI) */}
-          <div className="md:col-span-5 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <Image
-                src="/logo-icon.png"
-                alt="PaperGrade AI"
-                width={26}
-                height={26}
-                className="h-6 w-6 object-contain shrink-0"
-              />
-              <span className="text-sm font-bold text-white tracking-tight">
-                PaperGrade <span className="text-primary font-semibold">AI</span>
-              </span>
+      <div
+        className="relative w-full z-0 overflow-hidden"
+        style={{
+          clipPath: "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)",
+          height: `${footerHeight}px`,
+        }}
+      >
+        <footer
+          ref={footerRef}
+          className="fixed bottom-0 left-0 w-full z-0 bg-[#141413] text-[#8e8d8a] flex flex-col justify-between pt-8 sm:pt-14 pb-4 px-4 sm:px-12 md:px-16 select-none"
+          style={{ height: `${footerHeight}px` }}
+        >
+          <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
+            
+            {/* Brand & Mission (Original Golden Logo + Notion Blue AI) */}
+            <div className="md:col-span-5 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <Image
+                  src="/logo-icon.png"
+                  alt="PaperGrade AI"
+                  width={26}
+                  height={26}
+                  className="h-6 w-6 object-contain shrink-0"
+                />
+                <span className="text-sm font-bold text-white tracking-tight">
+                  PaperGrade <span className="text-primary font-semibold">AI</span>
+                </span>
+              </div>
+              <p className="text-xs text-[#9b9994] leading-relaxed max-w-sm">
+                Infrastructure for handwritten academic evaluations, itemized marking rubrics, and institutional grading integrity.
+              </p>
+              <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-[#71706c]">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-green shrink-0" />
+                <span>Assessment Services Active</span>
+              </div>
             </div>
-            <p className="text-xs text-[#9b9994] leading-relaxed max-w-sm">
-              Infrastructure for handwritten academic evaluations, itemized marking rubrics, and institutional grading integrity.
-            </p>
-            <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-[#71706c]">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent-green shrink-0" />
-              <span>Assessment Services Active</span>
+
+            {/* Real Internal Links Only */}
+            <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-6 text-xs">
+              <div className="space-y-2">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
+                  Student Access
+                </div>
+                <ul className="space-y-1.5">
+                  <li>
+                    <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
+                      Examination Portal
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
+                      Claim Student ID
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/revaluation" className="hover:text-white transition-colors">
+                      Revaluation Desk
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
+                  Administration
+                </div>
+                <ul className="space-y-1.5">
+                  <li>
+                    <Link href="/overview" className="hover:text-white transition-colors">
+                      Operations Console
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/branch/batches" className="hover:text-white transition-colors">
+                      Batches & Roster
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/admin/tenancy" className="hover:text-white transition-colors">
+                      Institutes & Campuses
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/marks" className="hover:text-white transition-colors">
+                      Marks Inspection
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
+                  Authentication
+                </div>
+                <ul className="space-y-1.5">
+                  <li>
+                    <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
+                      Student Login
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/auth/login?role=staff" className="hover:text-white transition-colors">
+                      Staff Login
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
+                      Claim Account
+                    </Link>
+                  </li>
+                </ul>
+              </div>
             </div>
+
           </div>
 
-          {/* Real Internal Links Only */}
-          <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-6 text-xs">
-            <div className="space-y-2">
-              <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
-                Student Access
-              </div>
-              <ul className="space-y-1.5">
-                <li>
-                  <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
-                    Examination Portal
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
-                    Claim Student ID
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/revaluation" className="hover:text-white transition-colors">
-                    Revaluation Desk
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
-                Administration
-              </div>
-              <ul className="space-y-1.5">
-                <li>
-                  <Link href="/overview" className="hover:text-white transition-colors">
-                    Operations Console
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/branch/batches" className="hover:text-white transition-colors">
-                    Batches & Roster
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/admin/tenancy" className="hover:text-white transition-colors">
-                    Institutes & Campuses
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/marks" className="hover:text-white transition-colors">
-                    Marks Inspection
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
-                Authentication
-              </div>
-              <ul className="space-y-1.5">
-                <li>
-                  <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
-                    Student Login
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/auth/login?role=staff" className="hover:text-white transition-colors">
-                    Staff Login
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
-                    Claim Account
-                  </Link>
-                </li>
-              </ul>
-            </div>
+          {/* 
+            ========================================================================
+            FADED BIG TYPOGRAPHY OF "PaperGrade AI"
+            Requested architectural element grounding the footer
+            ========================================================================
+          */}
+          <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-8 sm:pt-14 pb-2 px-2">
+            <span className="text-3xl min-[400px]:text-4xl sm:text-6xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tighter text-white/[0.05] uppercase select-none block leading-none truncate sm:overflow-visible">
+              PaperGrade AI
+            </span>
           </div>
 
-        </div>
-
-        {/* 
-          ========================================================================
-          FADED BIG TYPOGRAPHY OF "PaperGrade AI"
-          Requested architectural element grounding the footer
-          ========================================================================
-        */}
-        <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-8 sm:pt-14 pb-2 px-2">
-          <span className="text-3xl min-[400px]:text-4xl sm:text-6xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tighter text-white/[0.05] uppercase select-none block leading-none truncate sm:overflow-visible">
-            PaperGrade AI
-          </span>
-        </div>
-
-        {/* Bottom Legal / Copyright Row */}
-        <div className="max-w-5xl mx-auto w-full pt-4 border-t border-[#242422] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#6d6c68] font-mono">
-          <div>© {new Date().getFullYear()} PaperGrade AI • All rights reserved.</div>
-          <div>Academic Evaluation Architecture</div>
-        </div>
-      </footer>
+          {/* Bottom Legal / Copyright Row */}
+          <div className="max-w-5xl mx-auto w-full pt-4 border-t border-[#242422] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#6d6c68] font-mono">
+            <div>© {new Date().getFullYear()} PaperGrade AI • All rights reserved.</div>
+            <div>Academic Evaluation Architecture</div>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
