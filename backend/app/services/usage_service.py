@@ -1,18 +1,28 @@
 import math
 from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import select, update
+
 from backend.app.config import settings
-from backend.app.database import get_db, get_iso_now
+from backend.app.db.session import get_session
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import UserQuotaSetting, ApiUsageEvent
 from backend.app.schemas import QuotaSettingsUpdateRequest
+
 
 class UsageService:
     @staticmethod
     def get_quota_settings() -> Dict[str, Any]:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM user_quota_settings WHERE id = 'default'")
-            row = cursor.fetchone()
-            if row:
-                return dict(row)
+        with get_session() as session:
+            setting = session.scalar(select(UserQuotaSetting).where(UserQuotaSetting.id == 'default'))
+            if setting:
+                return {
+                    "id": setting.id,
+                    "rpm_limit": setting.rpm_limit,
+                    "tpm_limit": setting.tpm_limit,
+                    "rpd_limit": setting.rpd_limit,
+                    "updated_at": setting.updated_at,
+                }
             return {
                 "id": "default",
                 "rpm_limit": settings.DEFAULT_RPM_LIMIT,
@@ -24,35 +34,64 @@ class UsageService:
     @staticmethod
     def update_quota_settings(update_data: QuotaSettingsUpdateRequest) -> Dict[str, Any]:
         now = get_iso_now()
-        with get_db() as conn:
-            conn.execute("""
-            INSERT INTO user_quota_settings (id, rpm_limit, tpm_limit, rpd_limit, updated_at)
-            VALUES ('default', ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                rpm_limit = excluded.rpm_limit,
-                tpm_limit = excluded.tpm_limit,
-                rpd_limit = excluded.rpd_limit,
-                updated_at = excluded.updated_at
-            """, (update_data.rpm_limit, update_data.tpm_limit, update_data.rpd_limit, now))
+        with get_session() as session:
+            setting = session.scalar(select(UserQuotaSetting).where(UserQuotaSetting.id == 'default'))
+            if not setting:
+                setting = UserQuotaSetting(
+                    id='default',
+                    rpm_limit=update_data.rpm_limit,
+                    tpm_limit=update_data.tpm_limit,
+                    rpd_limit=update_data.rpd_limit,
+                    updated_at=now,
+                )
+                session.add(setting)
+            else:
+                setting.rpm_limit = update_data.rpm_limit
+                setting.tpm_limit = update_data.tpm_limit
+                setting.rpd_limit = update_data.rpd_limit
+                setting.updated_at = now
+            session.commit()
         return UsageService.get_quota_settings()
 
     @staticmethod
     def get_usage_metrics(exam_id: Optional[str] = None, batch_id: Optional[str] = None) -> Dict[str, Any]:
-        with get_db() as conn:
-            cursor = conn.cursor()
-
-            query = "SELECT * FROM api_usage_events WHERE 1=1"
-            params = []
+        with get_session() as session:
+            stmt = select(ApiUsageEvent)
             if exam_id:
-                query += " AND exam_id = ?"
-                params.append(exam_id)
+                stmt = stmt.where(ApiUsageEvent.exam_id == exam_id)
             if batch_id:
-                query += " AND batch_id = ?"
-                params.append(batch_id)
-            query += " ORDER BY timestamp DESC"
+                stmt = stmt.where(ApiUsageEvent.batch_id == batch_id)
+            stmt = stmt.order_by(ApiUsageEvent.timestamp.desc())
 
-            cursor.execute(query, params)
-            events = [dict(r) for r in cursor.fetchall()]
+            event_objs = session.scalars(stmt).all()
+
+        events = [
+            {
+                "id": e.id,
+                "timestamp": e.timestamp,
+                "exam_id": e.exam_id,
+                "batch_id": e.batch_id,
+                "submission_id": e.submission_id,
+                "request_purpose": e.request_purpose,
+                "model_name": e.model_name,
+                "input_tokens": e.input_tokens,
+                "output_tokens": e.output_tokens,
+                "total_tokens": e.total_tokens,
+                "thinking_tokens": e.thinking_tokens,
+                "cached_tokens": e.cached_tokens,
+                "duration_ms": e.duration_ms,
+                "page_count": e.page_count,
+                "file_size_bytes": e.file_size_bytes,
+                "success": e.success,
+                "http_status": e.http_status,
+                "error_code": e.error_code,
+                "retry_attempt": e.retry_attempt,
+                "estimated_cost_usd": e.estimated_cost_usd,
+                "pricing_version": e.pricing_version,
+                "is_mock": e.is_mock,
+            }
+            for e in event_objs
+        ]
 
         total_requests = len(events)
         if total_requests == 0:
@@ -70,7 +109,6 @@ class UsageService:
         total_tokens = [e["total_tokens"] for e in grading_events if e["total_tokens"] is not None]
         costs = [e["estimated_cost_usd"] for e in grading_events if e["estimated_cost_usd"] is not None]
 
-        # Calculate statistics
         avg_duration = sum(durations) / len(durations) if durations else 0
         median_duration = UsageService._percentile(durations, 50) if durations else 0
         p95_duration = UsageService._percentile(durations, 95) if durations else 0
@@ -99,7 +137,6 @@ class UsageService:
         tpm = quotas["tpm_limit"]
         rpd = quotas["rpd_limit"]
 
-        # 40 and 50 paper projections
         projections_40 = UsageService._calculate_batch_projection(
             batch_size=40,
             avg_in_tok=avg_in_tokens,
@@ -183,32 +220,22 @@ class UsageService:
         tpm: int,
         rpd: int
     ) -> Dict[str, Any]:
-        # Effective requests = batch_size + setup_call + estimated retries
         expected_retries = math.ceil(batch_size * (retry_rate_pct / 100.0))
         total_requests_expected = batch_size + 1 + expected_retries
 
-        # Average scenario
         avg_total_in = round((batch_size * avg_in_tok) + (expected_retries * avg_in_tok) + 2000)
         avg_total_out = round((batch_size * avg_out_tok) + (expected_retries * avg_out_tok) + 500)
         avg_total_tokens = avg_total_in + avg_total_out
         avg_total_cost = round((batch_size * avg_cost) + (expected_retries * avg_cost) + 0.0003, 5)
 
-        # Conservative scenario (P90)
         p90_total_in = round((batch_size * p90_in_tok) + (expected_retries * p90_in_tok) + 2500)
         p90_total_out = round((batch_size * p90_out_tok) + (expected_retries * p90_out_tok) + 700)
         p90_total_tokens = p90_total_in + p90_total_out
         p90_total_cost = round((batch_size * p90_cost) + (expected_retries * p90_cost) + 0.0004, 5)
 
-        # Quota window & feasibility analysis
-        # If RPM is 15, 40 requests requires at least ceil(40 / 15) = 3 minutes/windows.
         min_minutes_for_rpm = math.ceil(total_requests_expected / max(1, rpm))
         safe_delay_per_submission_sec = math.ceil(60.0 / max(1, rpm))
 
-        # Check TPM constraint
-        tpm_tokens_per_paper = avg_in_tok + avg_out_tok
-        papers_per_minute_by_tpm = math.floor(tpm / max(1.0, tpm_tokens_per_paper))
-
-        # Exceeds daily quota?
         exceeds_rpd = total_requests_expected > rpd
         rpd_pct = round((total_requests_expected / max(1, rpd)) * 100, 1)
 
