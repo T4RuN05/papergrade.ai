@@ -5,6 +5,7 @@ Provides a unified portal-state endpoint (GET /api/v1/student/portal-state)
 that replaces 10+ fragmented HTTP calls with 1 fast, non-blocking query.
 Includes 4-second in-memory window caching to prevent DB connection pool starvation
 during high-traffic student upload bursts.
+Migrated to SQLAlchemy 2.0 ORM.
 """
 
 import time
@@ -14,8 +15,21 @@ import threading
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import select, or_, func
 
-from backend.app.database import get_db, is_postgres
+from backend.app.db.session import get_session
+from backend.app.db.models import (
+    User,
+    Student,
+    Batch,
+    Exam,
+    ExamBatch,
+    SubmissionWindow,
+    Submission,
+    RevaluationRequest,
+    Answer
+)
 from backend.app.services.auth import get_current_user
 from backend.app.services.retention_service import RetentionService
 
@@ -91,79 +105,80 @@ def _compute_window_status(window_row: Optional[Dict[str, Any]]) -> Dict[str, An
     }
 
 def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
-    param = "%s" if is_postgres() else "?"
     now_ts = time.time()
     
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
+    with get_session() as session:
         # 1. Fetch user & student profile
-        cursor.execute(f"SELECT * FROM users WHERE id = {param}", (user_id,))
-        u = cursor.fetchone()
+        u = session.scalar(select(User).where(User.id == user_id))
         if not u:
             raise HTTPException(status_code=404, detail="User not found")
         
         user_dict = {
-            "id": u["id"],
-            "role": u["role"],
-            "email": u["email"],
-            "full_name": u["full_name"],
-            "name": u["full_name"],
-            "institute_id": u["institute_id"],
-            "branch_id": u["branch_id"]
+            "id": u.id,
+            "role": u.role,
+            "email": u.email,
+            "full_name": u.full_name,
+            "name": u.full_name,
+            "institute_id": u.institute_id,
+            "branch_id": u.branch_id
         }
         
         # Lookup student record if enrolled
-        cursor.execute(
-            f"SELECT * FROM students WHERE user_id = {param} ORDER BY claimed_at DESC LIMIT 1",
-            (user_id,)
+        st = session.scalar(
+            select(Student)
+            .where(Student.user_id == user_id)
+            .order_by(Student.claimed_at.desc())
+            .limit(1)
         )
-        st = cursor.fetchone()
         
         roll_number = None
         student_id = None
         batch_id = None
-        branch_id = u["branch_id"]
+        branch_id = u.branch_id
         
         if st:
-            roll_number = st["roll_number"]
-            student_id = st["id"]
-            batch_id = st["batch_id"]
-            user_dict["student_id"] = st["id"]
-            user_dict["student_id_num"] = st["student_id_num"]
-            user_dict["roll_number"] = st["roll_number"]
-            user_dict["batch_id"] = st["batch_id"]
+            roll_number = st.roll_number
+            student_id = st.id
+            batch_id = st.batch_id
+            user_dict["student_id"] = st.id
+            user_dict["student_id_num"] = st.student_id_num
+            user_dict["roll_number"] = st.roll_number
+            user_dict["batch_id"] = st.batch_id
             user_dict["student"] = {
-                "student_id": st["id"],
-                "student_id_num": st["student_id_num"],
-                "roll_number": st["roll_number"],
-                "batch_id": st["batch_id"]
+                "student_id": st.id,
+                "student_id_num": st.student_id_num,
+                "roll_number": st.roll_number,
+                "batch_id": st.batch_id
             }
             if not branch_id and batch_id:
-                cursor.execute(f"SELECT branch_id FROM batches WHERE id = {param}", (batch_id,))
-                b_row = cursor.fetchone()
+                b_row = session.scalar(select(Batch).where(Batch.id == batch_id))
                 if b_row:
-                    branch_id = b_row["branch_id"]
+                    branch_id = b_row.branch_id
                     user_dict["branch_id"] = branch_id
 
         # 2. Fetch Exams visible to this branch
+        exam_stmt = select(Exam)
         if branch_id:
-            cursor.execute(
-                f"""
-                SELECT id, title, subject, total_marks, status, lifecycle_status, is_published, branch_id, batch_scope, batch_ids, created_at
-                FROM exams
-                WHERE branch_id = {param} OR branch_id IS NULL
-                ORDER BY created_at DESC
-                """,
-                (branch_id,)
-            )
-        else:
-            cursor.execute("""
-                SELECT id, title, subject, total_marks, status, lifecycle_status, is_published, branch_id, batch_scope, batch_ids, created_at
-                FROM exams
-                ORDER BY created_at DESC
-            """)
-        raw_exam_rows = [dict(r) for r in cursor.fetchall()]
+            exam_stmt = exam_stmt.where(or_(Exam.branch_id == branch_id, Exam.branch_id == None))
+        exam_stmt = exam_stmt.order_by(Exam.created_at.desc())
+
+        raw_exams = session.scalars(exam_stmt).all()
+        raw_exam_rows = [
+            {
+                "id": ex.id,
+                "title": ex.title,
+                "subject": ex.subject,
+                "total_marks": ex.total_marks,
+                "status": ex.status,
+                "lifecycle_status": ex.lifecycle_status,
+                "is_published": ex.is_published,
+                "branch_id": ex.branch_id,
+                "batch_scope": ex.batch_scope,
+                "batch_ids": ex.batch_ids,
+                "created_at": ex.created_at
+            }
+            for ex in raw_exams
+        ]
 
         # Filter exams by batch scoping:
         # If batch_scope == 'ALL': visible to all in branch
@@ -184,11 +199,10 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                     except Exception:
                         allowed_bids = set(b.strip() for b in raw_bids.split(",") if b.strip())
                 if not allowed_bids:
-                    cursor.execute(
-                        f"SELECT batch_id FROM exam_batches WHERE exam_id = {param}",
-                        (ex["id"],)
-                    )
-                    allowed_bids = set(r["batch_id"] for r in cursor.fetchall() if r["batch_id"])
+                    ex_batches = session.scalars(
+                        select(ExamBatch.batch_id).where(ExamBatch.exam_id == ex["id"])
+                    ).all()
+                    allowed_bids = set(b_id for b_id in ex_batches if b_id)
 
                 if batch_id and str(batch_id) in allowed_bids:
                     exam_rows.append(ex)
@@ -203,25 +217,26 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 windows_by_exam = {}
                 if exam_rows:
                     exam_ids = [e["id"] for e in exam_rows]
-                    placeholders = ",".join([param] * len(exam_ids))
-                    cursor.execute(
-                        f"""
-                        SELECT * FROM submission_windows 
-                        WHERE exam_id IN ({placeholders})
-                        ORDER BY created_at DESC
-                        """,
-                        tuple(exam_ids)
-                    )
-                    for w in cursor.fetchall():
-                        ex_id = w["exam_id"]
+                    windows = session.scalars(
+                        select(SubmissionWindow)
+                        .where(SubmissionWindow.exam_id.in_(exam_ids))
+                        .order_by(SubmissionWindow.created_at.desc())
+                    ).all()
+                    for w in windows:
+                        ex_id = w.exam_id
                         if ex_id not in windows_by_exam:
-                            windows_by_exam[ex_id] = dict(w)
+                            windows_by_exam[ex_id] = {
+                                "id": w.id,
+                                "exam_id": w.exam_id,
+                                "window_number": w.window_number,
+                                "status": w.status,
+                                "opened_at": w.opened_at,
+                                "deadline_at": w.deadline_at,
+                                "grace_deadline_at": w.grace_deadline_at,
+                            }
                 _window_cache[cache_key] = {"time": now_ts, "data": windows_by_exam}
 
         # Match active exam windows
-        # Priority 1: All currently active windows (status == OPEN and within deadline/grace)
-        # Priority 2: Windows closed within the last 2 hours (most recently closed candidate)
-        # Otherwise: Empty list (card will not show)
         active_windows = []
         recently_closed_candidates = []
         
@@ -249,50 +264,63 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
 
         # 4. Fetch Submissions for this student
         submissions = []
-        conds = []
-        sub_params = []
+        sub_filters = []
         if student_id:
-            conds.append(f"s.student_id = {param}")
-            sub_params.append(student_id)
+            sub_filters.append(Submission.student_id == student_id)
         if roll_number:
-            conds.append(f"UPPER(s.roll_number) = {param}")
-            sub_params.append(roll_number.upper())
-        if not conds:
-            conds.append(f"s.student_id = {param}")
-            sub_params.append(user_id)
+            sub_filters.append(func.upper(Submission.roll_number) == roll_number.upper())
+        if not sub_filters:
+            sub_filters.append(Submission.student_id == user_id)
 
-        where_clause = " OR ".join(conds)
-        cursor.execute(
-            f"""
-            SELECT s.*, e.title as exam_title, e.subject as exam_subject, e.total_marks as exam_total_marks, e.is_published as exam_is_published,
-                   e.question_paper_path as exam_question_paper_path,
-                   e.answer_key_path as exam_answer_key_path,
-                   e.is_document_purged as exam_is_document_purged
-            FROM submissions s
-            JOIN exams e ON s.exam_id = e.id
-            WHERE ({where_clause}) AND s.submission_status = 'SUBMITTED'
-            ORDER BY s.created_at DESC
-            """,
-            tuple(sub_params)
-        )
-        raw_sub_rows = [dict(r) for r in cursor.fetchall()]
+        sub_exam_rows = session.execute(
+            select(Submission, Exam)
+            .join(Exam, Submission.exam_id == Exam.id)
+            .where(or_(*sub_filters), Submission.submission_status == 'SUBMITTED')
+            .order_by(Submission.created_at.desc())
+        ).all()
 
-        # Deduplicate submissions by exam_id (keep only the newest active submission per exam)
-        sub_rows = []
+        # Deduplicate submissions by exam_id (keep only newest active submission per exam)
         seen_exam_ids = set()
-        for sub in raw_sub_rows:
-            e_id = sub.get("exam_id")
-            if e_id not in seen_exam_ids:
-                seen_exam_ids.add(e_id)
-                sub_rows.append(sub)
+        deduped_sub_pairs = []
+        for s, ex in sub_exam_rows:
+            if s.exam_id not in seen_exam_ids:
+                seen_exam_ids.add(s.exam_id)
+                deduped_sub_pairs.append((s, ex))
 
         # Attach revaluation, artifact, and retention info
-        for sub in sub_rows:
-            is_pub = bool(sub.get("publication_status") == "PUBLISHED" or sub.get("exam_is_published") == 1)
+        for s, ex in deduped_sub_pairs:
+            sub = {
+                "id": s.id,
+                "exam_id": s.exam_id,
+                "batch_id": s.batch_id,
+                "student_id": s.student_id,
+                "roll_number": s.roll_number,
+                "student_name": s.student_name,
+                "submission_status": s.submission_status,
+                "status": s.status,
+                "total_awarded_marks": s.total_awarded_marks,
+                "max_marks": s.max_marks,
+                "percentage": s.percentage,
+                "total_pages": s.total_pages,
+                "storage_path": s.storage_path,
+                "created_at": s.created_at,
+                "updated_at": s.updated_at,
+                "publication_status": s.publication_status,
+                "is_document_purged": bool(s.is_document_purged),
+                "exam_title": ex.title,
+                "exam_subject": ex.subject,
+                "exam_total_marks": ex.total_marks,
+                "exam_is_published": ex.is_published,
+                "exam_question_paper_path": ex.question_paper_path,
+                "exam_answer_key_path": ex.answer_key_path,
+                "exam_is_document_purged": bool(ex.is_document_purged)
+            }
+
+            is_pub = bool(sub.get("publication_status") == "PUBLISHED" or ex.is_published == 1)
             sub["is_published"] = is_pub
-            exam_purged = bool(sub.get("exam_is_document_purged"))
-            sub["has_question_paper"] = bool(is_pub and sub.get("exam_question_paper_path") and not exam_purged)
-            sub["has_answer_key"] = bool(is_pub and sub.get("exam_answer_key_path") and not exam_purged)
+            exam_purged = bool(ex.is_document_purged)
+            sub["has_question_paper"] = bool(is_pub and ex.question_paper_path and not exam_purged)
+            sub["has_answer_key"] = bool(is_pub and ex.answer_key_path and not exam_purged)
             sub["exam_is_document_purged"] = exam_purged
 
             if user_role == "STUDENT" and not is_pub:
@@ -304,7 +332,7 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 sub["publication_status"] = "UNPUBLISHED"
                 sub["student_status"] = (
                     "Under Evaluation"
-                    if sub.get("status") in ["QUEUED", "PROCESSING", "GRADED", "COMPLETED", "NEEDS_REVIEW", "PAUSED_QUOTA"]
+                    if s.status in ["QUEUED", "PROCESSING", "GRADED", "COMPLETED", "NEEDS_REVIEW", "PAUSED_QUOTA"]
                     else "Submitted"
                 )
                 sub["days_remaining"] = None
@@ -318,24 +346,63 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
             else:
                 sub["retention"] = RetentionService.get_retention_info(sub)
                 sub["days_remaining"] = sub["retention"].get("days_remaining")
-                sub["is_document_purged"] = bool(sub.get("is_document_purged"))
                 sub["student_status"] = "Results Published" if is_pub else "Under Evaluation"
 
                 # Fetch active revaluation if any
-                cursor.execute(
-                    f"SELECT * FROM revaluation_requests WHERE submission_id = {param} ORDER BY requested_at DESC LIMIT 1",
-                    (sub["id"],)
+                reval = session.scalar(
+                    select(RevaluationRequest)
+                    .where(RevaluationRequest.submission_id == s.id)
+                    .order_by(RevaluationRequest.requested_at.desc())
+                    .limit(1)
                 )
-                reval_row = cursor.fetchone()
-                if reval_row:
-                    sub["revaluation"] = dict(reval_row)
+                if reval:
+                    sub["revaluation"] = {
+                        "id": reval.id,
+                        "submission_id": reval.submission_id,
+                        "student_id": reval.student_id,
+                        "exam_id": reval.exam_id,
+                        "question_id": reval.question_id,
+                        "current_awarded_marks": reval.current_awarded_marks,
+                        "current_max_marks": reval.current_max_marks,
+                        "current_explanation": reval.current_explanation,
+                        "student_remark": reval.student_remark,
+                        "status": reval.status,
+                        "teacher_feedback": reval.teacher_feedback,
+                        "revised_marks": reval.revised_marks,
+                        "requested_at": reval.requested_at,
+                        "reviewed_at": reval.reviewed_at,
+                        "reviewed_by": reval.reviewed_by,
+                        "expires_at": reval.expires_at,
+                    }
+                else:
+                    sub["revaluation"] = None
 
                 # Fetch answers breakdown for published papers
-                cursor.execute(
-                    f"SELECT * FROM answers WHERE submission_id = {param} ORDER BY question_id ASC",
-                    (sub["id"],)
-                )
-                sub["answers"] = [dict(a) for a in cursor.fetchall()]
+                ans_records = session.scalars(
+                    select(Answer)
+                    .where(Answer.submission_id == s.id)
+                    .order_by(Answer.question_id.asc())
+                ).all()
+                sub["answers"] = [
+                    {
+                        "id": a.id,
+                        "submission_id": a.submission_id,
+                        "question_id": a.question_id,
+                        "awarded_marks": a.awarded_marks,
+                        "max_marks": a.max_marks,
+                        "feedback": a.feedback,
+                        "needs_review": a.needs_review,
+                        "page_number": a.page_number,
+                        "confidence_score": a.confidence_score,
+                        "is_flagged_for_review": a.is_flagged_for_review,
+                        "review_reason": a.review_reason,
+                        "is_manually_edited": a.is_manually_edited,
+                        "is_attempted": a.is_attempted,
+                        "is_counted_in_total": a.is_counted_in_total,
+                        "effective_max_marks": a.effective_max_marks,
+                    }
+                    for a in ans_records
+                ]
 
             submissions.append(sub)
 
@@ -355,6 +422,6 @@ async def get_student_portal_state(current_user: Dict[str, Any] = Depends(get_cu
     Retrieves student identity, branch exams, active submission windows,
     and submission history in a single non-blocking thread execution.
     """
-    user_id = current_user.get("sub")
+    user_id = current_user.get("sub") or current_user.get("id")
     user_role = current_user.get("role", "STUDENT")
     return await asyncio.to_thread(_fetch_portal_state_sync, user_id, user_role)

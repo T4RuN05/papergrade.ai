@@ -225,6 +225,12 @@ def get_db_connection():
 
 @contextmanager
 def get_db():
+    """
+    [DEPRECATED] Legacy raw SQL database connection context manager.
+    Prefer using SQLAlchemy 2.0 ORM sessions via:
+        from backend.app.db.session import get_db, get_session
+    """
+    logger.debug("Legacy raw SQL get_db() called; prefer backend.app.db.session.get_session()")
     conn = get_db_connection()
     try:
         yield conn

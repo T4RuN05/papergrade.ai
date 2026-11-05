@@ -10,7 +10,9 @@ from google.genai import types
 from google.genai.errors import APIError
 
 from backend.app.config import settings
-from backend.app.database import get_db, get_iso_now
+from backend.app.db.session import get_session
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import ApiUsageEvent
 from backend.app.schemas import (
     ExamRubricExtractionResult,
     StudentGradingExtractionResult,
@@ -132,24 +134,33 @@ class GeminiGradingClient:
             model_name=actual_model
         )
         event_id = str(uuid.uuid4())
-        with get_db() as conn:
-            conn.execute("""
-            INSERT INTO api_usage_events (
-                id, timestamp, exam_id, batch_id, submission_id,
-                request_purpose, model_name, input_tokens, output_tokens,
-                total_tokens, thinking_tokens, cached_tokens, duration_ms,
-                page_count, file_size_bytes, success, http_status,
-                error_code, retry_attempt, estimated_cost_usd,
-                pricing_version, is_mock
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                event_id, get_iso_now(), exam_id, batch_id, submission_id,
-                request_purpose, actual_model, input_tokens, output_tokens,
-                total_tokens, thinking_tokens, cached_tokens, duration_ms,
-                page_count, file_size_bytes, 1 if success else 0, http_status,
-                error_code, retry_attempt, cost, settings.PRICING_VERSION,
-                1 if is_mock else 0
-            ))
+        with get_session() as session:
+            event = ApiUsageEvent(
+                id=event_id,
+                timestamp=get_iso_now(),
+                exam_id=exam_id,
+                batch_id=batch_id,
+                submission_id=submission_id,
+                request_purpose=request_purpose,
+                model_name=actual_model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                thinking_tokens=thinking_tokens,
+                cached_tokens=cached_tokens,
+                duration_ms=duration_ms,
+                page_count=page_count,
+                file_size_bytes=file_size_bytes,
+                success=1 if success else 0,
+                http_status=http_status,
+                error_code=error_code,
+                retry_attempt=retry_attempt,
+                estimated_cost_usd=cost,
+                pricing_version=settings.PRICING_VERSION,
+                is_mock=1 if is_mock else 0
+            )
+            session.add(event)
+            session.commit()
         return event_id
 
     def extract_exam_rubric(

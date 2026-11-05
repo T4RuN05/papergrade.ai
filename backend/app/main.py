@@ -5,7 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
-from backend.app.database import init_db, get_db
+from backend.app.db.session import get_session
+from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent
+from sqlalchemy import select, func
+from backend.app.database import init_db
 from backend.app.worker.queue_worker import queue_worker
 from backend.app.routers import (
     exams,
@@ -71,27 +74,58 @@ app.include_router(exports.router)
 
 @app.get("/api/batches")
 def get_batches_shortcut(branch_id: Optional[str] = None):
-    with get_db() as conn:
-        cursor = conn.cursor()
+    with get_session() as session:
+        stmt = select(Batch)
         if branch_id:
-            cursor.execute("SELECT * FROM batches WHERE branch_id = ? ORDER BY created_at DESC", (branch_id,))
-        else:
-            cursor.execute("SELECT * FROM batches ORDER BY created_at DESC")
-        return [dict(r) for r in cursor.fetchall()]
+            stmt = stmt.where(Batch.branch_id == branch_id)
+        stmt = stmt.order_by(Batch.created_at.desc())
+        batches = session.scalars(stmt).all()
+        return [
+            {
+                "id": b.id,
+                "branch_id": b.branch_id,
+                "name": b.name,
+                "code": b.code,
+                "academic_year": b.academic_year,
+                "created_at": b.created_at,
+                "updated_at": b.updated_at,
+            }
+            for b in batches
+        ]
 
 @app.get("/api/batches/{batch_id}")
 def get_batch_by_id(batch_id: str):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM batches WHERE id = ?", (batch_id,))
-        row = cursor.fetchone()
-        if not row:
+    with get_session() as session:
+        batch = session.scalar(select(Batch).where(Batch.id == batch_id))
+        if not batch:
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Batch not found")
-        batch_d = dict(row)
-        cursor.execute("SELECT * FROM submissions WHERE batch_id = ? ORDER BY roll_number ASC", (batch_id,))
-        batch_d["submissions"] = [dict(s) for s in cursor.fetchall()]
-        return batch_d
+        submissions = session.scalars(
+            select(Submission).where(Submission.batch_id == batch_id).order_by(Submission.roll_number.asc())
+        ).all()
+        return {
+            "id": batch.id,
+            "branch_id": batch.branch_id,
+            "name": batch.name,
+            "code": batch.code,
+            "academic_year": batch.academic_year,
+            "created_at": batch.created_at,
+            "updated_at": batch.updated_at,
+            "submissions": [
+                {
+                    "id": s.id,
+                    "roll_number": s.roll_number,
+                    "student_name": s.student_name,
+                    "submission_status": s.submission_status,
+                    "status": s.status,
+                    "total_awarded_marks": s.total_awarded_marks,
+                    "max_marks": s.max_marks,
+                    "percentage": s.percentage,
+                    "created_at": s.created_at,
+                }
+                for s in submissions
+            ]
+        }
 
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
@@ -119,26 +153,11 @@ def health_check():
 
 @app.api_route("/api/status", methods=["GET", "HEAD"])
 def system_status():
-    def _val(row):
-        if not row:
-            return 0
-        if isinstance(row, dict):
-            return list(row.values())[0]
-        try:
-            return row[0]
-        except Exception:
-            return 0
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) AS cnt FROM exams")
-        exam_count = _val(cursor.fetchone())
-        cursor.execute("SELECT COUNT(*) AS cnt FROM submissions")
-        sub_count = _val(cursor.fetchone())
-        cursor.execute("SELECT COUNT(*) AS cnt FROM submissions WHERE status = 'QUEUED'")
-        queued_count = _val(cursor.fetchone())
-        cursor.execute("SELECT COUNT(*) AS cnt FROM api_usage_events")
-        api_events_count = _val(cursor.fetchone())
+    with get_session() as session:
+        exam_count = session.scalar(select(func.count(Exam.id))) or 0
+        sub_count = session.scalar(select(func.count(Submission.id))) or 0
+        queued_count = session.scalar(select(func.count(Submission.id)).where(Submission.status == 'QUEUED')) or 0
+        api_events_count = session.scalar(select(func.count(ApiUsageEvent.id))) or 0
 
     return {
         "gemini_configured": settings.is_gemini_configured,

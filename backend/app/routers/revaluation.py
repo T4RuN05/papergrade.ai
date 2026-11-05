@@ -353,7 +353,7 @@ def resolve_revaluation_request(
                 .values(
                     awarded_marks=item.revised_marks,
                     is_manual_override=1,
-                    review_notes=f"[Revaluation] {item.comment}",
+                    override_reason=f"[Revaluation] {item.comment}",
                     updated_at=now
                 )
             )
