@@ -1,7 +1,8 @@
 import uuid
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi import APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_
@@ -73,8 +74,25 @@ class CreateUserRequest(BaseModel):
     branch_id: Optional[str] = None
 
 
+def _record_last_login(user_id: str):
+    """Background task to record login timestamp without holding up the HTTP response."""
+    try:
+        from backend.app.db.session import get_session
+        with get_session() as session:
+            u = session.scalar(select(User).where(User.id == user_id))
+            if u:
+                u.last_login_at = get_iso_now()
+                session.commit()
+    except Exception:
+        pass
+
+
 @router.post("/login", response_model=LoginResponse)
-async def login(request: Request, db: Session = Depends(get_db)):
+async def login(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """Authenticate user with email/username and password via JSON or Form Data."""
     content_type = request.headers.get("content-type", "")
     email_val = ""
@@ -104,15 +122,19 @@ async def login(request: Request, db: Session = Depends(get_db)):
     clean_email = email_val.lower()
     clean_identifier = email_val.strip()
 
-    # 1. Look up user by email
-    user = db.scalar(
-        select(User).where(func.lower(User.email) == clean_email, User.is_active == 1)
-    )
+    is_email = "@" in email_val
+    user = None
+    student_info = None
 
-    # 2. If not found by email, check if student logging in with Roll Number or Student ID
-    if not user:
+    # 1. Smart lookup: If identifier contains '@', query by email; otherwise query Student roll/id directly
+    if is_email:
         user = db.scalar(
-            select(User)
+            select(User).where(func.lower(User.email) == clean_email, User.is_active == 1)
+        )
+    else:
+        # Single-query join: fetches User and Student info simultaneously
+        result = db.execute(
+            select(User, Student)
             .join(Student, Student.user_id == User.id)
             .where(
                 or_(
@@ -122,20 +144,51 @@ async def login(request: Request, db: Session = Depends(get_db)):
                 User.is_active == 1
             )
             .limit(1)
-        )
+        ).first()
+        if result:
+            user, student_info = result
 
-    if not user or not verify_password(password_val, user.password_hash):
+    # Fallback: if not found via primary path, check other path
+    if not user:
+        if is_email:
+            result = db.execute(
+                select(User, Student)
+                .join(Student, Student.user_id == User.id)
+                .where(
+                    or_(
+                        func.upper(Student.roll_number) == clean_identifier.upper(),
+                        Student.student_id_num == clean_identifier,
+                    ),
+                    User.is_active == 1
+                )
+                .limit(1)
+            ).first()
+            if result:
+                user, student_info = result
+        else:
+            user = db.scalar(
+                select(User).where(func.lower(User.email) == clean_email, User.is_active == 1)
+            )
+
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials. Use your registered email, roll number, or student ID."
         )
 
-    now = get_iso_now()
-    user.last_login_at = now
-    db.commit()
+    # 2. Non-blocking bcrypt verification in worker threadpool (prevents event loop freezing)
+    is_password_valid = await asyncio.to_thread(verify_password, password_val, user.password_hash)
+    if not is_password_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials. Use your registered email, roll number, or student ID."
+        )
 
-    student_info = None
-    if user.role == "STUDENT":
+    # 3. Offload login timestamp update to background task (zero HTTP response latency)
+    background_tasks.add_task(_record_last_login, user.id)
+
+    # 4. If logged in via email and user is student, fetch student record
+    if user.role == "STUDENT" and not student_info:
         student_info = db.scalar(
             select(Student).where(Student.user_id == user.id).order_by(Student.claimed_at.desc()).limit(1)
         )

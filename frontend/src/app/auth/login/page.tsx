@@ -237,6 +237,15 @@ function LoginForm() {
 
       const welcomeMsg = `Signed in as ${user.full_name || enteredEmail}.`;
       toast.success(welcomeMsg, { title: roleTitle, duration: 4500 });
+
+      if (user.role === "STUDENT") {
+        // Fast-path immediate redirect for students with local seed user
+        refreshTenancy(user);
+        startNavigationProgress();
+        router.push(dest);
+        return;
+      }
+
       await refreshTenancy(user);
       startNavigationProgress();
       router.push(dest);

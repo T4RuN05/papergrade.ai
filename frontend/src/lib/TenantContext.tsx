@@ -92,9 +92,17 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const me = await api.getMe();
+      const me = seedUser || (await api.getMe());
       setCurrentUser(me);
       setStoredUser(me);
+
+      // Students do not administer institutes or branches; skip redundant administrative API calls
+      if (me.role === "STUDENT") {
+        setInstitutes([]);
+        setAllBranches([]);
+        setLoading(false);
+        return;
+      }
 
       const [instList, branchList] = await Promise.all([
         api.listInstitutes().catch(() => []),
