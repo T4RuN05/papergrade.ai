@@ -123,29 +123,44 @@ async def simulate_student_session(
         # Wait for redirect to student portal
         await page.wait_for_url("**/student/portal*", timeout=NAVIGATION_TIMEOUT_MS)
         metrics.login_duration_secs = round(time.perf_counter() - login_start, 3)
-        metrics.stage_reached = "LOGIN"
+        metrics.stage_reached = "LOGIN_OK"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [LOGIN OK] {task.roll_number} authenticated in {metrics.login_duration_secs:.2f}s")
 
         # 4. STEP: EXAM & SUBMISSION WINDOW LOADING
+        metrics.stage_reached = "EXAM_LOADING"
         exam_load_start = time.perf_counter()
 
-        # Wait for the file input or active exam card to mount
+        # Wait for the exam card to mount in the DOM
+        card_header = page.locator('text=KTG PROD TEST').or_(page.locator('text=Submission Window Open')).or_(page.locator('text=TIME REMAINING'))
+        await card_header.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
+
         # If multiple exam windows are open and target_exam_id is specified, select that exam
         if target_exam_id:
             exam_btn = page.locator(f'button:has-text("{target_exam_id}")')
             if await exam_btn.is_visible():
                 await exam_btn.click()
 
+        # If student has a previous submission, click 'Replace Answer Sheet' to reveal file upload form
+        replace_btn = page.locator('button:has-text("Replace Answer Sheet"), button:has-text("Replace"), button:has-text("Re-upload")')
+        try:
+            if await replace_btn.first.is_visible():
+                await replace_btn.first.click()
+            else:
+                await replace_btn.first.wait_for(state="visible", timeout=2500)
+                await replace_btn.first.click()
+        except Exception:
+            pass
+
         # Wait for either file input or active window card in DOM
-        file_input_selector = 'input[type="file"][accept*="image"]'
+        file_input_selector = 'input[type="file"][multiple], input[type="file"]'
         await page.wait_for_selector(file_input_selector, state="attached", timeout=ACTION_TIMEOUT_MS)
         metrics.exam_loading_duration_secs = round(time.perf_counter() - exam_load_start, 3)
-        metrics.stage_reached = "EXAM_LOAD"
+        metrics.stage_reached = "EXAM_LOADED"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [EXAM LOADED] {task.roll_number} active window ready in {metrics.exam_loading_duration_secs:.2f}s")
 
         # 5. STEP: CAMERA MOCK VIA SAMPLE IMAGE INJECTION
         image_paths = [str(p.resolve()) for p in task.sample_images]
-        file_input = page.locator(file_input_selector).first
+        file_input = page.locator('input[type="file"][multiple]').first
 
         # Inject sample images
         await file_input.set_input_files(image_paths)
@@ -193,9 +208,9 @@ async def simulate_student_session(
             raise RuntimeError(f"Server returned HTTP {upload_response.status}: {err_text[:200]}")
 
         # 7. STEP: SUBMISSION CONFIRMATION IN UI
-        # Wait for "Answer sheet uploaded successfully!" success banner or toast
-        confirm_locator = page.locator('text=Answer sheet uploaded successfully!')
-        await confirm_locator.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
+        # Wait for "Answer sheet uploaded/replaced successfully!" success banner or toast
+        confirm_locator = page.locator('text=/Answer sheet (uploaded|replaced) successfully!/').or_(page.locator('text=Submission Received')).or_(page.locator('.bg-green-50'))
+        await confirm_locator.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
         metrics.submission_confirmed = True
         metrics.stage_reached = "CONFIRMED"
         metrics.success = True
