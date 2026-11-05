@@ -6,6 +6,9 @@ from typing import Optional, List, Dict, Any
 from backend.app.database import get_db, get_iso_now
 from backend.app.config import settings
 
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
 logger = logging.getLogger(__name__)
 
 def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, payload_str: str):
@@ -97,15 +100,29 @@ def send_notification(
     message: str,
     link_url: Optional[str] = None
 ) -> str:
-    """Insert a single notification into notifications table using active cursor and dispatch WebPush."""
+    """Insert a single notification into notifications table using active cursor or ORM session and dispatch WebPush."""
     if not user_id:
         return ""
     notif_id = f"notif_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
-    cursor.execute("""
-        INSERT INTO notifications (id, user_id, type, title, message, link_url, is_read, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-    """, (notif_id, user_id, notif_type, title, message, link_url, now))
+    if isinstance(cursor, Session):
+        from backend.app.db.models.telemetry import Notification
+        notif = Notification(
+            id=notif_id,
+            user_id=user_id,
+            type=notif_type,
+            title=title,
+            message=message,
+            link_url=link_url,
+            is_read=0,
+            created_at=now,
+        )
+        cursor.add(notif)
+    else:
+        cursor.execute("""
+            INSERT INTO notifications (id, user_id, type, title, message, link_url, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+        """, (notif_id, user_id, notif_type, title, message, link_url, now))
     
     dispatch_webpush_for_user(user_id, title, message, link_url)
     return notif_id
@@ -223,8 +240,32 @@ def notify_branch_managers(
     exclude_user_id: Optional[str] = None
 ) -> int:
     """
-    Dispatch notifications to branch managers using bulk SQL insertion.
+    Dispatch notifications to branch managers using bulk SQL insertion or ORM session.
     """
+    now = get_iso_now()
+    if isinstance(cursor, Session):
+        from backend.app.db.models.auth import User
+        from backend.app.db.models.telemetry import Notification
+        stmt = select(User.id).where(User.role == "BRANCH_MANAGER", User.is_active == 1)
+        if branch_id:
+            stmt = stmt.where(User.branch_id == branch_id)
+        uids = [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+        if not uids:
+            return 0
+        for uid in uids:
+            cursor.add(Notification(
+                id=f"notif_{uuid.uuid4().hex[:12]}",
+                user_id=uid,
+                type=notif_type,
+                title=title,
+                message=message,
+                link_url=link_url,
+                is_read=0,
+                created_at=now,
+            ))
+        dispatch_webpush_for_users(uids, title, message, link_url)
+        return len(uids)
+
     if branch_id:
         cursor.execute("""
             SELECT id FROM users 
@@ -241,7 +282,6 @@ def notify_branch_managers(
     if not uids:
         return 0
 
-    now = get_iso_now()
     records = [
         (f"notif_{uuid.uuid4().hex[:12]}", uid, notif_type, title, message, link_url, 0, now)
         for uid in uids
