@@ -1,11 +1,14 @@
 import threading
 from typing import Optional
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from backend.app.config import settings
-from backend.app.database import get_db
+from backend.app.db.session import get_db
+from backend.app.db.models import Submission, AnswerRegion
 from backend.app.schemas import ManualEditAnswerRequest, ManualEditRegionRequest
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service
@@ -15,6 +18,17 @@ _render_lock = threading.Lock()
 
 router = APIRouter(prefix="/api/grading", tags=["Grading & Overrides"])
 
+PAGE_CACHE_HEADERS = {
+    "Cache-Control": "public, max-age=604800, immutable",
+}
+
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
 @router.post("/exams/{exam_id}/clear-all-reviews")
 def clear_all_exam_reviews(exam_id: str):
     try:
@@ -22,6 +36,7 @@ def clear_all_exam_reviews(exam_id: str):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to bulk clear exam reviews: {str(e)}")
+
 
 @router.post("/{submission_id}/clear-review")
 def clear_submission_review(submission_id: str):
@@ -32,6 +47,7 @@ def clear_submission_review(submission_id: str):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear review flags: {str(e)}")
+
 
 @router.post("/answers/{submission_id}/{answer_id}/edit")
 @router.post("/{submission_id}/answers/{answer_id}")
@@ -45,6 +61,7 @@ def edit_answer(submission_id: str, answer_id: str, req: ManualEditAnswerRequest
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to edit answer: {str(e)}")
 
+
 @router.post("/regions/{submission_id}/{region_id}/edit")
 @router.post("/{submission_id}/regions/{region_id}")
 @router.patch("/{submission_id}/regions/{region_id}")
@@ -57,14 +74,12 @@ def edit_region(submission_id: str, region_id: str, req: ManualEditRegionRequest
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to edit region: {str(e)}")
 
-@router.get("/page-image/{submission_id}/{page_num}")
-def get_page_image(submission_id: str, page_num: int):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT is_document_purged, canonical_pdf_path, original_file_path, exam_id, roll_number FROM submissions WHERE id = ?", (submission_id,))
-        sub = cursor.fetchone()
 
-    if sub and sub.get("is_document_purged"):
+@router.get("/page-image/{submission_id}/{page_num}")
+def get_page_image(submission_id: str, page_num: int, db: Session = Depends(get_db)):
+    sub = db.scalar(select(Submission).where(Submission.id == submission_id))
+
+    if sub and sub.is_document_purged:
         raise HTTPException(
             status_code=410,
             detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage. Question marks and scores remain archived."
@@ -76,7 +91,7 @@ def get_page_image(submission_id: str, page_num: int):
             # Double check inside mutex in case previous thread just finished rendering it
             if not img_path.exists():
                 candidate_keys = []
-                for raw_k in [sub.get("canonical_pdf_path"), sub.get("original_file_path")]:
+                for raw_k in [sub.canonical_pdf_path, sub.original_file_path]:
                     if raw_k:
                         candidate_keys.append(raw_k)
                         clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
@@ -85,9 +100,9 @@ def get_page_image(submission_id: str, page_num: int):
                             if marker in clean_k:
                                 candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
                                 candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
-                                
-                exam_id = sub.get("exam_id")
-                roll = sub.get("roll_number")
+
+                exam_id = sub.exam_id
+                roll = sub.roll_number
                 if exam_id and roll:
                     candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
                     candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
@@ -110,22 +125,14 @@ def get_page_image(submission_id: str, page_num: int):
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
     return FileResponse(str(img_path), media_type="image/png", headers=PAGE_CACHE_HEADERS)
 
-PAGE_CACHE_HEADERS = {
-    "Cache-Control": "public, max-age=604800, immutable",
-}
-
-NO_CACHE_HEADERS = {
-    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-    "Pragma": "no-cache",
-    "Expires": "0",
-}
 
 @router.get("/crop/{submission_id}/{answer_id}")
 def get_answer_crop(
     submission_id: str,
     answer_id: str,
     region_id: Optional[str] = None,
-    v: Optional[str] = None
+    v: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
     crops_dir = settings.RENDERS_DIR / submission_id / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
@@ -138,33 +145,29 @@ def get_answer_crop(
         if reg_crop_path.exists():
             return FileResponse(str(reg_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
         target_crop_path = reg_crop_path
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM answer_regions WHERE id = ?", (region_id,))
-            target_reg = cursor.fetchone()
+        target_reg = db.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
 
     if not target_crop_path or not target_reg:
         primary_crop_path = crops_dir / f"crop_{answer_id}.png"
         if primary_crop_path.exists():
             return FileResponse(str(primary_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
         target_crop_path = primary_crop_path
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM answer_regions WHERE answer_id = ? ORDER BY id ASC LIMIT 1", (answer_id,))
-            target_reg = cursor.fetchone()
+        target_reg = db.scalar(
+            select(AnswerRegion)
+            .where(AnswerRegion.answer_id == answer_id)
+            .order_by(AnswerRegion.id.asc())
+            .limit(1)
+        )
 
     # Dynamic fallback: regenerate crop if missing from disk
     if target_reg:
-        page_num = target_reg["page_number"]
+        page_num = target_reg.page_number
         page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
         if not page_img.exists():
-            with get_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT canonical_pdf_path, original_file_path, exam_id, roll_number FROM submissions WHERE id = ?", (submission_id,))
-                sub = cursor.fetchone()
+            sub = db.scalar(select(Submission).where(Submission.id == submission_id))
             if sub:
                 candidate_keys = []
-                for raw_k in [sub.get("canonical_pdf_path"), sub.get("original_file_path")]:
+                for raw_k in [sub.canonical_pdf_path, sub.original_file_path]:
                     if raw_k:
                         candidate_keys.append(raw_k)
                         clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
@@ -173,9 +176,9 @@ def get_answer_crop(
                             if marker in clean_k:
                                 candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
                                 candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
-                                
-                exam_id = sub.get("exam_id")
-                roll = sub.get("roll_number")
+
+                exam_id = sub.exam_id
+                roll = sub.roll_number
                 if exam_id and roll:
                     candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
                     candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
@@ -193,14 +196,15 @@ def get_answer_crop(
                                     break
                     except Exception:
                         continue
+
         if page_img.exists():
             try:
                 pdf_service.crop_answer_region(
                     page_img,
-                    float(target_reg["x"]),
-                    float(target_reg["y"]),
-                    float(target_reg["width"]),
-                    float(target_reg["height"]),
+                    float(target_reg.x),
+                    float(target_reg.y),
+                    float(target_reg.width),
+                    float(target_reg.height),
                     target_crop_path,
                 )
             except Exception:
@@ -210,4 +214,3 @@ def get_answer_crop(
         return FileResponse(str(target_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
 
     raise HTTPException(status_code=404, detail="Crop not found.")
-

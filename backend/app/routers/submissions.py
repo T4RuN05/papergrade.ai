@@ -10,11 +10,27 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, s
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
-
 import logging
+from sqlalchemy.orm import Session
+from sqlalchemy import select, delete, update, func, or_
 
 from backend.app.config import settings
-from backend.app.database import get_db, get_iso_now
+from backend.app.db.session import get_db, get_session
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import (
+    Submission,
+    Answer,
+    AnswerRegion,
+    CriterionScore,
+    EvaluationQueue,
+    RevaluationRequest,
+    Exam,
+    ExamBatch,
+    SubmissionWindow,
+    Batch,
+    Student,
+    AuditLog,
+)
 from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.grading_service import grading_service
@@ -34,9 +50,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Submissions & Uploads"])
 
-# Bounded concurrency guard for legacy/fallback server-side image stitching
-# Guarantees Render 512MB RAM cannot be overwhelmed by concurrent raw camera bitmaps
 _backend_stitching_semaphore = asyncio.Semaphore(1)
+
 
 def _purge_and_replace_previous_submissions(
     cursor,
@@ -50,7 +65,78 @@ def _purge_and_replace_previous_submissions(
     Purges any previous active or superseded submissions for the same student & exam.
     Deletes Cloudinary/storage files, cancels evaluation queue entries, deletes DB rows,
     and logs an audit record so there are no duplicate submissions or orphaned cloud files.
+    Supports both SQLAlchemy Session and legacy DBAPI cursor.
     """
+    now = get_iso_now()
+    storage = get_storage_service()
+
+    if isinstance(cursor, Session):
+        stmt = select(Submission).where(Submission.exam_id == exam_id)
+        if student_id:
+            stmt = stmt.where(or_(func.upper(Submission.roll_number) == clean_roll, Submission.student_id == student_id))
+        else:
+            stmt = stmt.where(func.upper(Submission.roll_number) == clean_roll)
+
+        if new_sub_id:
+            stmt = stmt.where(Submission.id != new_sub_id)
+
+        prev_subs = cursor.scalars(stmt).all()
+        if not prev_subs:
+            return 0
+
+        for ps in prev_subs:
+            pid = ps.id
+            for file_key in [ps.original_file_path, ps.canonical_pdf_path, ps.annotated_pdf_path]:
+                if file_key:
+                    try:
+                        storage.delete_file(file_key)
+                    except Exception as e:
+                        logger.warning(f"Could not delete replaced submission storage file {file_key}: {e}")
+
+            # Delete local artifacts
+            try:
+                local_renders = settings.RENDERS_DIR / pid
+                if local_renders.exists():
+                    shutil.rmtree(local_renders, ignore_errors=True)
+                local_page_renders = settings.PAGE_RENDERS_DIR / f"sub_{pid}"
+                if local_page_renders.exists():
+                    shutil.rmtree(local_page_renders, ignore_errors=True)
+                local_annotated = settings.EXPORTS_DIR / f"{pid}_annotated.pdf"
+                if local_annotated.exists():
+                    local_annotated.unlink(missing_ok=True)
+                local_uploads = settings.UPLOADS_DIR / "submissions" / pid
+                if local_uploads.exists():
+                    shutil.rmtree(local_uploads, ignore_errors=True)
+            except Exception as e:
+                logger.warning(f"Could not delete local submission files for {pid}: {e}")
+
+            # Delete evaluation queue entries
+            cursor.execute(delete(EvaluationQueue).where(EvaluationQueue.submission_id == pid))
+
+            # Delete child answers, criterion scores, revaluations
+            ans_ids_stmt = select(Answer.id).where(Answer.submission_id == pid)
+            cursor.execute(delete(CriterionScore).where(CriterionScore.answer_id.in_(ans_ids_stmt)))
+            cursor.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(ans_ids_stmt)))
+            cursor.execute(delete(Answer).where(Answer.submission_id == pid))
+            cursor.execute(delete(RevaluationRequest).where(RevaluationRequest.submission_id == pid))
+
+            # Delete the previous submission record
+            cursor.delete(ps)
+
+            # Audit log
+            cursor.add(AuditLog(
+                id=f"aud_{uuid.uuid4().hex[:12]}",
+                user_id=current_user_id or "system",
+                action="REPLACE_SUBMISSION",
+                resource_type="SUBMISSION",
+                resource_id=pid,
+                details_json=json.dumps({"replaced_by": new_sub_id, "exam_id": exam_id, "roll_number": clean_roll}),
+                created_at=now
+            ))
+
+        return len(prev_subs)
+
+    # Legacy raw cursor fallback
     conds = ["exam_id = ?"]
     params = [exam_id]
     if student_id:
@@ -75,12 +161,8 @@ def _purge_and_replace_previous_submissions(
     if not prev_subs:
         return 0
 
-    storage = get_storage_service()
-    now = get_iso_now()
-
     for ps in prev_subs:
         pid = ps["id"]
-        # Delete files from Cloudinary / storage
         for file_key in [ps.get("original_file_path"), ps.get("canonical_pdf_path"), ps.get("annotated_pdf_path")]:
             if file_key:
                 try:
@@ -88,7 +170,6 @@ def _purge_and_replace_previous_submissions(
                 except Exception as e:
                     logger.warning(f"Could not delete replaced submission storage file {file_key}: {e}")
 
-        # Delete local artifacts if any exist
         try:
             local_renders = settings.RENDERS_DIR / pid
             if local_renders.exists():
@@ -105,19 +186,13 @@ def _purge_and_replace_previous_submissions(
         except Exception as e:
             logger.warning(f"Could not delete local submission files for {pid}: {e}")
 
-        # Delete evaluation queue entries
         cursor.execute("DELETE FROM evaluation_queue WHERE submission_id = ?", (pid,))
-
-        # Delete child answers, criterion scores, revaluations
         cursor.execute("DELETE FROM criterion_scores WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (pid,))
         cursor.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (pid,))
         cursor.execute("DELETE FROM answers WHERE submission_id = ?", (pid,))
         cursor.execute("DELETE FROM revaluation_requests WHERE submission_id = ?", (pid,))
-
-        # Delete the previous submission record
         cursor.execute("DELETE FROM submissions WHERE id = ?", (pid,))
 
-        # Audit log
         cursor.execute("""
             INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
             VALUES (?, ?, 'REPLACE_SUBMISSION', 'SUBMISSION', ?, ?, ?)
@@ -131,154 +206,239 @@ def _purge_and_replace_previous_submissions(
 
     return len(prev_subs)
 
+
+def parse_iso(iso_str: str) -> datetime:
+    try:
+        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    except Exception:
+        return datetime.now(timezone.utc)
+
+
+def verify_active_submission_window(exam_id: str, cursor, allow_grace: bool = False):
+    """Verify that the exam has an active submission window."""
+    if isinstance(cursor, Session):
+        window = cursor.scalar(
+            select(SubmissionWindow)
+            .where(SubmissionWindow.exam_id == exam_id)
+            .order_by(SubmissionWindow.created_at.desc())
+            .limit(1)
+        )
+        if not window or window.status != "OPEN":
+            raise HTTPException(status_code=400, detail="Submission window is not currently open for this examination.")
+        now = datetime.now(timezone.utc)
+        target_deadline = parse_iso(window.grace_deadline_at if allow_grace else window.deadline_at)
+        if now > target_deadline:
+            if allow_grace:
+                raise HTTPException(status_code=400, detail="Grace period has expired. Upload rejected.")
+            else:
+                raise HTTPException(status_code=400, detail="Submission window has closed.")
+        return window
+
+    cursor.execute(
+        "SELECT * FROM submission_windows WHERE exam_id = ? ORDER BY created_at DESC LIMIT 1",
+        (exam_id,)
+    )
+    window = cursor.fetchone()
+    if not window or window["status"] != "OPEN":
+        raise HTTPException(status_code=400, detail="Submission window is not currently open for this examination.")
+
+    now = datetime.now(timezone.utc)
+    target_deadline = parse_iso(window["grace_deadline_at"] if allow_grace else window["deadline_at"])
+
+    if now > target_deadline:
+        if allow_grace:
+            raise HTTPException(status_code=400, detail="Grace period has expired. Upload rejected.")
+        else:
+            raise HTTPException(status_code=400, detail="Submission window has closed.")
+    return window
+
+
 @router.get("")
 def list_submissions(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
     include_answers: bool = False,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
 ):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        query = """
-            SELECT s.*, 
-                   e.title AS exam_title, 
-                   e.subject AS exam_subject, 
-                   e.total_marks AS exam_total_marks,
-                   e.is_published AS exam_is_published,
-                   e.published_at AS exam_published_at
-            FROM submissions s
-            LEFT JOIN exams e ON s.exam_id = e.id
-            WHERE s.submission_status = 'SUBMITTED'
-        """
-        params = []
-        if exam_id:
-            query += " AND s.exam_id = ?"
-            params.append(exam_id)
-        if batch_id:
-            query += " AND s.batch_id = ?"
-            params.append(batch_id)
-            
-        # Student privacy isolation: only own submissions across all enrolled student records
-        if current_user and current_user.get("role") == "STUDENT":
-            cursor.execute("SELECT id, roll_number, full_name, student_id_num FROM students WHERE user_id = ?", (current_user["sub"],))
-            stu_records = cursor.fetchall()
-            student_ids = [r["id"] for r in stu_records]
-            roll_numbers = [r["roll_number"].strip().upper() for r in stu_records if r.get("roll_number")]
-            names = [r["full_name"].strip() for r in stu_records if r.get("full_name")]
-            
-            if current_user.get("student_id"):
-                student_ids.append(current_user["student_id"])
-            if current_user.get("roll_number"):
-                roll_numbers.append(current_user["roll_number"].strip().upper())
-            if current_user.get("full_name"):
-                names.append(current_user["full_name"].strip())
+    stmt = (
+        select(Submission, Exam)
+        .outerjoin(Exam, Submission.exam_id == Exam.id)
+        .where(Submission.submission_status == 'SUBMITTED')
+    )
 
-            student_ids = list(set(filter(None, student_ids)))
-            roll_numbers = list(set(filter(None, roll_numbers)))
-            names = list(set(filter(None, names)))
+    if exam_id:
+        stmt = stmt.where(Submission.exam_id == exam_id)
+    if batch_id:
+        stmt = stmt.where(Submission.batch_id == batch_id)
 
-            conditions = []
-            if student_ids:
-                ph = ",".join(["?"] * len(student_ids))
-                conditions.append(f"s.student_id IN ({ph})")
-                params.extend(student_ids)
-            if roll_numbers:
-                ph = ",".join(["?"] * len(roll_numbers))
-                conditions.append(f"UPPER(s.roll_number) IN ({ph})")
-                params.extend(roll_numbers)
-            if names:
-                ph = ",".join(["?"] * len(names))
-                conditions.append(f"s.student_name IN ({ph})")
-                params.extend(names)
-            
-            if conditions:
-                query += f" AND ({' OR '.join(conditions)})"
-            else:
-                query += " AND s.student_id = ?"
-                params.append(current_user["sub"])
-            
-        query += " ORDER BY s.roll_number ASC, s.created_at ASC"
-        cursor.execute(query, tuple(params))
-        submissions = [dict(r) for r in cursor.fetchall()]
+    # Student privacy isolation
+    if current_user and current_user.get("role") == "STUDENT":
+        stu_records = db.scalars(
+            select(Student).where(Student.user_id == current_user["sub"])
+        ).all()
+        student_ids = [r.id for r in stu_records]
+        roll_numbers = [r.roll_number.strip().upper() for r in stu_records if r.roll_number]
+        names = [r.full_name.strip() for r in stu_records if r.full_name]
 
-        if not submissions:
-            return []
+        if current_user.get("student_id"):
+            student_ids.append(current_user["student_id"])
+        if current_user.get("roll_number"):
+            roll_numbers.append(current_user["roll_number"].strip().upper())
+        if current_user.get("full_name"):
+            names.append(current_user["full_name"].strip())
 
-        # Batch load answers & revaluations in at most 2 single queries instead of 2N sequential roundtrips
-        sub_ids = [s["id"] for s in submissions]
-        answers_by_sub = {}
-        reval_by_sub = {}
+        student_ids = list(set(filter(None, student_ids)))
+        roll_numbers = list(set(filter(None, roll_numbers)))
+        names = list(set(filter(None, names)))
 
-        if include_answers and sub_ids:
-            ph = ",".join(["?"] * len(sub_ids))
-            cursor.execute(f"SELECT * FROM answers WHERE submission_id IN ({ph}) ORDER BY question_id ASC", tuple(sub_ids))
-            for a in cursor.fetchall():
-                answers_by_sub.setdefault(a["submission_id"], []).append(dict(a))
+        conditions = []
+        if student_ids:
+            conditions.append(Submission.student_id.in_(student_ids))
+        if roll_numbers:
+            conditions.append(func.upper(Submission.roll_number).in_(roll_numbers))
+        if names:
+            conditions.append(Submission.student_name.in_(names))
 
-        if sub_ids:
-            ph = ",".join(["?"] * len(sub_ids))
-            cursor.execute(f"SELECT * FROM revaluation_requests WHERE submission_id IN ({ph}) ORDER BY requested_at DESC", tuple(sub_ids))
-            for r in cursor.fetchall():
-                if r["submission_id"] not in reval_by_sub:
-                    reval_by_sub[r["submission_id"]] = dict(r)
+        if conditions:
+            stmt = stmt.where(or_(*conditions))
+        else:
+            stmt = stmt.where(Submission.student_id == current_user["sub"])
 
-        # Attach answers, revaluation, and 15-day storage retention lifecycle info
-        is_student_user = bool(current_user and current_user.get("role") == "STUDENT")
-        for s in submissions:
-            is_pub = bool(s.get("publication_status") == "PUBLISHED" or s.get("exam_is_published") == 1)
-            s["is_published"] = is_pub
+    stmt = stmt.order_by(Submission.roll_number.asc(), Submission.created_at.asc())
+    results = db.execute(stmt).all()
 
-            if is_student_user and not is_pub:
-                # Strictly decouple and mask internal AI grading marks and answers before official publication!
-                s["total_awarded_marks"] = None
-                s["percentage"] = None
-                s["answers"] = []
-                s["revaluation"] = None
-                s["publication_status"] = "UNPUBLISHED"
-                s["student_status"] = (
-                    "Under Evaluation"
-                    if s.get("status") in ["QUEUED", "PROCESSING", "GRADED", "COMPLETED", "NEEDS_REVIEW", "PAUSED_QUOTA"]
-                    else "Submitted"
-                )
-                s["days_remaining"] = None
-                s["seconds_remaining"] = None
-                s["retention_expires_at"] = None
-            else:
-                s["answers"] = answers_by_sub.get(s["id"], [])
-                s["revaluation"] = reval_by_sub.get(s["id"])
+    if not results:
+        return []
 
-                # Retention info (TTL 15 days post-grading)
-                retention_info = RetentionService.get_retention_info(s)
-                s.update(retention_info)
-                s["student_status"] = "Results Published" if is_pub else "Under Evaluation"
+    submissions = []
+    sub_ids = []
+    for s_sub, s_exam in results:
+        s_dict = {
+            "id": s_sub.id,
+            "exam_id": s_sub.exam_id,
+            "batch_id": s_sub.batch_id,
+            "student_id": s_sub.student_id,
+            "student_name": s_sub.student_name,
+            "roll_number": s_sub.roll_number,
+            "page_count": s_sub.page_count,
+            "file_size_bytes": s_sub.file_size_bytes,
+            "original_file_path": s_sub.original_file_path,
+            "canonical_pdf_path": s_sub.canonical_pdf_path,
+            "annotated_pdf_path": s_sub.annotated_pdf_path,
+            "total_awarded_marks": s_sub.total_awarded_marks,
+            "max_marks": s_sub.max_marks,
+            "percentage": s_sub.percentage,
+            "status": s_sub.status,
+            "submission_status": s_sub.submission_status,
+            "publication_status": s_sub.publication_status,
+            "created_at": s_sub.created_at,
+            "updated_at": s_sub.updated_at,
+            "submitted_at": s_sub.submitted_at,
+            "graded_at": s_sub.graded_at,
+            "reviewed_at": s_sub.reviewed_at,
+            "is_document_purged": bool(s_sub.is_document_purged),
+            "purged_at": s_sub.purged_at,
+            "ttl_days": s_sub.ttl_days,
+            "retention_expires_at": s_sub.retention_expires_at,
+            "exam_title": s_exam.title if s_exam else None,
+            "exam_subject": s_exam.subject if s_exam else None,
+            "exam_total_marks": s_exam.total_marks if s_exam else None,
+            "exam_is_published": s_exam.is_published if s_exam else 0,
+            "exam_published_at": s_exam.published_at if s_exam else None,
+        }
+        submissions.append(s_dict)
+        sub_ids.append(s_sub.id)
 
-        return submissions
+    # Batch load answers & revaluations
+    answers_by_sub: Dict[str, List[Dict[str, Any]]] = {}
+    reval_by_sub: Dict[str, Dict[str, Any]] = {}
+
+    if include_answers and sub_ids:
+        ans_rows = db.scalars(
+            select(Answer).where(Answer.submission_id.in_(sub_ids)).order_by(Answer.question_id.asc())
+        ).all()
+        for a in ans_rows:
+            answers_by_sub.setdefault(a.submission_id, []).append({
+                "id": a.id,
+                "submission_id": a.submission_id,
+                "question_id": a.question_id,
+                "awarded_marks": a.awarded_marks,
+                "max_marks": a.max_marks,
+                "needs_review": bool(a.needs_review),
+                "is_extra_attempt": bool(a.is_extra_attempt),
+            })
+
+    if sub_ids:
+        rev_rows = db.scalars(
+            select(RevaluationRequest)
+            .where(RevaluationRequest.submission_id.in_(sub_ids))
+            .order_by(RevaluationRequest.requested_at.desc())
+        ).all()
+        for r in rev_rows:
+            if r.submission_id not in reval_by_sub:
+                reval_by_sub[r.submission_id] = {
+                    "id": r.id,
+                    "submission_id": r.submission_id,
+                    "student_id": r.student_id,
+                    "status": r.status,
+                    "student_reason": r.student_reason,
+                    "requested_at": r.requested_at,
+                    "resolved_at": r.resolved_at,
+                }
+
+    # Attach answers, revaluation, and retention lifecycle info
+    is_student_user = bool(current_user and current_user.get("role") == "STUDENT")
+    for s in submissions:
+        is_pub = bool(s.get("publication_status") == "PUBLISHED" or s.get("exam_is_published") == 1)
+        s["is_published"] = is_pub
+
+        if is_student_user and not is_pub:
+            s["total_awarded_marks"] = None
+            s["percentage"] = None
+            s["answers"] = []
+            s["revaluation"] = None
+            s["publication_status"] = "UNPUBLISHED"
+            s["student_status"] = (
+                "Under Evaluation"
+                if s.get("status") in ["QUEUED", "PROCESSING", "GRADED", "COMPLETED", "NEEDS_REVIEW", "PAUSED_QUOTA"]
+                else "Submitted"
+            )
+            s["days_remaining"] = None
+            s["seconds_remaining"] = None
+            s["retention_expires_at"] = None
+        else:
+            s["answers"] = answers_by_sub.get(s["id"], [])
+            s["revaluation"] = reval_by_sub.get(s["id"])
+            retention_info = RetentionService.get_retention_info(s)
+            s.update(retention_info)
+            s["student_status"] = "Results Published" if is_pub else "Under Evaluation"
+
+    return submissions
+
 
 @router.get("/{submission_id}/pdf")
 def get_submission_pdf_stream(
     submission_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
 ):
     """
     Direct zero-RAM PDF delivery endpoint.
     Redirects (307) directly to Cloudinary / R2 pre-signed CDN URL so zero PDF bytes buffer in server RAM.
     """
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT s.id, s.exam_id, s.canonical_pdf_path, s.original_file_path,
-                   s.is_document_purged, s.publication_status, e.is_published as exam_is_published
-            FROM submissions s
-            LEFT JOIN exams e ON s.exam_id = e.id
-            WHERE s.id = ?
-        """, (submission_id,))
-        sub = cursor.fetchone()
+    result = db.execute(
+        select(Submission, Exam)
+        .outerjoin(Exam, Submission.exam_id == Exam.id)
+        .where(Submission.id == submission_id)
+    ).first()
 
-    if not sub:
+    if not result:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    if sub.get("is_document_purged"):
+    sub, exam = result
+
+    if sub.is_document_purged:
         raise HTTPException(
             status_code=410,
             detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy."
@@ -286,11 +446,11 @@ def get_submission_pdf_stream(
 
     # Check student role access
     is_student = current_user and current_user.get("role") == "STUDENT"
-    is_pub = bool(sub.get("publication_status") == "PUBLISHED" or sub.get("exam_is_published") == 1)
+    is_pub = bool(sub.publication_status == "PUBLISHED" or (exam and exam.is_published == 1))
     if is_student and not is_pub:
         raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
-    key = sub.get("canonical_pdf_path") or sub.get("original_file_path")
+    key = sub.canonical_pdf_path or sub.original_file_path
     if not key:
         raise HTTPException(status_code=404, detail="PDF path not found for submission.")
 
@@ -299,7 +459,6 @@ def get_submission_pdf_stream(
         try:
             download_url = storage.generate_presigned_download_url(key)
             if download_url and (download_url.startswith("http://") or download_url.startswith("https://")):
-                from fastapi.responses import RedirectResponse
                 return RedirectResponse(url=download_url, status_code=307)
         except Exception:
             pass
@@ -314,23 +473,66 @@ def get_submission_pdf_stream(
         headers={"Cache-Control": "public, max-age=86400"}
     )
 
+
 @router.get("/exam/{exam_id}")
-def get_submissions_for_exam(exam_id: str):
+def get_submissions_for_exam(exam_id: str, db: Session = Depends(get_db)):
     """Return all active submissions for an exam with their nested answer breakdown for the marks ledger."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM submissions WHERE exam_id = ? AND submission_status = 'SUBMITTED' ORDER BY roll_number ASC", (exam_id,))
-        subs = [dict(r) for r in cursor.fetchall()]
-        
-        for s in subs:
-            cursor.execute("SELECT * FROM answers WHERE submission_id = ? ORDER BY question_id ASC", (s["id"],))
-            s["answers"] = [dict(a) for a in cursor.fetchall()]
-        return subs
+    subs = db.scalars(
+        select(Submission)
+        .where(Submission.exam_id == exam_id, Submission.submission_status == 'SUBMITTED')
+        .order_by(Submission.roll_number.asc())
+    ).all()
+
+    sub_ids = [s.id for s in subs]
+    answers_by_sub: Dict[str, List[Dict[str, Any]]] = {}
+    if sub_ids:
+        all_ans = db.scalars(
+            select(Answer).where(Answer.submission_id.in_(sub_ids)).order_by(Answer.question_id.asc())
+        ).all()
+        for a in all_ans:
+            answers_by_sub.setdefault(a.submission_id, []).append({
+                "id": a.id,
+                "question_id": a.question_id,
+                "awarded_marks": a.awarded_marks,
+                "max_marks": a.max_marks,
+                "needs_review": bool(a.needs_review),
+                "is_extra_attempt": bool(a.is_extra_attempt),
+            })
+
+    output = []
+    for s in subs:
+        s_dict = {
+            "id": s.id,
+            "exam_id": s.exam_id,
+            "batch_id": s.batch_id,
+            "student_id": s.student_id,
+            "student_name": s.student_name,
+            "roll_number": s.roll_number,
+            "page_count": s.page_count,
+            "file_size_bytes": s.file_size_bytes,
+            "original_file_path": s.original_file_path,
+            "canonical_pdf_path": s.canonical_pdf_path,
+            "annotated_pdf_path": s.annotated_pdf_path,
+            "total_awarded_marks": s.total_awarded_marks,
+            "max_marks": s.max_marks,
+            "percentage": s.percentage,
+            "status": s.status,
+            "submission_status": s.submission_status,
+            "publication_status": s.publication_status,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+            "submitted_at": s.submitted_at,
+            "answers": answers_by_sub.get(s.id, []),
+        }
+        output.append(s_dict)
+    return output
+
 
 class RequestUploadBody(BaseModel):
     roll_number: str
     student_id: Optional[str] = None
     batch_id: Optional[str] = None
+
 
 class ConfirmUploadBody(BaseModel):
     upload_session_id: str
@@ -342,112 +544,88 @@ class ConfirmUploadBody(BaseModel):
     file_size_bytes: Optional[int] = None
     sha256_hash: Optional[str] = None
 
-def parse_iso(iso_str: str) -> datetime:
-    try:
-        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-    except Exception:
-        return datetime.now(timezone.utc)
-
-def verify_active_submission_window(exam_id: str, cursor, allow_grace: bool = False):
-    """Verify that the exam has an active submission window."""
-    cursor.execute(
-        "SELECT * FROM submission_windows WHERE exam_id = ? ORDER BY created_at DESC LIMIT 1",
-        (exam_id,)
-    )
-    window = cursor.fetchone()
-    if not window or window["status"] != "OPEN":
-        raise HTTPException(status_code=400, detail="Submission window is not currently open for this examination.")
-    
-    now = datetime.now(timezone.utc)
-    target_deadline = parse_iso(window["grace_deadline_at"] if allow_grace else window["deadline_at"])
-    
-    if now > target_deadline:
-        if allow_grace:
-            raise HTTPException(status_code=400, detail="Grace period has expired. Upload rejected.")
-        else:
-            raise HTTPException(status_code=400, detail="Submission window has closed.")
-    return window
 
 @router.post("/{exam_id}/request-upload")
 def request_presigned_upload(
     exam_id: str,
     req: RequestUploadBody,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Step 1 of Direct-to-Storage Upload:
     Validates submission window, creates upload session, and generates pre-signed S3/R2 PUT URL.
-    Zero Render RAM/bandwidth consumed during file transmission.
     """
     clean_roll = req.roll_number.strip().upper()
-    
-    with get_db() as conn:
-        cursor = conn.cursor()
-        # Verify active window (strict deadline, not grace, for new upload initiation)
-        verify_active_submission_window(exam_id, cursor, allow_grace=False)
-        
-        # Verify exam exists
-        cursor.execute("SELECT id, title, branch_id, batch_scope, batch_ids FROM exams WHERE id = ?", (exam_id,))
-        exam = cursor.fetchone()
-        if not exam:
-            raise HTTPException(status_code=404, detail="Exam not found.")
-        
-        # Enforce batch scoping
-        if exam.get("batch_scope") in ("SPECIFIC", "BATCHES"):
-            student_batch = req.batch_id
-            if not student_batch:
-                cursor.execute(
-                    "SELECT batch_id FROM students WHERE UPPER(roll_number) = ? OR id = ? OR user_id = ? LIMIT 1",
-                    (clean_roll, req.student_id or "", (current_user or {}).get("sub", ""))
-                )
-                st_row = cursor.fetchone()
-                if st_row:
-                    student_batch = st_row["batch_id"]
 
-            allowed_bids = set()
-            if exam.get("batch_ids"):
-                try:
-                    p = json.loads(exam["batch_ids"])
-                    if isinstance(p, list):
-                        allowed_bids = set(str(x).strip() for x in p if str(x).strip())
-                except Exception:
-                    allowed_bids = set(b.strip() for b in exam["batch_ids"].split(",") if b.strip())
-            if not allowed_bids:
-                cursor.execute("SELECT batch_id FROM exam_batches WHERE exam_id = ?", (exam_id,))
-                allowed_bids = set(r["batch_id"] for r in cursor.fetchall() if r["batch_id"])
+    verify_active_submission_window(exam_id, db, allow_grace=False)
 
-            if not student_batch or str(student_batch) not in allowed_bids:
-                raise HTTPException(
-                    status_code=403,
-                    detail="This examination is restricted to specific batches. Your batch is not eligible to submit."
-                )
-        
-        upload_session_id = f"upsess_{uuid.uuid4().hex}"
-        student_tag = req.student_id or clean_roll
-        destination_key = f"submissions/{exam_id}/{student_tag}/original_{upload_session_id}.pdf"
-        
-        storage = get_storage_service()
-        presigned = storage.generate_presigned_upload_url(
-            key=destination_key,
-            content_type="application/pdf",
-            expires_in=300 # 5 minutes
-        )
-        
-        return {
-            "status": "authorized",
-            "upload_session_id": upload_session_id,
-            "destination_key": destination_key,
-            "upload_url": presigned["url"],
-            "method": presigned["method"],
-            "headers": presigned.get("headers", {}),
-            "is_direct_cloud": presigned.get("is_direct_cloud", False)
-        }
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found.")
+
+    if exam.batch_scope in ("SPECIFIC", "BATCHES"):
+        student_batch = req.batch_id
+        if not student_batch:
+            st_row = db.scalar(
+                select(Student).where(
+                    or_(
+                        func.upper(Student.roll_number) == clean_roll,
+                        Student.id == (req.student_id or ""),
+                        Student.user_id == ((current_user or {}).get("sub", ""))
+                    )
+                ).limit(1)
+            )
+            if st_row:
+                student_batch = st_row.batch_id
+
+        allowed_bids = set()
+        if exam.batch_ids:
+            try:
+                p = json.loads(exam.batch_ids)
+                if isinstance(p, list):
+                    allowed_bids = set(str(x).strip() for x in p if str(x).strip())
+            except Exception:
+                allowed_bids = set(b.strip() for b in exam.batch_ids.split(",") if b.strip())
+        if not allowed_bids:
+            allowed_bids = set(
+                db.scalars(select(ExamBatch.batch_id).where(ExamBatch.exam_id == exam_id)).all()
+            )
+
+        if not student_batch or str(student_batch) not in allowed_bids:
+            raise HTTPException(
+                status_code=403,
+                detail="This examination is restricted to specific batches. Your batch is not eligible to submit."
+            )
+
+    upload_session_id = f"upsess_{uuid.uuid4().hex}"
+    student_tag = req.student_id or clean_roll
+    destination_key = f"submissions/{exam_id}/{student_tag}/original_{upload_session_id}.pdf"
+
+    storage = get_storage_service()
+    presigned = storage.generate_presigned_upload_url(
+        key=destination_key,
+        content_type="application/pdf",
+        expires_in=300
+    )
+
+    return {
+        "status": "authorized",
+        "upload_session_id": upload_session_id,
+        "destination_key": destination_key,
+        "upload_url": presigned["url"],
+        "method": presigned["method"],
+        "headers": presigned.get("headers", {}),
+        "is_direct_cloud": presigned.get("is_direct_cloud", False)
+    }
+
 
 @router.post("/{exam_id}/confirm-upload")
 def confirm_presigned_upload(
     exam_id: str,
     req: ConfirmUploadBody,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Step 2 of Direct-to-Storage Upload:
@@ -456,15 +634,13 @@ def confirm_presigned_upload(
     """
     clean_roll = req.roll_number.strip().upper()
     storage = get_storage_service()
-    
-    # Check that file exists in storage
+
     if not storage.file_exists(req.storage_key):
         raise HTTPException(status_code=400, detail="Uploaded file was not found in storage. Please re-upload.")
-    
+
     local_path = storage.get_local_path_or_download(req.storage_key)
     file_size = local_path.stat().st_size
-    
-    # 1. Enforce max file size
+
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if file_size > max_bytes:
         storage.delete_file(req.storage_key)
@@ -472,8 +648,7 @@ def confirm_presigned_upload(
             status_code=400,
             detail=f"File exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_MB} MB (received {file_size / (1024*1024):.1f} MB)."
         )
-    
-    # 2. Enforce PDF structure and page count with PyMuPDF
+
     try:
         doc = fitz.open(str(local_path))
         page_count = len(doc)
@@ -481,116 +656,115 @@ def confirm_presigned_upload(
     except Exception as e:
         storage.delete_file(req.storage_key)
         raise HTTPException(status_code=400, detail=f"Invalid or corrupted PDF file: {str(e)}")
-    
+
     if page_count > settings.MAX_PAGE_COUNT:
         storage.delete_file(req.storage_key)
         raise HTTPException(
             status_code=400,
             detail=f"PDF exceeds maximum page limit of {settings.MAX_PAGE_COUNT} pages (received {page_count} pages)."
         )
-    
+
     now = get_iso_now()
     sub_id = f"sub_{uuid.uuid4().hex[:12]}"
-    
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        # Verify active window (allows grace period for in-flight completions)
-        verify_active_submission_window(exam_id, cursor, allow_grace=True)
-        
-        # Fetch exam total marks and branch
-        cursor.execute("SELECT title, branch_id, total_marks FROM exams WHERE id = ?", (exam_id,))
-        exam = cursor.fetchone()
-        exam_total = exam["total_marks"] if exam else 0.0
-        
-        s_name = req.student_name or f"Student {clean_roll}"
-        student_id = req.student_id
-        if not student_id:
-            cursor.execute("SELECT id, full_name FROM students WHERE UPPER(roll_number) = ?", (clean_roll,))
-            stu_rec = cursor.fetchone()
-            if stu_rec:
-                student_id = stu_rec["id"]
-                if not req.student_name:
-                    s_name = stu_rec["full_name"]
-            elif current_user and current_user.get("role") == "STUDENT":
-                cursor.execute("SELECT id, full_name FROM students WHERE user_id = ?", (current_user["sub"],))
-                stu_rec = cursor.fetchone()
-                if stu_rec:
-                    student_id = stu_rec["id"]
-                    if not req.student_name:
-                        s_name = stu_rec["full_name"]
 
-        # ATOMIC REPLACEMENT: Purge any existing submission for this student on this exam
-        replaced_count = _purge_and_replace_previous_submissions(
-            cursor=cursor,
-            exam_id=exam_id,
-            clean_roll=clean_roll,
-            student_id=student_id,
-            new_sub_id=sub_id,
-            current_user_id=current_user["sub"] if current_user else None
+    verify_active_submission_window(exam_id, db, allow_grace=True)
+
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    exam_total = exam.total_marks if exam else 0.0
+
+    s_name = req.student_name or f"Student {clean_roll}"
+    student_id = req.student_id
+    if not student_id:
+        stu_rec = db.scalar(select(Student).where(func.upper(Student.roll_number) == clean_roll))
+        if stu_rec:
+            student_id = stu_rec.id
+            if not req.student_name:
+                s_name = stu_rec.full_name
+        elif current_user and current_user.get("role") == "STUDENT":
+            stu_rec = db.scalar(select(Student).where(Student.user_id == current_user["sub"]))
+            if stu_rec:
+                student_id = stu_rec.id
+                if not req.student_name:
+                    s_name = stu_rec.full_name
+
+    # Atomic replacement
+    replaced_count = _purge_and_replace_previous_submissions(
+        cursor=db,
+        exam_id=exam_id,
+        clean_roll=clean_roll,
+        student_id=student_id,
+        new_sub_id=sub_id,
+        current_user_id=current_user["sub"] if current_user else None
+    )
+
+    new_sub = Submission(
+        id=sub_id,
+        batch_id=req.batch_id,
+        exam_id=exam_id,
+        student_id=student_id,
+        student_name=s_name,
+        roll_number=clean_roll,
+        original_file_path=req.storage_key,
+        canonical_pdf_path=req.storage_key,
+        page_count=page_count,
+        file_size_bytes=file_size,
+        sha256_hash=req.sha256_hash,
+        upload_session_id=req.upload_session_id,
+        submission_status='SUBMITTED',
+        status='UPLOADED',
+        publication_status='UNPUBLISHED',
+        max_marks=exam_total,
+        submitted_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(new_sub)
+
+    if req.batch_id:
+        db.execute(update(Batch).where(Batch.id == req.batch_id).values(updated_at=now))
+
+    target_user_id = current_user.get("sub") if current_user and current_user.get("role") == "STUDENT" else None
+    if not target_user_id and student_id:
+        stu = db.scalar(select(Student).where(Student.id == student_id))
+        if stu and stu.user_id:
+            target_user_id = stu.user_id
+
+    exam_title = exam.title if exam and exam.title else "Exam"
+    exam_branch = exam.branch_id if exam else None
+
+    if target_user_id:
+        send_notification(
+            cursor=db,
+            user_id=target_user_id,
+            notif_type="SUBMISSION_CONFIRMED",
+            title="Answer Sheet Submitted",
+            message=f"Your answer sheet for '{exam_title}' has been received. Status: Submitted.",
+            link_url="/student/portal"
         )
-        
-        # Client renders PDF canvas directly via PDF.js; fallback JIT is handled in grading.py
-        
-        # Insert active submission
-        cursor.execute("""
-            INSERT INTO submissions (
-                id, batch_id, exam_id, student_id, student_name, roll_number,
-                original_file_path, canonical_pdf_path, page_count, file_size_bytes,
-                sha256_hash, upload_session_id, submission_status, status, publication_status,
-                max_marks, submitted_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', 'UPLOADED', 'UNPUBLISHED', ?, ?, ?, ?)
-        """, (
-            sub_id, req.batch_id, exam_id, student_id, s_name, clean_roll,
-            req.storage_key, req.storage_key, page_count, file_size,
-            req.sha256_hash, req.upload_session_id, exam_total, now, now, now
-        ))
-        
-        # Update batch counters if batch exists
-        if req.batch_id:
-            cursor.execute("UPDATE batches SET updated_at = ? WHERE id = ?", (now, req.batch_id))
-        
-        # Student confirmation notification
-        target_user_id = current_user.get("sub") if current_user and current_user.get("role") == "STUDENT" else None
-        if not target_user_id and student_id:
-            cursor.execute("SELECT user_id FROM students WHERE id = ?", (student_id,))
-            s_row = cursor.fetchone()
-            if s_row and s_row["user_id"]:
-                target_user_id = s_row["user_id"]
-        
-        exam_title = exam["title"] if exam and exam.get("title") else "Exam"
-        exam_branch = exam.get("branch_id") if exam else None
-        
-        if target_user_id:
-            send_notification(
-                cursor=cursor,
-                user_id=target_user_id,
-                notif_type="SUBMISSION_CONFIRMED",
-                title="Answer Sheet Submitted",
-                message=f"Your answer sheet for '{exam_title}' has been received. Status: Submitted.",
-                link_url="/student/portal"
-            )
-        
-        notify_branch_managers(
-            cursor=cursor,
-            branch_id=exam_branch,
-            notif_type="SUBMISSION_RECEIVED",
-            title="New Student Submission",
-            message=f"Student {clean_roll} submitted their answer script for '{exam_title}'.",
-            link_url="/overview"
-        )
-        
-        return {
-            "status": "success",
-            "submission_id": sub_id,
-            "student_name": s_name,
-            "roll_number": clean_roll,
-            "page_count": page_count,
-            "file_size_bytes": file_size,
-            "is_replacement": bool(replaced_count > 0),
-            "submitted_at": now,
-            "student_status": "Submitted"
-        }
+
+    notify_branch_managers(
+        cursor=db,
+        branch_id=exam_branch,
+        notif_type="SUBMISSION_RECEIVED",
+        title="New Student Submission",
+        message=f"Student {clean_roll} submitted their answer script for '{exam_title}'.",
+        link_url="/overview"
+    )
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "submission_id": sub_id,
+        "student_name": s_name,
+        "roll_number": clean_roll,
+        "page_count": page_count,
+        "file_size_bytes": file_size,
+        "is_replacement": bool(replaced_count > 0),
+        "submitted_at": now,
+        "student_status": "Submitted"
+    }
+
 
 def _process_submission_sync(
     exam_id: str,
@@ -602,53 +776,53 @@ def _process_submission_sync(
     current_role: Optional[str]
 ) -> Dict[str, Any]:
     storage = get_storage_service()
-    
-    with get_db() as conn:
-        cursor = conn.cursor()
-        verify_active_submission_window(exam_id, cursor, allow_grace=False)
-        
-        cursor.execute("SELECT title, branch_id, total_marks, batch_scope, batch_ids FROM exams WHERE id = ?", (exam_id,))
-        exam = cursor.fetchone()
-        exam_total = exam["total_marks"] if exam else 0.0
 
-        # Enforce batch scoping
-        if exam and exam.get("batch_scope") in ("SPECIFIC", "BATCHES"):
+    with get_session() as session:
+        verify_active_submission_window(exam_id, session, allow_grace=False)
+
+        exam = session.scalar(select(Exam).where(Exam.id == exam_id))
+        exam_total = exam.total_marks if exam else 0.0
+
+        if exam and exam.batch_scope in ("SPECIFIC", "BATCHES"):
             student_batch = batch_id
             if not student_batch:
-                cursor.execute(
-                    "SELECT batch_id FROM students WHERE UPPER(roll_number) = ? OR user_id = ? LIMIT 1",
-                    (clean_roll, current_sub or "")
+                st_row = session.scalar(
+                    select(Student).where(
+                        or_(
+                            func.upper(Student.roll_number) == clean_roll,
+                            Student.user_id == (current_sub or "")
+                        )
+                    ).limit(1)
                 )
-                st_row = cursor.fetchone()
                 if st_row:
-                    student_batch = st_row["batch_id"]
+                    student_batch = st_row.batch_id
 
             allowed_bids = set()
-            if exam.get("batch_ids"):
+            if exam.batch_ids:
                 try:
-                    p = json.loads(exam["batch_ids"])
+                    p = json.loads(exam.batch_ids)
                     if isinstance(p, list):
                         allowed_bids = set(str(x).strip() for x in p if str(x).strip())
                 except Exception:
-                    allowed_bids = set(b.strip() for b in exam["batch_ids"].split(",") if b.strip())
+                    allowed_bids = set(b.strip() for b in exam.batch_ids.split(",") if b.strip())
             if not allowed_bids:
-                cursor.execute("SELECT batch_id FROM exam_batches WHERE exam_id = ?", (exam_id,))
-                allowed_bids = set(r["batch_id"] for r in cursor.fetchall() if r["batch_id"])
+                allowed_bids = set(
+                    session.scalars(select(ExamBatch.batch_id).where(ExamBatch.exam_id == exam_id)).all()
+                )
 
             if not student_batch or str(student_batch) not in allowed_bids:
                 raise HTTPException(
                     status_code=403,
                     detail="This examination is restricted to specific batches. Your batch is not eligible to submit."
                 )
-    
+
     sub_id = f"sub_{uuid.uuid4().hex[:12]}"
     dest_key = f"submissions/{exam_id}/{clean_roll}/original_{sub_id}.pdf"
     file_size = len(content)
-    
-    # Save to storage (Cloudinary / R2 / local disk)
+
     storage.upload_file(content, dest_key, content_type="application/pdf")
     local_path = storage.get_local_path_or_download(dest_key)
-    
+
     try:
         doc = fitz.open(str(local_path))
         page_count = len(doc)
@@ -656,91 +830,94 @@ def _process_submission_sync(
     except Exception as e:
         storage.delete_file(dest_key)
         raise HTTPException(status_code=400, detail=f"Corrupted or invalid PDF: {str(e)}")
-    
+
     if page_count > settings.MAX_PAGE_COUNT:
         storage.delete_file(dest_key)
         raise HTTPException(status_code=400, detail=f"File exceeds {settings.MAX_PAGE_COUNT} page limit.")
-    
+
     sha256 = hashlib.sha256(content).hexdigest()
     now = get_iso_now()
     s_name = (student_name or "").strip() or f"Student {clean_roll}"
-    
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        # Resolve student_id if student is enrolled in students table
-        student_id = None
-        cursor.execute("SELECT id, full_name, batch_id FROM students WHERE UPPER(roll_number) = ?", (clean_roll,))
-        stu_rec = cursor.fetchone()
-        if stu_rec:
-            student_id = stu_rec["id"]
-            if not student_name:
-                s_name = stu_rec["full_name"]
-            if not batch_id and stu_rec["batch_id"]:
-                batch_id = stu_rec["batch_id"]
-        elif current_role == "STUDENT" and current_sub:
-            cursor.execute("SELECT id, full_name, batch_id FROM students WHERE user_id = ?", (current_sub,))
-            stu_rec = cursor.fetchone()
-            if stu_rec:
-                student_id = stu_rec["id"]
-                if not student_name:
-                    s_name = stu_rec["full_name"]
-                if not batch_id and stu_rec["batch_id"]:
-                    batch_id = stu_rec["batch_id"]
 
-        # Atomic replacement: purge previous submissions for this student on this exam
+    with get_session() as session:
+        student_id = None
+        stu_rec = session.scalar(select(Student).where(func.upper(Student.roll_number) == clean_roll))
+        if stu_rec:
+            student_id = stu_rec.id
+            if not student_name:
+                s_name = stu_rec.full_name
+            if not batch_id and stu_rec.batch_id:
+                batch_id = stu_rec.batch_id
+        elif current_role == "STUDENT" and current_sub:
+            stu_rec = session.scalar(select(Student).where(Student.user_id == current_sub))
+            if stu_rec:
+                student_id = stu_rec.id
+                if not student_name:
+                    s_name = stu_rec.full_name
+                if not batch_id and stu_rec.batch_id:
+                    batch_id = stu_rec.batch_id
+
         replaced_count = _purge_and_replace_previous_submissions(
-            cursor=cursor,
+            cursor=session,
             exam_id=exam_id,
             clean_roll=clean_roll,
             student_id=student_id,
             new_sub_id=sub_id,
             current_user_id=current_sub
         )
-        
-        cursor.execute("""
-            INSERT INTO submissions (
-                id, batch_id, exam_id, student_id, student_name, roll_number,
-                original_file_path, canonical_pdf_path, page_count, file_size_bytes,
-                sha256_hash, submission_status, status, publication_status,
-                max_marks, submitted_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUBMITTED', 'UPLOADED', 'UNPUBLISHED', ?, ?, ?, ?)
-        """, (
-            sub_id, batch_id, exam_id, student_id, s_name, clean_roll,
-            dest_key, dest_key, page_count, file_size,
-            sha256, exam_total, now, now, now
-        ))
-        
-        # Student confirmation notification
+
+        new_sub = Submission(
+            id=sub_id,
+            batch_id=batch_id,
+            exam_id=exam_id,
+            student_id=student_id,
+            student_name=s_name,
+            roll_number=clean_roll,
+            original_file_path=dest_key,
+            canonical_pdf_path=dest_key,
+            page_count=page_count,
+            file_size_bytes=file_size,
+            sha256_hash=sha256,
+            submission_status='SUBMITTED',
+            status='UPLOADED',
+            publication_status='UNPUBLISHED',
+            max_marks=exam_total,
+            submitted_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(new_sub)
+
         target_user_id = current_sub if current_role == "STUDENT" else None
         if not target_user_id and student_id:
-            cursor.execute("SELECT user_id FROM students WHERE id = ?", (student_id,))
-            s_row = cursor.fetchone()
-            if s_row and s_row["user_id"]:
-                target_user_id = s_row["user_id"]
-        
-        exam_title = exam["title"] if exam and exam.get("title") else "Exam"
-        exam_branch = exam.get("branch_id") if exam else None
-        
+            stu = session.scalar(select(Student).where(Student.id == student_id))
+            if stu and stu.user_id:
+                target_user_id = stu.user_id
+
+        exam_title = exam.title if exam and exam.title else "Exam"
+        exam_branch = exam.branch_id if exam else None
+
         if target_user_id:
             send_notification(
-                cursor=cursor,
+                cursor=session,
                 user_id=target_user_id,
                 notif_type="SUBMISSION_CONFIRMED",
                 title="Answer Sheet Submitted",
                 message=f"Your answer sheet for '{exam_title}' has been received. Status: Submitted.",
                 link_url="/student/portal"
             )
-        
+
         notify_branch_managers(
-            cursor=cursor,
+            cursor=session,
             branch_id=exam_branch,
             notif_type="SUBMISSION_RECEIVED",
             title="New Student Submission",
             message=f"Student {clean_roll} submitted their answer script for '{exam_title}'.",
             link_url="/overview"
         )
-        
+
+        session.commit()
+
         payload = {
             "status": "success",
             "submission_id": sub_id,
@@ -752,6 +929,7 @@ def _process_submission_sync(
         }
         return payload, str(local_path), sub_id
 
+
 @router.post("/{exam_id}/upload-single")
 async def upload_single_multipart(
     exam_id: str,
@@ -762,27 +940,15 @@ async def upload_single_multipart(
     files: Optional[List[UploadFile]] = File(None),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
 ):
-    """
-    Multipart upload endpoint for student submissions.
-    Supports:
-    - Single PDF upload
-    - Single photo / image upload
-    - Multi-page camera scans / gallery photos (stitched into a canonical upright PDF)
-    - Mixed PDF and image pages
-    Upload validation and DB transactions run non-blocking with zero eager rasterization.
-    """
     clean_roll = roll_number.strip().upper()
 
-    # Collect all provided files (backward compatible with 'file' and 'files')
     all_files: List[UploadFile] = []
     seen_filenames = set()
 
-    # Prioritize main upload if 'file' provided
     if file and file.filename:
         all_files.append(file)
         seen_filenames.add(file.filename)
 
-    # Add any files from 'files' parameter that are not duplicate references
     if files:
         for f in files:
             if f and f.filename and f.filename not in seen_filenames:
@@ -792,7 +958,6 @@ async def upload_single_multipart(
     if not all_files:
         raise HTTPException(status_code=400, detail="No answer sheet file provided for upload.")
 
-    # Check if single PDF
     is_single_pdf = len(all_files) == 1 and Path(all_files[0].filename).suffix.lower() == ".pdf"
 
     if is_single_pdf:
@@ -801,7 +966,6 @@ async def upload_single_multipart(
         if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
             raise HTTPException(status_code=400, detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB.")
     else:
-        # Multiple files or image files: validate, save temporary parts, and assemble canonical PDF
         import tempfile
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -829,7 +993,6 @@ async def upload_single_multipart(
 
             out_pdf = tmp_path / "canonical_assembled.pdf"
             try:
-                # Concurrency guard: strict limit of 1 simultaneous image stitching job on 512MB RAM
                 async with _backend_stitching_semaphore:
                     await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_paths, out_pdf)
             except Exception as e:
@@ -859,49 +1022,39 @@ async def upload_single_multipart(
         current_role
     )
 
-    # Client renders PDF canvas directly via PDF.js; fallback JIT is handled in grading.py
     return res_payload
+
 
 @router.get("/{submission_id}")
 def get_submission_details(
     submission_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
 ):
-    """
-    Fetch submission record with strict role-based visibility decoupling.
-    Students see only 3 statuses: 'Submitted', 'Under Evaluation', 'Results Published'.
-    Marks, rationales, and graded PDFs are hidden until publication_status == 'PUBLISHED'.
-    """
     sub = grading_service.get_submission_details(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
-    
+
     is_student = current_user and current_user.get("role") == "STUDENT"
     is_published = sub.get("publication_status") == "PUBLISHED"
-    
+
     if is_student:
-        # Check student ownership
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, roll_number FROM students WHERE user_id = ?", (current_user["sub"],))
-            stu_rows = cursor.fetchall()
-            allowed_rolls = [r["roll_number"].strip().upper() for r in stu_rows if r.get("roll_number")]
-            allowed_ids = [r["id"] for r in stu_rows]
-            if current_user.get("roll_number"):
-                allowed_rolls.append(current_user["roll_number"].strip().upper())
-            if current_user.get("student_id"):
-                allowed_ids.append(current_user["student_id"])
-            
-            sub_roll = (sub.get("roll_number") or "").strip().upper()
-            sub_stu_id = sub.get("student_id") or ""
-            
-            if allowed_rolls or allowed_ids:
-                if sub_roll not in allowed_rolls and sub_stu_id not in allowed_ids:
-                    raise HTTPException(status_code=403, detail="Forbidden: You can only view your own submission.")
-        
-        # Student-facing view
+        stu_rows = db.scalars(select(Student).where(Student.user_id == current_user["sub"])).all()
+        allowed_rolls = [r.roll_number.strip().upper() for r in stu_rows if r.roll_number]
+        allowed_ids = [r.id for r in stu_rows]
+        if current_user.get("roll_number"):
+            allowed_rolls.append(current_user["roll_number"].strip().upper())
+        if current_user.get("student_id"):
+            allowed_ids.append(current_user["student_id"])
+
+        sub_roll = (sub.get("roll_number") or "").strip().upper()
+        sub_stu_id = sub.get("student_id") or ""
+
+        if allowed_rolls or allowed_ids:
+            if sub_roll not in allowed_rolls and sub_stu_id not in allowed_ids:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only view your own submission.")
+
         if not is_published:
-            # Mask internal AI grading results
             student_status = (
                 "Under Evaluation"
                 if sub.get("status") in ["QUEUED", "PROCESSING", "GRADED", "COMPLETED", "NEEDS_REVIEW", "PAUSED_QUOTA"]
@@ -920,7 +1073,6 @@ def get_submission_details(
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
         else:
-            # Published: student can view full paper, answer regions, bounding boxes (if not purged), and download PDF (if not purged)
             is_purged = bool(sub.get("is_document_purged"))
             return {
                 "id": sub["id"],
@@ -954,17 +1106,16 @@ def get_submission_details(
                 "pdf_url": f"/api/v1/submissions/{sub['id']}/pdf",
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
-    
-    # Root Admin / Branch Manager view: return full internal representation
+
     sub["pdf_url"] = f"/api/v1/submissions/{sub['id']}/pdf"
     return sub
+
 
 @router.post("/purge-expired")
 def purge_expired_documents(current_user: Dict[str, Any] = Depends(require_root_admin)):
     """
     Root Admin maintenance task:
     Scans and purges all student submissions that have exceeded the 15-day TTL post-grading.
-    Deletes raw and annotated PDFs from storage, renders from disk, and removes answer_regions (bounding boxes) from database.
     """
     res = RetentionService.check_and_purge_expired_submissions()
     return res
