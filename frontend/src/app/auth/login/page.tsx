@@ -52,6 +52,7 @@ function LoginForm() {
   // Forgot password flow state
   const [forgotIdentifier, setForgotIdentifier] = useState("");
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [sessionSecret, setSessionSecret] = useState<string | null>(null);
   const [studentInfo, setStudentInfo] = useState<{ name?: string; roll?: string } | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -137,12 +138,12 @@ function LoginForm() {
 
   // Live polling for Branch Manager approval while awaiting
   useEffect(() => {
-    if (viewMode !== "AWAITING_APPROVAL" || !activeRequestId) return;
+    if (viewMode !== "AWAITING_APPROVAL" || !activeRequestId || !sessionSecret) return;
 
     let isMounted = true;
     const interval = setInterval(async () => {
       try {
-        const res = await api.getPasswordResetStatus(activeRequestId);
+        const res = await api.getPasswordResetStatus(activeRequestId, sessionSecret);
         if (!isMounted) return;
 
         if (res.status === "APPROVED") {
@@ -174,7 +175,7 @@ function LoginForm() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [viewMode, activeRequestId, toast]);
+  }, [viewMode, activeRequestId, sessionSecret, toast]);
 
   const handleInstallClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -333,10 +334,11 @@ function LoginForm() {
     try {
       const res = await api.requestPasswordReset(forgotIdentifier.trim());
       setActiveRequestId(res.request_id);
+      setSessionSecret(res.session_secret || null);
       setStudentInfo({ name: res.student_name, roll: res.roll_number });
 
       if (res.request_status === "APPROVED") {
-        const statusResp = await api.getPasswordResetStatus(res.request_id);
+        const statusResp = await api.getPasswordResetStatus(res.request_id, res.session_secret);
         if (statusResp.reset_token) {
           setResetToken(statusResp.reset_token);
           setViewMode("RESET_PASSWORD");
@@ -366,8 +368,8 @@ function LoginForm() {
       setForgotError("Please fill in both password fields.");
       return;
     }
-    if (newPassword.length < 6) {
-      setForgotError("New password must be at least 6 characters long.");
+    if (newPassword.length < 8) {
+      setForgotError("New password must be at least 8 characters long.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -400,6 +402,7 @@ function LoginForm() {
       setNewPassword("");
       setConfirmPassword("");
       setActiveRequestId(null);
+      setSessionSecret(null);
       setResetToken(null);
       setViewMode("LOGIN");
     } catch (err: any) {

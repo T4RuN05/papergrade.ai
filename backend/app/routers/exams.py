@@ -58,11 +58,11 @@ router = APIRouter(tags=["Exams, Rubrics & Publication"])
 @router.get("")
 def list_exams(
     branch_id: Optional[str] = None,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    user_role = current_user.get("role") if current_user else "ROOT_ADMIN"
-    user_branch = current_user.get("branch_id") if current_user else None
+    user_role = current_user.get("role")
+    user_branch = current_user.get("branch_id")
 
     stmt = (
         select(
@@ -80,6 +80,8 @@ def list_exams(
 
     if user_role == "BRANCH_MANAGER" and user_branch:
         stmt = stmt.where(Exam.branch_id == user_branch)
+    elif user_role == "STUDENT" and user_branch:
+        stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
     elif branch_id:
         stmt = stmt.where(Exam.branch_id == branch_id)
 
@@ -259,7 +261,7 @@ def get_exam_evaluation_status(
 @router.get("/{exam_id}")
 def get_exam(
     exam_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     exam = exam_service.get_exam(exam_id)
@@ -267,7 +269,7 @@ def get_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
 
     # If student, mask answer key and rubric until published
-    if current_user and current_user.get("role") == "STUDENT":
+    if current_user.get("role") == "STUDENT":
         if not exam.get("is_published"):
             exam["answer_key_path"] = None
             exam["rubric_version"] = None
@@ -993,7 +995,7 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
 @router.get("/{exam_id}/question-paper")
 async def get_exam_question_paper(
     exam_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     exam = exam_service.get_exam(exam_id)
     if not exam:
@@ -1005,7 +1007,7 @@ async def get_exam_question_paper(
             detail="Document unavailable: Question paper was permanently purged in accordance with the 15-day storage retention policy."
         )
 
-    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+    if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Question paper is available to students once exam results are published."
@@ -1025,7 +1027,7 @@ async def get_exam_question_paper(
 @router.get("/{exam_id}/answer-key")
 async def get_exam_answer_key(
     exam_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     exam = exam_service.get_exam(exam_id)
     if not exam:
@@ -1037,7 +1039,7 @@ async def get_exam_answer_key(
             detail="Document unavailable: Official answer key was permanently purged in accordance with the 15-day storage retention policy."
         )
 
-    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+    if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Official answer key is confidential until exam results are published."
@@ -1058,7 +1060,7 @@ async def get_exam_answer_key(
 async def get_exam_artifact_meta(
     exam_id: str,
     artifact_type: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     clean_art = artifact_type.lower().replace("_", "-")
     if clean_art not in ["question-paper", "answer-key"]:
@@ -1079,7 +1081,7 @@ async def get_exam_artifact_meta(
             "notice": "Document permanently purged in accordance with the 15-day retention policy."
         }
 
-    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+    if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
         raise HTTPException(status_code=403, detail="Official examination documents are confidential until results are published.")
 
     pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
@@ -1120,7 +1122,7 @@ async def get_exam_artifact_page_image(
     exam_id: str,
     artifact_type: str,
     page_num: int,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     clean_art = artifact_type.lower().replace("_", "-")
     if clean_art not in ["question-paper", "answer-key"]:

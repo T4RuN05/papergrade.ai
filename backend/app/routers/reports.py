@@ -298,8 +298,19 @@ def list_reports(
 
 
 @router.get("/{report_id}/images/{filename}")
-def get_report_image(report_id: str, filename: str):
+def get_report_image(
+    report_id: str,
+    filename: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Serve a screenshot securely from persistent storage or local reports cache."""
+    # Check access permission: ROOT_ADMIN or the report author
+    if current_user.get("role") != "ROOT_ADMIN":
+        rep = db.scalar(select(TechnicalReport).where(TechnicalReport.id == report_id))
+        if not rep or rep.user_id != current_user.get("sub"):
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access screenshots from another user's report.")
+
     safe_filename = os.path.basename(filename)
 
     media_type = "image/png"

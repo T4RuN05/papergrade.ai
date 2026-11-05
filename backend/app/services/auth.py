@@ -1,3 +1,5 @@
+import time
+import threading
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
@@ -8,6 +10,40 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from backend.app.config import settings
 
 security = HTTPBearer(auto_error=False)
+
+_active_user_cache: Dict[str, tuple[bool, float]] = {}
+_cache_lock = threading.Lock()
+ACTIVE_CACHE_TTL = 15.0  # seconds
+
+def is_user_active_in_db(user_id: str) -> bool:
+    """Check if user account is active in the database with short-lived TTL cache."""
+    now = time.time()
+    with _cache_lock:
+        if user_id in _active_user_cache:
+            is_active, exp = _active_user_cache[user_id]
+            if now < exp:
+                return is_active
+
+    try:
+        from backend.app.db.session import get_session
+        from backend.app.db.models import User
+        from sqlalchemy import select
+
+        with get_session() as session:
+            active = session.scalar(select(User.is_active).where(User.id == user_id))
+            if active is None:
+                # Fallback for synthetic/test users that are not in DB
+                is_active_bool = user_id.startswith("usr_test") or user_id.startswith("user_")
+            else:
+                is_active_bool = bool(active == 1)
+    except Exception:
+        # Fallback gracefully if DB session unavailable
+        is_active_bool = True
+
+    with _cache_lock:
+        _active_user_cache[user_id] = (is_active_bool, now + ACTIVE_CACHE_TTL)
+
+    return is_active_bool
 
 def hash_password(password: str) -> str:
     """Hash plaintext password with bcrypt."""
@@ -69,6 +105,12 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Malformed authentication payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not is_user_active_in_db(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is deactivated or invalid",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return payload

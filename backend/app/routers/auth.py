@@ -274,8 +274,8 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     clean_id_num = req.student_id_num.strip()
     clean_roll = req.roll_number.strip().upper()
 
-    if len(req.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
 
     # 1. Verify student record exists
     student = db.scalar(
@@ -555,6 +555,7 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
             "roll_number": roll_number,
         }
 
+    session_secret = f"sec_{uuid.uuid4().hex}"
     req_id = f"pr_{uuid.uuid4().hex[:12]}"
     pr = PasswordResetRequest(
         id=req_id,
@@ -565,6 +566,7 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
         student_name=student_name,
         student_email=student_email,
         status="PENDING",
+        reset_token=session_secret,
         expires_at=expires_at,
         created_at=now,
     )
@@ -585,6 +587,7 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
     return {
         "status": "success",
         "request_id": req_id,
+        "session_secret": session_secret,
         "request_status": "PENDING",
         "message": "Password reset request submitted. Awaiting approval from your Branch Manager.",
         "student_name": student_name,
@@ -593,11 +596,15 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
 
 
 @router.get("/forgot-password/status/{request_id}")
-def get_password_reset_status(request_id: str, db: Session = Depends(get_db)):
+def get_password_reset_status(
+    request_id: str,
+    session_secret: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     """
     Polled by student login form while in waiting state.
     Returns status: PENDING, APPROVED, REJECTED, COMPLETED, or EXPIRED.
-    When APPROVED, returns the one-time reset_token to authorize password update.
+    When APPROVED, returns the one-time reset_token ONLY if caller verifies session_secret.
     """
     req = db.scalar(select(PasswordResetRequest).where(PasswordResetRequest.id == request_id))
     if not req:
@@ -622,7 +629,15 @@ def get_password_reset_status(request_id: str, db: Session = Depends(get_db)):
     }
 
     if current_status == "APPROVED":
-        resp["reset_token"] = req.reset_token
+        stored = req.reset_token or ""
+        if ":" in stored:
+            init_sec, actual_token = stored.split(":", 1)
+            if session_secret and session_secret == init_sec:
+                resp["reset_token"] = actual_token
+            else:
+                resp["reset_token"] = None
+        else:
+            resp["reset_token"] = stored
 
     return resp
 
@@ -633,8 +648,8 @@ def complete_password_reset(req: ResetPasswordSubmission, db: Session = Depends(
     Student submits new password after Branch Manager approves the request.
     Verifies reset_token and updates password hash.
     """
-    if len(req.new_password) < 6:
-        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long.")
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters long.")
 
     pr = db.scalar(select(PasswordResetRequest).where(PasswordResetRequest.id == req.request_id))
     if not pr:
@@ -643,7 +658,9 @@ def complete_password_reset(req: ResetPasswordSubmission, db: Session = Depends(
     if pr.status != "APPROVED":
         raise HTTPException(status_code=400, detail=f"Request is not approved (Current status: {pr.status}).")
 
-    if not pr.reset_token or pr.reset_token != req.reset_token:
+    stored = pr.reset_token or ""
+    actual_token = stored.split(":", 1)[1] if ":" in stored else stored
+    if not actual_token or actual_token != req.reset_token:
         raise HTTPException(status_code=403, detail="Invalid or mismatched reset authorization token.")
 
     now_dt = datetime.now(timezone.utc)
@@ -767,7 +784,7 @@ def approve_password_reset(
     now = get_iso_now()
 
     req.status = "APPROVED"
-    req.reset_token = reset_token
+    req.reset_token = f"{req.reset_token or ''}:{reset_token}"
     req.approved_by = current_user["sub"]
     req.approved_at = now
 

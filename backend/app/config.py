@@ -10,9 +10,10 @@ load_dotenv()  # fallback to current working directory
 class Settings:
     APP_NAME: str = "PaperGrade AI"
     APP_VERSION: str = "1.0.0-phase1-poc"
-    DEBUG: bool = True
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
     HOST: str = "127.0.0.1"
     PORT: int = 8000
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://papergrade-ai.vercel.app").strip()
 
     # Gemini API settings
     GEMINI_API_KEY: str = (os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_1") or "").strip("\"'")

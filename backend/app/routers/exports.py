@@ -8,7 +8,7 @@ from sqlalchemy import select
 from backend.app.db.session import get_db
 from backend.app.db.models import Submission, Exam, Batch
 from backend.app.services.export_service import export_service
-from backend.app.services.auth import get_current_user_optional
+from backend.app.services.auth import get_current_user, require_branch_manager
 
 router = APIRouter(prefix="/api/exports", tags=["Exports"])
 
@@ -37,13 +37,19 @@ def _resolve_pdf_response(
             detail="Document unavailable: This evaluated answer sheet was permanently removed in accordance with the 15-day storage retention policy. Question-by-question marks and final scores are permanently preserved in your academic record."
         )
 
-    # Prevent student access to annotated PDF before official publication
+    # Student ownership & publication isolation
     is_student = bool(current_user and current_user.get("role") == "STUDENT")
-    if is_student and sub and not (sub.publication_status == "PUBLISHED" or (exam and exam.is_published == 1)):
-        raise HTTPException(
-            status_code=403,
-            detail="Forbidden: Evaluation results for this examination have not been officially published yet. Graded PDFs will become available once officially released by academic faculty."
-        )
+    if is_student and sub:
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        user_stu_id = current_user.get("student_id")
+        owns_sub = (user_roll and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub.student_id == user_stu_id)
+        if not owns_sub:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot download another student's graded PDF.")
+        if not (sub.publication_status == "PUBLISHED" or (exam and exam.is_published == 1)):
+            raise HTTPException(
+                status_code=403,
+                detail="Forbidden: Evaluation results for this examination have not been officially published yet. Graded PDFs will become available once officially released by academic faculty."
+            )
 
     pdf_path = export_service.get_submission_pdf_path(clean_sub_id)
     if not pdf_path or not pdf_path.exists():
@@ -75,7 +81,7 @@ def _resolve_pdf_response(
 @router.get("/pdf/{submission_id}")
 def download_annotated_pdf(
     submission_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     return _resolve_pdf_response(submission_id, db=db, current_user=current_user)
@@ -85,7 +91,7 @@ def download_annotated_pdf(
 def download_annotated_pdf_with_name(
     submission_id: str,
     filename: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     return _resolve_pdf_response(submission_id, db=db, custom_filename=filename, current_user=current_user)
@@ -118,18 +124,32 @@ def _resolve_zip_response(batch_id: str, db: Session, custom_filename: Optional[
 
 
 @router.get("/batch-zip/{batch_id}")
-def download_batch_zip(batch_id: str, db: Session = Depends(get_db)):
+def download_batch_zip(
+    batch_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
     return _resolve_zip_response(batch_id, db=db)
 
 
 @router.get("/batch-zip/{batch_id}/{filename}")
-def download_batch_zip_with_name(batch_id: str, filename: str, db: Session = Depends(get_db)):
+def download_batch_zip_with_name(
+    batch_id: str,
+    filename: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
     return _resolve_zip_response(batch_id, db=db, custom_filename=filename)
 
 
 @router.get("/marks-csv/{exam_id}")
 @router.get("/marks-csv/{exam_id}/{filename}")
-def download_marks_csv(exam_id: str, filename: Optional[str] = None, db: Session = Depends(get_db)):
+def download_marks_csv(
+    exam_id: str,
+    filename: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
     clean_exam_id = exam_id.removesuffix(".csv")
     csv_content = export_service.generate_exam_marks_csv(clean_exam_id)
 

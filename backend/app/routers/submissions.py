@@ -258,7 +258,7 @@ def list_submissions(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
     include_answers: bool = False,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     stmt = (
@@ -272,8 +272,15 @@ def list_submissions(
     if batch_id:
         stmt = stmt.where(Submission.batch_id == batch_id)
 
+    user_role = current_user.get("role")
+    user_branch = current_user.get("branch_id")
+
+    # Branch Manager isolation
+    if user_role == "BRANCH_MANAGER" and user_branch:
+        stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
+
     # Student privacy isolation
-    if current_user and current_user.get("role") == "STUDENT":
+    if user_role == "STUDENT":
         stu_records = db.scalars(
             select(Student).where(Student.user_id == current_user["sub"])
         ).all()
@@ -420,7 +427,7 @@ def list_submissions(
 @router.get("/{submission_id}/pdf")
 def get_submission_pdf_stream(
     submission_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -444,11 +451,18 @@ def get_submission_pdf_stream(
             detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy."
         )
 
-    # Check student role access
-    is_student = current_user and current_user.get("role") == "STUDENT"
+    # Check student role access and strict ownership
+    user_role = current_user.get("role")
     is_pub = bool(sub.publication_status == "PUBLISHED" or (exam and exam.is_published == 1))
-    if is_student and not is_pub:
-        raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
+
+    if user_role == "STUDENT":
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        user_stu_id = current_user.get("student_id")
+        owns_sub = (user_roll and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub.student_id == user_stu_id)
+        if not owns_sub:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's submission.")
+        if not is_pub:
+            raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
     key = sub.canonical_pdf_path or sub.original_file_path
     if not key:
@@ -470,12 +484,16 @@ def get_submission_pdf_stream(
     return FileResponse(
         str(local_path),
         media_type="application/pdf",
-        headers={"Cache-Control": "public, max-age=86400"}
+        headers={"Cache-Control": "private, no-cache"}
     )
 
 
 @router.get("/exam/{exam_id}")
-def get_submissions_for_exam(exam_id: str, db: Session = Depends(get_db)):
+def get_submissions_for_exam(
+    exam_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
     """Return all active submissions for an exam with their nested answer breakdown for the marks ledger."""
     subs = db.scalars(
         select(Submission)
@@ -549,7 +567,7 @@ class ConfirmUploadBody(BaseModel):
 def request_presigned_upload(
     exam_id: str,
     req: RequestUploadBody,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -557,6 +575,15 @@ def request_presigned_upload(
     Validates submission window, creates upload session, and generates pre-signed S3/R2 PUT URL.
     """
     clean_roll = req.roll_number.strip().upper()
+
+    # BOLA / Student ownership enforcement
+    if current_user.get("role") == "STUDENT":
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        if user_roll and clean_roll != user_roll:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: You are logged in as {user_roll}. You cannot submit for {clean_roll}."
+            )
 
     verify_active_submission_window(exam_id, db, allow_grace=False)
 
@@ -624,7 +651,7 @@ def request_presigned_upload(
 def confirm_presigned_upload(
     exam_id: str,
     req: ConfirmUploadBody,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -633,6 +660,23 @@ def confirm_presigned_upload(
     and executes atomic replacement (superseding any previous submission).
     """
     clean_roll = req.roll_number.strip().upper()
+
+    # BOLA / Student ownership enforcement
+    if current_user.get("role") == "STUDENT":
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        if user_roll and clean_roll != user_roll:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: You are logged in as {user_roll}. You cannot confirm uploads for {clean_roll}."
+            )
+
+    # Validate storage key path to prevent arbitrary overwriting
+    if not req.storage_key.startswith(f"submissions/{exam_id}/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid storage key for this examination."
+        )
+
     storage = get_storage_service()
 
     if not storage.file_exists(req.storage_key):
@@ -938,9 +982,18 @@ async def upload_single_multipart(
     batch_id: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     files: Optional[List[UploadFile]] = File(None),
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     clean_roll = roll_number.strip().upper()
+
+    # BOLA / Student ownership enforcement
+    if current_user.get("role") == "STUDENT":
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        if user_roll and clean_roll != user_roll:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: You are logged in as {user_roll}. You cannot upload for {clean_roll}."
+            )
 
     all_files: List[UploadFile] = []
     seen_filenames = set()

@@ -291,6 +291,7 @@ export const api = {
   async requestPasswordReset(identifier: string): Promise<{
     status: string;
     request_id: string;
+    session_secret?: string;
     request_status: string;
     message: string;
     student_name?: string;
@@ -308,7 +309,7 @@ export const api = {
     return res.json();
   },
 
-  async getPasswordResetStatus(requestId: string): Promise<{
+  async getPasswordResetStatus(requestId: string, sessionSecret?: string | null): Promise<{
     request_id: string;
     status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED" | "EXPIRED";
     student_name?: string;
@@ -317,7 +318,8 @@ export const api = {
     approved_at?: string;
     reset_token?: string;
   }> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/status/${requestId}`, {
+    const query = sessionSecret ? `?session_secret=${encodeURIComponent(sessionSecret)}` : "";
+    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/status/${requestId}${query}`, {
       cache: "no-store",
     });
     if (!res.ok) {

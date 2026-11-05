@@ -115,7 +115,7 @@ def request_revaluation(
     if existing_open:
         raise HTTPException(status_code=400, detail="A revaluation request is already pending for this submission.")
 
-    # Resolve student ID
+    # Student ownership enforcement (BOLA prevention)
     student_id = None
     if current_user and current_user.get("role") == "STUDENT":
         stu_rec = db.scalar(
@@ -128,6 +128,11 @@ def request_revaluation(
             student_id = stu_rec.id
         else:
             student_id = current_user.get("student_id") or current_user["sub"]
+
+        user_roll = (current_user.get("roll_number") or (stu_rec.roll_number if stu_rec else "")).strip().upper()
+        owns_sub = (user_roll and sub.roll_number and sub.roll_number.upper() == user_roll) or (student_id and sub.student_id == student_id)
+        if not owns_sub:
+            raise HTTPException(status_code=403, detail="Forbidden: You can only request revaluation for your own submission.")
 
     if not student_id:
         student_id = sub.student_id

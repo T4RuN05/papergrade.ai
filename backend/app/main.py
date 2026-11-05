@@ -1,12 +1,13 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
 from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent
+from backend.app.services.auth import get_current_user
 from sqlalchemy import select, func
 from backend.app.database import init_db
 from backend.app.worker.queue_worker import queue_worker
@@ -42,15 +43,38 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration for Next.js PWA, Vercel deployments, and Admin console
+# Allowed CORS Origins - restricted to official frontend and local development
+ALLOWED_ORIGINS = [
+    "https://papergrade-ai.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "Content-Type", "Content-Length"],
 )
+
+# OWASP Recommended HTTP Security Headers
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
 
 # Startup: include v1 routers
 app.include_router(auth.router)
@@ -73,10 +97,17 @@ app.include_router(analytics.router)
 app.include_router(exports.router)
 
 @app.get("/api/batches")
-def get_batches_shortcut(branch_id: Optional[str] = None):
+def get_batches_shortcut(
+    branch_id: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    user_role = current_user.get("role")
+    user_branch = current_user.get("branch_id")
     with get_session() as session:
         stmt = select(Batch)
-        if branch_id:
+        if user_role == "BRANCH_MANAGER" and user_branch:
+            stmt = stmt.where(Batch.branch_id == user_branch)
+        elif branch_id:
             stmt = stmt.where(Batch.branch_id == branch_id)
         stmt = stmt.order_by(Batch.created_at.desc())
         batches = session.scalars(stmt).all()
@@ -94,12 +125,20 @@ def get_batches_shortcut(branch_id: Optional[str] = None):
         ]
 
 @app.get("/api/batches/{batch_id}")
-def get_batch_by_id(batch_id: str):
+def get_batch_by_id(
+    batch_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    user_role = current_user.get("role")
+    user_branch = current_user.get("branch_id")
     with get_session() as session:
         batch = session.scalar(select(Batch).where(Batch.id == batch_id))
         if not batch:
-            from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Batch not found")
+        if user_role == "BRANCH_MANAGER" and user_branch and batch.branch_id != user_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+        if user_role == "STUDENT":
+            raise HTTPException(status_code=403, detail="Forbidden: students cannot inspect batch admin rosters.")
         submissions = session.scalars(
             select(Submission).where(Submission.batch_id == batch_id).order_by(Submission.roll_number.asc())
         ).all()
@@ -168,11 +207,7 @@ def system_status():
         "total_submissions": sub_count,
         "queued_jobs": queued_count,
         "total_api_calls_recorded": api_events_count,
-        "storage_dirs": {
-            "uploads": str(settings.UPLOADS_DIR),
-            "renders": str(settings.RENDERS_DIR),
-            "exports": str(settings.EXPORTS_DIR)
-        }
+        "storage_backend": settings.STORAGE_BACKEND,
     }
 
 @app.exception_handler(Exception)
@@ -180,9 +215,10 @@ async def generic_exception_handler(request, exc):
     import traceback
     import logging
     logging.getLogger("uvicorn.error").error(f"Unhandled server error on {request.method} {request.url}: {exc}\n{traceback.format_exc()}")
+    detail = f"Internal server error: {str(exc)}" if settings.DEBUG else "An internal server error occurred."
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal server error: {str(exc)}"},
+        content={"detail": detail},
     )
 
 if __name__ == "__main__":

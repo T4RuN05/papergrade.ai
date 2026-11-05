@@ -1,5 +1,5 @@
 import threading
-from typing import Optional
+from typing import Optional, Dict, Any
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
@@ -8,11 +8,12 @@ from sqlalchemy import select
 
 from backend.app.config import settings
 from backend.app.db.session import get_db
-from backend.app.db.models import Submission, AnswerRegion
+from backend.app.db.models import Submission, AnswerRegion, Exam
 from backend.app.schemas import ManualEditAnswerRequest, ManualEditRegionRequest
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
+from backend.app.services.auth import get_current_user, require_branch_manager
 
 _render_lock = threading.Lock()
 
@@ -30,7 +31,10 @@ NO_CACHE_HEADERS = {
 
 
 @router.post("/exams/{exam_id}/clear-all-reviews")
-def clear_all_exam_reviews(exam_id: str):
+def clear_all_exam_reviews(
+    exam_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
     try:
         result = grading_service.bulk_clear_exam_reviews(exam_id)
         return result
@@ -39,7 +43,10 @@ def clear_all_exam_reviews(exam_id: str):
 
 
 @router.post("/{submission_id}/clear-review")
-def clear_submission_review(submission_id: str):
+def clear_submission_review(
+    submission_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
     try:
         updated = grading_service.clear_all_review_flags(submission_id)
         return updated
@@ -52,7 +59,12 @@ def clear_submission_review(submission_id: str):
 @router.post("/answers/{submission_id}/{answer_id}/edit")
 @router.post("/{submission_id}/answers/{answer_id}")
 @router.patch("/{submission_id}/answers/{answer_id}")
-def edit_answer(submission_id: str, answer_id: str, req: ManualEditAnswerRequest):
+def edit_answer(
+    submission_id: str,
+    answer_id: str,
+    req: ManualEditAnswerRequest,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
     try:
         updated = grading_service.manual_edit_answer(submission_id, answer_id, req)
         return updated
@@ -65,7 +77,12 @@ def edit_answer(submission_id: str, answer_id: str, req: ManualEditAnswerRequest
 @router.post("/regions/{submission_id}/{region_id}/edit")
 @router.post("/{submission_id}/regions/{region_id}")
 @router.patch("/{submission_id}/regions/{region_id}")
-def edit_region(submission_id: str, region_id: str, req: ManualEditRegionRequest):
+def edit_region(
+    submission_id: str,
+    region_id: str,
+    req: ManualEditRegionRequest,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
     try:
         updated = grading_service.manual_edit_region(submission_id, region_id, req)
         return updated
@@ -76,7 +93,12 @@ def edit_region(submission_id: str, region_id: str, req: ManualEditRegionRequest
 
 
 @router.get("/page-image/{submission_id}/{page_num}")
-def get_page_image(submission_id: str, page_num: int, db: Session = Depends(get_db)):
+def get_page_image(
+    submission_id: str,
+    page_num: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     sub = db.scalar(select(Submission).where(Submission.id == submission_id))
 
     if sub and sub.is_document_purged:
@@ -84,6 +106,18 @@ def get_page_image(submission_id: str, page_num: int, db: Session = Depends(get_
             status_code=410,
             detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage. Question marks and scores remain archived."
         )
+
+    # Student ownership & publication isolation
+    if current_user.get("role") == "STUDENT":
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        user_stu_id = current_user.get("student_id")
+        owns_sub = (user_roll and sub and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub and sub.student_id == user_stu_id)
+        if not owns_sub:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's page image.")
+        if sub and sub.publication_status != "PUBLISHED":
+            exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
+            if not exam or exam.is_published != 1:
+                raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
     img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
     if not img_path.exists() and sub:
@@ -132,8 +166,21 @@ def get_answer_crop(
     answer_id: str,
     region_id: Optional[str] = None,
     v: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if current_user.get("role") == "STUDENT":
+        sub = db.scalar(select(Submission).where(Submission.id == submission_id))
+        user_roll = (current_user.get("roll_number") or "").strip().upper()
+        user_stu_id = current_user.get("student_id")
+        owns_sub = (user_roll and sub and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub and sub.student_id == user_stu_id)
+        if not owns_sub:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's answer crop.")
+        if sub and sub.publication_status != "PUBLISHED":
+            exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
+            if not exam or exam.is_published != 1:
+                raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
+
     crops_dir = settings.RENDERS_DIR / submission_id / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
