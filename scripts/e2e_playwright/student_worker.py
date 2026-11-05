@@ -131,7 +131,7 @@ async def simulate_student_session(
         exam_load_start = time.perf_counter()
 
         # Wait for the exam card to mount in the DOM
-        card_header = page.locator('text=KTG PROD TEST').or_(page.locator('text=Submission Window Open')).or_(page.locator('text=TIME REMAINING'))
+        card_header = page.locator('text=Submission Window Open').or_(page.locator('text=TIME REMAINING')).or_(page.locator('text=Rotational Dynamics')).or_(page.locator('text=KTG PROD TEST'))
         await card_header.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
 
         # If multiple exam windows are open and target_exam_id is specified, select that exam

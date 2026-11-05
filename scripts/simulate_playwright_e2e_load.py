@@ -191,7 +191,8 @@ async def run_playwright_load_test(
                 "--disable-dev-shm-usage",
                 "--no-sandbox",
                 "--disable-gpu",
-                "--disable-background-timer-throttling"
+                "--disable-background-timer-throttling",
+                "--window-size=420,890"
             ]
         )
 
