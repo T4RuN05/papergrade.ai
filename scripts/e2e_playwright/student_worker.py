@@ -130,44 +130,35 @@ async def simulate_student_session(
         metrics.stage_reached = "EXAM_LOADING"
         exam_load_start = time.perf_counter()
 
-        # Wait for the exam card to mount in the DOM
-        card_header = page.locator('text=Submission Window Open').or_(page.locator('text=TIME REMAINING')).or_(page.locator('text=Rotational Dynamics')).or_(page.locator('text=KTG PROD TEST'))
-        await card_header.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
+        # Target multi-file input or replace button (if student has already submitted)
+        file_input = page.locator('input[type="file"][multiple]').first
+        replace_btn = page.locator('button:has-text("Replace Answer Sheet"), button:has-text("Replace"), button:has-text("Re-upload")').first
 
-        # If multiple exam windows are open and target_exam_id is specified, select that exam
-        if target_exam_id:
-            exam_btn = page.locator(f'button:has-text("{target_exam_id}")')
-            if await exam_btn.is_visible():
-                await exam_btn.click()
+        # Wait until either the upload form (file_input) or the already-submitted state (replace_btn) mounts
+        ready_locator = file_input.or_(replace_btn)
+        await ready_locator.wait_for(state="attached", timeout=ACTION_TIMEOUT_MS)
 
-        # If student has a previous submission, click 'Replace Answer Sheet' to reveal file upload form
-        replace_btn = page.locator('button:has-text("Replace Answer Sheet"), button:has-text("Replace"), button:has-text("Re-upload")')
+        # If student has a previous submission, click 'Replace Answer Sheet' to reveal file input
         try:
-            if await replace_btn.first.is_visible():
-                await replace_btn.first.click()
-            else:
-                await replace_btn.first.wait_for(state="visible", timeout=2500)
-                await replace_btn.first.click()
+            if await replace_btn.is_visible():
+                await replace_btn.click()
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [REPLACE CLICKED] {task.roll_number} re-uploading answer sheet.")
         except Exception:
             pass
 
-        # Wait for either file input or active window card in DOM
-        file_input_selector = 'input[type="file"][multiple], input[type="file"]'
-        await page.wait_for_selector(file_input_selector, state="attached", timeout=ACTION_TIMEOUT_MS)
+        # Wait for file_input attached in DOM
+        await file_input.wait_for(state="attached", timeout=ACTION_TIMEOUT_MS)
         metrics.exam_loading_duration_secs = round(time.perf_counter() - exam_load_start, 3)
         metrics.stage_reached = "EXAM_LOADED"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [EXAM LOADED] {task.roll_number} active window ready in {metrics.exam_loading_duration_secs:.2f}s")
 
         # 5. STEP: CAMERA MOCK VIA SAMPLE IMAGE INJECTION
         image_paths = [str(p.resolve()) for p in task.sample_images]
-        file_input = page.locator('input[type="file"][multiple]').first
-
-        # Inject sample images
         await file_input.set_input_files(image_paths)
 
         # Wait for scanned pages list to render in the DOM
         # Frontend shows: button[type="submit"]:has-text("Submit Answer Sheet")
-        submit_btn = page.locator('button[type="submit"]:has-text("Submit Answer Sheet")')
+        submit_btn = page.locator('button[type="submit"]:has-text("Submit Answer Sheet")').first
         await submit_btn.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
         metrics.stage_reached = "IMAGES_INJECTED"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [PAGES INJECTED] {task.roll_number} staged {len(image_paths)} pages.")
@@ -201,8 +192,11 @@ async def simulate_student_session(
         if upload_response.status == 200:
             res_data = await upload_response.json()
             metrics.submission_id = res_data.get("submission_id")
+            if res_data.get("file_size_bytes"):
+                metrics.generated_pdf_size_bytes = int(res_data.get("file_size_bytes"))
             page_count = res_data.get("page_count", len(image_paths))
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [UPLOAD OK] {task.roll_number} -> HTTP 200 in {metrics.upload_duration_secs:.2f}s | Assembled in {metrics.pdf_generation_duration_secs or 0:.2f}s | Pages: {page_count} | Sub ID: {metrics.submission_id}")
+            pdf_size_kb = f"{(metrics.generated_pdf_size_bytes or 0)/1024:.1f} KB" if metrics.generated_pdf_size_bytes else "N/A"
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [UPLOAD OK] {task.roll_number} -> HTTP 200 in {metrics.upload_duration_secs:.2f}s | Assembled in {metrics.pdf_generation_duration_secs or 0:.2f}s | Size: {pdf_size_kb} | Pages: {page_count} | Sub ID: {metrics.submission_id}")
         else:
             err_text = await upload_response.text()
             raise RuntimeError(f"Server returned HTTP {upload_response.status}: {err_text[:200]}")

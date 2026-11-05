@@ -10,8 +10,8 @@ from typing import List, Dict, Any
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Base URLs
-DEFAULT_FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
-DEFAULT_API_URL = os.environ.get("API_BASE_URL", "http://localhost:8000").rstrip("/")
+DEFAULT_FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://papergrade-ai.vercel.app").rstrip("/")
+DEFAULT_API_URL = os.environ.get("API_BASE_URL", "https://papergrade-ai-backend.onrender.com").rstrip("/")
 
 # Authentication
 DEFAULT_STUDENT_PASSWORD = os.environ.get("STUDENT_DEFAULT_PASSWORD", "Student@123")
