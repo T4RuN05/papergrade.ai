@@ -16,6 +16,7 @@ import {
   Loader2,
   Volume2,
   VolumeX,
+  Play,
   ExternalLink,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
@@ -28,22 +29,43 @@ export default function LandingPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
-  // Guarantee default sound is OFF across all browser engines
+  // Guarantee default sound is OFF and attempt autoplay across all mobile/desktop browser engines
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = true;
       videoRef.current.defaultMuted = true;
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            // Autoplay blocked by mobile browser policy; awaiting user touch
+            setIsPlaying(false);
+          });
+      }
     }
   }, []);
 
-  const toggleSound = () => {
+  const toggleSound = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!videoRef.current) return;
     const nextMuted = !videoRef.current.muted;
     videoRef.current.muted = nextMuted;
     setIsMuted(nextMuted);
     if (!nextMuted && videoRef.current.paused) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  const handlePlayToggle = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
     }
   };
 
@@ -283,7 +305,7 @@ export default function LandingPage() {
                 <div className="flex items-center gap-2 shrink-0 text-[11px]">
                   <span className="hidden sm:inline font-mono text-ink-muted">demo.mp4</span>
                   <a
-                    href="/demo.mp4"
+                    href="https://res.cloudinary.com/dijssimbb/video/upload/v1793886472/papergrade_demo_walkthrough.mp4"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -299,28 +321,51 @@ export default function LandingPage() {
               <div className="relative aspect-video w-full bg-black/95 overflow-hidden group">
                 <video
                   ref={videoRef}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain cursor-pointer"
                   poster="/demo-poster.jpg"
-                  preload="metadata"
+                  preload="auto"
                   playsInline
                   autoPlay
                   loop
                   muted
                   controls
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
                   onVolumeChange={(e) => {
                     const v = e.currentTarget;
                     setIsMuted(v.muted || v.volume === 0);
                   }}
+                  onClick={handlePlayToggle}
                 >
+                  <source
+                    src="https://res.cloudinary.com/dijssimbb/video/upload/v1793886472/papergrade_demo_walkthrough.mp4"
+                    type="video/mp4"
+                  />
                   <source src="/demo.mp4" type="video/mp4" />
                   Your browser does not support HTML5 video streaming.
                 </video>
 
+                {/* Big Center Play Button Overlay on mobile or when paused */}
+                {!isPlaying && (
+                  <div
+                    onClick={handlePlayToggle}
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-black/35 backdrop-blur-[1px] transition-opacity cursor-pointer"
+                  >
+                    <button
+                      type="button"
+                      className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-primary/90 hover:bg-primary text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95 cursor-pointer pl-1"
+                      aria-label="Play Demo Video"
+                    >
+                      <Play className="h-8 w-8 sm:h-10 sm:w-10 fill-current" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Floating Sound Toggle Badge Overlay */}
-                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 pointer-events-auto">
+                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 pointer-events-auto">
                   <button
                     type="button"
-                    onClick={toggleSound}
+                    onClick={(e) => toggleSound(e)}
                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-900/85 hover:bg-neutral-900 text-white text-xs font-medium backdrop-blur-md border border-white/20 shadow-lg transition-transform active:scale-95 cursor-pointer"
                   >
                     {isMuted ? (
@@ -344,7 +389,6 @@ export default function LandingPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
                   <span>Real-time OCR Handwriting Ingestion & Criteria Scoring</span>
                 </span>
-                <span className="font-mono text-ink-secondary">Default Audio: Off • Unmute anytime</span>
               </div>
             </div>
           </section>
