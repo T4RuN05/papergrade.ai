@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
+import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
 
@@ -111,8 +112,7 @@ export function Navbar() {
 
   return (
     <header
-      className="sticky top-0 z-40 w-full border-b border-hairline bg-white shadow-xs"
-      style={{ backgroundColor: "#ffffff" }}
+      className="sticky top-0 z-40 w-full border-b border-hairline bg-surface shadow-xs transition-colors"
     >
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
         {/* Brand & Mobile Toggle */}
@@ -217,6 +217,11 @@ export function Navbar() {
 
         {/* User Role / Auth Desk */}
         <div className="flex items-center gap-1 sm:gap-2 min-h-[32px]">
+          {/* Theme Toggle (Desktop) */}
+          <div className="hidden sm:flex items-center mr-0.5">
+            <ThemeToggle size="sm" />
+          </div>
+
           {isMounted && currentUser ? (
             <div className="flex items-center gap-1 sm:gap-2">
               {/* Notification Bell Button (Triggers Right Slide-Over Drawer) */}
@@ -318,20 +323,18 @@ export function Navbar() {
         aria-hidden="true"
       />
 
-      {/* Floating Dropdown Panel (Solid white background with Apple-style smooth slide & scale) */}
+      {/* Floating Dropdown Panel (Respects Notion surface with Apple-style smooth slide & scale) */}
       <div
-        className={`md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-white shadow-2xl z-50 max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
+        className={`md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-surface shadow-2xl z-50 max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
           mobileMenuOpen
             ? "opacity-100 translate-y-0 scale-y-100 pointer-events-auto"
             : "opacity-0 -translate-y-2 scale-y-98 pointer-events-none"
         }`}
-        style={{ backgroundColor: "#ffffff" }}
       >
             {/* Authenticated User Status Summary */}
             {isMounted && currentUser && (
               <div
-                className="px-4 py-3 border-b border-hairline flex items-center justify-between gap-3"
-                style={{ backgroundColor: "#f6f5f4" }}
+                className="px-4 py-3 border-b border-hairline flex items-center justify-between gap-3 bg-canvas-soft"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
@@ -435,72 +438,82 @@ export function Navbar() {
             </nav>
 
             {/* Quick Actions & Account Utilities */}
-            {isMounted && currentUser ? (
-              <div className="px-3 pb-3 pt-1 border-t border-hairline space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    openDrawer();
-                  }}
-                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Bell className="h-4 w-4 text-ink-muted" />
-                    <span>Notifications</span>
-                  </div>
-                  {unreadCount > 0 && (
-                    <span className="flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
-                </button>
+            <div className="px-3 pb-3 pt-1 border-t border-hairline space-y-1">
+              {/* Mobile Visual Theme Toggle */}
+              <div className="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary">
+                <span className="flex items-center gap-2.5">
+                  <span className="h-4 w-4 flex items-center justify-center text-ink-muted text-[13px]">◐</span>
+                  <span>Visual Theme</span>
+                </span>
+                <ThemeToggle size="sm" />
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleLogout();
-                  }}
-                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <LogOut className="h-4 w-4 text-red-500" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            ) : (
-              <div className="px-4 pb-3 pt-2 border-t border-hairline space-y-2.5">
-                <Link
-                  href="/auth/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full inline-flex items-center justify-center h-9 px-4 rounded-full bg-primary hover:bg-primary-active text-white text-xs font-medium transition-colors shadow-xs"
-                >
-                  <span>Sign In to Portal</span>
-                  <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
-                </Link>
-                <div className="flex items-center justify-between text-[11px] px-1 text-ink-muted">
-                  <Link
-                    href="/auth/login?role=claim"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-primary transition-colors underline-offset-2 hover:underline"
+              {isMounted && currentUser ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      openDrawer();
+                    }}
+                    className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
                   >
-                    Claim Student ID
-                  </Link>
-                  <Link
-                    href="/revaluation"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-primary transition-colors underline-offset-2 hover:underline"
+                    <div className="flex items-center gap-2.5">
+                      <Bell className="h-4 w-4 text-ink-muted" />
+                      <span>Notifications</span>
+                    </div>
+                    {unreadCount > 0 && (
+                      <span className="flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                   >
-                    Revaluation Desk
+                    <LogOut className="h-4 w-4 text-red-500" />
+                    <span>Sign Out</span>
+                  </button>
+                </>
+              ) : (
+                <div className="pt-1.5 space-y-2">
+                  <Link
+                    href="/auth/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full inline-flex items-center justify-center h-9 px-4 rounded-full bg-primary hover:bg-primary-active text-white text-xs font-medium transition-colors shadow-xs"
+                  >
+                    <span>Sign In to Portal</span>
+                    <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
                   </Link>
+                  <div className="flex items-center justify-between text-[11px] px-1 text-ink-muted">
+                    <Link
+                      href="/auth/login?role=claim"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="hover:text-primary transition-colors underline-offset-2 hover:underline"
+                    >
+                      Claim Student ID
+                    </Link>
+                    <Link
+                      href="/revaluation"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="hover:text-primary transition-colors underline-offset-2 hover:underline"
+                    >
+                      Revaluation Desk
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Footer Status Pill */}
             <div
-              className="px-4 py-2.5 border-t border-hairline flex items-center justify-between text-[11px] text-ink-muted"
-              style={{ backgroundColor: "#f6f5f4" }}
+              className="px-4 py-2.5 border-t border-hairline flex items-center justify-between text-[11px] text-ink-muted bg-canvas-soft"
             >
               <div className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />

@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { Analytics } from "@vercel/analytics/react";
+import { ThemeProvider } from "@/lib/ThemeContext";
 
 export const metadata: Metadata = {
   title: "PaperGrade AI — Academic Evaluation & Submissions",
@@ -42,13 +43,34 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('papergrade_theme');
+                  var isDark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  if (isDark) {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className="min-h-screen bg-canvas-soft text-ink font-sans selection:bg-primary selection:text-white"
         suppressHydrationWarning
       >
-        <ServiceWorkerRegister />
-        <AppShell>{children}</AppShell>
-        <Analytics />
+        <ThemeProvider>
+          <ServiceWorkerRegister />
+          <AppShell>{children}</AppShell>
+          <Analytics />
+        </ThemeProvider>
       </body>
     </html>
   );

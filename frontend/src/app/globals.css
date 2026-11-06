@@ -3,27 +3,69 @@
 @tailwind utilities;
 
 :root {
+  /* Notion Light Warm Paper Theme */
   --background: #f6f5f4; /* Notion Warm Paper Canvas */
   --foreground: #000000; /* Notion Ink */
+  --canvas: #ffffff;
+  --canvas-soft: #f6f5f4;
   --surface: #ffffff;    /* Card Surface */
+  --surface-elevated: #ffffff;
   --hairline: #e6e6e6;   /* Hairline Divider */
+  --hairline-subtle: #f0f0f0;
+  --ink: #000000;
+  --ink-secondary: #31302e;
+  --ink-muted: #615d59;
+  --ink-faint: #a39e98;
   --primary: #0075de;    /* Notion Blue */
+  --primary-active: #005bab;
   --secondary: #213183;  /* Deep Indigo Hero */
+  --on-primary: #ffffff;
+  --shadow-notion-card: 0 0.175px 1.041px rgba(0,0,0,0.01), 0 0.8px 2.925px rgba(0,0,0,0.02), 0 2.025px 7.847px rgba(0,0,0,0.027), 0 4px 18px rgba(0,0,0,0.04);
+  --shadow-notion-modal: 0 23px 52px rgba(0,0,0,0.05), 0 8px 18px rgba(0,0,0,0.03);
+  --scrollbar-thumb: rgba(140, 135, 130, 0.35);
+  --scrollbar-thumb-hover: rgba(90, 85, 80, 0.6);
+  --scrollbar-thumb-active: rgba(50, 45, 40, 0.85);
+}
+
+.dark {
+  /* Notion Authentic Dark Mode: Obsidian Warm Graphite Theme */
+  --background: #191919; /* Obsidian Paper Canvas */
+  --foreground: #ebebeb; /* Notion Luminous Ink */
+  --canvas: #121212;
+  --canvas-soft: #191919;
+  --surface: #202020;    /* Matte Graphite Card Surface */
+  --surface-elevated: #262626;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-subtle: rgba(255, 255, 255, 0.04);
+  --ink: #ebebeb;
+  --ink-secondary: #a5a5a5;
+  --ink-muted: #787774;
+  --ink-faint: #525252;
+  --primary: #2383e2;    /* Lifted Electric Notion Blue for Dark Contrast */
+  --primary-active: #1b6dc1;
+  --secondary: #141c38;  /* Deep Obsidian Indigo */
+  --on-primary: #ffffff;
+  --shadow-notion-card: 0 0 0 1px rgba(255,255,255,0.06), 0 4px 12px rgba(0,0,0,0.35);
+  --shadow-notion-modal: 0 0 0 1px rgba(255,255,255,0.1), 0 24px 64px rgba(0,0,0,0.65), 0 8px 20px rgba(0,0,0,0.4);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
+  --scrollbar-thumb-active: rgba(255, 255, 255, 0.55);
 }
 
 body {
-  color: #000000;
-  background-color: #f6f5f4;
+  color: var(--ink);
+  background-color: var(--canvas-soft);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "lnum" 1;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Custom Sleek Floating Scrollbar (Cross-browser: Chrome, Edge, Safari, Firefox, Mobile PWA) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(140, 135, 130, 0.35) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -36,7 +78,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(140, 135, 130, 0.35);
+  background-color: var(--scrollbar-thumb);
   border-radius: 9999px;
   border: 1px solid transparent;
   background-clip: padding-box;
@@ -44,11 +86,11 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(90, 85, 80, 0.6);
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar-thumb:active {
-  background-color: rgba(50, 45, 40, 0.85);
+  background-color: var(--scrollbar-thumb-active);
 }
 
 ::-webkit-scrollbar-corner {
@@ -58,7 +100,7 @@ body {
 /* Custom sleek scrollbar utility class for dense tables, sidebars, matrices & modals */
 .sleek-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(140, 135, 130, 0.35) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -72,14 +114,14 @@ body {
 }
 
 .sleek-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(140, 135, 130, 0.35);
+  background-color: var(--scrollbar-thumb);
   border-radius: 9999px;
   border: 1px solid transparent;
   background-clip: padding-box;
 }
 
 .sleek-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(90, 85, 80, 0.6);
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 /* Notion toast micro-animations */
@@ -175,6 +217,19 @@ body {
   background-repeat: repeat-x;
   animation: shimmer 1.8s linear infinite;
   will-change: background-position;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    #222222 0%,
+    #222222 20%,
+    #2c2c2c 40%,
+    #363636 50%,
+    #2c2c2c 60%,
+    #222222 80%,
+    #222222 100%
+  );
 }
 
 /* ==========================================================================

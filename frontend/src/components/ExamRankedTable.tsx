@@ -207,10 +207,10 @@ export function ExamRankedTable({
     if (rank === 1) {
       return (
         <span
-          className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 ring-2 ring-amber-400/25 shadow-2xs shrink-0"
+          className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-black bg-amber-100 dark:bg-amber-950/50 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/50 ring-2 ring-amber-400/25 dark:ring-amber-500/20 shadow-2xs shrink-0"
           title="Rank 1 • Gold"
         >
-          <Trophy className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-amber-700 shrink-0" />
+          <Trophy className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
           <span>#1</span>
         </span>
       );
@@ -218,10 +218,10 @@ export function ExamRankedTable({
     if (rank === 2) {
       return (
         <span
-          className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-black bg-slate-100 text-slate-800 border border-slate-300 ring-2 ring-slate-400/20 shadow-2xs shrink-0"
+          className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-black bg-slate-100 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-600/60 ring-2 ring-slate-400/20 dark:ring-slate-400/20 shadow-2xs shrink-0"
           title="Rank 2 • Silver"
         >
-          <Medal className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-slate-600 shrink-0" />
+          <Medal className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
           <span>#2</span>
         </span>
       );
@@ -229,10 +229,10 @@ export function ExamRankedTable({
     if (rank === 3) {
       return (
         <span
-          className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-black bg-orange-50 text-orange-900 border border-[#d7a177] ring-2 ring-[#c08250]/20 shadow-2xs shrink-0"
+          className="inline-flex items-center justify-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-black bg-orange-50 dark:bg-orange-950/50 text-orange-900 dark:text-orange-300 border border-[#d7a177] dark:border-orange-700/50 ring-2 ring-[#c08250]/20 dark:ring-orange-500/20 shadow-2xs shrink-0"
           title="Rank 3 • Bronze"
         >
-          <Award className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#b86227] shrink-0" />
+          <Award className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#b86227] dark:text-orange-400 shrink-0" />
           <span>#3</span>
         </span>
       );

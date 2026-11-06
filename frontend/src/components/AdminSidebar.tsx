@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { Skeleton } from "./ui";
+import { ThemeToggle } from "@/lib/ThemeContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { ReportIssueModal } from "./ReportIssueModal";
@@ -435,7 +436,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           </div>
         </div>
 
-        {/* Quick link to public landing page */}
+        {/* Quick link to public landing page & theme toggle */}
         <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-ink-muted">
           <Link
             href="/"
@@ -444,7 +445,10 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
             <Home className="h-3 w-3" />
             <span>Public Site</span>
           </Link>
-          <span className="text-[10px] text-ink-faint">v2.4 Pilot</span>
+          <div className="flex items-center gap-2">
+            <ThemeToggle size="sm" />
+            <span className="text-[10px] text-ink-faint">v2.4</span>
+          </div>
         </div>
       </div>
     </div>

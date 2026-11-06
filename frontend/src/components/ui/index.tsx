@@ -88,8 +88,8 @@ export function ButtonUtility({
   ...props
 }: ButtonUtilityProps) {
   const variantClasses = {
-    default: "bg-surface border border-hairline text-ink hover:bg-canvas-soft active:bg-[#eee]",
-    danger: "bg-surface border border-red-200 text-red-600 hover:bg-red-50 active:bg-red-100",
+    default: "bg-surface border border-hairline text-ink hover:bg-canvas-soft active:bg-[#eee] dark:active:bg-[#2c2c2c]",
+    danger: "bg-surface border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 active:bg-red-100",
     ghost: "bg-transparent text-ink-secondary hover:bg-canvas-soft",
   }[variant];
 
@@ -135,7 +135,7 @@ export function FeatureCard({
   return (
     <div
       className={`bg-surface border border-hairline rounded-lg shadow-notion-card p-6 ${
-        hoverable ? "hover:border-[#d0d0d0] transition-colors" : ""
+        hoverable ? "hover:border-[#d0d0d0] dark:hover:border-[#444444] transition-colors" : ""
       } ${className}`}
       {...props}
     >
@@ -181,14 +181,14 @@ export interface BadgePillProps {
 
 export function BadgePill({ label, color = "gray", className = "" }: BadgePillProps) {
   const colorMap: Record<StickerColor, string> = {
-    green: "bg-[#eaf7ed] text-[#1aae39] border-[#c2ecd0]",
-    teal: "bg-[#e6f6f6] text-[#2a9d99] border-[#bee7e5]",
-    sky: "bg-[#edf5fd] text-[#0075de] border-[#bee0fc]",
-    purple: "bg-[#f5eefc] text-[#793caf] border-[#dfcbf6]",
-    pink: "bg-[#ffeff8] text-[#c92a95] border-[#fbcce7]",
-    orange: "bg-[#fef4ea] text-[#dd5b00] border-[#fed8b8]",
-    brown: "bg-[#f5efe8] text-[#523410] border-[#d8c5b0]",
-    gray: "bg-[#f1f1ef] text-[#615d59] border-[#e2e1de]",
+    green: "bg-[#eaf7ed] text-[#1aae39] border-[#c2ecd0] dark:bg-[#132b1d] dark:text-[#4ade80] dark:border-[rgba(74,222,128,0.25)]",
+    teal: "bg-[#e6f6f6] text-[#2a9d99] border-[#bee7e5] dark:bg-[#143433] dark:text-[#42b8b4] dark:border-[rgba(66,184,180,0.25)]",
+    sky: "bg-[#edf5fd] text-[#0075de] border-[#bee0fc] dark:bg-[#152e4d] dark:text-[#60a5fa] dark:border-[rgba(96,165,250,0.25)]",
+    purple: "bg-[#f5eefc] text-[#793caf] border-[#dfcbf6] dark:bg-[#251536] dark:text-[#c084fc] dark:border-[rgba(192,132,252,0.25)]",
+    pink: "bg-[#ffeff8] text-[#c92a95] border-[#fbcce7] dark:bg-[#311424] dark:text-[#f472b6] dark:border-[rgba(244,114,182,0.25)]",
+    orange: "bg-[#fef4ea] text-[#dd5b00] border-[#fed8b8] dark:bg-[#2d1b0d] dark:text-[#fb923c] dark:border-[rgba(251,146,60,0.25)]",
+    brown: "bg-[#f5efe8] text-[#523410] border-[#d8c5b0] dark:bg-[#2a2016] dark:text-[#cfab80] dark:border-[rgba(207,171,128,0.25)]",
+    gray: "bg-[#f1f1ef] text-[#615d59] border-[#e2e1de] dark:bg-[#242424] dark:text-[#a3a3a3] dark:border-[rgba(255,255,255,0.1)]",
   };
 
   return (
@@ -222,7 +222,7 @@ export function FormInput({ label, error, className = "", id, type, ...props }: 
         <input
           id={inputId}
           type={actualType}
-          className={`w-full rounded-xs border border-[#dddddd] bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:shadow-notion-card transition-all ${
+          className={`w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface dark:bg-[#1a1a1a] focus:dark:bg-[#202020] px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:shadow-notion-card transition-all ${
             isPassword ? "pr-10" : ""
           } ${error ? "border-red-400 focus:border-red-500" : ""} ${className}`}
           {...props}

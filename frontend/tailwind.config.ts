@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,18 +11,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#0075de",
-        "primary-active": "#005bab",
-        secondary: "#213183",
-        "on-primary": "#ffffff",
-        canvas: "#ffffff",
-        "canvas-soft": "#f6f5f4",
-        surface: "#ffffff",
-        ink: "#000000",
-        "ink-secondary": "#31302e",
-        "ink-muted": "#615d59",
-        "ink-faint": "#a39e98",
-        hairline: "#e6e6e6",
+        primary: "var(--primary)",
+        "primary-active": "var(--primary-active)",
+        secondary: "var(--secondary)",
+        "on-primary": "var(--on-primary)",
+        canvas: "var(--canvas)",
+        "canvas-soft": "var(--canvas-soft)",
+        surface: "var(--surface)",
+        "surface-elevated": "var(--surface-elevated)",
+        ink: "var(--ink)",
+        "ink-secondary": "var(--ink-secondary)",
+        "ink-muted": "var(--ink-muted)",
+        "ink-faint": "var(--ink-faint)",
+        hairline: "var(--hairline)",
+        "hairline-subtle": "var(--hairline-subtle)",
         // Decorative Sticker Palette (DESIGN-notion.md)
         "accent-sky": "#62aef0",
         "accent-purple": "#d6b6f6",
@@ -42,8 +45,8 @@ const config: Config = {
         full: "9999px", // Pill CTAs
       },
       boxShadow: {
-        "notion-card": "0 0.175px 1.041px rgba(0,0,0,0.01), 0 0.8px 2.925px rgba(0,0,0,0.02), 0 2.025px 7.847px rgba(0,0,0,0.027), 0 4px 18px rgba(0,0,0,0.04)",
-        "notion-modal": "0 23px 52px rgba(0,0,0,0.05), 0 8px 18px rgba(0,0,0,0.03)",
+        "notion-card": "var(--shadow-notion-card)",
+        "notion-modal": "var(--shadow-notion-modal)",
       },
     },
   },

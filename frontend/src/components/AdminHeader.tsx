@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { BadgePill } from "./ui";
+import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
@@ -287,6 +288,9 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
               <LifeBuoy className="h-4 w-4" />
             </button>
           )}
+
+          {/* Theme Toggle (Light/Dark Mode) */}
+          <ThemeToggle />
 
           {/* Notification Bell Button (Triggers Right Sidebar Drawer) */}
           <button

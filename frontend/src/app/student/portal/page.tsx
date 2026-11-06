@@ -2174,16 +2174,16 @@ export default function StudentPortalPage() {
                   {/* 15-Day Storage Retention Notice Banner for Published Papers */}
                   {isPublished && (
                     sub.is_document_purged ? (
-                      <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
-                        <Info className="h-4 w-4 text-slate-500 shrink-0" />
+                      <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
+                        <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
                         <span>
                           <strong>Answer Sheet Archived:</strong> In accordance with the 15-day retention policy, the uploaded PDF copy has been archived. Your question marks, breakdown, and official scorecard remain permanently saved.
                         </span>
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 border border-amber-200 text-xs text-amber-900">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-900 dark:text-amber-200">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                           <span>
                             <strong>Storage Retention Notice:</strong> This graded answer sheet will be permanently deleted in{" "}
                             <strong>{sub.days_remaining !== undefined && sub.days_remaining !== null ? `${sub.days_remaining} days` : "15 days"}</strong>. Please download your evaluated PDF now to preserve your personal copy. (Revaluation requests remain open for 7 days).
@@ -2193,7 +2193,7 @@ export default function StudentPortalPage() {
                           href={api.getAnnotatedPdfUrl(sub.id)}
                           target="_blank"
                           rel="noreferrer"
-                          className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 hover:text-amber-950 underline text-xs"
+                          className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 underline text-xs"
                         >
                           <Download className="h-3.5 w-3.5" />
                           Download Copy
@@ -2258,19 +2258,19 @@ export default function StudentPortalPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 border border-amber-200/70">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-700/40">
                       <div className="flex items-center gap-2.5">
-                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                        <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                         <div>
-                          <div className="text-xs font-bold text-amber-900">
+                          <div className="text-xs font-bold text-amber-900 dark:text-amber-200">
                             Evaluation in Progress • Marks Hidden
                           </div>
-                          <div className="text-[11px] text-amber-700">
+                          <div className="text-[11px] text-amber-700 dark:text-amber-300/80">
                             Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
                           </div>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white border border-amber-300 text-amber-800 shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700/50 text-amber-800 dark:text-amber-300 shrink-0">
                         Pending Publication
                       </span>
                     </div>
@@ -2805,16 +2805,16 @@ export default function StudentPortalPage() {
                   <div className="overflow-hidden space-y-4">
                     {isPublished && (
                       sub.is_document_purged ? (
-                        <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
-                          <Info className="h-4 w-4 text-slate-500 shrink-0" />
+                        <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
+                          <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
                           <span>
                             <strong>Answer Sheet Archived:</strong> In accordance with the 15-day retention policy, the uploaded PDF copy has been archived. Your question marks, breakdown, and official scorecard remain permanently saved.
                           </span>
                         </div>
                       ) : (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 border border-amber-200 text-xs text-amber-900">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-900 dark:text-amber-200">
                           <div className="flex items-center gap-2 min-w-0">
-                            <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                             <span>
                               <strong>Storage Retention Notice:</strong> This graded answer sheet will be permanently deleted in{" "}
                               <strong>{sub.days_remaining !== undefined && sub.days_remaining !== null ? `${sub.days_remaining} days` : "15 days"}</strong>. Please download your evaluated PDF now to preserve your personal copy. (Revaluation requests remain open for 7 days).
@@ -2824,7 +2824,7 @@ export default function StudentPortalPage() {
                             href={api.getAnnotatedPdfUrl(sub.id)}
                             target="_blank"
                             rel="noreferrer"
-                            className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 hover:text-amber-950 underline text-xs"
+                            className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 underline text-xs"
                           >
                             <Download className="h-3.5 w-3.5" />
                             Download Copy
@@ -2887,19 +2887,19 @@ export default function StudentPortalPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 border border-amber-200/70">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-700/40">
                         <div className="flex items-center gap-2.5">
-                          <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                           <div>
-                            <div className="text-xs font-bold text-amber-900">
+                            <div className="text-xs font-bold text-amber-900 dark:text-amber-200">
                               Evaluation in Progress • Marks Hidden
                             </div>
-                            <div className="text-[11px] text-amber-700">
+                            <div className="text-[11px] text-amber-700 dark:text-amber-300/80">
                               Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
                             </div>
                           </div>
                         </div>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white border border-amber-300 text-amber-800 shrink-0">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700/50 text-amber-800 dark:text-amber-300 shrink-0">
                           Pending Publication
                         </span>
                       </div>
