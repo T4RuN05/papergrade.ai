@@ -1165,7 +1165,10 @@ export const api = {
     answers: GradedAnswer[];
     audit_logs: any[];
   }> {
-    const res = await fetch(`${API_BASE}/api/grading/${submissionId}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/grading/${submissionId}`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
     if (!res.ok) throw new Error("Failed to fetch grading details");
     return res.json();
   },
@@ -1272,7 +1275,10 @@ export const api = {
     const url = examId
       ? `${API_BASE}/api/analytics/usage?exam_id=${examId}`
       : `${API_BASE}/api/analytics/usage`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
     if (!res.ok) throw new Error("Failed to fetch usage metrics");
     return res.json();
   },
@@ -1282,7 +1288,7 @@ export const api = {
     tpm_limit?: number;
     rpd_limit?: number;
   }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/analytics/quota-settings`, {
+    const res = await fetch(`${API_BASE}/api/analytics/quota`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -1314,6 +1320,7 @@ export const api = {
 
   async getBenchmarks(examId: string): Promise<BenchmarkSummary> {
     const res = await fetch(`${API_BASE}/api/analytics/benchmarks/${examId}`, {
+      headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
     if (!res.ok) throw new Error("Failed to fetch benchmarks");

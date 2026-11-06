@@ -32,6 +32,7 @@ export default function AnalyticsPage() {
   const [selectedExamId, setSelectedExamId] = useState<string>("");
   const [benchmarks, setBenchmarks] = useState<BenchmarkSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // New benchmark form state
   const [benchSubId, setBenchSubId] = useState("");
@@ -54,20 +55,28 @@ export default function AnalyticsPage() {
   }, [isBranchManager]);
 
   const loadAll = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const [uData, eList] = await Promise.all([
         api.getUsageMetrics(),
-        api.listExams(),
+        api.listExams().catch(() => []),
       ]);
       setMetrics(uData);
       setExams(eList);
       if (eList.length > 0) {
         setSelectedExamId(eList[0].id);
-        const bData = await api.getBenchmarks(eList[0].id);
-        setBenchmarks(bData);
+        try {
+          const bData = await api.getBenchmarks(eList[0].id);
+          setBenchmarks(bData);
+        } catch (bErr) {
+          console.warn("Could not load benchmarks for initial exam:", bErr);
+        }
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Telemetry load error:", e);
+      setError(e.message || "Failed to load telemetry metrics");
+      toast.error(e.message || "Failed to load telemetry metrics", { title: "Telemetry Error" });
     } finally {
       setLoading(false);
     }
@@ -114,8 +123,27 @@ export default function AnalyticsPage() {
     }
   };
 
-  if (loading || !metrics) {
+  if (loading) {
     return <AnalyticsSkeleton />;
+  }
+
+  if (error || !metrics) {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-4">
+        <FeatureCard className="p-8 text-center space-y-4 border-amber-200 bg-[#fffdfa] dark:bg-card">
+          <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center text-amber-600">
+            <Activity className="h-6 w-6" />
+          </div>
+          <h2 className="text-base font-bold text-ink">Telemetry Unavailable</h2>
+          <p className="text-xs text-ink-muted">
+            {error || "Unable to load telemetry metrics from the server."}
+          </p>
+          <div className="pt-2">
+            <ButtonPrimary onClick={loadAll}>Retry Telemetry Fetch</ButtonPrimary>
+          </div>
+        </FeatureCard>
+      </div>
+    );
   }
 
   return (

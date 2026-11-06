@@ -93,7 +93,8 @@ app.include_router(reports.router, prefix="/api/reports")
 
 # Include legacy/core routers for backward compatibility
 app.include_router(grading.router)
-app.include_router(analytics.router)
+app.include_router(analytics.router, prefix="/api/v1/analytics")
+app.include_router(analytics.router, prefix="/api/analytics")
 app.include_router(exports.router)
 
 @app.get("/api/batches")

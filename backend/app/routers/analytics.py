@@ -11,10 +11,11 @@ from backend.app.schemas import QuotaSettingsUpdateRequest, BenchmarkRecordReque
 from backend.app.services.usage_service import usage_service
 from backend.app.services.auth import require_branch_manager, require_root_admin
 
-router = APIRouter(prefix="/api/analytics", tags=["Analytics & Feasibility"])
+router = APIRouter(tags=["Analytics & Feasibility"])
 
 
 @router.get("/usage")
+@router.get("/telemetry")
 def get_usage(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
@@ -24,6 +25,7 @@ def get_usage(
 
 
 @router.post("/quota")
+@router.post("/quota-settings")
 def update_quota_settings(
     req: QuotaSettingsUpdateRequest,
     current_user: Dict[str, Any] = Depends(require_root_admin)
