@@ -2239,7 +2239,7 @@ export default function StudentPortalPage() {
                       {/* Primary: Inspect in PDF Viewer */}
                       <Link
                         href={`/student/submissions/${sub.id}`}
-                        className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center shrink-0"
+                        className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 rounded-md shadow-2xs transition-colors cursor-pointer text-center shrink-0 whitespace-nowrap"
                       >
                         <Eye className="h-3.5 w-3.5 shrink-0" />
                         <span>
@@ -2251,92 +2251,90 @@ export default function StudentPortalPage() {
                         </span>
                       </Link>
 
-                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-                        {/* Secondary: View Breakdown */}
-                        {isPublished ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenBreakdownModal(sub)}
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-2.5 sm:px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
-                          >
-                            <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                            <span>View Summary</span>
-                          </button>
-                        ) : (
+                      {/* Secondary: View Breakdown */}
+                      {isPublished ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBreakdownModal(sub)}
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>View Summary</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          title="Detailed breakdown will be accessible once marks are officially published by faculty."
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                          <span>Summary Pending</span>
+                        </button>
+                      )}
+
+                      {/* Question Paper & Answer Key Viewer */}
+                      {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArtifactModalExam({
+                              id: sub.exam_id,
+                              title: sub.exam_title,
+                              subject: sub.exam_subject,
+                              has_question_paper: sub.has_question_paper,
+                              has_answer_key: sub.has_answer_key,
+                              is_document_purged: sub.exam_is_document_purged,
+                            });
+                            setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
+                            setArtifactModalOpen(true);
+                          }}
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 shadow-2xs"
+                          title="View Question Paper & Official Answer Key"
+                        >
+                          <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>QP & Key</span>
+                        </button>
+                      )}
+
+                      {/* Download Graded PDF */}
+                      {isPublished ? (
+                        sub.is_document_purged ? (
                           <button
                             type="button"
                             disabled
-                            title="Detailed breakdown will be accessible once marks are officially published by faculty."
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-2.5 sm:px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
-                          >
-                            <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-                            <span>Summary Pending</span>
-                          </button>
-                        )}
-
-                        {/* Question Paper & Answer Key Viewer */}
-                        {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setArtifactModalExam({
-                                id: sub.exam_id,
-                                title: sub.exam_title,
-                                subject: sub.exam_subject,
-                                has_question_paper: sub.has_question_paper,
-                                has_answer_key: sub.has_answer_key,
-                                is_document_purged: sub.exam_is_document_purged,
-                              });
-                              setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
-                              setArtifactModalOpen(true);
-                            }}
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-2.5 sm:px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 col-span-2 sm:col-span-1"
-                            title="View Question Paper & Official Answer Key"
-                          >
-                            <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-                            <span>QP & Key</span>
-                          </button>
-                        )}
-
-                        {/* Download Graded PDF */}
-                        {isPublished ? (
-                          sub.is_document_purged ? (
-                            <button
-                              type="button"
-                              disabled
-                              title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
-                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-2.5 sm:px-3.5 rounded-md opacity-60 cursor-not-allowed text-center whitespace-nowrap shrink-0"
-                            >
-                              <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-                              <span>PDF Expired</span>
-                            </button>
-                          ) : (
-                            <a
-                              href={api.getAnnotatedPdfUrl(sub.id)}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={() =>
-                                toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
-                              }
-                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-2.5 sm:px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0"
-                              title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
-                            >
-                              <Download className="h-3.5 w-3.5 shrink-0" />
-                              <span>Download PDF</span>
-                            </a>
-                          )
-                        ) : (
-                          <button
-                            type="button"
-                            disabled
-                            title="Evaluated PDF download will be enabled once faculty officially publishes results."
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-2.5 sm:px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                            title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3.5 rounded-md opacity-60 cursor-not-allowed text-center whitespace-nowrap shrink-0"
                           >
                             <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-                            <span>PDF Pending</span>
+                            <span>PDF Expired</span>
                           </button>
-                        )}
-                      </div>
+                        ) : (
+                          <a
+                            href={api.getAnnotatedPdfUrl(sub.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() =>
+                              toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
+                            }
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs"
+                            title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
+                          >
+                            <Download className="h-3.5 w-3.5 shrink-0" />
+                            <span>Download PDF</span>
+                          </a>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          title="Evaluated PDF download will be enabled once faculty officially publishes results."
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                        >
+                          <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                          <span>PDF Pending</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Revaluation Appeal Status Pill (Shown only if appeal is active or resolved) */}
@@ -2856,7 +2854,7 @@ export default function StudentPortalPage() {
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                         <Link
                           href={`/student/submissions/${sub.id}`}
-                          className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center shrink-0"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 rounded-md shadow-2xs transition-colors cursor-pointer text-center shrink-0 whitespace-nowrap"
                         >
                           <Eye className="h-3.5 w-3.5 shrink-0" />
                           <span>
@@ -2868,100 +2866,102 @@ export default function StudentPortalPage() {
                           </span>
                         </Link>
 
-                        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-                          {isPublished ? (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenBreakdownModal(sub)}
-                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-2.5 sm:px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
-                            >
-                              <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                              <span>View Summary</span>
-                            </button>
-                          ) : (
+                        {/* Secondary: View Breakdown */}
+                        {isPublished ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBreakdownModal(sub)}
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>View Summary</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            title="Detailed breakdown will be accessible once marks are officially published by faculty."
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                            <span>Summary Pending</span>
+                          </button>
+                        )}
+
+                        {/* Question Paper & Answer Key Viewer */}
+                        {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArtifactModalExam({
+                                id: sub.exam_id,
+                                title: sub.exam_title,
+                                subject: sub.exam_subject || sub.subject,
+                                has_question_paper: sub.has_question_paper,
+                                has_answer_key: sub.has_answer_key,
+                                is_document_purged: sub.exam_is_document_purged,
+                              });
+                              setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
+                              setArtifactModalOpen(true);
+                            }}
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 shadow-2xs"
+                            title="View Question Paper & Official Answer Key"
+                          >
+                            <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>QP & Key</span>
+                          </button>
+                        )}
+
+                        {/* Download Graded PDF */}
+                        {isPublished ? (
+                          sub.is_document_purged ? (
                             <button
                               type="button"
                               disabled
-                              title="Detailed breakdown will be accessible once marks are officially published by faculty."
-                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-2.5 sm:px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
-                            >
-                              <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-                              <span>Summary Pending</span>
-                            </button>
-                          )}
-
-                          {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setArtifactModalExam({
-                                  id: sub.exam_id,
-                                  title: sub.exam_title,
-                                  subject: sub.exam_subject || sub.subject,
-                                  has_question_paper: sub.has_question_paper,
-                                  has_answer_key: sub.has_answer_key,
-                                  is_document_purged: sub.exam_is_document_purged,
-                                });
-                                setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
-                                setArtifactModalOpen(true);
-                              }}
-                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-2.5 sm:px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 col-span-2 sm:col-span-1"
-                              title="View Question Paper & Official Answer Key"
-                            >
-                              <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-                              <span>QP & Key</span>
-                            </button>
-                          )}
-
-                          {isPublished ? (
-                            sub.is_document_purged ? (
-                              <button
-                                type="button"
-                                disabled
-                                title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
-                                className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-2.5 sm:px-3.5 rounded-md opacity-60 cursor-not-allowed text-center whitespace-nowrap shrink-0"
-                              >
-                                <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-                                <span>PDF Expired</span>
-                              </button>
-                            ) : (
-                              <a
-                                href={api.getAnnotatedPdfUrl(sub.id)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={() =>
-                                  toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
-                                }
-                                className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-2.5 sm:px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0"
-                                title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
-                              >
-                                <Download className="h-3.5 w-3.5 shrink-0" />
-                                <span>Download PDF</span>
-                              </a>
-                            )
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              title="Evaluated PDF download will be enabled once faculty officially publishes results."
-                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-2.5 sm:px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                              title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
+                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3.5 rounded-md opacity-60 cursor-not-allowed text-center whitespace-nowrap shrink-0"
                             >
                               <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-                              <span>PDF Pending</span>
+                              <span>PDF Expired</span>
                             </button>
-                          )}
-                        </div>
+                          ) : (
+                            <a
+                              href={api.getAnnotatedPdfUrl(sub.id)}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() =>
+                                toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
+                              }
+                              className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs"
+                              title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
+                            >
+                              <Download className="h-3.5 w-3.5 shrink-0" />
+                              <span>Download PDF</span>
+                            </a>
+                          )
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            title="Evaluated PDF download will be enabled once faculty officially publishes results."
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                          >
+                            <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                            <span>PDF Pending</span>
+                          </button>
+                        )}
                       </div>
 
+                      {/* Revaluation Appeal Status Pill (Shown only if appeal is active or resolved) */}
                       {isPublished && (hasOpenReval || isRevalResolved) && (
                         <div className="w-full sm:w-auto">
                           {hasOpenReval ? (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200">
+                            <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 text-center whitespace-nowrap shadow-2xs">
                               <RotateCcw className="h-3.5 w-3.5 animate-spin" />
                               <span>Revaluation Appeal Active</span>
                             </div>
                           ) : (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200">
+                            <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 text-center whitespace-nowrap shadow-2xs">
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               <span>Revaluation Completed</span>
                             </div>
@@ -2969,11 +2969,12 @@ export default function StudentPortalPage() {
                         </div>
                       )}
 
+                      {/* Request Revaluation Button */}
                       {isPublished && !hasOpenReval && !isRevalResolved && (
                         <button
                           type="button"
                           onClick={() => handleOpenRevalModal(sub)}
-                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 shadow-2xs"
                         >
                           <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
                           <span>Request Revaluation</span>
