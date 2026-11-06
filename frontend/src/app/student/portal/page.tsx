@@ -277,7 +277,7 @@ function StudentMarksTrajectory({
         {/* Minimal Metrics Badges */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {count > 0 && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-canvas-soft text-ink-secondary border border-hairline font-mono">
               <span>{count} {count === 1 ? "Paper" : "Papers"}</span>
             </div>
           )}
@@ -2121,21 +2121,21 @@ export default function StudentPortalPage() {
                     <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-auto pt-0.5 sm:pt-0">
                       {isPublished ? (
                         <>
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50 whitespace-nowrap">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                             Results Published
                           </span>
                           {sub.is_document_purged ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                              <AlertCircle className="h-3 w-3 text-slate-500" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+                              <AlertCircle className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                               PDF Archived
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap"
                               title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
                             >
-                              <Clock className="h-3 w-3 text-amber-600" />
+                              <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                               {sub.days_remaining !== undefined && sub.days_remaining !== null
                                 ? `${sub.days_remaining}d until PDF purge`
                                 : "15d PDF retention"}
@@ -2143,27 +2143,27 @@ export default function StudentPortalPage() {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                          <Clock className="h-3.5 w-3.5 text-amber-600" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap">
+                          <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                           Grading in Progress
                         </span>
                       )}
 
                       {/* Revaluation Status Pill */}
                       {hasOpenReval && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700/50 whitespace-nowrap">
                           <RotateCcw className="h-3.5 w-3.5 animate-spin" />
                           Revaluation In Review
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50 whitespace-nowrap">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Marks Revised
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_UPHELD" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700/50 whitespace-nowrap">
                           <ShieldCheck className="h-3.5 w-3.5" />
                           Marks Upheld
                         </span>
@@ -2586,7 +2586,7 @@ export default function StudentPortalPage() {
               onClick={() => setExamStatusFilter("ALL")}
               className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "ALL"
-                  ? "bg-ink text-white font-semibold shadow-2xs"
+                  ? "bg-ink text-canvas font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
               }`}
             >
@@ -2727,21 +2727,21 @@ export default function StudentPortalPage() {
                   <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center pt-0.5 sm:pt-0">
                     {isPublished ? (
                       <>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50 whitespace-nowrap">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                           Results Published
                         </span>
                         {sub.is_document_purged ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                            <AlertCircle className="h-3 w-3 text-slate-500" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+                            <AlertCircle className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                             PDF Archived
                           </span>
                         ) : (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap"
                             title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
                           >
-                            <Clock className="h-3 w-3 text-amber-600" />
+                            <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                             {sub.days_remaining !== undefined && sub.days_remaining !== null
                               ? `${sub.days_remaining}d until purge`
                               : "15d retention"}
@@ -2749,22 +2749,22 @@ export default function StudentPortalPage() {
                         )}
                       </>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                        <Clock className="h-3 w-3" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap">
+                        <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                         Grading in Progress
                       </span>
                     )}
 
                     {hasOpenReval && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700/50 whitespace-nowrap">
                         <RotateCcw className="h-3 w-3 animate-spin" />
                         In Review
                       </span>
                     )}
 
                     {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
-                        <Sparkles className="h-3 w-3" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50 whitespace-nowrap">
+                        <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                         Marks Revised
                       </span>
                     )}
@@ -3580,7 +3580,7 @@ export default function StudentPortalPage() {
               <textarea
                 required
                 rows={3}
-                className="w-full rounded-md border border-[#dddddd] bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
+                className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
                 placeholder="Explain why you believe the step marks, derivation, or criteria require faculty re-verification..."
                 value={revalReason}
                 onChange={(e) => setRevalReason(e.target.value)}

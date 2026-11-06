@@ -271,7 +271,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
         {/* Right: DB Status + Notification Bell + Profile */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Supabase Status Pill */}
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium mr-1">
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-700/50 text-emerald-800 dark:text-emerald-300 text-[11px] font-medium mr-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Supabase PostgreSQL • Online</span>
           </div>

@@ -30,12 +30,10 @@ export default function LandingPage() {
 
   const footerRef = useRef<HTMLElement>(null);
   const [footerHeight, setFooterHeight] = useState<number>(500);
-  const [isDesktop, setIsDesktop] = useState<boolean>(false);
 
-  // Measure exact footer height and detect desktop screen for parallax curtain reveal
+  // Measure exact footer height across all mobile & desktop viewports for parallax curtain reveal
   useEffect(() => {
     const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 768);
       if (footerRef.current) {
         const measured = Math.ceil(
           footerRef.current.getBoundingClientRect().height || footerRef.current.offsetHeight
@@ -456,7 +454,7 @@ export default function LandingPage() {
                     </div>
 
                     {/* Student Handwritten Derivation Box with Coordinate Stamp */}
-                    <div className="p-3 sm:p-3.5 rounded-md border border-neutral-300 bg-surface relative space-y-2.5 sm:space-y-3 font-serif">
+                    <div className="p-3 sm:p-3.5 rounded-md border border-hairline bg-surface relative space-y-2.5 sm:space-y-3 font-serif">
                       <div className="flex items-start justify-between gap-2">
                         <div className="text-[10px] font-mono text-ink-muted uppercase">Student Derivation (Box B-1)</div>
                         <div className="px-2 py-0.5 rounded-md bg-[#eaf7ed] dark:bg-[#132b1d] border border-[#c2ecd0] dark:border-[rgba(74,222,128,0.25)] text-[10px] font-mono font-semibold text-accent-green dark:text-[#4ade80] shrink-0">
@@ -828,22 +826,20 @@ export default function LandingPage() {
         ========================================================================
         UNDERLAYING REVEAL FOOTER
         Sits pinned beneath the main document with clip-path and reveals itself 
-        with a smooth parallax curtain effect as the page is scrolled down.
-        Includes the requested big faded typography of "PaperGrade AI".
+        with a smooth parallax curtain effect as the page is scrolled down (Mobile & Desktop).
+        Polarity-flipped: Dark near-black in light mode, soft warm paper in dark mode.
         ========================================================================
       */}
       <div
         className="relative w-full z-0 overflow-hidden"
         style={{
-          clipPath: isDesktop ? "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)" : undefined,
-          height: isDesktop && footerHeight > 0 ? `${footerHeight}px` : "auto",
+          clipPath: "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)",
+          height: footerHeight > 0 ? `${footerHeight}px` : "auto",
         }}
       >
         <footer
           ref={footerRef}
-          className={`${
-            isDesktop ? "fixed bottom-0 left-0 w-full" : "relative w-full"
-          } z-0 bg-[#141413] text-[#8e8d8a] flex flex-col justify-between pt-8 sm:pt-14 pb-8 sm:pb-6 px-4 sm:px-12 md:px-16 select-none`}
+          className="fixed bottom-0 left-0 w-full z-0 bg-[#141413] dark:bg-[#f6f5f4] text-[#8e8d8a] dark:text-[#615d59] flex flex-col justify-between pt-8 sm:pt-14 pb-8 sm:pb-6 px-4 sm:px-12 md:px-16 select-none transition-colors duration-200"
         >
           <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
             
@@ -857,14 +853,14 @@ export default function LandingPage() {
                   height={26}
                   className="h-6 w-6 object-contain shrink-0"
                 />
-                <span className="text-sm font-bold text-white tracking-tight">
+                <span className="text-sm font-bold text-white dark:text-[#111111] tracking-tight">
                   PaperGrade <span className="text-primary font-semibold">AI</span>
                 </span>
               </div>
-              <p className="text-xs text-[#9b9994] leading-relaxed max-w-sm">
+              <p className="text-xs text-[#9b9994] dark:text-[#504c48] leading-relaxed max-w-sm">
                 Infrastructure for handwritten academic evaluations, itemized marking rubrics, and institutional grading integrity.
               </p>
-              <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-[#71706c]">
+              <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-[#71706c] dark:text-[#78746f]">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent-green shrink-0" />
                 <span>Assessment Services Active</span>
               </div>
@@ -873,22 +869,22 @@ export default function LandingPage() {
             {/* Real Internal Links Only */}
             <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-6 text-xs">
               <div className="space-y-2">
-                <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white dark:text-[#111111] font-semibold">
                   Student Access
                 </div>
                 <ul className="space-y-1.5">
                   <li>
-                    <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
+                    <Link href="/auth/login?role=student" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Examination Portal
                     </Link>
                   </li>
                   <li>
-                    <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
+                    <Link href="/auth/login?role=claim" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Claim Student ID
                     </Link>
                   </li>
                   <li>
-                    <Link href="/revaluation" className="hover:text-white transition-colors">
+                    <Link href="/revaluation" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Revaluation Desk
                     </Link>
                   </li>
@@ -896,27 +892,27 @@ export default function LandingPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white dark:text-[#111111] font-semibold">
                   Administration
                 </div>
                 <ul className="space-y-1.5">
                   <li>
-                    <Link href="/overview" className="hover:text-white transition-colors">
+                    <Link href="/overview" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Operations Console
                     </Link>
                   </li>
                   <li>
-                    <Link href="/branch/batches" className="hover:text-white transition-colors">
+                    <Link href="/branch/batches" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Batches & Roster
                     </Link>
                   </li>
                   <li>
-                    <Link href="/admin/tenancy" className="hover:text-white transition-colors">
+                    <Link href="/admin/tenancy" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Institutes & Campuses
                     </Link>
                   </li>
                   <li>
-                    <Link href="/marks" className="hover:text-white transition-colors">
+                    <Link href="/marks" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Marks Inspection
                     </Link>
                   </li>
@@ -924,22 +920,22 @@ export default function LandingPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="font-mono text-[11px] uppercase tracking-wider text-white font-medium">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white dark:text-[#111111] font-semibold">
                   Authentication
                 </div>
                 <ul className="space-y-1.5">
                   <li>
-                    <Link href="/auth/login?role=student" className="hover:text-white transition-colors">
+                    <Link href="/auth/login?role=student" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Student Login
                     </Link>
                   </li>
                   <li>
-                    <Link href="/auth/login?role=staff" className="hover:text-white transition-colors">
+                    <Link href="/auth/login?role=staff" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Staff Login
                     </Link>
                   </li>
                   <li>
-                    <Link href="/auth/login?role=claim" className="hover:text-white transition-colors">
+                    <Link href="/auth/login?role=claim" className="hover:text-white dark:hover:text-[#111111] transition-colors">
                       Claim Account
                     </Link>
                   </li>
@@ -956,13 +952,13 @@ export default function LandingPage() {
             ========================================================================
           */}
           <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-8 sm:pt-12 pb-4 sm:pb-2 px-2">
-            <span className="text-3xl min-[360px]:text-4xl min-[440px]:text-5xl sm:text-7xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tight sm:tracking-tighter text-white/[0.14] sm:text-white/[0.06] md:text-white/[0.05] uppercase select-none block leading-none whitespace-nowrap">
+            <span className="text-3xl min-[360px]:text-4xl min-[440px]:text-5xl sm:text-7xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tight sm:tracking-tighter text-white/[0.14] sm:text-white/[0.06] md:text-white/[0.05] dark:text-black/[0.08] dark:sm:text-black/[0.05] uppercase select-none block leading-none whitespace-nowrap">
               PaperGrade AI
             </span>
           </div>
 
           {/* Bottom Legal / Copyright Row */}
-          <div className="max-w-5xl mx-auto w-full pt-4 border-t border-[#242422] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#6d6c68] font-mono">
+          <div className="max-w-5xl mx-auto w-full pt-4 border-t border-[#242422] dark:border-[#e2ded9] flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#6d6c68] dark:text-[#88847f] font-mono">
             <div>© {new Date().getFullYear()} PaperGrade AI • All rights reserved.</div>
             <div>Academic Evaluation Architecture</div>
           </div>
