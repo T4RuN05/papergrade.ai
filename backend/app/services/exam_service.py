@@ -188,11 +188,26 @@ class ExamService:
                 .limit(1)
             )
             if rubric:
+                parsed_rubric_data = {}
+                try:
+                    parsed_rubric_data = json.loads(rubric.rubric_data) if isinstance(rubric.rubric_data, str) else (rubric.rubric_data or {})
+                except Exception:
+                    parsed_rubric_data = {}
+
+                # Defensive normalization: ensure questions always have criteria and question_text
+                if isinstance(parsed_rubric_data, dict) and "questions" in parsed_rubric_data:
+                    for q in parsed_rubric_data.get("questions", []):
+                        if isinstance(q, dict):
+                            if "criteria" not in q or q["criteria"] is None:
+                                q["criteria"] = []
+                            if "question_text" not in q or not q["question_text"]:
+                                q["question_text"] = q.get("title", "")
+
                 exam_dict["rubric_version"] = {
                     "id": rubric.id,
                     "version_num": rubric.version_num,
                     "is_approved": bool(rubric.is_approved),
-                    "rubric_data": json.loads(rubric.rubric_data),
+                    "rubric_data": parsed_rubric_data,
                     "created_at": rubric.created_at,
                     "approved_at": rubric.approved_at,
                 }

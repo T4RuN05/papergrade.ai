@@ -23,6 +23,44 @@ interface RubricEditorProps {
   onUnlock?: () => Promise<void>;
 }
 
+const normalizeQuestion = (q: RubricQuestion, idx: number): RubricQuestion => ({
+  ...q,
+  question_id: q.question_id || String(idx + 1),
+  question_text: q.question_text || (q as any).title || "",
+  max_marks: Number(q.max_marks) || 0,
+  official_answer: q.official_answer || "",
+  criteria: Array.isArray(q.criteria)
+    ? q.criteria.map((c, cIdx) => ({
+        ...c,
+        criterion_id: c.criterion_id || `C${cIdx + 1}`,
+        description: c.description || "",
+        marks: Number(c.marks) || 0,
+      }))
+    : [],
+});
+
+const normalizeRubric = (r?: ExamRubric): ExamRubric => {
+  if (!r) {
+    return {
+      exam_title: "",
+      subject: "",
+      total_marks: 0,
+      questions: [],
+      sections: [],
+    };
+  }
+  return {
+    ...r,
+    exam_title: r.exam_title || "",
+    subject: r.subject || "",
+    total_marks: Number(r.total_marks) || 0,
+    questions: Array.isArray(r.questions)
+      ? r.questions.map((q, i) => normalizeQuestion(q, i))
+      : [],
+    sections: Array.isArray(r.sections) ? r.sections : [],
+  };
+};
+
 export function RubricEditor({
   initialRubric,
   isApproved,
@@ -30,12 +68,12 @@ export function RubricEditor({
   onUnlock,
 }: RubricEditorProps) {
   const { toast } = useToast();
-  const [rubric, setRubric] = useState<ExamRubric>(initialRubric);
+  const [rubric, setRubric] = useState<ExamRubric>(() => normalizeRubric(initialRubric));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
 
   useEffect(() => {
-    setRubric(initialRubric);
+    setRubric(normalizeRubric(initialRubric));
   }, [initialRubric]);
 
   const calculateTotalMarks = () => {
@@ -46,17 +84,18 @@ export function RubricEditor({
     if (rubric.total_marks && Number(rubric.total_marks) > 0) {
       return Number(rubric.total_marks);
     }
-    return rubric.questions.reduce((sum, q) => sum + (Number(q.max_marks) || 0), 0);
+    return (rubric.questions || []).reduce((sum, q) => sum + (Number(q.max_marks) || 0), 0);
   };
 
   const handleQuestionChange = (index: number, field: keyof RubricQuestion, value: any) => {
-    const updatedQuestions = [...rubric.questions];
+    const updatedQuestions = [...(rubric.questions || [])];
     updatedQuestions[index] = { ...updatedQuestions[index], [field]: value };
     setRubric({ ...rubric, questions: updatedQuestions });
   };
 
   const handleAddQuestion = () => {
-    const nextQId = `Q${rubric.questions.length + 1}`;
+    const questions = rubric.questions || [];
+    const nextQId = `Q${questions.length + 1}`;
     const newQ: RubricQuestion = {
       question_id: nextQId,
       question_text: "New Question Statement...",
@@ -77,29 +116,31 @@ export function RubricEditor({
     };
     setRubric({
       ...rubric,
-      questions: [...rubric.questions, newQ],
+      questions: [...questions, newQ],
     });
   };
 
   const handleDeleteQuestion = (index: number) => {
-    const updated = rubric.questions.filter((_, i) => i !== index);
+    const updated = (rubric.questions || []).filter((_, i) => i !== index);
     setRubric({ ...rubric, questions: updated });
   };
 
   const handleAddCriterion = (qIndex: number) => {
     const q = rubric.questions[qIndex];
-    const nextCId = `C${q.criteria.length + 1}`;
+    const crits = Array.isArray(q?.criteria) ? q.criteria : [];
+    const nextCId = `C${crits.length + 1}`;
     const newCrit: RubricCriterion = {
       criterion_id: nextCId,
       description: "Criterion step description...",
       marks: 1.0,
     };
-    handleQuestionChange(qIndex, "criteria", [...q.criteria, newCrit]);
+    handleQuestionChange(qIndex, "criteria", [...crits, newCrit]);
   };
 
   const handleDeleteCriterion = (qIndex: number, cIndex: number) => {
     const q = rubric.questions[qIndex];
-    const updated = q.criteria.filter((_, i) => i !== cIndex);
+    const crits = Array.isArray(q?.criteria) ? q.criteria : [];
+    const updated = crits.filter((_, i) => i !== cIndex);
     handleQuestionChange(qIndex, "criteria", updated);
   };
 
@@ -110,7 +151,8 @@ export function RubricEditor({
     value: any
   ) => {
     const q = rubric.questions[qIndex];
-    const updatedCrits = [...q.criteria];
+    const crits = Array.isArray(q?.criteria) ? q.criteria : [];
+    const updatedCrits = [...crits];
     updatedCrits[cIndex] = { ...updatedCrits[cIndex], [field]: value };
     handleQuestionChange(qIndex, "criteria", updatedCrits);
   };
@@ -250,177 +292,195 @@ export function RubricEditor({
 
         {/* Questions list */}
         <div className="space-y-5">
-          {rubric.questions.map((q, qIdx) => (
-            <div
-              key={qIdx}
-              className="rounded-lg border border-hairline bg-surface p-4 sm:p-5 space-y-4 shadow-xs transition-colors hover:border-[#d0d0d0]"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
-                <div className="flex flex-wrap items-center gap-3">
-                  <input
-                    type="text"
-                    value={q.question_id}
-                    disabled={isReadOnly}
-                    onChange={(e) => handleQuestionChange(qIdx, "question_id", e.target.value)}
-                    className="w-20 rounded-md border border-hairline bg-canvas-soft px-2.5 py-1 text-xs font-mono font-bold text-ink text-center focus:border-primary focus:outline-none disabled:opacity-75"
-                  />
-                  <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-                    <span className="font-medium">Max Marks:</span>
+          {(rubric.questions || []).map((q, qIdx) => {
+            const criteriaList = Array.isArray(q.criteria) ? q.criteria : [];
+            return (
+              <div
+                key={qIdx}
+                className="rounded-lg border border-hairline bg-surface p-4 sm:p-5 space-y-4 shadow-xs transition-colors hover:border-hairline"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+                  <div className="flex flex-wrap items-center gap-3">
                     <input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      value={q.max_marks}
+                      type="text"
+                      value={q.question_id || ""}
                       disabled={isReadOnly}
-                      onChange={(e) =>
-                        handleQuestionChange(qIdx, "max_marks", parseFloat(e.target.value) || 0)
-                      }
-                      className="w-16 rounded-md border border-hairline bg-surface px-2 py-1 text-xs font-mono font-bold text-ink text-center focus:border-primary focus:outline-none disabled:opacity-75"
+                      onChange={(e) => handleQuestionChange(qIdx, "question_id", e.target.value)}
+                      className="w-20 rounded-md border border-hairline bg-canvas-soft px-2.5 py-1 text-xs font-mono font-bold text-ink text-center focus:border-primary focus:outline-none disabled:opacity-75"
                     />
+                    <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+                      <span className="font-medium">Max Marks:</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        value={q.max_marks ?? 0}
+                        disabled={isReadOnly}
+                        onChange={(e) =>
+                          handleQuestionChange(qIdx, "max_marks", parseFloat(e.target.value) || 0)
+                        }
+                        className="w-16 rounded-md border border-hairline bg-surface px-2 py-1 text-xs font-mono font-bold text-ink text-center focus:border-primary focus:outline-none disabled:opacity-75"
+                      />
+                    </div>
+                    {q.section_id && (
+                      <BadgePill label={`Section ${q.section_id}`} color="sky" />
+                    )}
                   </div>
-                  {q.section_id && (
-                    <BadgePill label={`Section ${q.section_id}`} color="sky" />
-                  )}
-                </div>
 
-                {!isReadOnly && (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteQuestion(qIdx)}
-                    className="self-end sm:self-center text-ink-muted hover:text-red-600 hover:bg-red-50 p-1.5 rounded-md transition-colors"
-                    title="Delete Question"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Question Statement */}
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary mb-1 block">
-                  Question Statement:
-                </label>
-                <textarea
-                  rows={2}
-                  value={q.question_text}
-                  disabled={isReadOnly}
-                  onChange={(e) => handleQuestionChange(qIdx, "question_text", e.target.value)}
-                  className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none disabled:bg-canvas-soft/40 transition-colors"
-                />
-              </div>
-
-              {/* Official Answer */}
-              <div>
-                <label className="text-xs font-semibold text-ink-secondary mb-1 flex items-center gap-1">
-                  <span className="text-[#1aae39] font-bold">✓</span>
-                  <span>Official Expected Solution / Model Answer:</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={q.official_answer}
-                  disabled={isReadOnly}
-                  onChange={(e) => handleQuestionChange(qIdx, "official_answer", e.target.value)}
-                  className="w-full rounded-md border border-hairline bg-canvas-soft/30 p-2.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none disabled:bg-canvas-soft/40 transition-colors"
-                />
-              </div>
-
-              {/* Criteria */}
-              <div className="border-t border-hairline pt-3 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    Partial Marks Step-by-Step Breakdown
-                  </span>
                   {!isReadOnly && (
                     <button
                       type="button"
-                      onClick={() => handleAddCriterion(qIdx)}
-                      className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                      onClick={() => handleDeleteQuestion(qIdx)}
+                      className="self-end sm:self-center text-ink-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 p-1.5 rounded-md transition-colors"
+                      title="Delete Question"
                     >
-                      <Plus className="h-3 w-3" />
-                      Add Step
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  {q.criteria.map((c, cIdx) => (
-                    <div
-                      key={cIdx}
-                      className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-canvas-soft p-2.5 border border-hairline"
-                    >
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <input
-                          type="text"
-                          value={c.criterion_id}
-                          disabled={isReadOnly}
-                          onChange={(e) =>
-                            handleCriterionFieldChange(qIdx, cIdx, "criterion_id", e.target.value)
-                          }
-                          className="w-14 rounded-md border border-hairline bg-surface px-1.5 py-1 text-xs font-mono text-center font-bold text-primary focus:border-primary focus:outline-none disabled:opacity-75"
-                        />
-                        <div className="flex-1 sm:hidden">
-                          <input
-                            type="text"
-                            value={c.description}
-                            disabled={isReadOnly}
-                            onChange={(e) =>
-                              handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
-                            }
-                            placeholder="Criterion description..."
-                            className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none disabled:opacity-75"
-                          />
-                        </div>
-                      </div>
-                      <div className="hidden sm:block flex-1">
-                        <input
-                          type="text"
-                          value={c.description}
-                          disabled={isReadOnly}
-                          onChange={(e) =>
-                            handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
-                          }
-                          placeholder="Criterion step description..."
-                          className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none disabled:opacity-75"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-0 border-hairline">
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0.5"
-                            value={c.marks}
-                            disabled={isReadOnly}
-                            onChange={(e) =>
-                              handleCriterionFieldChange(
-                                qIdx,
-                                cIdx,
-                                "marks",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            className="w-16 rounded-md border border-hairline bg-surface px-1.5 py-1 text-xs font-mono text-center font-bold text-ink focus:border-primary focus:outline-none disabled:opacity-75"
-                          />
-                          <span className="text-xs text-ink-muted">marks</span>
-                        </div>
-                        {!isReadOnly && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCriterion(qIdx, cIdx)}
-                            className="text-ink-muted hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors"
-                            title="Delete step"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+                {/* Question Statement */}
+                <div>
+                  <label className="text-xs font-semibold text-ink-secondary mb-1 block">
+                    Question Statement:
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={q.question_text || (q as any).title || ""}
+                    disabled={isReadOnly}
+                    onChange={(e) => handleQuestionChange(qIdx, "question_text", e.target.value)}
+                    className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none disabled:bg-canvas-soft/40 transition-colors"
+                  />
+                </div>
+
+                {/* Official Answer */}
+                <div>
+                  <label className="text-xs font-semibold text-ink-secondary mb-1 flex items-center gap-1">
+                    <span className="text-[#1aae39] font-bold">✓</span>
+                    <span>Official Expected Solution / Model Answer:</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={q.official_answer || ""}
+                    disabled={isReadOnly}
+                    onChange={(e) => handleQuestionChange(qIdx, "official_answer", e.target.value)}
+                    className="w-full rounded-md border border-hairline bg-canvas-soft/30 p-2.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none disabled:bg-canvas-soft/40 transition-colors"
+                  />
+                </div>
+
+                {/* Criteria */}
+                <div className="border-t border-hairline pt-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      Partial Marks Step-by-Step Breakdown
+                    </span>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddCriterion(qIdx)}
+                        className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Step
+                      </button>
+                    )}
+                  </div>
+
+                  {criteriaList.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-hairline p-3 text-center text-xs text-ink-muted bg-canvas-soft/40">
+                      <span>No partial marking criteria defined. Evaluated as a single step ({q.max_marks || 0}m).</span>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddCriterion(qIdx)}
+                          className="ml-2 text-primary font-semibold hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" /> Add Step Criteria
+                        </button>
+                      )}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-2">
+                      {criteriaList.map((c, cIdx) => (
+                        <div
+                          key={cIdx}
+                          className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-canvas-soft p-2.5 border border-hairline"
+                        >
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <input
+                              type="text"
+                              value={c.criterion_id || ""}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                handleCriterionFieldChange(qIdx, cIdx, "criterion_id", e.target.value)
+                              }
+                              className="w-14 rounded-md border border-hairline bg-surface px-1.5 py-1 text-xs font-mono text-center font-bold text-primary focus:border-primary focus:outline-none disabled:opacity-75"
+                            />
+                            <div className="flex-1 sm:hidden">
+                              <input
+                                type="text"
+                                value={c.description || ""}
+                                disabled={isReadOnly}
+                                onChange={(e) =>
+                                  handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
+                                }
+                                placeholder="Criterion description..."
+                                className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none disabled:opacity-75"
+                              />
+                            </div>
+                          </div>
+                          <div className="hidden sm:block flex-1">
+                            <input
+                              type="text"
+                              value={c.description || ""}
+                              disabled={isReadOnly}
+                              onChange={(e) =>
+                                handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
+                              }
+                              placeholder="Criterion step description..."
+                              className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none disabled:opacity-75"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-0 border-hairline">
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={c.marks ?? 0}
+                                disabled={isReadOnly}
+                                onChange={(e) =>
+                                  handleCriterionFieldChange(
+                                    qIdx,
+                                    cIdx,
+                                    "marks",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                className="w-16 rounded-md border border-hairline bg-surface px-1.5 py-1 text-xs font-mono text-center font-bold text-ink focus:border-primary focus:outline-none disabled:opacity-75"
+                              />
+                              <span className="text-xs text-ink-muted">marks</span>
+                            </div>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCriterion(qIdx, cIdx)}
+                                className="text-ink-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 p-1 rounded-md transition-colors cursor-pointer"
+                                title="Delete step"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {!isReadOnly && (
             <button

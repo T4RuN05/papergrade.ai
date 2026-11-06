@@ -1399,7 +1399,7 @@ export default function StudentPortalPage() {
           onClick={() => handleTabSwitch("dashboard")}
           className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
             activeTab === "dashboard"
-              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline"
+              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
               : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
           }`}
         >
@@ -1415,13 +1415,13 @@ export default function StudentPortalPage() {
           onClick={() => handleTabSwitch("exams")}
           className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
             activeTab === "exams"
-              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline"
+              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
               : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
           }`}
         >
           <BookOpen className={`h-3.5 w-3.5 ${activeTab === "exams" ? "text-primary" : "text-ink-muted"}`} />
           <span>Past Exams</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline text-ink-muted">
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline/60 text-ink-muted">
             {pastSubmissionsList.length}
           </span>
         </button>
@@ -1683,7 +1683,7 @@ export default function StudentPortalPage() {
 
                 <div className="p-3.5 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                   <div className="flex flex-wrap items-center gap-3 text-ink-muted">
-                    <span className="whitespace-nowrap font-mono text-[11px] bg-surface px-2 py-0.5 rounded border border-hairline">
+                    <span className="whitespace-nowrap font-mono text-[11px] bg-surface/80 dark:bg-[#1f1f1f] px-2 py-0.5 rounded-md border border-hairline/60">
                       Roll: <strong className="text-ink font-semibold">{activeExamSubmission.roll_number}</strong>
                     </span>
                     {activeExamSubmission.page_count && (
@@ -2112,7 +2112,7 @@ export default function StudentPortalPage() {
                           </span>
                         </span>
                         <span className="text-ink-faint hidden xs:inline">•</span>
-                        <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                        <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/70 dark:bg-[#1a1a1a] border border-hairline/60 px-1.5 py-0.5 rounded-md text-[10.5px] text-ink-secondary shrink-0">
                           Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
                         </span>
                       </div>
@@ -2499,7 +2499,7 @@ export default function StudentPortalPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search exams by title or subject (e.g. Physics, Chemistry, Rotation)..."
-              className="w-full pl-9 pr-9 py-2 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+              className="w-full pl-9 pr-9 py-2 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface dark:bg-[#1a1a1a] dark:focus:bg-[#202020] text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline/70 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
@@ -2584,10 +2584,10 @@ export default function StudentPortalPage() {
             <button
               type="button"
               onClick={() => setExamStatusFilter("ALL")}
-              className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "ALL"
-                  ? "bg-ink text-canvas font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
+                  ? "bg-primary text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
               }`}
             >
               All
@@ -2595,10 +2595,10 @@ export default function StudentPortalPage() {
             <button
               type="button"
               onClick={() => setExamStatusFilter("PUBLISHED")}
-              className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "PUBLISHED"
-                  ? "bg-emerald-600 text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
+                  ? "bg-emerald-600 dark:bg-emerald-600/90 text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
               }`}
             >
               Published
@@ -2606,10 +2606,10 @@ export default function StudentPortalPage() {
             <button
               type="button"
               onClick={() => setExamStatusFilter("IN_PROGRESS")}
-              className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "IN_PROGRESS"
-                  ? "bg-amber-600 text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
+                  ? "bg-amber-600 dark:bg-amber-600/90 text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
               }`}
             >
               In Progress
@@ -2718,7 +2718,7 @@ export default function StudentPortalPage() {
                         </span>
                       </span>
                       <span className="text-ink-faint hidden xs:inline">•</span>
-                      <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                      <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/70 dark:bg-[#1a1a1a] border border-hairline/60 px-1.5 py-0.5 rounded-md text-[10.5px] text-ink-secondary shrink-0">
                         Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
                       </span>
                     </div>

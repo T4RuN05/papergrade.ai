@@ -89,7 +89,7 @@ export default function ExamRubricPage() {
     return (
       <div className="max-w-xl mx-auto py-12">
         <FeatureCard className="p-8 text-center space-y-4">
-          <div className="mx-auto h-10 w-10 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+          <div className="mx-auto h-10 w-10 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 flex items-center justify-center text-red-600 dark:text-red-400">
             <AlertCircle className="h-5 w-5" />
           </div>
           <h2 className="text-base font-bold text-ink">Examination Not Found</h2>
@@ -107,12 +107,48 @@ export default function ExamRubricPage() {
     );
   }
 
-  const rubricData = exam.rubric_version?.rubric_data || {
-    exam_title: exam.title,
-    subject: exam.subject,
+  let rubricData: ExamRubric = {
+    exam_title: exam.title || "Examination Rubric",
+    subject: exam.subject || "",
     total_marks: exam.total_marks || 20,
     questions: [],
+    sections: [],
   };
+
+  if (exam.rubric_version?.rubric_data) {
+    try {
+      const raw = exam.rubric_version.rubric_data;
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (parsed && typeof parsed === "object") {
+        rubricData = {
+          ...parsed,
+          exam_title: parsed.exam_title || exam.title,
+          subject: parsed.subject || exam.subject,
+          total_marks: parsed.total_marks || exam.total_marks || 20,
+          questions: Array.isArray(parsed.questions)
+            ? parsed.questions.map((q: any, idx: number) => ({
+                ...q,
+                question_id: q.question_id || String(idx + 1),
+                question_text: q.question_text || q.title || "",
+                max_marks: Number(q.max_marks) || 0,
+                official_answer: q.official_answer || "",
+                criteria: Array.isArray(q.criteria)
+                  ? q.criteria.map((c: any, cIdx: number) => ({
+                      ...c,
+                      criterion_id: c.criterion_id || `C${cIdx + 1}`,
+                      description: c.description || "",
+                      marks: Number(c.marks) || 0,
+                    }))
+                  : [],
+              }))
+            : [],
+          sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+        };
+      }
+    } catch (e) {
+      console.error("Failed to parse rubric data:", e);
+    }
+  }
 
   const isApproved = Boolean(exam.rubric_version?.is_approved);
   const hasQuestions = Boolean(rubricData.questions && rubricData.questions.length > 0);
@@ -121,9 +157,9 @@ export default function ExamRubricPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {showNoKeyBanner && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
+        <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>
               <strong>Answer Key not yet uploaded:</strong>{" "}
               {currentUser?.role === "ROOT_ADMIN"

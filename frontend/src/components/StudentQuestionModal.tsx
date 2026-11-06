@@ -288,8 +288,8 @@ export function StudentQuestionModal({
                     </div>
 
                     {crit.evidence && (
-                      <div className="text-[10.5px] text-ink-muted bg-surface dark:bg-[#1a1a1a] p-1.5 rounded border border-hairline leading-relaxed">
-                        <span className="font-semibold text-ink-secondary dark:text-ink-secondary">AI Finding / Evidence: </span>
+                      <div className="text-[10.5px] text-ink dark:text-ink/90 bg-surface dark:bg-[#181818] p-2 rounded border border-hairline/60 leading-relaxed">
+                        <span className="font-semibold text-ink-secondary dark:text-ink-secondary mr-1">AI Finding / Evidence:</span>
                         {crit.evidence}
                       </div>
                     )}
@@ -305,12 +305,12 @@ export function StudentQuestionModal({
           <div className="grid grid-cols-1 gap-2 pt-0.5">
             {/* Student's Transcribed Text */}
             {answer.extracted_text && (
-              <div className="p-2 rounded-md bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 space-y-1">
+              <div className="p-2.5 rounded-lg bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 space-y-1.5">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
                   <Cpu className="h-3 w-3 text-primary shrink-0" />
                   <span>Transcribed Student Answer (AI Vision)</span>
                 </div>
-                <div className="text-[10.5px] text-ink-secondary dark:text-ink font-mono leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-blue-100 dark:border-blue-900/40 max-h-28 overflow-y-auto">
+                <div className="text-[10.5px] text-ink dark:text-ink/90 font-mono leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#181818] p-2.5 rounded border border-blue-100 dark:border-blue-900/30 max-h-28 overflow-y-auto">
                   {answer.extracted_text}
                 </div>
               </div>
@@ -318,12 +318,12 @@ export function StudentQuestionModal({
 
             {/* Official Model Solution if available */}
             {answer.official_answer && (
-              <div className="p-2 rounded-md bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 space-y-1">
+              <div className="p-2.5 rounded-lg bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 space-y-1.5">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
                   <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>Official Model Solution</span>
                 </div>
-                <div className="text-[10.5px] text-ink-secondary dark:text-ink leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-emerald-100 dark:border-emerald-900/40 max-h-28 overflow-y-auto">
+                <div className="text-[10.5px] text-ink dark:text-ink/90 leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#181818] p-2.5 rounded border border-emerald-100 dark:border-emerald-900/30 max-h-28 overflow-y-auto">
                   {answer.official_answer}
                 </div>
               </div>
@@ -345,7 +345,7 @@ export function StudentQuestionModal({
                 <button
                   type="button"
                   onClick={() => setShowAppealForm(true)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/30 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   <RotateCcw className="h-3 w-3 text-primary" />
                   <span>Request Revaluation</span>
