@@ -1323,9 +1323,7 @@ export default function StudentPortalPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
               Welcome, {user?.full_name || "Student"}
             </h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
-              Active Student
-            </span>
+            <BadgePill label="Active Student" color="green" />
           </div>
           <div className="text-xs text-ink-muted mt-1 leading-normal flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="whitespace-nowrap">
@@ -2087,7 +2085,7 @@ export default function StudentPortalPage() {
                           {sub.is_document_purged ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                               <AlertCircle className="h-3 w-3 text-slate-500" />
-                              PDF Purged (15d TTL)
+                              PDF Archived
                             </span>
                           ) : (
                             <span
@@ -2136,7 +2134,7 @@ export default function StudentPortalPage() {
                       <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
                         <Info className="h-4 w-4 text-slate-500 shrink-0" />
                         <span>
-                          <strong>Document Expired & Purged:</strong> In accordance with the 15-day retention policy, the scanned PDF pages and bounding box coordinates for this exam have been deleted to preserve storage. Your marks per question and overall evaluation record remain permanently archived.
+                          <strong>Answer Sheet Archived:</strong> In accordance with the 15-day retention policy, the uploaded PDF copy has been archived. Your question marks, breakdown, and official scorecard remain permanently saved.
                         </span>
                       </div>
                     ) : (
@@ -2415,10 +2413,27 @@ export default function StudentPortalPage() {
   ) : (
     <div
       key="exams-tab-view"
-      className={`space-y-5 overflow-hidden ${
+      className={`space-y-4 overflow-hidden ${
         tabDirection === "right" ? "animate-tab-slide-right" : "animate-tab-slide-left"
       }`}
     >
+      {/* SECTION HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
+            {pastSubmissionsList.length > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
+            Search by title or subject. Click any exam card to expand detailed scores, verified PDF viewer, and answer keys.
+          </p>
+        </div>
+      </div>
+
       {/* SEARCH & FILTER CONTROLS TOOLBAR */}
       <div className="p-3 sm:p-4 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-3">
         {/* Search Bar & Expand/Collapse All Row */}
@@ -2665,7 +2680,7 @@ export default function StudentPortalPage() {
                         {sub.is_document_purged ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                             <AlertCircle className="h-3 w-3 text-slate-500" />
-                            PDF Purged
+                            PDF Archived
                           </span>
                         ) : (
                           <span
@@ -2716,24 +2731,30 @@ export default function StudentPortalPage() {
                       className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors ml-1 cursor-pointer"
                       aria-label={isExpanded ? "Collapse exam card" : "Expand exam card"}
                     >
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                          isExpanded ? "rotate-180 text-primary" : "rotate-0 text-ink-muted"
+                        }`}
+                      />
                     </button>
                   </div>
                 </div>
 
-                {/* Expanded Content */}
-                {isExpanded && (
-                  <div className="pt-4 mt-3 border-t border-hairline space-y-4 animate-in fade-in-50 duration-200">
+                {/* Expanded Content (Apple-style smooth CSS grid accordion) */}
+                <div
+                  className={`grid transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                    isExpanded
+                      ? "grid-rows-[1fr] opacity-100 pt-3.5 mt-3 border-t border-hairline"
+                      : "grid-rows-[0fr] opacity-0"
+                  }`}
+                >
+                  <div className="overflow-hidden space-y-4">
                     {isPublished && (
                       sub.is_document_purged ? (
                         <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
                           <Info className="h-4 w-4 text-slate-500 shrink-0" />
                           <span>
-                            <strong>Document Expired & Purged:</strong> In accordance with the 15-day retention policy, the scanned PDF pages and bounding box coordinates for this exam have been deleted to preserve storage. Your marks per question and overall evaluation record remain permanently archived.
+                            <strong>Answer Sheet Archived:</strong> In accordance with the 15-day retention policy, the uploaded PDF copy has been archived. Your question marks, breakdown, and official scorecard remain permanently saved.
                           </span>
                         </div>
                       ) : (
@@ -2960,7 +2981,7 @@ export default function StudentPortalPage() {
                       )}
                     </div>
                   </div>
-                )}
+                </div>
               </FeatureCard>
             );
           })}

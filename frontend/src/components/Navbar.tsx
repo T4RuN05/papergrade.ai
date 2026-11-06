@@ -38,6 +38,13 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
+  const isPastExamsTab =
+    isMounted &&
+    pathname.startsWith("/student") &&
+    (pathname === "/student/exams" ||
+      (typeof window !== "undefined" && window.location.search.includes("tab=exams")));
+  const isPortalTab = isMounted && pathname === "/student/portal" && !isPastExamsTab;
+
   useEffect(() => {
     setIsMounted(true);
     const token = getAuthToken();
@@ -113,11 +120,26 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer"
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileMenuOpen}
           >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <span className="relative block h-5 w-5">
+              <span
+                className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                  mobileMenuOpen ? "opacity-100 rotate-90 scale-100" : "opacity-0 -rotate-90 scale-75"
+                }`}
+              >
+                <X className="h-5 w-5" />
+              </span>
+              <span
+                className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                  mobileMenuOpen ? "opacity-0 rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
+                }`}
+              >
+                <Menu className="h-5 w-5" />
+              </span>
+            </span>
           </button>
 
           <Link
@@ -161,7 +183,7 @@ export function Navbar() {
           <Link
             href="/student/portal"
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              pathname === "/student/portal"
+              isPortalTab
                 ? "bg-canvas-soft text-ink font-semibold"
                 : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
             }`}
@@ -173,7 +195,7 @@ export function Navbar() {
             <Link
               href="/student/portal?tab=exams"
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                pathname.startsWith("/student/exams")
+                isPastExamsTab
                   ? "bg-canvas-soft text-ink font-semibold"
                   : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
               }`}
@@ -284,22 +306,27 @@ export function Navbar() {
         MOBILE OVERLAY NAVIGATION DRAWER
         Positioned as an absolute overlay directly beneath the sticky header.
         Does NOT push the main content down, preventing layout shifts.
+        Apple-style smooth spring slide and fade for both opening and closing.
         ========================================================================
       */}
-      {mobileMenuOpen && (
-        <>
-          {/* Ambient Backdrop - Clicking closes the menu */}
-          <div
-            className="fixed inset-0 top-14 bg-black/40 backdrop-blur-xs z-40 md:hidden animate-in fade-in-0 duration-150"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-hidden="true"
-          />
+      {/* Ambient Backdrop - Clicking closes the menu */}
+      <div
+        className={`fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-40 md:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setMobileMenuOpen(false)}
+        aria-hidden="true"
+      />
 
-          {/* Floating Dropdown Panel (Solid white background with explicit inline style safeguard) */}
-          <div
-            className="md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-white shadow-2xl z-50 animate-in fade-in-0 slide-in-from-top-2 duration-150 max-h-[calc(100vh-3.5rem)] overflow-y-auto"
-            style={{ backgroundColor: "#ffffff" }}
-          >
+      {/* Floating Dropdown Panel (Solid white background with Apple-style smooth slide & scale) */}
+      <div
+        className={`md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-white shadow-2xl z-50 max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
+          mobileMenuOpen
+            ? "opacity-100 translate-y-0 scale-y-100 pointer-events-auto"
+            : "opacity-0 -translate-y-2 scale-y-98 pointer-events-none"
+        }`}
+        style={{ backgroundColor: "#ffffff" }}
+      >
             {/* Authenticated User Status Summary */}
             {isMounted && currentUser && (
               <div
@@ -360,7 +387,7 @@ export function Navbar() {
                 href="/student/portal"
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                  pathname === "/student/portal"
+                  isPortalTab
                     ? "bg-canvas-soft text-ink font-semibold"
                     : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                 }`}
@@ -369,7 +396,7 @@ export function Navbar() {
                   <Clock className="h-4 w-4 text-ink-muted" />
                   <span>Student Portal</span>
                 </div>
-                {pathname === "/student/portal" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                {isPortalTab && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
               </Link>
 
               {isMounted && currentUser && (
@@ -377,7 +404,7 @@ export function Navbar() {
                   href="/student/portal?tab=exams"
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                    pathname.startsWith("/student/exams")
+                    isPastExamsTab
                       ? "bg-canvas-soft text-ink font-semibold"
                       : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                   }`}
@@ -386,7 +413,7 @@ export function Navbar() {
                     <BookOpen className="h-4 w-4 text-ink-muted" />
                     <span>Past Exams & Submissions</span>
                   </div>
-                  {pathname.startsWith("/student/exams") && (
+                  {isPastExamsTab && (
                     <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                   )}
                 </Link>
@@ -482,8 +509,6 @@ export function Navbar() {
               <span className="font-mono text-[10px]">Academic Pilot</span>
             </div>
           </div>
-        </>
-      )}
     </header>
   );
 }

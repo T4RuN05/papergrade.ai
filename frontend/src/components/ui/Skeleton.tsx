@@ -1028,64 +1028,35 @@ export function EvaluationViewerSkeleton({ isStudent = false }: { isStudent?: bo
             </div>
           </div>
 
-          {/* Canvas Area with Scanned Paper Mockup */}
-          <div className="flex-1 bg-[#ecece9] dark:bg-neutral-900/40 p-4 sm:p-6 overflow-hidden flex items-start justify-center">
-            {/* Scanned Paper Sheet (true paper proportions matching actual student sheet) */}
-            <div className="w-full max-w-[620px] h-[720px] bg-white dark:bg-neutral-950 rounded shadow-md border border-hairline/80 p-6 sm:p-8 relative space-y-4">
-              {/* Score Stamp Top-Right */}
-              <div className="absolute top-5 right-5 h-16 w-28 rounded-lg border-2 border-dashed border-red-200 bg-red-50/40 p-2 flex flex-col items-center justify-center space-y-1">
-                <Skeleton className="h-2 w-14 rounded" />
-                <Skeleton className="h-5 w-16 rounded" />
-                <Skeleton className="h-2 w-10 rounded" />
+          {/* Canvas Area with Clean Paper Sheet Skeleton */}
+          <div className="flex-1 bg-canvas-soft p-4 sm:p-6 overflow-hidden flex items-start justify-center">
+            {/* Clean White Paper Sheet */}
+            <div className="w-full max-w-[620px] h-[720px] bg-surface rounded-xl shadow-xs border border-hairline p-6 sm:p-8 relative space-y-5">
+              {/* Top Header Placeholder */}
+              <div className="flex items-start justify-between gap-4 pb-4 border-b border-hairline">
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-5 w-44 rounded" />
+                  <Skeleton className="h-3 w-32 rounded" />
+                  <Skeleton className="h-3 w-48 rounded" />
+                </div>
+                <div className="h-14 w-24 rounded-lg bg-canvas-soft border border-hairline p-2 flex flex-col items-center justify-center space-y-1 shrink-0">
+                  <Skeleton className="h-2 w-12 rounded" />
+                  <Skeleton className="h-4 w-14 rounded" />
+                </div>
               </div>
 
-              {/* Scanned Header & Institute Stamp */}
-              <div className="space-y-2 max-w-[65%]">
-                <Skeleton className="h-5 w-44 rounded" />
-                <Skeleton className="h-3 w-32 rounded" />
-                <Skeleton className="h-3 w-48 rounded" />
-              </div>
-
-              {/* Evaluated Question Bounding Boxes */}
-              <div className="space-y-3 pt-4">
-                {/* Q1.1 box */}
-                <div className="h-12 rounded border-2 border-emerald-500/50 bg-emerald-50/20 p-2 flex items-center justify-between">
-                  <div className="h-4 w-16 rounded bg-emerald-600/30" />
-                  <div className="flex gap-1">
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
+              {/* Clean Question Skeleton Blocks */}
+              <div className="space-y-4 pt-2">
+                {[1, 2, 3].map((idx) => (
+                  <div key={idx} className="p-3.5 rounded-lg bg-canvas-soft/60 border border-hairline space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-20 rounded" />
+                      <Skeleton className="h-4 w-12 rounded font-mono" />
+                    </div>
+                    <Skeleton className="h-3 w-full rounded" />
+                    <Skeleton className="h-3 w-4/5 rounded" />
                   </div>
-                </div>
-
-                {/* Q1.2 box */}
-                <div className="h-12 rounded border-2 border-emerald-500/50 bg-emerald-50/20 p-2 flex items-center justify-between">
-                  <div className="h-4 w-16 rounded bg-emerald-600/30" />
-                  <div className="flex gap-1">
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
-                  </div>
-                </div>
-
-                {/* Q1.3 box */}
-                <div className="h-12 rounded border-2 border-emerald-500/50 bg-emerald-50/20 p-2 flex items-center justify-between">
-                  <div className="h-4 w-16 rounded bg-emerald-600/30" />
-                  <div className="flex gap-1">
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
-                  </div>
-                </div>
-
-                {/* Large Answer Derivation Box */}
-                <div className="h-44 rounded border-2 border-emerald-500/50 bg-emerald-50/15 p-3 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="h-4 w-16 rounded bg-emerald-600/30" />
-                    <div className="h-5 w-5 rounded-full bg-emerald-600/20" />
-                  </div>
-                  <Skeleton className="h-3 w-5/6 rounded" />
-                  <Skeleton className="h-3 w-4/5 rounded" />
-                  <Skeleton className="h-3 w-2/3 rounded" />
-                  <Skeleton className="h-3 w-3/4 rounded" />
-                </div>
+                ))}
               </div>
             </div>
           </div>

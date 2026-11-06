@@ -30,10 +30,12 @@ export default function LandingPage() {
 
   const footerRef = useRef<HTMLElement>(null);
   const [footerHeight, setFooterHeight] = useState<number>(500);
+  const [isDesktop, setIsDesktop] = useState<boolean>(false);
 
-  // Measure exact footer height dynamically for pixel-perfect parallax curtain reveal
+  // Measure exact footer height and detect desktop screen for parallax curtain reveal
   useEffect(() => {
-    const updateFooterHeight = () => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
       if (footerRef.current) {
         const measured = Math.ceil(
           footerRef.current.getBoundingClientRect().height || footerRef.current.offsetHeight
@@ -44,23 +46,23 @@ export default function LandingPage() {
       }
     };
 
-    updateFooterHeight();
+    handleResize();
 
     // Use ResizeObserver for responsive re-measurement on font load, wrap, orientation change
     let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== "undefined" && footerRef.current) {
       observer = new ResizeObserver(() => {
-        updateFooterHeight();
+        handleResize();
       });
       observer.observe(footerRef.current);
     }
 
-    window.addEventListener("resize", updateFooterHeight);
-    const timer = setTimeout(updateFooterHeight, 300);
+    window.addEventListener("resize", handleResize);
+    const timer = setTimeout(handleResize, 300);
 
     return () => {
       if (observer) observer.disconnect();
-      window.removeEventListener("resize", updateFooterHeight);
+      window.removeEventListener("resize", handleResize);
       clearTimeout(timer);
     };
   }, []);
@@ -834,13 +836,15 @@ export default function LandingPage() {
       <div
         className="relative w-full z-0 overflow-hidden"
         style={{
-          clipPath: "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)",
-          height: footerHeight > 0 ? `${footerHeight}px` : "auto",
+          clipPath: isDesktop ? "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)" : undefined,
+          height: isDesktop && footerHeight > 0 ? `${footerHeight}px` : "auto",
         }}
       >
         <footer
           ref={footerRef}
-          className="fixed bottom-0 left-0 w-full z-0 bg-[#141413] text-[#8e8d8a] flex flex-col justify-between pt-8 sm:pt-14 pb-6 sm:pb-6 px-4 sm:px-12 md:px-16 select-none"
+          className={`${
+            isDesktop ? "fixed bottom-0 left-0 w-full" : "relative w-full"
+          } z-0 bg-[#141413] text-[#8e8d8a] flex flex-col justify-between pt-8 sm:pt-14 pb-8 sm:pb-6 px-4 sm:px-12 md:px-16 select-none`}
         >
           <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
             
@@ -949,11 +953,11 @@ export default function LandingPage() {
           {/* 
             ========================================================================
             FADED BIG TYPOGRAPHY OF "PaperGrade AI"
-            Requested architectural element grounding the footer
+            Requested architectural element grounding the footer (fully visible across all devices)
             ========================================================================
           */}
-          <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-6 sm:pt-12 pb-2 px-2">
-            <span className="text-4xl min-[360px]:text-5xl sm:text-7xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tight sm:tracking-tighter text-white/[0.09] sm:text-white/[0.06] md:text-white/[0.05] uppercase select-none block leading-none whitespace-nowrap">
+          <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-8 sm:pt-12 pb-4 sm:pb-2 px-2">
+            <span className="text-3xl min-[360px]:text-4xl min-[440px]:text-5xl sm:text-7xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tight sm:tracking-tighter text-white/[0.14] sm:text-white/[0.06] md:text-white/[0.05] uppercase select-none block leading-none whitespace-nowrap">
               PaperGrade AI
             </span>
           </div>

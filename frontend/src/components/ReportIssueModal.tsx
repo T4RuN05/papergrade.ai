@@ -303,19 +303,24 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
             </div>
 
             {/* Screenshots Uploader (Max 3, Max 500KB each) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-semibold text-ink text-[11px] flex items-center gap-1.5">
-                  <ImageIcon className="h-3.5 w-3.5 text-primary" />
-                  <span>Attach Screenshots</span>
-                  <span className="text-ink-muted font-normal text-[10px]">
-                    (Optional • Max 3 images • Max 500KB each)
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <label className="font-semibold text-ink text-[11px] whitespace-nowrap">
+                    Attach Screenshots
+                  </label>
+                  <span className="text-[10.5px] text-ink-muted font-normal hidden sm:inline">
+                    (Optional • Max 3)
                   </span>
-                </label>
-                <span className="text-[10px] text-ink-muted font-medium">
+                </div>
+                <span className="text-[10px] font-mono text-ink-muted font-medium shrink-0">
                   {selectedFiles.length} / {MAX_SCREENSHOTS}
                 </span>
               </div>
+              <p className="text-[10.5px] text-ink-muted sm:hidden">
+                Optional: Upload up to 3 images (Max 500KB each)
+              </p>
 
               {/* Thumbnail Previews */}
               {filePreviews.length > 0 && (
