@@ -264,7 +264,7 @@ def list_submissions(
     stmt = (
         select(Submission, Exam)
         .outerjoin(Exam, Submission.exam_id == Exam.id)
-        .where(Submission.submission_status == 'SUBMITTED')
+        .where(Submission.submission_status.in_(['SUBMITTED', 'EVALUATED']))
     )
 
     if exam_id:
@@ -497,7 +497,7 @@ def get_submissions_for_exam(
     """Return all active submissions for an exam with their nested answer breakdown for the marks ledger."""
     subs = db.scalars(
         select(Submission)
-        .where(Submission.exam_id == exam_id, Submission.submission_status == 'SUBMITTED')
+        .where(Submission.exam_id == exam_id, Submission.submission_status.in_(['SUBMITTED', 'EVALUATED']))
         .order_by(Submission.roll_number.asc())
     ).all()
 
