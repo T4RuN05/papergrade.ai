@@ -24,6 +24,7 @@ import {
   Sliders,
   Sparkles,
   Layers,
+  AlertTriangle,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -229,10 +230,10 @@ export default function StudentPastExamsPage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-20">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6 cascade-group">
-        {/* Navigation Breadcrumb & Student Portal Top Switcher */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-hairline">
-          <div className="space-y-1">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 pt-5 sm:pt-8 pb-16 space-y-5 sm:space-y-7 cascade-group">
+        {/* Navigation Breadcrumb & Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 border-b border-hairline">
+          <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
                 Past Exam Submissions
@@ -246,22 +247,34 @@ export default function StudentPastExamsPage() {
             </p>
           </div>
 
-          {/* Portal Top Navigation Switcher (Matches /student/portal for seamless two-way switching) */}
-          <div className="flex items-center gap-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto shrink-0">
-            <Link
-              href="/student/portal"
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface/60 transition-colors"
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setReportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all cursor-pointer shadow-2xs"
+              title="Report a technical issue with past exams"
             >
-              <Layers className="h-3.5 w-3.5 text-ink-muted" />
-              <span>Dashboard</span>
-            </Link>
-            <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink bg-surface shadow-2xs border border-hairline/60">
-              <BookOpen className="h-3.5 w-3.5 text-primary" />
-              <span>Past Exams</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline text-ink-muted">
-                {submissions.length}
-              </span>
-            </div>
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>Report Issue</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Portal Top Navigation Switcher (BELOW separator line, 100% consistent with /student/portal) */}
+        <div className="flex items-center gap-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
+          <Link
+            href="/student/portal"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface/60 transition-colors"
+          >
+            <Layers className="h-3.5 w-3.5 text-ink-muted" />
+            <span>Dashboard</span>
+          </Link>
+          <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink bg-surface shadow-2xs border border-hairline/60">
+            <BookOpen className="h-3.5 w-3.5 text-primary" />
+            <span>Past Exams</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline text-ink-muted">
+              {submissions.length}
+            </span>
           </div>
         </div>
 
@@ -462,50 +475,55 @@ export default function StudentPastExamsPage() {
                     {/* Left: Title, Subject, Date, Roll */}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-ink hover:text-primary transition-colors">
+                        <span className="text-sm sm:text-base font-bold text-ink hover:text-primary transition-colors leading-snug">
                           {sub.exam_title || "Academic Examination"}
                         </span>
                         {(sub.exam_subject || sub.subject) && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted">
+                          <span className="text-[10.5px] font-medium px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted shrink-0">
                             {sub.exam_subject || sub.subject}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
-                        <Calendar className="h-3 w-3 shrink-0" />
-                        <span>
-                          {sub.created_at
-                            ? new Date(sub.created_at).toLocaleDateString(undefined, {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "Recorded"}
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-ink-muted mt-0.5">
+                        <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                          <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                          <span>
+                            Submitted on{" "}
+                            {sub.created_at
+                              ? new Date(sub.created_at).toLocaleDateString(undefined, {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Recorded"}
+                          </span>
                         </span>
-                        <span>•</span>
-                        <span>Roll: {sub.roll_number}</span>
+                        <span className="text-ink-faint hidden xs:inline">•</span>
+                        <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline/70 px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                          Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
+                        </span>
                       </div>
                     </div>
 
                     {/* Right: Status Pills, Score Preview & Chevron */}
-                    <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center pt-0.5 sm:pt-0">
                       {isPublished ? (
                         <>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                             Results Published
                           </span>
                           {sub.is_document_purged ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                               <AlertCircle className="h-3 w-3 text-slate-500" />
                               PDF Purged
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap"
                               title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
                             >
                               <Clock className="h-3 w-3 text-amber-600" />
@@ -516,7 +534,7 @@ export default function StudentPastExamsPage() {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                           <Clock className="h-3 w-3" />
                           Grading in Progress
                         </span>
@@ -524,13 +542,13 @@ export default function StudentPastExamsPage() {
 
                       {/* Revaluation status pill */}
                       {hasOpenReval && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
                           <RotateCcw className="h-3 w-3 animate-spin" />
                           In Review
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
                           <Sparkles className="h-3 w-3" />
                           Marks Revised
                         </span>
@@ -538,7 +556,7 @@ export default function StudentPastExamsPage() {
 
                       {/* Score Summary Badge (Collapsed view) */}
                       {isPublished && sub.total_awarded_marks !== null && (
-                        <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-bold text-ink">
+                        <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-bold text-ink whitespace-nowrap shrink-0">
                           {Number(sub.total_awarded_marks).toFixed(1)} / {sub.max_marks || sub.exam_total_marks || 25}m
                           {sub.percentage !== null && ` (${Number(sub.percentage).toFixed(0)}%)`}
                         </span>
@@ -677,7 +695,7 @@ export default function StudentPastExamsPage() {
                           {/* Primary: Inspect in PDF Viewer */}
                           <Link
                             href={`/student/submissions/${sub.id}`}
-                            className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-3.5 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center"
+                            className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center shrink-0"
                           >
                             <Eye className="h-3.5 w-3.5 shrink-0" />
                             <span>
@@ -689,23 +707,23 @@ export default function StudentPastExamsPage() {
                             </span>
                           </Link>
 
-                          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                             {/* Secondary: View Breakdown */}
                             {isPublished ? (
                               <button
                                 type="button"
                                 onClick={() => handleOpenBreakdownModal(sub)}
-                                className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                                className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 py-2 sm:py-1.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center"
                               >
-                                <FileText className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                                <span>Summary</span>
+                                <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span>View Summary</span>
                               </button>
                             ) : (
                               <button
                                 type="button"
                                 disabled
                                 title="Detailed breakdown will be accessible once marks are officially published by faculty."
-                                className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                                className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 py-2 sm:py-1.5 rounded-md cursor-not-allowed select-none text-center"
                               >
                                 <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                                 <span>Summary Pending</span>
@@ -728,7 +746,7 @@ export default function StudentPastExamsPage() {
                                   setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
                                   setArtifactModalOpen(true);
                                 }}
-                                className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                                className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 py-2 sm:py-1.5 rounded-md transition-colors cursor-pointer text-center"
                                 title="View Question Paper & Official Answer Key"
                               >
                                 <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -743,7 +761,7 @@ export default function StudentPastExamsPage() {
                                   type="button"
                                   disabled
                                   title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
-                                  className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                                  className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3.5 py-2 sm:py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
                                 >
                                   <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                                   <span>PDF Expired</span>
@@ -756,7 +774,7 @@ export default function StudentPastExamsPage() {
                                   onClick={() =>
                                     toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
                                   }
-                                  className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3 py-1.5 rounded-md transition-colors text-center"
+                                  className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-2 sm:py-1.5 rounded-md transition-colors text-center"
                                   title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
                                 >
                                   <Download className="h-3.5 w-3.5 shrink-0" />
@@ -768,7 +786,7 @@ export default function StudentPastExamsPage() {
                                 type="button"
                                 disabled
                                 title="Evaluated PDF download will be enabled once faculty officially publishes results."
-                                className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                                className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 py-2 sm:py-1.5 rounded-md cursor-not-allowed select-none text-center"
                               >
                                 <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                                 <span>PDF Pending</span>

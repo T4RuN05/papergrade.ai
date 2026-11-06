@@ -29,19 +29,37 @@ export default function LandingPage() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const footerRef = useRef<HTMLElement>(null);
-  const [footerHeight, setFooterHeight] = useState<number>(440);
+  const [footerHeight, setFooterHeight] = useState<number>(500);
 
   // Measure exact footer height dynamically for pixel-perfect parallax curtain reveal
   useEffect(() => {
     const updateFooterHeight = () => {
       if (footerRef.current) {
-        setFooterHeight(footerRef.current.offsetHeight);
+        const measured = Math.ceil(
+          footerRef.current.getBoundingClientRect().height || footerRef.current.offsetHeight
+        );
+        if (measured > 0) {
+          setFooterHeight(measured);
+        }
       }
     };
+
     updateFooterHeight();
+
+    // Use ResizeObserver for responsive re-measurement on font load, wrap, orientation change
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && footerRef.current) {
+      observer = new ResizeObserver(() => {
+        updateFooterHeight();
+      });
+      observer.observe(footerRef.current);
+    }
+
     window.addEventListener("resize", updateFooterHeight);
-    const timer = setTimeout(updateFooterHeight, 500);
+    const timer = setTimeout(updateFooterHeight, 300);
+
     return () => {
+      if (observer) observer.disconnect();
       window.removeEventListener("resize", updateFooterHeight);
       clearTimeout(timer);
     };
@@ -817,13 +835,12 @@ export default function LandingPage() {
         className="relative w-full z-0 overflow-hidden"
         style={{
           clipPath: "polygon(0% 0, 100% 0%, 100% 100%, 0 100%)",
-          height: `${footerHeight}px`,
+          height: footerHeight > 0 ? `${footerHeight}px` : "auto",
         }}
       >
         <footer
           ref={footerRef}
-          className="fixed bottom-0 left-0 w-full z-0 bg-[#141413] text-[#8e8d8a] flex flex-col justify-between pt-8 sm:pt-14 pb-4 px-4 sm:px-12 md:px-16 select-none"
-          style={{ height: `${footerHeight}px` }}
+          className="fixed bottom-0 left-0 w-full z-0 bg-[#141413] text-[#8e8d8a] flex flex-col justify-between pt-8 sm:pt-14 pb-6 sm:pb-6 px-4 sm:px-12 md:px-16 select-none"
         >
           <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
             
@@ -935,8 +952,8 @@ export default function LandingPage() {
             Requested architectural element grounding the footer
             ========================================================================
           */}
-          <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-8 sm:pt-14 pb-2 px-2">
-            <span className="text-3xl min-[400px]:text-4xl sm:text-6xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tighter text-white/[0.05] uppercase select-none block leading-none truncate sm:overflow-visible">
+          <div className="w-full overflow-hidden text-center select-none pointer-events-none pt-6 sm:pt-12 pb-2 px-2">
+            <span className="text-4xl min-[360px]:text-5xl sm:text-7xl md:text-8xl lg:text-[112px] xl:text-[132px] font-black tracking-tight sm:tracking-tighter text-white/[0.09] sm:text-white/[0.06] md:text-white/[0.05] uppercase select-none block leading-none whitespace-nowrap">
               PaperGrade AI
             </span>
           </div>

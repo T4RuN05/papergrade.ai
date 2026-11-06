@@ -1237,10 +1237,15 @@ export default function StudentPortalPage() {
               Active Student
             </span>
           </div>
-          <p className="text-xs text-ink-muted mt-1 leading-normal">
-            Roll No: <strong className="text-ink font-medium">{rollNumber}</strong> • Student ID:{" "}
-            <strong className="text-ink font-medium">{studentIdDisplay}</strong>
-          </p>
+          <div className="text-xs text-ink-muted mt-1 leading-normal flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="whitespace-nowrap">
+              Roll No: <strong className="text-ink font-medium font-mono">{rollNumber}</strong>
+            </span>
+            <span className="text-ink-faint hidden xs:inline">•</span>
+            <span className="whitespace-nowrap">
+              Student ID: <strong className="text-ink font-medium font-mono">{studentIdDisplay}</strong>
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -1525,13 +1530,13 @@ export default function StudentPortalPage() {
 
                 <div className="p-3.5 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                   <div className="flex flex-wrap items-center gap-3 text-ink-muted">
-                    <span>
-                      Roll No: <strong className="text-ink font-semibold">{activeExamSubmission.roll_number}</strong>
+                    <span className="whitespace-nowrap font-mono text-[11px] bg-surface px-2 py-0.5 rounded border border-hairline/60">
+                      Roll: <strong className="text-ink font-semibold">{activeExamSubmission.roll_number}</strong>
                     </span>
                     {activeExamSubmission.page_count && (
                       <>
-                        <span>•</span>
-                        <span>
+                        <span className="text-ink-faint">•</span>
+                        <span className="whitespace-nowrap">
                           Pages: <strong className="text-ink font-semibold">{activeExamSubmission.page_count}</strong>
                         </span>
                       </>
@@ -1885,27 +1890,20 @@ export default function StudentPortalPage() {
 
       {/* SECTION: PAST EXAM SUBMISSIONS */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3 sm:gap-4">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-ink">Past Exam Submissions</h2>
-            <p className="text-xs text-ink-muted leading-relaxed">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
+              {pastSubmissionsList.length > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                  {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
               Review evaluated answer sheets, question-by-question marks, and faculty revaluations.
             </p>
           </div>
-          {pastSubmissionsList.length > 0 && (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="hidden sm:inline-block text-xs font-semibold text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-full border border-hairline whitespace-nowrap">
-                {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
-              </span>
-              <Link
-                href="/student/exams"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/15 border border-primary/25 px-3 py-1.5 rounded-lg transition-colors shadow-2xs whitespace-nowrap"
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-                <span>View All ({pastSubmissionsList.length}) →</span>
-              </Link>
-            </div>
-          )}
         </div>
 
         {pastSubmissionsList.length === 0 ? (
@@ -1930,54 +1928,58 @@ export default function StudentPortalPage() {
               const isRevalResolved = reval && reval.status === "RESOLVED";
 
               return (
-                <FeatureCard key={sub.id} className="p-5 space-y-4">
+                <FeatureCard key={sub.id} className="p-4 sm:p-5 space-y-4">
                   {/* Top Bar: Exam Title & Publication Badge */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-ink">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4 pb-3 border-b border-hairline">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm sm:text-base font-bold text-ink leading-snug">
                           {sub.exam_title || "Academic Examination"}
                         </span>
                         {sub.exam_subject && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted">
+                          <span className="text-[10.5px] font-medium px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted shrink-0">
                             {sub.exam_subject}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-ink-muted">
-                        <Calendar className="h-3 w-3" />
-                        <span>
-                          Submitted on{" "}
-                          {sub.created_at
-                            ? new Date(sub.created_at).toLocaleDateString(undefined, {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "Recorded"}
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-ink-muted mt-0.5">
+                        <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                          <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                          <span>
+                            Submitted on{" "}
+                            {sub.created_at
+                              ? new Date(sub.created_at).toLocaleDateString(undefined, {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Recorded"}
+                          </span>
                         </span>
-                        <span>•</span>
-                        <span>Roll: {sub.roll_number}</span>
+                        <span className="text-ink-faint hidden xs:inline">•</span>
+                        <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline/70 px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                          Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-auto pt-0.5 sm:pt-0">
                       {isPublished ? (
                         <>
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Results Published
                           </span>
                           {sub.is_document_purged ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                               <AlertCircle className="h-3 w-3 text-slate-500" />
                               PDF Purged (15d TTL)
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap"
                               title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
                             >
                               <Clock className="h-3 w-3 text-amber-600" />
@@ -1988,27 +1990,27 @@ export default function StudentPortalPage() {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                          <Clock className="h-3.5 w-3.5" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                          <Clock className="h-3.5 w-3.5 text-amber-600" />
                           Grading in Progress
                         </span>
                       )}
 
                       {/* Revaluation Status Pill */}
                       {hasOpenReval && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
                           <RotateCcw className="h-3.5 w-3.5 animate-spin" />
                           Revaluation In Review
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Marks Revised
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_UPHELD" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 whitespace-nowrap">
                           <ShieldCheck className="h-3.5 w-3.5" />
                           Marks Upheld
                         </span>
@@ -2127,7 +2129,7 @@ export default function StudentPortalPage() {
                       {/* Primary: Inspect in PDF Viewer */}
                       <Link
                         href={`/student/submissions/${sub.id}`}
-                        className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-3.5 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center"
+                        className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center shrink-0"
                       >
                         <Eye className="h-3.5 w-3.5 shrink-0" />
                         <span>
@@ -2139,23 +2141,23 @@ export default function StudentPortalPage() {
                         </span>
                       </Link>
 
-                      <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {/* Secondary: View Breakdown */}
                         {isPublished ? (
                           <button
                             type="button"
                             onClick={() => handleOpenBreakdownModal(sub)}
-                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                            className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 py-2 sm:py-1.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center"
                           >
-                            <FileText className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                            <span>Summary</span>
+                            <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>View Summary</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             disabled
                             title="Detailed breakdown will be accessible once marks are officially published by faculty."
-                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                            className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 py-2 sm:py-1.5 rounded-md cursor-not-allowed select-none text-center"
                           >
                             <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                             <span>Summary Pending</span>
@@ -2178,7 +2180,7 @@ export default function StudentPortalPage() {
                               setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
                               setArtifactModalOpen(true);
                             }}
-                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                            className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 py-2 sm:py-1.5 rounded-md transition-colors cursor-pointer text-center"
                             title="View Question Paper & Official Answer Key"
                           >
                             <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -2193,7 +2195,7 @@ export default function StudentPortalPage() {
                               type="button"
                               disabled
                               title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
-                              className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                              className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3.5 py-2 sm:py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
                             >
                               <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                               <span>PDF Expired</span>
@@ -2206,7 +2208,7 @@ export default function StudentPortalPage() {
                               onClick={() =>
                                 toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
                               }
-                              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3 py-1.5 rounded-md transition-colors text-center"
+                              className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-2 sm:py-1.5 rounded-md transition-colors text-center"
                               title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
                             >
                               <Download className="h-3.5 w-3.5 shrink-0" />
@@ -2218,7 +2220,7 @@ export default function StudentPortalPage() {
                             type="button"
                             disabled
                             title="Evaluated PDF download will be enabled once faculty officially publishes results."
-                            className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                            className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 py-2 sm:py-1.5 rounded-md cursor-not-allowed select-none text-center"
                           >
                             <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                             <span>PDF Pending</span>
@@ -2255,8 +2257,8 @@ export default function StudentPortalPage() {
             })}
             </div>
 
-            {/* If there are more submissions, show link to view all */}
-            {pastSubmissionsList.length > 1 && (
+            {/* Link to view all past exam submissions */}
+            {pastSubmissionsList.length > 0 && (
               <div className="pt-1">
                 <Link
                   href="/student/exams"
@@ -2264,7 +2266,8 @@ export default function StudentPortalPage() {
                 >
                   <BookOpen className="h-4 w-4 text-primary" />
                   <span>
-                    View All {pastSubmissionsList.length} Past Exam Submissions →
+                    View All {pastSubmissionsList.length}{" "}
+                    {pastSubmissionsList.length === 1 ? "Past Exam Submission" : "Past Exam Submissions"} →
                   </span>
                 </Link>
               </div>

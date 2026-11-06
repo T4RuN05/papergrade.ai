@@ -169,17 +169,19 @@ export function Navbar() {
             <Clock className="h-3.5 w-3.5 text-ink-muted" />
             Student Portal
           </Link>
-          <Link
-            href="/student/exams"
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              pathname.startsWith("/student/exams")
-                ? "bg-canvas-soft text-ink font-semibold"
-                : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-            }`}
-          >
-            <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
-            Past Exams
-          </Link>
+          {isMounted && currentUser && (
+            <Link
+              href="/student/exams"
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                pathname.startsWith("/student/exams")
+                  ? "bg-canvas-soft text-ink font-semibold"
+                  : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
+              Past Exams
+            </Link>
+          )}
           {isAdminUser && (
             <Link
               href="/overview"
@@ -370,23 +372,25 @@ export function Navbar() {
                 {pathname === "/student/portal" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
               </Link>
 
-              <Link
-                href="/student/exams"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                  pathname.startsWith("/student/exams")
-                    ? "bg-canvas-soft text-ink font-semibold"
-                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <BookOpen className="h-4 w-4 text-ink-muted" />
-                  <span>Past Exams & Submissions</span>
-                </div>
-                {pathname.startsWith("/student/exams") && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                )}
-              </Link>
+              {isMounted && currentUser && (
+                <Link
+                  href="/student/exams"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    pathname.startsWith("/student/exams")
+                      ? "bg-canvas-soft text-ink font-semibold"
+                      : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <BookOpen className="h-4 w-4 text-ink-muted" />
+                    <span>Past Exams & Submissions</span>
+                  </div>
+                  {pathname.startsWith("/student/exams") && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </Link>
+              )}
 
               {isAdminUser && (
                 <Link
