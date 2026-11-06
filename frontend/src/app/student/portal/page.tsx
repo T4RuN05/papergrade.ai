@@ -34,6 +34,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sliders,
+  Search,
+  X,
   Cpu,
   LifeBuoy,
   AlertTriangle,
@@ -599,6 +601,35 @@ export default function StudentPortalPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Segmented control active tab & slide animation direction
+  const [activeTab, setActiveTab] = useState<"dashboard" | "exams">("dashboard");
+  const [tabDirection, setTabDirection] = useState<"left" | "right">("right");
+
+  // Read initial tab from URL query param (?tab=exams) & handle back/forward navigation
+  useEffect(() => {
+    const handleUrlTab = () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("tab") === "exams") {
+          setActiveTab("exams");
+        } else {
+          setActiveTab("dashboard");
+        }
+      }
+    };
+    handleUrlTab();
+    window.addEventListener("popstate", handleUrlTab);
+    return () => window.removeEventListener("popstate", handleUrlTab);
+  }, []);
+
+  const handleTabSwitch = (newTab: "dashboard" | "exams") => {
+    if (newTab === activeTab) return;
+    setTabDirection(newTab === "exams" ? "right" : "left");
+    setActiveTab(newTab);
+    const newUrl = newTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
+    window.history.replaceState(null, "", newUrl);
+  };
+
   // Derived current active exam and window status
   const currentActiveItem =
     activeWindows.find((w) => w.exam?.id === selectedExamId) || activeWindows[0] || null;
@@ -1087,6 +1118,65 @@ export default function StudentPortalPage() {
     return deduped;
   }, [submissions, shouldShowExamWindowCard, activeExam, activeExamSubmission]);
 
+  // Search & Filter state for dedicated Past Exams tab
+  const [searchQuery, setSearchQuery] = useState("");
+  const [examSubjectFilter, setExamSubjectFilter] = useState("ALL");
+  const [examStatusFilter, setExamStatusFilter] = useState("ALL");
+  const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
+
+  // Compute unique subjects present in student submissions
+  const uniqueExamSubjects = useMemo(() => {
+    const set = new Set<string>();
+    submissions.forEach((s) => {
+      const sub = s.exam_subject || s.subject;
+      if (sub && typeof sub === "string" && sub.trim()) {
+        set.add(sub.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [submissions]);
+
+  // Filtered submissions based on search, subject, and status
+  const filteredPastSubmissions = useMemo(() => {
+    return pastSubmissionsList.filter((sub) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (sub.exam_title || "").toLowerCase().includes(q);
+        const subjectMatch = (sub.exam_subject || sub.subject || "").toLowerCase().includes(q);
+        if (!titleMatch && !subjectMatch) return false;
+      }
+      if (examSubjectFilter !== "ALL") {
+        const subName = sub.exam_subject || sub.subject || "";
+        if (subName.toLowerCase() !== examSubjectFilter.toLowerCase()) return false;
+      }
+      if (examStatusFilter !== "ALL") {
+        const isPublished =
+          sub.publication_status === "PUBLISHED" ||
+          (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
+        if (examStatusFilter === "PUBLISHED" && !isPublished) return false;
+        if (examStatusFilter === "IN_PROGRESS" && isPublished) return false;
+      }
+      return true;
+    });
+  }, [pastSubmissionsList, searchQuery, examSubjectFilter, examStatusFilter]);
+
+  const handleToggleAllCards = (expand: boolean) => {
+    const updated: Record<string, boolean> = {};
+    if (expand) {
+      filteredPastSubmissions.forEach((s) => {
+        updated[s.id] = true;
+      });
+    }
+    setExpandedCardIds(updated);
+  };
+
+  const toggleCard = (id: string) => {
+    setExpandedCardIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   // Open Revaluation Modal for a specific submission
   const handleOpenRevalModal = async (sub: any) => {
     setRevalSubmission(sub);
@@ -1261,26 +1351,48 @@ export default function StudentPortalPage() {
         </div>
       </div>
 
-      {/* Portal Top Navigation Switcher */}
-      <div className="flex items-center gap-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
-        <div className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-ink bg-surface shadow-2xs border border-hairline/60">
-          <Layers className="h-3.5 w-3.5 text-primary" />
+      {/* Portal Top Navigation Switcher (Instant Animated Segmented Control) */}
+      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
+        <button
+          type="button"
+          onClick={() => handleTabSwitch("dashboard")}
+          className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
+            activeTab === "dashboard"
+              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
+              : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
+          }`}
+        >
+          <Layers className={`h-3.5 w-3.5 ${activeTab === "dashboard" ? "text-primary" : "text-ink-muted"}`} />
           <span>Dashboard</span>
           {activeWindows.length > 0 && (
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           )}
-        </div>
-        <Link
-          href="/student/exams"
-          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface/60 transition-colors"
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabSwitch("exams")}
+          className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
+            activeTab === "exams"
+              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
+              : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
+          }`}
         >
-          <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
+          <BookOpen className={`h-3.5 w-3.5 ${activeTab === "exams" ? "text-primary" : "text-ink-muted"}`} />
           <span>Past Exams</span>
           <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline text-ink-muted">
-            {submissions.length}
+            {pastSubmissionsList.length}
           </span>
-        </Link>
+        </button>
       </div>
+
+      {activeTab === "dashboard" ? (
+        <div
+          key="dashboard-tab-view"
+          className={`space-y-6 overflow-hidden ${
+            tabDirection === "left" ? "animate-tab-slide-left" : "animate-tab-slide-right"
+          }`}
+        >
 
       {/* Push Notification Permission Opt-in Prompt */}
       {isSupported && permission === "default" && !hideNotifBanner && (
@@ -2260,16 +2372,17 @@ export default function StudentPortalPage() {
             {/* Link to view all past exam submissions */}
             {pastSubmissionsList.length > 0 && (
               <div className="pt-1">
-                <Link
-                  href="/student/exams"
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-ink hover:text-primary transition-colors group shadow-2xs text-center"
+                <button
+                  type="button"
+                  onClick={() => handleTabSwitch("exams")}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-ink hover:text-primary transition-colors group shadow-2xs text-center cursor-pointer"
                 >
                   <BookOpen className="h-4 w-4 text-primary" />
                   <span>
                     View All {pastSubmissionsList.length}{" "}
                     {pastSubmissionsList.length === 1 ? "Past Exam Submission" : "Past Exam Submissions"} →
                   </span>
-                </Link>
+                </button>
               </div>
             )}
           </div>
@@ -2298,6 +2411,586 @@ export default function StudentPortalPage() {
           <span>Report Technical Issue</span>
         </button>
       </div>
+    </div>
+  ) : (
+    <div
+      key="exams-tab-view"
+      className={`space-y-5 overflow-hidden ${
+        tabDirection === "right" ? "animate-tab-slide-right" : "animate-tab-slide-left"
+      }`}
+    >
+      {/* SEARCH & FILTER CONTROLS TOOLBAR */}
+      <div className="p-3 sm:p-4 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-3">
+        {/* Search Bar & Expand/Collapse All Row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search exams by title or subject (e.g. Physics, Chemistry, Rotation)..."
+              className="w-full pl-9 pr-9 py-2 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline/80 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-md transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Expand / Collapse All Controls */}
+          {filteredPastSubmissions.length > 0 && (
+            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+              <span className="text-[11px] font-medium text-ink-muted sm:hidden">
+                {filteredPastSubmissions.length} {filteredPastSubmissions.length === 1 ? "paper" : "papers"}
+              </span>
+              <div className="inline-flex items-center rounded-xl border border-hairline bg-canvas-soft/80 p-0.5 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllCards(true)}
+                  className="text-[11px] font-medium text-ink-secondary hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
+                  title="Expand all cards"
+                >
+                  Expand All
+                </button>
+                <div className="h-3 w-px bg-hairline" />
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllCards(false)}
+                  className="text-[11px] font-medium text-ink-secondary hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
+                  title="Collapse all cards"
+                >
+                  Collapse All
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Filter Pills (Subject & Status) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-hairline/70 text-xs">
+          {/* Subject Filters */}
+          <div className="flex items-center gap-1.5 overflow-x-auto sleek-scrollbar pb-1 sm:pb-0">
+            <span className="text-[10.5px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
+              Subject:
+            </span>
+            <button
+              type="button"
+              onClick={() => setExamSubjectFilter("ALL")}
+              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
+                examSubjectFilter === "ALL"
+                  ? "bg-primary text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
+            >
+              All Subjects
+            </button>
+            {uniqueExamSubjects.map((sub) => (
+              <button
+                key={sub}
+                type="button"
+                onClick={() => setExamSubjectFilter(sub)}
+                className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
+                  examSubjectFilter === sub
+                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                }`}
+              >
+                {sub}
+              </button>
+            ))}
+          </div>
+
+          {/* Status Filters */}
+          <div className="flex items-center gap-1.5 overflow-x-auto sleek-scrollbar shrink-0">
+            <span className="text-[10.5px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
+              Status:
+            </span>
+            <button
+              type="button"
+              onClick={() => setExamStatusFilter("ALL")}
+              className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
+                examStatusFilter === "ALL"
+                  ? "bg-ink text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setExamStatusFilter("PUBLISHED")}
+              className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
+                examStatusFilter === "PUBLISHED"
+                  ? "bg-emerald-600 text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
+            >
+              Published
+            </button>
+            <button
+              type="button"
+              onClick={() => setExamStatusFilter("IN_PROGRESS")}
+              className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
+                examStatusFilter === "IN_PROGRESS"
+                  ? "bg-amber-600 text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
+            >
+              In Progress
+            </button>
+
+            {(searchQuery || examSubjectFilter !== "ALL" || examStatusFilter !== "ALL") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setExamSubjectFilter("ALL");
+                  setExamStatusFilter("ALL");
+                }}
+                className="text-[11px] font-semibold text-primary hover:underline ml-1.5 cursor-pointer shrink-0"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* PAST EXAMS SUBMISSION CARDS */}
+      {filteredPastSubmissions.length === 0 ? (
+        <div className="rounded-xl border border-hairline bg-surface p-10 text-center space-y-3">
+          <FileText className="h-10 w-10 text-ink-faint mx-auto" />
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-ink">
+              {pastSubmissionsList.length === 0
+                ? "No exam submissions found"
+                : "No matching exams found"}
+            </h3>
+            <p className="text-xs text-ink-muted max-w-md mx-auto">
+              {pastSubmissionsList.length === 0
+                ? "When you upload your answer sheets during an active examination window, your verified submissions, AI evaluations, and faculty remarks will appear here."
+                : `No past exams matched "${searchQuery || examSubjectFilter || examStatusFilter}". Try adjusting or clearing your filters.`}
+            </p>
+          </div>
+          {pastSubmissionsList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setExamSubjectFilter("ALL");
+                setExamStatusFilter("ALL");
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer"
+            >
+              Reset all filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredPastSubmissions.map((sub) => {
+            const isExpanded = Boolean(expandedCardIds[sub.id]);
+            const isPublished =
+              sub.publication_status === "PUBLISHED" ||
+              (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
+            const hasAnswers = sub.answers && sub.answers.length > 0;
+            const reval = sub.revaluation;
+            const hasOpenReval =
+              reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
+            const isRevalResolved = reval && reval.status === "RESOLVED";
+
+            return (
+              <FeatureCard
+                key={sub.id}
+                className={`transition-all duration-200 border ${
+                  isExpanded
+                    ? "p-4 sm:p-5 shadow-sm border-primary/30 ring-1 ring-primary/20"
+                    : "p-3.5 sm:p-4 hover:border-hairline-strong hover:bg-canvas-soft/30 cursor-pointer"
+                }`}
+              >
+                {/* Collapsed Header */}
+                <div
+                  onClick={() => toggleCard(sub.id)}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
+                >
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm sm:text-base font-bold text-ink hover:text-primary transition-colors leading-snug">
+                        {sub.exam_title || "Academic Examination"}
+                      </span>
+                      {(sub.exam_subject || sub.subject) && (
+                        <span className="text-[10.5px] font-medium px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                          {sub.exam_subject || sub.subject}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-ink-muted mt-0.5">
+                      <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                        <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                        <span>
+                          Submitted on{" "}
+                          {sub.created_at
+                            ? new Date(sub.created_at).toLocaleDateString(undefined, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "Recorded"}
+                        </span>
+                      </span>
+                      <span className="text-ink-faint hidden xs:inline">•</span>
+                      <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline/70 px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                        Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center pt-0.5 sm:pt-0">
+                    {isPublished ? (
+                      <>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          Results Published
+                        </span>
+                        {sub.is_document_purged ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                            <AlertCircle className="h-3 w-3 text-slate-500" />
+                            PDF Purged
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap"
+                            title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
+                          >
+                            <Clock className="h-3 w-3 text-amber-600" />
+                            {sub.days_remaining !== undefined && sub.days_remaining !== null
+                              ? `${sub.days_remaining}d until purge`
+                              : "15d retention"}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                        <Clock className="h-3 w-3" />
+                        Grading in Progress
+                      </span>
+                    )}
+
+                    {hasOpenReval && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
+                        <RotateCcw className="h-3 w-3 animate-spin" />
+                        In Review
+                      </span>
+                    )}
+
+                    {isRevalResolved && reval.decision === "MARKS_REVISED" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
+                        <Sparkles className="h-3 w-3" />
+                        Marks Revised
+                      </span>
+                    )}
+
+                    {isPublished && sub.total_awarded_marks !== null && (
+                      <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-bold text-ink whitespace-nowrap shrink-0">
+                        {Number(sub.total_awarded_marks).toFixed(1)} / {sub.max_marks || sub.exam_total_marks || 25}m
+                        {sub.percentage !== null && ` (${Number(sub.percentage).toFixed(0)}%)`}
+                      </span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleCard(sub.id);
+                      }}
+                      className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors ml-1 cursor-pointer"
+                      aria-label={isExpanded ? "Collapse exam card" : "Expand exam card"}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="pt-4 mt-3 border-t border-hairline space-y-4 animate-in fade-in-50 duration-200">
+                    {isPublished && (
+                      sub.is_document_purged ? (
+                        <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                          <Info className="h-4 w-4 text-slate-500 shrink-0" />
+                          <span>
+                            <strong>Document Expired & Purged:</strong> In accordance with the 15-day retention policy, the scanned PDF pages and bounding box coordinates for this exam have been deleted to preserve storage. Your marks per question and overall evaluation record remain permanently archived.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 border border-amber-200 text-xs text-amber-900">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                            <span>
+                              <strong>Storage Retention Notice:</strong> This graded answer sheet will be permanently deleted in{" "}
+                              <strong>{sub.days_remaining !== undefined && sub.days_remaining !== null ? `${sub.days_remaining} days` : "15 days"}</strong>. Please download your evaluated PDF now to preserve your personal copy. (Revaluation requests remain open for 7 days).
+                            </span>
+                          </div>
+                          <a
+                            href={api.getAnnotatedPdfUrl(sub.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 hover:text-amber-950 underline text-xs"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Download Copy
+                          </a>
+                        </div>
+                      )
+                    )}
+
+                    {isPublished ? (
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+                        <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-4">
+                          <div>
+                            <div className="text-[10px] sm:text-[11px] font-medium text-ink-muted leading-none">
+                              Total Score
+                            </div>
+                            <div className="text-base sm:text-xl font-bold text-ink mt-0.5 leading-tight">
+                              {sub.total_awarded_marks !== null && sub.total_awarded_marks !== undefined
+                                ? Number(sub.total_awarded_marks).toFixed(1)
+                                : "—"}{" "}
+                              <span className="text-[10px] sm:text-xs font-normal text-ink-muted">
+                                / {sub.max_marks || sub.exam_total_marks || 25}m
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="h-7 w-px bg-hairline hidden sm:block" />
+
+                          <div>
+                            <div className="text-[10px] sm:text-[11px] font-medium text-ink-muted leading-none">
+                              Percentage
+                            </div>
+                            <div className="text-sm sm:text-base font-bold text-ink mt-0.5 leading-tight">
+                              {sub.percentage !== null && sub.percentage !== undefined
+                                ? `${Number(sub.percentage).toFixed(1)}%`
+                                : "—"}
+                            </div>
+                          </div>
+
+                          <div className="h-7 w-px bg-hairline hidden sm:block" />
+
+                          <div>
+                            <div className="text-[10px] sm:text-[11px] font-medium text-ink-muted leading-none">
+                              Questions
+                            </div>
+                            <div className="text-[11px] sm:text-xs font-semibold text-ink mt-0.5 leading-tight truncate">
+                              {hasAnswers ? `${sub.answers.length} Graded` : "Registered"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isRevalResolved && reval.reviewer_notes && (
+                          <div className="sm:max-w-xs text-left bg-surface border border-hairline p-2 rounded-md">
+                            <div className="text-[10px] font-semibold text-ink-secondary">
+                              Faculty Feedback:
+                            </div>
+                            <p className="text-[11px] text-ink italic line-clamp-2">
+                              "{reval.reviewer_notes}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 border border-amber-200/70">
+                        <div className="flex items-center gap-2.5">
+                          <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                          <div>
+                            <div className="text-xs font-bold text-amber-900">
+                              Evaluation in Progress • Marks Hidden
+                            </div>
+                            <div className="text-[11px] text-amber-700">
+                              Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
+                            </div>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white border border-amber-300 text-amber-800 shrink-0">
+                          Pending Publication
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Actions Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                        <Link
+                          href={`/student/submissions/${sub.id}`}
+                          className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 py-2 sm:py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer w-full sm:w-auto text-center shrink-0"
+                        >
+                          <Eye className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {isPublished
+                              ? sub.is_document_purged
+                                ? "View Archived Question Marks →"
+                                : "Inspect in PDF Viewer →"
+                              : "View Submitted Script →"}
+                          </span>
+                        </Link>
+
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                          {isPublished ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBreakdownModal(sub)}
+                              className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 py-2 sm:py-1.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center"
+                            >
+                              <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <span>View Summary</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              title="Detailed breakdown will be accessible once marks are officially published by faculty."
+                              className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 py-2 sm:py-1.5 rounded-md cursor-not-allowed select-none text-center"
+                            >
+                              <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                              <span>Summary Pending</span>
+                            </button>
+                          )}
+
+                          {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setArtifactModalExam({
+                                  id: sub.exam_id,
+                                  title: sub.exam_title,
+                                  subject: sub.exam_subject || sub.subject,
+                                  has_question_paper: sub.has_question_paper,
+                                  has_answer_key: sub.has_answer_key,
+                                  is_document_purged: sub.exam_is_document_purged,
+                                });
+                                setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
+                                setArtifactModalOpen(true);
+                              }}
+                              className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 py-2 sm:py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                              title="View Question Paper & Official Answer Key"
+                            >
+                              <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <span>QP & Key</span>
+                            </button>
+                          )}
+
+                          {isPublished ? (
+                            sub.is_document_purged ? (
+                              <button
+                                type="button"
+                                disabled
+                                title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
+                                className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3.5 py-2 sm:py-1.5 rounded-md opacity-60 cursor-not-allowed text-center"
+                              >
+                                <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                                <span>PDF Expired</span>
+                              </button>
+                            ) : (
+                              <a
+                                href={api.getAnnotatedPdfUrl(sub.id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() =>
+                                  toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
+                                }
+                                className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 py-2 sm:py-1.5 rounded-md transition-colors text-center"
+                                title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
+                              >
+                                <Download className="h-3.5 w-3.5 shrink-0" />
+                                <span>Download PDF</span>
+                              </a>
+                            )
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              title="Evaluated PDF download will be enabled once faculty officially publishes results."
+                              className="flex-1 sm:flex-initial min-w-[120px] inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 py-2 sm:py-1.5 rounded-md cursor-not-allowed select-none text-center"
+                            >
+                              <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                              <span>PDF Pending</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {isPublished && (hasOpenReval || isRevalResolved) && (
+                        <div className="w-full sm:w-auto">
+                          {hasOpenReval ? (
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200">
+                              <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                              <span>Revaluation Appeal Active</span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span>Revaluation Completed</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {isPublished && !hasOpenReval && !isRevalResolved && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRevalModal(sub)}
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline px-3 py-1.5 rounded-md transition-colors cursor-pointer text-center"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
+                          <span>Request Revaluation</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </FeatureCard>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Direct Technical Support & Report Issue Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline shadow-2xs">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <LifeBuoy className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-ink">Facing a technical issue?</h3>
+            <p className="text-[11px] text-ink-muted leading-relaxed mt-0.5">
+              If an answer sheet upload failed, marks are not appearing, or you encounter a visual glitch, send a report with screenshots directly to our technical team.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setReportModalOpen(true)}
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary-active transition-colors shrink-0 shadow-2xs cursor-pointer"
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span>Report Technical Issue</span>
+        </button>
+      </div>
+    </div>
+  )}
 
       {/* DETAILED QUESTION BREAKDOWN MODAL */}
       <ModalCard

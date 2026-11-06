@@ -171,7 +171,7 @@ export function Navbar() {
           </Link>
           {isMounted && currentUser && (
             <Link
-              href="/student/exams"
+              href="/student/portal?tab=exams"
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 pathname.startsWith("/student/exams")
                   ? "bg-canvas-soft text-ink font-semibold"
@@ -374,7 +374,7 @@ export function Navbar() {
 
               {isMounted && currentUser && (
                 <Link
-                  href="/student/exams"
+                  href="/student/portal?tab=exams"
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                     pathname.startsWith("/student/exams")

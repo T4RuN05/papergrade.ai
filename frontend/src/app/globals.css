@@ -333,10 +333,47 @@ body {
   pointer-events: none !important;
 }
 
+/* ==========================================================================
+   Segmented Toggle Tab Slide Transition Engine
+   Smooth native-feel horizontal slide animations when toggling between
+   Dashboard and Past Exams in the student portal.
+   ========================================================================== */
+@keyframes tabSlideInFromRight {
+  0% {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tabSlideInFromLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-tab-slide-right {
+  animation: tabSlideInFromRight 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-tab-slide-left {
+  animation: tabSlideInFromLeft 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-cascade,
   .cascade-group > *,
   .cascade-fast > *,
+  .animate-tab-slide-right,
+  .animate-tab-slide-left,
   .animate-modal-backdrop-in,
   .animate-modal-backdrop-out,
   .animate-modal-content-in,
