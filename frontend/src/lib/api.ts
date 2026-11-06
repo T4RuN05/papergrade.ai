@@ -1349,7 +1349,8 @@ export const api = {
   },
 
   getPageImageUrl(submissionId: string, pageNum: number) {
-    return `${API_BASE}/api/grading/page-image/${submissionId}/${pageNum}`;
+    const token = getAuthToken();
+    return `${API_BASE}/api/grading/page-image/${submissionId}/${pageNum}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
   },
 
   getCropImageUrl(
@@ -1361,6 +1362,8 @@ export const api = {
     const params = new URLSearchParams();
     if (regionId) params.set("region_id", regionId);
     if (version !== undefined && version !== null && version !== "") params.set("v", String(version));
+    const token = getAuthToken();
+    if (token) params.set("token", token);
     const qs = params.toString();
     return `${API_BASE}/api/grading/crop/${submissionId}/${answerId}${qs ? `?${qs}` : ""}`;
   },

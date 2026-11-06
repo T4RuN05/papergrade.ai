@@ -22,7 +22,7 @@ import {
   Archive,
 } from "lucide-react";
 import { GradedAnswer, AnswerRegion } from "@/lib/types";
-import { api } from "@/lib/api";
+import { api, getAuthToken } from "@/lib/api";
 
 type HandleType = "move" | "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
@@ -127,6 +127,7 @@ export function DocumentViewer({
     async function initPdf() {
       if (!submissionId) return;
       setPdfError(false);
+      const authToken = getAuthToken();
       const targetUrl = propPdfUrl || api.getSubmissionPdfUrl(submissionId);
 
       // Instant hit: document is already parsed and cached in browser memory
@@ -143,6 +144,7 @@ export function DocumentViewer({
         const loadingTask = pdfjs.getDocument({
           url: targetUrl,
           withCredentials: false,
+          httpHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
         });
         const doc = await loadingTask.promise;
         if (!isCancelled) {

@@ -33,7 +33,7 @@ class ExportService:
             submissions = session.scalars(
                 select(Submission).where(
                     Submission.batch_id == batch_id,
-                    Submission.submission_status.in_(['SUBMITTED', 'EVALUATED'])
+                    Submission.submission_status == 'SUBMITTED'
                 )
             ).all()
 
@@ -83,7 +83,7 @@ class ExportService:
             # Get all submissions for exam
             submissions = session.scalars(
                 select(Submission)
-                .where(Submission.exam_id == exam_id, Submission.submission_status.in_(['SUBMITTED', 'EVALUATED']))
+                .where(Submission.exam_id == exam_id, Submission.submission_status == 'SUBMITTED')
                 .order_by(Submission.roll_number.asc())
             ).all()
 

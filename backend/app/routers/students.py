@@ -275,7 +275,7 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         sub_exam_rows = session.execute(
             select(Submission, Exam)
             .join(Exam, Submission.exam_id == Exam.id)
-            .where(or_(*sub_filters), Submission.submission_status.in_(['SUBMITTED', 'EVALUATED']))
+            .where(or_(*sub_filters), Submission.submission_status == 'SUBMITTED')
             .order_by(Submission.created_at.desc())
         ).all()
 

@@ -211,7 +211,7 @@ def get_exam_evaluation_status(
 
     subs = db.scalars(
         select(Submission)
-        .where(Submission.exam_id == exam_id, Submission.submission_status.in_(["SUBMITTED", "EVALUATED"]))
+        .where(Submission.exam_id == exam_id, Submission.submission_status == "SUBMITTED")
         .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
     ).all()
 
@@ -738,7 +738,7 @@ def start_evaluation(
         select(Submission)
         .where(
             Submission.exam_id == exam_id,
-            Submission.submission_status.in_(["SUBMITTED", "EVALUATED"]),
+            Submission.submission_status == "SUBMITTED",
             Submission.status.in_(["UPLOADED", "AWAITING_KEY", "AWAITING_RUBRIC", "QUEUED", "FAILED"])
         )
         .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
@@ -811,7 +811,7 @@ def publish_results(
         select(Submission)
         .where(
             Submission.exam_id == exam_id,
-            Submission.submission_status.in_(["SUBMITTED", "EVALUATED"]),
+            Submission.submission_status == "SUBMITTED",
             Submission.status.in_(["GRADED", "REVIEWED", "COMPLETED", "NEEDS_REVIEW"])
         )
     ).all()
@@ -1314,7 +1314,7 @@ def get_exam_rankings(
         select(Submission)
         .where(
             Submission.exam_id == exam_id,
-            Submission.submission_status.in_(['SUBMITTED', 'EVALUATED']),
+            Submission.submission_status == 'SUBMITTED',
             Submission.total_awarded_marks.isnot(None),
             Submission.status != 'FAILED'
         )
