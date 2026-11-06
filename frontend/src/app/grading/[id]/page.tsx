@@ -356,6 +356,7 @@ export default function GradingPage() {
             onUpdateRegion={handleUpdateRegion}
             totalAwardedMarks={submission.total_awarded_marks}
             maxMarks={submission.max_marks}
+            isDocumentPurged={Boolean(submission.is_document_purged)}
           />
         </div>
 

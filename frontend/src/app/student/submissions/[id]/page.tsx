@@ -450,6 +450,7 @@ export default function StudentSubmissionViewerPage() {
               maxMarks={submission.max_marks}
               readOnly={true}
               hideScoreStamp={!isPublished}
+              isDocumentPurged={Boolean(submission.is_document_purged)}
             />
           </div>
         )}

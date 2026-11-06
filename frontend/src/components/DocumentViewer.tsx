@@ -54,6 +54,7 @@ interface DocumentViewerProps {
   maxMarks?: number;
   readOnly?: boolean;
   hideScoreStamp?: boolean;
+  isDocumentPurged?: boolean;
 }
 
 // In-memory client LRU cache for loaded PDF documents across page changes & reopens
@@ -77,6 +78,7 @@ export function DocumentViewer({
   maxMarks,
   readOnly = false,
   hideScoreStamp = false,
+  isDocumentPurged = false,
 }: DocumentViewerProps) {
   const [internalPage, setInternalPage] = useState<number>(1);
   const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -144,7 +146,6 @@ export function DocumentViewer({
         const loadingTask = pdfjs.getDocument({
           url: targetUrl,
           withCredentials: false,
-          httpHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
         });
         const doc = await loadingTask.promise;
         if (!isCancelled) {
@@ -1031,10 +1032,26 @@ export function DocumentViewer({
               <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
                 <Archive className="h-6 w-6" />
               </div>
-              <h3 className="text-sm font-bold text-ink">Page Image Unavailable</h3>
+              <h3 className="text-sm font-bold text-ink">
+                {isDocumentPurged ? "Page Image Unavailable" : "Page Loading Error"}
+              </h3>
               <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
-                Scanned answer sheet pages and crop previews for this paper have been purged in accordance with the 15-day storage retention policy. Question marks and evaluator rationales remain permanently archived.
+                {isDocumentPurged
+                  ? "Scanned answer sheet pages and crop previews for this paper have been purged in accordance with the 15-day storage retention policy. Question marks and evaluator rationales remain permanently archived."
+                  : "Unable to render this page image or document stream. Please verify your connection or click retry below."}
               </p>
+              {!isDocumentPurged && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageError(false);
+                    setPdfError(false);
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary-hover transition-colors"
+                >
+                  Retry Loading
+                </button>
+              )}
             </div>
           ) : (
             <>

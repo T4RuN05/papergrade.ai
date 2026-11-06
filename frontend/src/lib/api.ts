@@ -1415,11 +1415,17 @@ export const api = {
       if (v) {
         urlObj.searchParams.set("v", v);
       }
+      const token = getAuthToken();
+      if (token && !urlObj.searchParams.has("token")) {
+        urlObj.searchParams.set("token", token);
+      }
       return urlObj.toString();
     } catch {
       const delimiter = base.includes("?") ? "&" : "?";
+      const token = getAuthToken();
+      const tokenParam = token && !base.includes("token=") ? `token=${encodeURIComponent(token)}&` : "";
       const regParam = regionId && !base.includes("region_id=") ? `region_id=${encodeURIComponent(regionId)}&` : "";
-      return `${base}${delimiter}${regParam}${v ? `v=${encodeURIComponent(v)}` : ""}`;
+      return `${base}${delimiter}${tokenParam}${regParam}${v ? `v=${encodeURIComponent(v)}` : ""}`;
     }
   },
 
