@@ -219,6 +219,8 @@ export const api = {
       id: data.user_id,
       role: data.role,
       full_name: data.full_name,
+      institute_id: data.institute_id,
+      branch_id: data.branch_id,
     };
     setAuthToken(data.access_token, userPayload);
     clearApiCache();
@@ -227,8 +229,12 @@ export const api = {
       token_type: data.token_type || "bearer",
       role: data.user?.role || data.role,
       user_id: data.user?.id || data.user_id,
+      id: data.user?.id || data.user_id,
       full_name: data.user?.full_name || data.full_name,
+      institute_id: data.user?.institute_id || data.institute_id,
+      branch_id: data.user?.branch_id || data.branch_id,
       user: data.user,
+      ...(data.user || {}),
     };
   },
 

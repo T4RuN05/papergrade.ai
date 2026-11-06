@@ -241,13 +241,15 @@ function LoginForm() {
 
       if (user.role === "STUDENT") {
         // Fast-path immediate redirect for students with local seed user
-        refreshTenancy(user);
+        const studentUser = user.user ? { ...user, ...user.user } : user;
+        refreshTenancy(studentUser);
         startNavigationProgress();
         router.push(dest);
         return;
       }
 
-      await refreshTenancy(user);
+      const fullUser = user.user ? { ...user, ...user.user } : user;
+      await refreshTenancy(fullUser);
       startNavigationProgress();
       router.push(dest);
     } catch (err: any) {

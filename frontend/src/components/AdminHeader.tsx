@@ -199,7 +199,9 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           >
             <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
             <span className="font-bold text-ink truncate text-xs">
-              {mounted ? (selectedBranch?.name || selectedInstitute?.name || "Select Branch") : "PaperGrade"}
+              {mounted
+                ? selectedBranch?.name || selectedInstitute?.name || (isBranchManager && branches[0]?.name) || "Select Branch"
+                : "PaperGrade"}
             </span>
             <ChevronDown
               className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-150 ${

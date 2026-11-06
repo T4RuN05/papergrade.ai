@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { api, getAuthToken, getStoredUser, setStoredUser, getStoredUserPayload } from "@/lib/api";
 import { queueToast } from "@/lib/ToastContext";
@@ -80,26 +80,60 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     const token = getAuthToken();
     if (!token) {
       setCurrentUser(null);
+      setSelectedBranch(null);
+      setSelectedInstitute(null);
+      setInstitutes([]);
+      setAllBranches([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    const initialUser = seedUser || getStoredUser() || getStoredUserPayload();
-    if (initialUser) {
-      setCurrentUser(initialUser);
+    const storedPayload = getStoredUserPayload();
+    let rawUser = seedUser || getStoredUser() || storedPayload;
+    let me: any = rawUser?.user ? { ...rawUser, ...rawUser.user } : rawUser;
+
+    // Ensure branch_id and institute_id are present from stored JWT payload if missing on me
+    if (!me?.branch_id && storedPayload?.branch_id) {
+      me = {
+        ...me,
+        branch_id: storedPayload.branch_id,
+        institute_id: storedPayload.institute_id || me?.institute_id,
+      };
+    }
+
+    if (me) {
+      setCurrentUser(me);
     }
 
     try {
-      const me = seedUser || (await api.getMe());
-      setCurrentUser(me);
+      // If we don't have full user profile or missing role/branch_id for branch manager, fetch from server
+      if (!me?.role || (me.role === "BRANCH_MANAGER" && !me.branch_id)) {
+        try {
+          const fresh = await api.getMe();
+          if (fresh) {
+            me = { ...me, ...fresh };
+            setCurrentUser(me);
+            setStoredUser(me);
+          }
+        } catch (e) {
+          console.warn("TenantContext: api.getMe() fallback failed", e);
+        }
+      }
+
+      if (!me) {
+        setLoading(false);
+        return;
+      }
       setStoredUser(me);
 
       // Students do not administer institutes or branches; skip redundant administrative API calls
       if (me.role === "STUDENT") {
         setInstitutes([]);
         setAllBranches([]);
+        setSelectedBranch(null);
+        setSelectedInstitute(null);
         setLoading(false);
         return;
       }
@@ -111,6 +145,18 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
       setInstitutes(instList);
       setAllBranches(branchList);
+
+      const targetBranchId =
+        me.branch_id ||
+        me.user?.branch_id ||
+        storedPayload?.branch_id ||
+        (typeof window !== "undefined" ? localStorage.getItem(STORAGE_BRANCH_KEY) : null);
+
+      const targetInstId =
+        me.institute_id ||
+        me.user?.institute_id ||
+        storedPayload?.institute_id ||
+        (typeof window !== "undefined" ? localStorage.getItem(STORAGE_INST_KEY) : null);
 
       if (me.role === "ROOT_ADMIN") {
         // Restore from storage or fallback to first
@@ -129,20 +175,32 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         if (resolvedInst) localStorage.setItem(STORAGE_INST_KEY, resolvedInst.id);
         if (resolvedBranch) localStorage.setItem(STORAGE_BRANCH_KEY, resolvedBranch.id);
       } else if (me.role === "BRANCH_MANAGER") {
-        // Strictly locked to branch manager's assigned branch & institute
-        const managerBranch = branchList.find((b: Branch) => b.id === me.branch_id) || (me.branch_id ? {
-          id: me.branch_id,
-          institute_id: me.institute_id,
-          name: "Assigned Branch",
-          code: "BRANCH",
-          city: "",
-        } : null);
+        // For a branch manager, backend /api/branches already returns only their branch!
+        // Try finding by targetBranchId, fallback to branchList[0], fallback to constructed branch
+        const managerBranch =
+          branchList.find((b: Branch) => b.id === targetBranchId) ||
+          branchList[0] ||
+          (targetBranchId
+            ? {
+                id: targetBranchId,
+                institute_id: targetInstId || "",
+                name: "Assigned Branch",
+                code: "BRANCH",
+                city: "",
+              }
+            : null);
 
-        const managerInst = instList.find((i: Institute) => i.id === (managerBranch?.institute_id || me.institute_id)) || (me.institute_id ? {
-          id: me.institute_id,
-          name: "Assigned Institute",
-          code: "INST",
-        } : null);
+        const resolvedInstId = managerBranch?.institute_id || targetInstId;
+        const managerInst =
+          instList.find((i: Institute) => i.id === resolvedInstId) ||
+          instList[0] ||
+          (resolvedInstId
+            ? {
+                id: resolvedInstId,
+                name: "Assigned Institute",
+                code: "INST",
+              }
+            : null);
 
         setSelectedInstitute(managerInst);
         setSelectedBranch(managerBranch);
@@ -165,9 +223,23 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     setIsMounted(true);
     const token = getAuthToken();
     if (token) {
-      const stored = getStoredUserPayload();
+      const stored = getStoredUser() || getStoredUserPayload();
       if (stored) {
-        setCurrentUser(stored);
+        const norm = stored.user ? { ...stored, ...stored.user } : stored;
+        setCurrentUser(norm);
+        if (norm.role === "BRANCH_MANAGER") {
+          const savedBranchId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_BRANCH_KEY) : null;
+          const branchId = norm.branch_id || savedBranchId;
+          if (branchId && !selectedBranch) {
+            setSelectedBranch({
+              id: branchId,
+              institute_id: norm.institute_id || "",
+              name: "Branch",
+              code: "BRANCH",
+              city: "",
+            });
+          }
+        }
       }
     }
     refreshTenancy();
@@ -268,9 +340,16 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const branches = selectedInstitute
-    ? allBranches.filter((b) => b.institute_id === selectedInstitute.id)
-    : allBranches;
+  const branches = useMemo(() => {
+    if (isBranchManager && selectedBranch) {
+      const filtered = allBranches.filter((b) => !selectedInstitute || b.institute_id === selectedInstitute.id);
+      if (filtered.length > 0) return filtered;
+      return allBranches.length > 0 ? allBranches : [selectedBranch];
+    }
+    return selectedInstitute
+      ? allBranches.filter((b) => b.institute_id === selectedInstitute.id)
+      : allBranches;
+  }, [allBranches, selectedInstitute, isBranchManager, selectedBranch]);
 
   return (
     <TenantContext.Provider

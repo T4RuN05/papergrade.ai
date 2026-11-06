@@ -40,7 +40,7 @@ export default function BranchBatchesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const { selectedBranch, selectedInstitute, loading: tenantLoading } = useTenant();
+  const { selectedBranch, selectedInstitute, currentUser, refreshTenancy, loading: tenantLoading } = useTenant();
 
   const [batches, setBatches] = useState<any[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
@@ -126,9 +126,18 @@ export default function BranchBatchesPage() {
       return;
     }
 
-    if (tenantLoading && !selectedBranch?.id) return;
+    // Determine effective branch id across context, currentUser, or storage
+    const effectiveBranchId =
+      selectedBranch?.id ||
+      currentUser?.branch_id ||
+      (typeof window !== "undefined" ? localStorage.getItem("papergrade_selected_branch_id") : null);
 
-    if (!selectedBranch?.id) {
+    if (tenantLoading && !effectiveBranchId) return;
+
+    if (!effectiveBranchId) {
+      if (!tenantLoading && !selectedBranch?.id) {
+        refreshTenancy().catch(() => {});
+      }
       setBatches([]);
       setSelectedBatch(null);
       setStudents([]);
@@ -136,8 +145,8 @@ export default function BranchBatchesPage() {
       return;
     }
 
-    loadBatchesForBranch(selectedBranch.id);
-  }, [selectedBranch?.id, tenantLoading, router]);
+    loadBatchesForBranch(effectiveBranchId);
+  }, [selectedBranch?.id, currentUser?.branch_id, tenantLoading, router, refreshTenancy]);
 
   const loadBatchesForBranch = async (branchId: string, force = false) => {
     setLoadingBatches(true);
