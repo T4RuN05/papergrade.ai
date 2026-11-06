@@ -239,19 +239,27 @@ function LoginForm() {
       const welcomeMsg = `Signed in as ${user.full_name || enteredEmail}.`;
       toast.success(welcomeMsg, { title: roleTitle, duration: 4500 });
 
+      const fullUser = user.user ? { ...user, ...user.user } : user;
+      if (typeof window !== "undefined") {
+        if (fullUser.branch_id) {
+          localStorage.setItem("papergrade_selected_branch_id", fullUser.branch_id);
+        }
+        if (fullUser.institute_id) {
+          localStorage.setItem("papergrade_selected_institute_id", fullUser.institute_id);
+        }
+      }
+
       if (user.role === "STUDENT") {
         // Fast-path immediate redirect for students with local seed user
-        const studentUser = user.user ? { ...user, ...user.user } : user;
-        refreshTenancy(studentUser);
+        refreshTenancy(fullUser);
         startNavigationProgress();
         router.push(dest);
         return;
       }
 
-      const fullUser = user.user ? { ...user, ...user.user } : user;
-      await refreshTenancy(fullUser);
+      // For staff and branch managers, do a clean top-level navigate to initialize full tenant state seamlessly
       startNavigationProgress();
-      router.push(dest);
+      window.location.href = dest;
     } catch (err: any) {
       let defaultMsg =
         loginRole === "STUDENT"

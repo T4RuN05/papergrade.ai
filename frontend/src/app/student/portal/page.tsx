@@ -267,8 +267,8 @@ function StudentMarksTrajectory({
             </span>
           </h2>
           {revalUpgradesCount > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <Sparkles className="h-3 w-3 text-emerald-600" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+              <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
               {revalUpgradesCount} Upgraded
             </span>
           )}
@@ -286,10 +286,10 @@ function StudentMarksTrajectory({
             <div
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${
                 trendDiff > 0
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40"
                   : trendDiff < 0
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-slate-50 text-slate-700 border-slate-200"
+                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40"
+                  : "bg-slate-50 dark:bg-zinc-800/50 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700/50"
               }`}
             >
               {trendDiff > 0 ? (
@@ -310,15 +310,15 @@ function StudentMarksTrajectory({
           )}
 
           {avgPct !== null && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-              <Award className="h-3 w-3 text-purple-600" />
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40">
+              <Award className="h-3 w-3 text-purple-600 dark:text-purple-400" />
               <span>Avg: {avgPct}%</span>
             </div>
           )}
 
           {maxPct !== null && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
-              <Sparkles className="h-3 w-3 text-sky-600" />
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/40">
+              <Sparkles className="h-3 w-3 text-sky-600 dark:text-sky-400" />
               <span>Peak: {maxPct}%</span>
             </div>
           )}
@@ -1399,7 +1399,7 @@ export default function StudentPortalPage() {
           onClick={() => handleTabSwitch("dashboard")}
           className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
             activeTab === "dashboard"
-              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
+              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline"
               : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
           }`}
         >
@@ -1415,7 +1415,7 @@ export default function StudentPortalPage() {
           onClick={() => handleTabSwitch("exams")}
           className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
             activeTab === "exams"
-              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
+              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline"
               : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
           }`}
         >
@@ -1558,8 +1558,8 @@ export default function StudentPortalPage() {
                       }}
                       className={`flex items-center justify-between p-3 rounded-lg text-left transition-all border ${
                         isSelected
-                          ? "bg-white border-primary shadow-sm ring-1.5 ring-primary"
-                          : "bg-white/80 hover:bg-white border-blue-200/80 text-ink-secondary hover:border-blue-400"
+                          ? "bg-surface dark:bg-[#202020] border-primary shadow-sm ring-1.5 ring-primary"
+                          : "bg-surface/80 dark:bg-[#1a1a1a] hover:bg-surface border-hairline hover:border-primary/50 text-ink-secondary"
                       } ${uploading ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                     >
                       <div className="min-w-0 pr-2">
@@ -1683,7 +1683,7 @@ export default function StudentPortalPage() {
 
                 <div className="p-3.5 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                   <div className="flex flex-wrap items-center gap-3 text-ink-muted">
-                    <span className="whitespace-nowrap font-mono text-[11px] bg-surface px-2 py-0.5 rounded border border-hairline/60">
+                    <span className="whitespace-nowrap font-mono text-[11px] bg-surface px-2 py-0.5 rounded border border-hairline">
                       Roll: <strong className="text-ink font-semibold">{activeExamSubmission.roll_number}</strong>
                     </span>
                     {activeExamSubmission.page_count && (
@@ -2112,7 +2112,7 @@ export default function StudentPortalPage() {
                           </span>
                         </span>
                         <span className="text-ink-faint hidden xs:inline">•</span>
-                        <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline/70 px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                        <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
                           Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
                         </span>
                       </div>
@@ -2499,7 +2499,7 @@ export default function StudentPortalPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search exams by title or subject (e.g. Physics, Chemistry, Rotation)..."
-              className="w-full pl-9 pr-9 py-2 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline/80 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+              className="w-full pl-9 pr-9 py-2 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
@@ -2555,7 +2555,7 @@ export default function StudentPortalPage() {
               className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examSubjectFilter === "ALL"
                   ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                  : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
               }`}
             >
               All Subjects
@@ -2568,7 +2568,7 @@ export default function StudentPortalPage() {
                 className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                   examSubjectFilter === sub
                     ? "bg-primary text-white font-semibold shadow-2xs"
-                    : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                    : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
                 }`}
               >
                 {sub}
@@ -2587,7 +2587,7 @@ export default function StudentPortalPage() {
               className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "ALL"
                   ? "bg-ink text-canvas font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
               }`}
             >
               All
@@ -2598,7 +2598,7 @@ export default function StudentPortalPage() {
               className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "PUBLISHED"
                   ? "bg-emerald-600 text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
               }`}
             >
               Published
@@ -2609,7 +2609,7 @@ export default function StudentPortalPage() {
               className={`px-2 py-0.5 rounded-lg text-[11px] transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "IN_PROGRESS"
                   ? "bg-amber-600 text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
               }`}
             >
               In Progress
@@ -2718,7 +2718,7 @@ export default function StudentPortalPage() {
                         </span>
                       </span>
                       <span className="text-ink-faint hidden xs:inline">•</span>
-                      <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline/70 px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
+                      <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/80 border border-hairline px-1.5 py-0.5 rounded text-[10.5px] text-ink-secondary shrink-0">
                         Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
                       </span>
                     </div>
@@ -3320,7 +3320,7 @@ export default function StudentPortalPage() {
                                       </div>
 
                                       {crit.evidence && (
-                                        <div className="text-[10.5px] text-ink-muted bg-white/80 p-1.5 rounded border border-hairline/60 leading-relaxed">
+                                        <div className="text-[10.5px] text-ink-muted bg-surface dark:bg-[#1a1a1a] p-1.5 rounded border border-hairline leading-relaxed">
                                           <span className="font-semibold text-ink-secondary">AI Finding / Evidence: </span>
                                           {crit.evidence}
                                         </div>
@@ -3339,7 +3339,7 @@ export default function StudentPortalPage() {
                               </div>
                             </div>
                           ) : (
-                            <div className="text-[11px] text-ink-muted italic bg-canvas-soft/40 p-2 rounded border border-hairline/50">
+                            <div className="text-[11px] text-ink-muted italic bg-canvas-soft/40 p-2 rounded border border-hairline">
                               Holistic question-level grading applied without sub-criteria.
                             </div>
                           )}
@@ -3347,12 +3347,12 @@ export default function StudentPortalPage() {
                           {/* 2. Side-by-Side: Student Handwriting vs Official Model Solution */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {/* Student's Transcribed Handwriting */}
-                            <div className="p-2.5 rounded-md bg-blue-50/30 border border-blue-200/60 space-y-1">
-                              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-blue-900 uppercase tracking-wider">
+                            <div className="p-2.5 rounded-md bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 space-y-1">
+                              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
                                 <Cpu className="h-3 w-3 text-primary shrink-0" />
                                 <span>Student Answer (AI Transcribed)</span>
                               </div>
-                              <div className="text-[11px] text-ink-secondary leading-relaxed font-mono whitespace-pre-wrap bg-white/80 p-2 rounded border border-blue-100 max-h-36 overflow-y-auto">
+                              <div className="text-[11px] text-ink-secondary dark:text-ink leading-relaxed font-mono whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-blue-100 dark:border-blue-900/40 max-h-36 overflow-y-auto">
                                 {hasExtractedText
                                   ? ans.extracted_text
                                   : "No handwriting transcribed for this question."}
@@ -3360,12 +3360,12 @@ export default function StudentPortalPage() {
                             </div>
 
                             {/* Official Answer Key */}
-                            <div className="p-2.5 rounded-md bg-emerald-50/30 border border-emerald-200/60 space-y-1">
-                              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-900 uppercase tracking-wider">
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                            <div className="p-2.5 rounded-md bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 space-y-1">
+                              <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 <span>Official Model Solution</span>
                               </div>
-                              <div className="text-[11px] text-ink-secondary leading-relaxed whitespace-pre-wrap bg-white/80 p-2 rounded border border-emerald-100 max-h-36 overflow-y-auto">
+                              <div className="text-[11px] text-ink-secondary dark:text-ink leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-emerald-100 dark:border-emerald-900/40 max-h-36 overflow-y-auto">
                                 {hasOfficialAnswer
                                   ? ans.official_answer
                                   : "Model solution not published or withheld by institute policy."}

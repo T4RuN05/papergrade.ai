@@ -27,7 +27,7 @@ export function Skeleton({
 
   return (
     <div
-      className={`animate-shimmer border border-hairline/60 ${roundedClasses} ${className}`}
+      className={`animate-shimmer ${roundedClasses} ${className}`}
       aria-hidden="true"
       {...props}
     />

@@ -165,7 +165,7 @@ export function ThemeToggle({
     <button
       type="button"
       onClick={toggleTheme}
-      className={`inline-flex items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 transition-all cursor-pointer ${
+      className={`inline-flex items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline transition-all cursor-pointer ${
         showLabel ? "px-2.5 py-1.5 w-auto gap-2" : sizeClasses
       } ${className}`}
       title={

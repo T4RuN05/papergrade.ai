@@ -150,7 +150,7 @@ export function StudentQuestionModal({
                 Under Review
               </span>
             </div>
-            <p className="text-[10.5px] text-orange-900 leading-relaxed italic bg-white/60 p-1.5 rounded border border-orange-200/60">
+            <p className="text-[10.5px] text-orange-900 dark:text-orange-300 leading-relaxed italic bg-surface/70 dark:bg-[#1a1a1a] p-1.5 rounded border border-orange-200/60 dark:border-orange-800/40">
               &ldquo;{reval.student_reason}&rdquo;
             </p>
           </div>
@@ -161,25 +161,25 @@ export function StudentQuestionModal({
           <div
             className={`p-2.5 rounded-lg border space-y-1 ${
               reval.decision === "MARKS_REVISED"
-                ? "bg-emerald-50/90 border-emerald-200 text-emerald-950"
-                : "bg-slate-50 border-slate-200 text-slate-900"
+                ? "bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-200"
+                : "bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-700/50 text-slate-900 dark:text-zinc-200"
             }`}
           >
             <div className="flex items-center justify-between font-bold text-[11px]">
               <span className="flex items-center gap-1.5">
                 {reval.decision === "MARKS_REVISED" ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 ) : (
-                  <ShieldCheck className="h-3.5 w-3.5 text-slate-600" />
+                  <ShieldCheck className="h-3.5 w-3.5 text-slate-600 dark:text-zinc-400" />
                 )}
                 Decision: {reval.decision === "MARKS_REVISED" ? "Marks Revised" : "Marks Upheld"}
               </span>
-              <span className="text-[9.5px] uppercase font-semibold bg-white/80 px-1.5 py-0.2 rounded border border-hairline">
+              <span className="text-[9.5px] uppercase font-semibold bg-surface dark:bg-[#1a1a1a] px-1.5 py-0.2 rounded border border-hairline">
                 Finalized
               </span>
             </div>
             {reval.reviewer_notes && (
-              <p className="text-[10.5px] leading-relaxed italic bg-white/70 p-1.5 rounded border border-hairline/60">
+              <p className="text-[10.5px] leading-relaxed italic bg-surface/70 dark:bg-[#1a1a1a] p-1.5 rounded border border-hairline">
                 <span className="font-semibold not-italic">Examiner Remarks: </span>&ldquo;{reval.reviewer_notes}&rdquo;
               </p>
             )}
@@ -277,10 +277,10 @@ export function StudentQuestionModal({
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 border whitespace-nowrap ${
                           isFull
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40"
                             : isZero
-                            ? "bg-rose-50 text-rose-700 border-rose-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
+                            ? "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/40"
+                            : "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40"
                         }`}
                       >
                         {critAwarded.toFixed(1)} / {critMax}m
@@ -288,8 +288,8 @@ export function StudentQuestionModal({
                     </div>
 
                     {crit.evidence && (
-                      <div className="text-[10.5px] text-ink-muted bg-white/80 p-1.5 rounded border border-hairline/60 leading-relaxed">
-                        <span className="font-semibold text-ink-secondary">AI Finding / Evidence: </span>
+                      <div className="text-[10.5px] text-ink-muted bg-surface dark:bg-[#1a1a1a] p-1.5 rounded border border-hairline leading-relaxed">
+                        <span className="font-semibold text-ink-secondary dark:text-ink-secondary">AI Finding / Evidence: </span>
                         {crit.evidence}
                       </div>
                     )}
@@ -305,12 +305,12 @@ export function StudentQuestionModal({
           <div className="grid grid-cols-1 gap-2 pt-0.5">
             {/* Student's Transcribed Text */}
             {answer.extracted_text && (
-              <div className="p-2 rounded-md bg-blue-50/30 border border-blue-200/60 space-y-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-900 uppercase tracking-wider">
+              <div className="p-2 rounded-md bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 space-y-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
                   <Cpu className="h-3 w-3 text-primary shrink-0" />
                   <span>Transcribed Student Answer (AI Vision)</span>
                 </div>
-                <div className="text-[10.5px] text-ink-secondary font-mono leading-relaxed whitespace-pre-wrap bg-white/80 p-2 rounded border border-blue-100 max-h-28 overflow-y-auto">
+                <div className="text-[10.5px] text-ink-secondary dark:text-ink font-mono leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-blue-100 dark:border-blue-900/40 max-h-28 overflow-y-auto">
                   {answer.extracted_text}
                 </div>
               </div>
@@ -318,12 +318,12 @@ export function StudentQuestionModal({
 
             {/* Official Model Solution if available */}
             {answer.official_answer && (
-              <div className="p-2 rounded-md bg-emerald-50/30 border border-emerald-200/60 space-y-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-900 uppercase tracking-wider">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+              <div className="p-2 rounded-md bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 space-y-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>Official Model Solution</span>
                 </div>
-                <div className="text-[10.5px] text-ink-secondary leading-relaxed whitespace-pre-wrap bg-white/80 p-2 rounded border border-emerald-100 max-h-28 overflow-y-auto">
+                <div className="text-[10.5px] text-ink-secondary dark:text-ink leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-emerald-100 dark:border-emerald-900/40 max-h-28 overflow-y-auto">
                   {answer.official_answer}
                 </div>
               </div>
@@ -345,7 +345,7 @@ export function StudentQuestionModal({
                 <button
                   type="button"
                   onClick={() => setShowAppealForm(true)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 border border-primary/30 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/30 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
                 >
                   <RotateCcw className="h-3 w-3 text-primary" />
                   <span>Request Revaluation</span>

@@ -6,16 +6,27 @@
   /* Notion Light Warm Paper Theme */
   --background: #f6f5f4; /* Notion Warm Paper Canvas */
   --foreground: #000000; /* Notion Ink */
+  --canvas-rgb: 255 255 255;
   --canvas: #ffffff;
+  --canvas-soft-rgb: 246 245 244;
   --canvas-soft: #f6f5f4;
+  --surface-rgb: 255 255 255;
   --surface: #ffffff;    /* Card Surface */
+  --surface-elevated-rgb: 255 255 255;
   --surface-elevated: #ffffff;
+  --hairline-rgb: 230 230 230;
   --hairline: #e6e6e6;   /* Hairline Divider */
+  --hairline-subtle-rgb: 240 240 240;
   --hairline-subtle: #f0f0f0;
+  --ink-rgb: 0 0 0;
   --ink: #000000;
+  --ink-secondary-rgb: 49 48 46;
   --ink-secondary: #31302e;
+  --ink-muted-rgb: 97 93 89;
   --ink-muted: #615d59;
+  --ink-faint-rgb: 163 158 152;
   --ink-faint: #a39e98;
+  --primary-rgb: 0 117 222;
   --primary: #0075de;    /* Notion Blue */
   --primary-active: #005bab;
   --secondary: #213183;  /* Deep Indigo Hero */
@@ -32,16 +43,27 @@
   /* Notion Authentic Dark Mode: Obsidian Warm Graphite Theme */
   --background: #191919; /* Obsidian Paper Canvas */
   --foreground: #ebebeb; /* Notion Luminous Ink */
+  --canvas-rgb: 18 18 18;
   --canvas: #121212;
+  --canvas-soft-rgb: 25 25 25;
   --canvas-soft: #191919;
+  --surface-rgb: 32 32 32;
   --surface: #202020;    /* Matte Graphite Card Surface */
+  --surface-elevated-rgb: 38 38 38;
   --surface-elevated: #262626;
-  --hairline: rgba(255, 255, 255, 0.05); /* Soft, natural graphite boundary — no harsh eye-pinching white wireframe */
-  --hairline-subtle: rgba(255, 255, 255, 0.025);
+  --hairline-rgb: 42 42 42; /* Soft, warm obsidian graphite boundary — no harsh eye-pinching white wireframe */
+  --hairline: #2a2a2a;
+  --hairline-subtle-rgb: 32 32 32;
+  --hairline-subtle: #202020;
+  --ink-rgb: 235 235 235;
   --ink: #ebebeb;
+  --ink-secondary-rgb: 165 165 165;
   --ink-secondary: #a5a5a5;
+  --ink-muted-rgb: 120 119 116;
   --ink-muted: #787774;
+  --ink-faint-rgb: 82 82 82;
   --ink-faint: #525252;
+  --primary-rgb: 35 131 226;
   --primary: #2383e2;    /* Lifted Electric Notion Blue for Dark Contrast */
   --primary-active: #1b6dc1;
   --secondary: #141c38;  /* Deep Obsidian Indigo */
@@ -52,6 +74,10 @@
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
   --scrollbar-thumb-active: rgba(255, 255, 255, 0.45);
   --grid-line: rgba(255, 255, 255, 0.035);
+}
+
+*, ::before, ::after {
+  border-color: var(--hairline);
 }
 
 body {
