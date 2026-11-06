@@ -22,6 +22,7 @@ from backend.app.db.models import (
     Batch,
     Branch,
     Institute,
+    Student,
     RubricVersion,
     SubmissionWindow,
     Submission,
@@ -1273,4 +1274,140 @@ async def delete_exam(
         "exam_id": exam_id,
         "deleted_submissions_count": len(subs),
         "deleted_files_count": deleted_files_count,
+    }
+
+
+@router.get("/{exam_id}/rankings")
+def get_exam_rankings(
+    exam_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Return dense-ranked student leaderboard for an exam.
+    Supports both student PWA access and faculty marks inspection.
+    
+    Privacy Rules for Students:
+    - Only returns submissions once results are published.
+    - Excludes roll numbers (privacy protected).
+    - Uses dense ranking (1, 1, 2, 3...) to avoid skipping places on ties.
+    - Flags is_current_student for the requesting student.
+    """
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role", "STUDENT")
+    is_student = user_role == "STUDENT"
+    caller_user_id = current_user.get("sub") or current_user.get("id")
+
+    # Match student identity
+    student_record = None
+    caller_roll = current_user.get("roll_number") or ""
+    if is_student:
+        student_record = db.scalar(select(Student).where(Student.user_id == caller_user_id))
+        if student_record:
+            caller_roll = student_record.roll_number or caller_roll
+
+    # Base query for evaluated submissions
+    stmt = (
+        select(Submission)
+        .where(
+            Submission.exam_id == exam_id,
+            Submission.submission_status == 'SUBMITTED',
+            Submission.total_awarded_marks.isnot(None),
+            Submission.status != 'FAILED'
+        )
+    )
+
+    is_exam_published = bool(exam.status == 'PUBLISHED' or exam.lifecycle_status == 'PUBLISHED' or getattr(exam, 'is_published', False))
+
+    if is_student:
+        # If student, only include published papers
+        if not is_exam_published:
+            stmt = stmt.where(Submission.publication_status == 'PUBLISHED')
+
+    subs = db.scalars(stmt).all()
+
+    if is_student and not subs and not is_exam_published:
+        return {
+            "exam_id": exam_id,
+            "exam_title": exam.title,
+            "subject": exam.subject,
+            "is_published": False,
+            "total_students": 0,
+            "stats": {
+                "total_students": 0,
+                "top_score": 0,
+                "class_mean": 0,
+                "max_marks": float(exam.total_marks or 25)
+            },
+            "rankings": [],
+            "message": "Class rankings will be visible once exam evaluation is published by faculty."
+        }
+
+    # Sort descending by awarded marks, then by percentage
+    sorted_subs = sorted(
+        subs,
+        key=lambda s: (float(s.total_awarded_marks or 0), float(s.percentage or 0)),
+        reverse=True
+    )
+
+    # Compute Dense Rank:
+    # Tied scores share the exact same rank.
+    # The subsequent distinct score gets rank + 1 (dense ranking: 1, 1, 2, 3...)
+    rankings = []
+    current_dense_rank = 1
+    prev_score = None
+    effective_max = float(exam.total_marks or 25)
+
+    for idx, s in enumerate(sorted_subs):
+        score = round(float(s.total_awarded_marks or 0), 1)
+        if prev_score is not None and abs(score - prev_score) > 0.001:
+            current_dense_rank += 1
+        prev_score = score
+
+        is_you = False
+        if is_student:
+            if (student_record and s.student_id == student_record.id) or \
+               (caller_roll and s.roll_number and s.roll_number.strip().lower() == caller_roll.strip().lower()) or \
+               (str(s.student_id) == str(caller_user_id)):
+                is_you = True
+
+        sub_max = float(s.max_marks or effective_max)
+        pct = round(float(s.percentage if s.percentage is not None else ((score / sub_max) * 100)), 1)
+
+        item: Dict[str, Any] = {
+            "id": s.id,
+            "rank": current_dense_rank,
+            "student_name": s.student_name or f"Student {idx + 1}",
+            "score": score,
+            "total_awarded_marks": score,
+            "max_marks": sub_max,
+            "percentage": pct,
+            "is_current_student": is_you,
+        }
+
+        # Include roll_number ONLY for staff/faculty, NEVER for student view
+        if not is_student:
+            item["roll_number"] = s.roll_number
+
+        rankings.append(item)
+
+    scores_list = [r["score"] for r in rankings]
+    stats = {
+        "total_students": len(rankings),
+        "top_score": rankings[0]["score"] if rankings else 0,
+        "class_mean": round(sum(scores_list) / len(scores_list), 1) if scores_list else 0,
+        "max_marks": effective_max
+    }
+
+    return {
+        "exam_id": exam_id,
+        "exam_title": exam.title,
+        "subject": exam.subject,
+        "is_published": is_exam_published or len(rankings) > 0,
+        "total_students": len(rankings),
+        "stats": stats,
+        "rankings": rankings
     }

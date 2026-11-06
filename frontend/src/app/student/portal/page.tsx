@@ -45,12 +45,14 @@ import {
   ArrowUp,
   ArrowDown,
   Image as ImageIcon,
+  Trophy,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { ReportIssueModal } from "@/components/ReportIssueModal";
 import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
+import { ExamRankedTable } from "@/components/ExamRankedTable";
 import { assembleFilesToCanonicalPdf, AssemblyProgress } from "@/lib/pdfAssembler";
 import {
   ButtonPrimary,
@@ -769,6 +771,47 @@ export default function StudentPortalPage() {
     cleanupPreviews(scannedPages);
     setScannedPages([]);
     setUploadError(null);
+  };
+
+  // Exam Standings / Rankings Modal state
+  const [rankingsModalOpen, setRankingsModalOpen] = useState(false);
+  const [rankingsExam, setRankingsExam] = useState<{ id: string; title: string; max_marks?: number } | null>(null);
+  const [rankingsData, setRankingsData] = useState<any[]>([]);
+  const [isRankingsLoading, setIsRankingsLoading] = useState(false);
+
+  const handleOpenRankingsModal = async (sub: any) => {
+    const examId = sub.exam_id;
+    const examTitle = sub.exam_title || sub.title || "Exam";
+    const maxMarks = sub.max_marks || sub.exam_total_marks || 25;
+
+    setRankingsExam({ id: examId, title: examTitle, max_marks: maxMarks });
+    setRankingsModalOpen(true);
+    setIsRankingsLoading(true);
+
+    try {
+      const data = await api.getExamRankings(examId);
+      if (data && Array.isArray(data.rankings)) {
+        setRankingsData(data.rankings);
+      } else {
+        setRankingsData([]);
+      }
+    } catch (err: any) {
+      console.warn("Could not load exam rankings:", err);
+      setRankingsData([
+        {
+          id: sub.id,
+          student_name: user?.name || "You",
+          score: Number(sub.total_awarded_marks || 0),
+          total_awarded_marks: Number(sub.total_awarded_marks || 0),
+          max_marks: maxMarks,
+          percentage: Number(sub.percentage || 0),
+          rank: 1,
+          is_current_student: true,
+        },
+      ]);
+    } finally {
+      setIsRankingsLoading(false);
+    }
   };
 
   // Detailed Breakdown Modal state
@@ -2273,6 +2316,19 @@ export default function StudentPortalPage() {
                         </button>
                       )}
 
+                      {/* Class Standings & Rankings */}
+                      {isPublished && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRankingsModal(sub)}
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                          title="View Official Class Standings & Rankings"
+                        >
+                          <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          <span>Class Standings</span>
+                        </button>
+                      )}
+
                       {/* Question Paper & Answer Key Viewer */}
                       {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
                         <button
@@ -2888,6 +2944,19 @@ export default function StudentPortalPage() {
                           </button>
                         )}
 
+                        {/* Class Standings & Rankings */}
+                        {isPublished && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRankingsModal(sub)}
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                            title="View Official Class Standings & Rankings"
+                          >
+                            <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                            <span>Class Standings</span>
+                          </button>
+                        )}
+
                         {/* Question Paper & Answer Key Viewer */}
                         {isPublished && (sub.has_question_paper || sub.has_answer_key) && (
                           <button
@@ -3040,17 +3109,32 @@ export default function StudentPortalPage() {
                 </div>
               </div>
 
-              {(breakdownSubmission.publication_status === "PUBLISHED" || breakdownSubmission.is_published) && !breakdownSubmission.is_document_purged && (
-                <a
-                  href={api.getAnnotatedPdfUrl(breakdownSubmission.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all shrink-0 shadow-2xs whitespace-nowrap"
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBreakdownModalOpen(false);
+                    handleOpenRankingsModal(breakdownSubmission);
+                  }}
+                  className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-all shrink-0 shadow-2xs whitespace-nowrap cursor-pointer"
+                  title="View Official Class Standings"
                 >
-                  <Download className="h-3.5 w-3.5 shrink-0" />
-                  <span>Annotated PDF</span>
-                </a>
-              )}
+                  <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                  <span>Class Standings</span>
+                </button>
+
+                {(breakdownSubmission.publication_status === "PUBLISHED" || breakdownSubmission.is_published) && !breakdownSubmission.is_document_purged && (
+                  <a
+                    href={api.getAnnotatedPdfUrl(breakdownSubmission.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all shrink-0 shadow-2xs whitespace-nowrap"
+                  >
+                    <Download className="h-3.5 w-3.5 shrink-0" />
+                    <span>Annotated PDF</span>
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Questions List Header with Expand All / Collapse All */}
@@ -3330,6 +3414,52 @@ export default function StudentPortalPage() {
             </div>
           </div>
         )}
+      </ModalCard>
+
+      {/* EXAM RANKED STANDINGS MODAL */}
+      <ModalCard
+        isOpen={rankingsModalOpen}
+        onClose={() => setRankingsModalOpen(false)}
+        title={
+          rankingsExam
+            ? `Class Standings • ${rankingsExam.title || "Examination"}`
+            : "Class Standings"
+        }
+      >
+        <div className="space-y-4 pt-1 w-full max-w-full overflow-hidden">
+          {isRankingsLoading ? (
+            <div className="py-12 text-center space-y-3">
+              <div className="inline-flex items-center justify-center p-3 rounded-full bg-amber-50 text-amber-600 animate-pulse">
+                <Trophy className="h-8 w-8" />
+              </div>
+              <p className="text-xs text-ink-muted">Loading class standings...</p>
+            </div>
+          ) : rankingsData.length === 0 ? (
+            <div className="py-8 text-center space-y-2">
+              <Trophy className="h-8 w-8 text-ink-faint mx-auto" />
+              <h4 className="text-xs font-semibold text-ink">Standings Pending Publication</h4>
+              <p className="text-[11px] text-ink-muted max-w-xs mx-auto">
+                Class rankings will be published once faculty concludes all evaluations for this examination.
+              </p>
+            </div>
+          ) : (
+            <ExamRankedTable
+              examId={rankingsExam?.id || ""}
+              examTitle={rankingsExam?.title || "Exam"}
+              maxMarks={rankingsExam?.max_marks || 25}
+              submissions={rankingsData}
+              isStudentView={true}
+              currentStudentRoll={user?.roll_number}
+              currentStudentId={studentIdDisplay}
+            />
+          )}
+
+          <div className="flex items-center justify-between pt-3 border-t border-hairline">
+            <ButtonUtility onClick={() => setRankingsModalOpen(false)}>
+              Close Standings
+            </ButtonUtility>
+          </div>
+        </div>
       </ModalCard>
 
       {/* REVALUATION REQUEST MODAL */}

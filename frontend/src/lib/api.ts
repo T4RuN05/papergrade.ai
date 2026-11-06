@@ -802,6 +802,25 @@ export const api = {
     return res.json();
   },
 
+  async getExamRankings(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/exams/${id}/rankings`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const fallback = await fetch(`${API_BASE}/api/exams/${id}/rankings`, {
+        headers: { ...getAuthHeaders() },
+        cache: "no-store",
+      });
+      if (!fallback.ok) {
+        const err = await fallback.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to fetch exam standings");
+      }
+      return fallback.json();
+    }
+    return res.json();
+  },
+
   async createExam(formData: FormData): Promise<Exam> {
     const res = await fetch(`${API_BASE}/api/v1/exams`, {
       method: "POST",
