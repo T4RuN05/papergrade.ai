@@ -3,11 +3,12 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, GraduationCap, Building2, Plus, FileText, FileSpreadsheet } from "lucide-react";
+import { CheckCircle2, GraduationCap, Building2, Plus, FileText, FileSpreadsheet, Trophy, Layers } from "lucide-react";
 import { api } from "@/lib/api";
 import { Exam, Submission } from "@/lib/types";
 import { useTenant } from "@/lib/TenantContext";
 import { MarksTable } from "@/components/MarksTable";
+import { ExamRankedTable } from "@/components/ExamRankedTable";
 import { FeatureCard, BadgePill, ButtonPrimary, MarksMatrixSkeleton, Skeleton } from "@/components/ui";
 
 function ClassMarksPageContent() {
@@ -21,6 +22,7 @@ function ClassMarksPageContent() {
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"matrix" | "ranked">("matrix");
 
   // Load exams for active branch
   useEffect(() => {
@@ -139,19 +141,51 @@ function ClassMarksPageContent() {
         </div>
 
         {exams.length > 0 && (
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="text-xs font-semibold text-ink-secondary">Exam:</span>
-            <select
-              value={selectedExamId}
-              onChange={(e) => handleExamChange(e.target.value)}
-              className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-bold text-ink focus:border-primary focus:outline-none shadow-2xs cursor-pointer"
-            >
-              {exams.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.title} ({e.subject})
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+            {/* View Switcher: Question Matrix vs Ranked Standings */}
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-canvas-soft border border-hairline">
+              <button
+                type="button"
+                onClick={() => setViewMode("matrix")}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  viewMode === "matrix"
+                    ? "bg-surface text-ink shadow-2xs border border-hairline"
+                    : "text-ink-muted hover:text-ink border border-transparent"
+                }`}
+                title="Question-by-question marks matrix"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Rubric Matrix</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("ranked")}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  viewMode === "ranked"
+                    ? "bg-surface text-ink shadow-2xs border border-hairline"
+                    : "text-ink-muted hover:text-ink border border-transparent"
+                }`}
+                title="Ranked standings sorted top to bottom by marks"
+              >
+                <Trophy className="h-3.5 w-3.5 text-amber-600" />
+                <span>Ranked Standings</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-ink-secondary">Exam:</span>
+              <select
+                value={selectedExamId}
+                onChange={(e) => handleExamChange(e.target.value)}
+                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-bold text-ink focus:border-primary focus:outline-none shadow-2xs cursor-pointer"
+              >
+                {exams.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.title} ({e.subject})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
       </div>
@@ -205,6 +239,13 @@ function ClassMarksPageContent() {
             </ButtonPrimary>
           </div>
         </FeatureCard>
+      ) : viewMode === "ranked" ? (
+        <ExamRankedTable
+          examId={selectedExamId}
+          examTitle={currentExam?.title || "Examination"}
+          maxMarks={currentExam?.total_marks || 25}
+          submissions={submissions}
+        />
       ) : (
         <MarksTable
           examId={selectedExamId}

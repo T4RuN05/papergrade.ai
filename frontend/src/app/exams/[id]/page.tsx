@@ -42,12 +42,14 @@ import {
   Trash2,
   AlertTriangle,
   Users,
+  Trophy,
 } from "lucide-react";
 import { api, API_BASE, getAuthToken, getCached, clearApiCache } from "@/lib/api";
 import { Exam } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
+import { ExamRankedTable } from "@/components/ExamRankedTable";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -97,6 +99,7 @@ export default function ExamDetailPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [scoreFilter, setScoreFilter] = useState<"ALL" | "TOP" | "MID" | "LOW">("ALL");
   const [sortBy, setSortBy] = useState<"roll" | "marks_desc" | "marks_asc" | "name">("roll");
+  const [submissionViewMode, setSubmissionViewMode] = useState<"roster" | "ranked">("roster");
   const [isBulkClearing, setIsBulkClearing] = useState(false);
   const [clearingSubId, setClearingSubId] = useState<string | null>(null);
 
@@ -1277,11 +1280,44 @@ export default function ExamDetailPage() {
       <FeatureCard className="p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
           <div>
-            <h2 className="text-base font-bold text-ink">
-              Student Answer Sheets & Evaluated Scripts
-            </h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-base font-bold text-ink">
+                Student Answer Sheets & Evaluated Scripts
+              </h2>
+              {/* View Switcher Toggle: Roster vs Ranked */}
+              <div className="inline-flex items-center p-0.5 rounded-lg bg-canvas-soft border border-hairline">
+                <button
+                  type="button"
+                  onClick={() => setSubmissionViewMode("roster")}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    submissionViewMode === "roster"
+                      ? "bg-surface text-ink shadow-2xs border border-hairline"
+                      : "text-ink-muted hover:text-ink border border-transparent"
+                  }`}
+                  title="Alphabetical / Roll-based enrollment ledger"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Roster Ledger</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubmissionViewMode("ranked")}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    submissionViewMode === "ranked"
+                      ? "bg-surface text-ink shadow-2xs border border-hairline"
+                      : "text-ink-muted hover:text-ink border border-transparent"
+                  }`}
+                  title="Ranked leaderboard sorted highest to lowest score with podium badges"
+                >
+                  <Trophy className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Ranked Standings</span>
+                </button>
+              </div>
+            </div>
             <p className="text-xs text-ink-muted mt-0.5">
-              Showing {filteredSubmissions.length} of {submissions.length} total enrolled submission scripts.
+              {submissionViewMode === "ranked"
+                ? "Academic merit standings ranked top-to-bottom by awarded marks and percentage with gold, silver, and bronze badges."
+                : `Showing ${filteredSubmissions.length} of ${submissions.length} total enrolled submission scripts.`}
             </p>
           </div>
 
@@ -1299,65 +1335,75 @@ export default function ExamDetailPage() {
               <span>{isRefreshing ? "Updating..." : "Refresh"}</span>
             </button>
 
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="h-3.5 w-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search student or roll #..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs rounded-md border border-hairline bg-surface focus:outline-none focus:border-primary text-ink placeholder:text-ink-faint w-48 transition-all"
-              />
-            </div>
+            {submissionViewMode === "roster" && (
+              <>
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search student or roll #..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 text-xs rounded-md border border-hairline bg-surface focus:outline-none focus:border-primary text-ink placeholder:text-ink-faint w-48 transition-all"
+                  />
+                </div>
 
-            {/* Score Tier Filter */}
-            <select
-              value={scoreFilter}
-              onChange={(e: any) => setScoreFilter(e.target.value)}
-              className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
-            >
-              <option value="ALL">All Scores</option>
-              <option value="TOP">Distinction (≥75%)</option>
-              <option value="MID">Passing (40% - 74%)</option>
-              <option value="LOW">Needs Attention (&lt;40%)</option>
-            </select>
+                {/* Score Tier Filter */}
+                <select
+                  value={scoreFilter}
+                  onChange={(e: any) => setScoreFilter(e.target.value)}
+                  className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
+                >
+                  <option value="ALL">All Scores</option>
+                  <option value="TOP">Distinction (≥75%)</option>
+                  <option value="MID">Passing (40% - 74%)</option>
+                  <option value="LOW">Needs Attention (&lt;40%)</option>
+                </select>
 
-            {/* Sort Filter */}
-            <select
-              value={sortBy}
-              onChange={(e: any) => setSortBy(e.target.value)}
-              className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
-            >
-              <option value="roll">Sort: Roll Number</option>
-              <option value="marks_desc">Sort: Highest Marks</option>
-              <option value="marks_asc">Sort: Lowest Marks</option>
-              <option value="name">Sort: Student Name</option>
-            </select>
+                {/* Sort Filter */}
+                <select
+                  value={sortBy}
+                  onChange={(e: any) => setSortBy(e.target.value)}
+                  className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
+                >
+                  <option value="roll">Sort: Roll Number</option>
+                  <option value="marks_desc">Sort: Highest Marks</option>
+                  <option value="marks_asc">Sort: Lowest Marks</option>
+                  <option value="name">Sort: Student Name</option>
+                </select>
 
-            {/* Bulk Unflag Button when any papers need review */}
-            {needsReviewCount > 0 && (
-              <button
-                type="button"
-                onClick={handleClearAllExamReviews}
-                disabled={isBulkClearing}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-                title="Unflag all flagged papers in this exam at once and mark them Completed"
-              >
-                {isBulkClearing ? (
-                  <RefreshCw className="h-3 w-3 animate-spin text-purple-600" />
-                ) : (
-                  <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                {/* Bulk Unflag Button when any papers need review */}
+                {needsReviewCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllExamReviews}
+                    disabled={isBulkClearing}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                    title="Unflag all flagged papers in this exam at once and mark them Completed"
+                  >
+                    {isBulkClearing ? (
+                      <RefreshCw className="h-3 w-3 animate-spin text-purple-600" />
+                    ) : (
+                      <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                    )}
+                    <span>Unflag All ({needsReviewCount} Flagged)</span>
+                  </button>
                 )}
-                <span>Unflag All ({needsReviewCount} Flagged)</span>
-              </button>
+              </>
             )}
 
           </div>
         </div>
 
-        {/* Table View */}
-        {filteredSubmissions.length === 0 ? (
+        {submissionViewMode === "ranked" ? (
+          <ExamRankedTable
+            examId={examId}
+            examTitle={exam.title}
+            maxMarks={exam.total_marks || 25}
+            submissions={submissions}
+          />
+        ) : filteredSubmissions.length === 0 ? (
           <div className="py-12 text-center space-y-2">
             <p className="text-xs font-semibold text-ink">No submissions match the search criteria.</p>
             <p className="text-[11px] text-ink-muted">Clear filters or try searching for another student name or roll number.</p>
