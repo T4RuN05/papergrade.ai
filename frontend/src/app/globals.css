@@ -25,6 +25,7 @@
   --scrollbar-thumb: rgba(140, 135, 130, 0.35);
   --scrollbar-thumb-hover: rgba(90, 85, 80, 0.6);
   --scrollbar-thumb-active: rgba(50, 45, 40, 0.85);
+  --grid-line: rgba(0, 0, 0, 0.035);
 }
 
 .dark {
@@ -50,6 +51,7 @@
   --scrollbar-thumb: rgba(255, 255, 255, 0.18);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
   --scrollbar-thumb-active: rgba(255, 255, 255, 0.55);
+  --grid-line: rgba(255, 255, 255, 0.04);
 }
 
 body {

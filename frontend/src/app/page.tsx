@@ -144,10 +144,9 @@ export default function LandingPage() {
       <div
         className="relative z-10 w-full bg-canvas-soft border-b border-hairline shadow-[0_25px_50px_-12px_rgba(0,0,0,0.18)]"
         style={{
-          backgroundColor: "#f6f5f4",
           backgroundImage: `
-            linear-gradient(to right, rgba(0, 0, 0, 0.035) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 1px, transparent 1px)
+            linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+            linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)
           `,
           backgroundSize: "28px 28px",
         }}
@@ -460,7 +459,7 @@ export default function LandingPage() {
                     <div className="p-3 sm:p-3.5 rounded-md border border-neutral-300 bg-surface relative space-y-2.5 sm:space-y-3 font-serif">
                       <div className="flex items-start justify-between gap-2">
                         <div className="text-[10px] font-mono text-ink-muted uppercase">Student Derivation (Box B-1)</div>
-                        <div className="px-2 py-0.5 rounded-md bg-[#eaf7ed] border border-[#c2ecd0] text-[10px] font-mono font-semibold text-accent-green shrink-0">
+                        <div className="px-2 py-0.5 rounded-md bg-[#eaf7ed] dark:bg-[#132b1d] border border-[#c2ecd0] dark:border-[rgba(74,222,128,0.25)] text-[10px] font-mono font-semibold text-accent-green dark:text-[#4ade80] shrink-0">
                           +5.0 / 5.0 Marks
                         </div>
                       </div>
@@ -502,7 +501,7 @@ export default function LandingPage() {
                           <div className="text-xs font-semibold text-ink">Question 3 Evaluation</div>
                           <div className="text-[11px] text-ink-muted">Evaluated against Locked Rubric</div>
                         </div>
-                        <span className="font-mono text-xs font-bold text-accent-green px-2 py-0.5 bg-[#eaf7ed] border border-[#c2ecd0] rounded shrink-0">
+                        <span className="font-mono text-xs font-bold text-accent-green dark:text-[#4ade80] px-2 py-0.5 bg-[#eaf7ed] dark:bg-[#132b1d] border border-[#c2ecd0] dark:border-[rgba(74,222,128,0.25)] rounded shrink-0">
                           5.0 / 5.0
                         </span>
                       </div>
@@ -585,7 +584,7 @@ export default function LandingPage() {
                           <td className="py-2.5 font-medium text-ink">Aarav Sharma</td>
                           <td className="py-2.5 text-ink-muted text-[11px]">Today, 14:22</td>
                           <td className="py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#c2ecd0] bg-[#eaf7ed] text-[10px] font-mono text-accent-green">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#c2ecd0] dark:border-[rgba(74,222,128,0.25)] bg-[#eaf7ed] dark:bg-[#132b1d] text-[10px] font-mono text-accent-green dark:text-[#4ade80]">
                               <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
                               <span>Evaluated</span>
                             </span>
@@ -598,7 +597,7 @@ export default function LandingPage() {
                           <td className="py-2.5 font-medium text-ink">Diya Patel</td>
                           <td className="py-2.5 text-ink-muted text-[11px]">Today, 14:25</td>
                           <td className="py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#c2ecd0] bg-[#eaf7ed] text-[10px] font-mono text-accent-green">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#c2ecd0] dark:border-[rgba(74,222,128,0.25)] bg-[#eaf7ed] dark:bg-[#132b1d] text-[10px] font-mono text-accent-green dark:text-[#4ade80]">
                               <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
                               <span>Evaluated</span>
                             </span>
@@ -611,7 +610,7 @@ export default function LandingPage() {
                           <td className="py-2.5 font-medium text-ink">Karan Verma</td>
                           <td className="py-2.5 text-ink-muted text-[11px]">Today, 14:28</td>
                           <td className="py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#fed7aa] bg-[#fff7ed] text-[10px] font-mono text-accent-orange">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#fed7aa] dark:border-[rgba(251,146,60,0.25)] bg-[#fff7ed] dark:bg-[#2d1b0d] text-[10px] font-mono text-accent-orange dark:text-[#fb923c]">
                               <span className="h-1.5 w-1.5 rounded-full bg-accent-orange" />
                               <span>Appeal Pending</span>
                             </span>
