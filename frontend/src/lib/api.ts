@@ -1259,6 +1259,7 @@ export const api = {
         width: data.width,
         height: data.height,
         reason: data.reason || "Teacher adjusted bounding box",
+        answer_id: (data as any).answer_id || (regionId.startsWith("draft-new-") ? regionId.replace("draft-new-", "") : undefined),
       }),
     });
     if (!res.ok) {

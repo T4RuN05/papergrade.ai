@@ -939,7 +939,29 @@ class GradingService:
                     select(AnswerRegion).where(AnswerRegion.answer_id == region_id).order_by(AnswerRegion.id.asc()).limit(1)
                 )
             if not old_reg:
-                raise ValueError("Region record not found.")
+                # Handle newly created bounding box for an answer that previously had 0 regions
+                target_ans_id = edit_req.answer_id or region_id.replace("draft-new-", "")
+                target_ans = session.scalar(
+                    select(Answer).where(Answer.id == target_ans_id, Answer.submission_id == submission_id)
+                )
+                if target_ans:
+                    new_reg_id = str(uuid.uuid4())
+                    old_reg = AnswerRegion(
+                        id=new_reg_id,
+                        answer_id=target_ans.id,
+                        page_number=edit_req.page_number,
+                        x=edit_req.x,
+                        y=edit_req.y,
+                        width=edit_req.width,
+                        height=edit_req.height,
+                        is_manual_override=1,
+                    )
+                    session.add(old_reg)
+                    target_ans.is_missing = 0
+                    target_ans.page_number = edit_req.page_number
+                    session.flush()
+                else:
+                    raise ValueError("Region or Answer record not found.")
 
             actual_region_id = old_reg.id
             ans_id = old_reg.answer_id

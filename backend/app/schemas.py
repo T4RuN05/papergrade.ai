@@ -67,7 +67,7 @@ class CriterionScoreItem(BaseModel):
     description: str
     max_marks: float = Field(ge=0.0)
     awarded_marks: float = Field(ge=0.0)
-    evidence: str = Field(default="", description="Specific text or reasoning observed from student script")
+    evidence: str = Field(default="", description="Direct literal quote of student handwriting proving criterion was met, or 'NOT FOUND: ...' if omitted/incorrect. Never award marks for 'implied' knowledge.")
 
 class GradedAnswerItem(BaseModel):
     question_id: str = Field(description="Question identifier corresponding to approved rubric, e.g. Q1")
@@ -75,7 +75,7 @@ class GradedAnswerItem(BaseModel):
     section_id: Optional[str] = Field(None, description="Section ID if question belongs to a section")
     is_extra_attempt: bool = Field(default=False, description="True if answer is an extra attempt beyond the section limit, excluded from total score")
     page_number: int = Field(default=1, ge=1, description="Primary page number for this answer")
-    extracted_student_answer: str = Field(default="", description="Verbatim transcription of the student's handwritten or typed response")
+    extracted_student_answer: str = Field(default="", description="Verbatim transcription of student response without autocorrecting errors or inverting column mappings. Max 80 words.")
     regions: List[AnswerRegionItem] = Field(default_factory=list, description="Normalized bounding boxes enclosing this answer")
     max_marks: float = Field(ge=0.0, description="Max marks configured for this question")
     awarded_marks: float = Field(ge=0.0, description="Marks awarded to student")
@@ -137,6 +137,7 @@ class ManualEditRegionRequest(BaseModel):
     width: float
     height: float
     reason: str = Field(default="Teacher adjusted bounding box")
+    answer_id: Optional[str] = None
 
 class QuotaSettingsUpdateRequest(BaseModel):
     rpm_limit: int = Field(gt=0)

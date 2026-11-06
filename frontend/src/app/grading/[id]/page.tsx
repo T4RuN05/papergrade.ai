@@ -445,14 +445,31 @@ export default function GradingPage() {
               </p>
               <div className="space-y-1.5 pt-1">
                 {missingAnswers.map((mAns) => (
-                  <button
+                  <div
                     key={mAns.id}
-                    onClick={() => handleSelectAnswer(mAns, true)}
-                    className="w-full flex items-center justify-between p-2 rounded-md bg-surface border border-red-200 hover:border-red-300 text-left text-xs transition-colors"
+                    className="w-full flex items-center justify-between p-2 rounded-md bg-surface border border-red-200 hover:border-red-300 text-xs transition-colors gap-2"
                   >
-                    <span className="font-mono font-bold text-red-700">{mAns.question_id}</span>
-                    <span className="text-[10px] text-red-600 font-mono">0 / {mAns.max_marks}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAnswer(mAns, true)}
+                      className="flex-1 flex items-center justify-between text-left hover:underline cursor-pointer min-w-0"
+                    >
+                      <span className="font-mono font-bold text-red-700 truncate">{mAns.question_id}</span>
+                      <span className="text-[10px] text-red-600 font-mono shrink-0 ml-2">0 / {mAns.max_marks}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAnswer(mAns);
+                        setEditingAnswerId(mAns.id);
+                      }}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary text-white hover:bg-primary-hover transition-colors shrink-0 cursor-pointer shadow-2xs"
+                      title={`Add bounding box for ${mAns.question_id} on current page`}
+                    >
+                      + Add Box
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

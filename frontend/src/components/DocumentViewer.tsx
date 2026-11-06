@@ -268,14 +268,30 @@ export function DocumentViewer({
   useEffect(() => {
     if (propEditingAnswerId) {
       const match = answers.find((a) => a.id === propEditingAnswerId);
-      const reg = match?.regions?.[0];
-      if (reg) {
+      const regOnThisPage = (match?.regions || []).find((r) => r.page_number === currentPage);
+      const reg = regOnThisPage || match?.regions?.[0];
+      if (reg && match) {
         setEditingRegionId(reg.id || match.id);
+      } else if (match) {
+        // Answer has 0 regions on this page: spawn a default centered bounding box in edit mode
+        const newRegId = `draft-new-${match.id}`;
+        setDraftCoords((prev) => ({
+          ...prev,
+          [newRegId]: {
+            x: 0.15,
+            y: 0.20,
+            width: 0.70,
+            height: 0.15,
+            page_number: currentPage,
+            isModified: true,
+          },
+        }));
+        setEditingRegionId(newRegId);
       }
     } else if (propEditingAnswerId === null) {
       setEditingRegionId(null);
     }
-  }, [propEditingAnswerId, answers]);
+  }, [propEditingAnswerId, answers, currentPage]);
 
   // Ref to the zoomable image container and viewport
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -847,6 +863,32 @@ export function DocumentViewer({
       }
     });
   });
+
+  // If we are actively editing a draft region for an unallocated answer on this page, include it in pageRegions
+  if (editingRegionId && editingRegionId.startsWith("draft-new-")) {
+    const ansId = editingRegionId.replace("draft-new-", "");
+    const match = answers.find((a) => a.id === ansId);
+    if (match && !pageRegions.some((pr) => pr.answer.id === match.id)) {
+      const draft = draftCoords[editingRegionId] || {
+        x: 0.15,
+        y: 0.20,
+        width: 0.70,
+        height: 0.15,
+        page_number: currentPage,
+      };
+      pageRegions.push({
+        region: {
+          id: editingRegionId,
+          page_number: currentPage,
+          x: draft.x,
+          y: draft.y,
+          width: draft.width,
+          height: draft.height,
+        },
+        answer: match,
+      });
+    }
+  }
 
 
   const getStatusColor = (ans: GradedAnswer) => {
