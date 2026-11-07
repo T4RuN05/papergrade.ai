@@ -135,7 +135,15 @@ CRITICAL PRINCIPLES:
    - For stacked/clustered MCQs, provide a tight bounding box around that specific item's line.
    - If completely unattempted across all pages, set `is_missing=true`, `extracted_student_answer=""`, and `regions=[]`.
 
-6. UNCERTAINTY RATING:
+6. MULTI-PAGE & NON-CONSECUTIVE ANSWER CONTINUATIONS:
+   - Students frequently write answers that span across multiple pages, or leave blank / intermediate pages before continuing a question on a later page (e.g. student writes Q4.1 on Page 4, skips pages 5-6, and continues Q4.2 on Page 7).
+   - Forensic Rule: ALWAYS scan the entire submission document from Page 1 to the final page for continuations of each question.
+   - For every question that continues across multiple pages:
+     * Provide an `AnswerRegionItem` in `regions` for EACH page where the student wrote work for that question (e.g. `[{"page_number": 4, ...}, {"page_number": 7, ...}]`).
+     * Concatenate the transcript text from all pages into `extracted_student_answer` in logical chronological order.
+     * NEVER treat a later-page continuation as missing or separate simply because intervening pages exist.
+
+7. UNCERTAINTY RATING:
    - Rate `transcription_uncertainty` from 0.0 (crisp, unmistakable) to 1.0 (heavily degraded, illegible).
 """
 

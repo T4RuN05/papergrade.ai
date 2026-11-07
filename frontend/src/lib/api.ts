@@ -1273,11 +1273,15 @@ export const api = {
         reason: data.reason || "Teacher adjusted bounding box",
         answer_id:
           (data as any).answer_id ||
-          (regionId.startsWith("draft-add-")
-            ? regionId.split("-")[2]
-            : regionId.startsWith("draft-new-")
-            ? regionId.replace("draft-new-", "")
-            : undefined),
+          (() => {
+            if (regionId.startsWith("draft-add-")) {
+              const m = regionId.match(/^draft-add-(.+)-(\d+)$/);
+              return m ? m[1] : regionId.replace("draft-add-", "");
+            }
+            if (regionId.startsWith("draft-new-")) return regionId.replace("draft-new-", "");
+            if (regionId.startsWith("new-")) return regionId.replace("new-", "");
+            return undefined;
+          })(),
       }),
     });
     if (!res.ok) {

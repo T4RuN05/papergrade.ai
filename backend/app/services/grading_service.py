@@ -1,6 +1,7 @@
 import uuid
 import json
 import re
+import shutil
 import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -1057,9 +1058,11 @@ class GradingService:
                 target_ans_id = edit_req.answer_id
                 if not target_ans_id:
                     if region_id.startswith("draft-add-"):
-                        parts = region_id.split("-")
-                        if len(parts) >= 3:
-                            target_ans_id = parts[2]
+                        match_m = re.match(r"^draft-add-(.+)-(\d+)$", region_id)
+                        if match_m:
+                            target_ans_id = match_m.group(1)
+                        else:
+                            target_ans_id = region_id.replace("draft-add-", "")
                     elif region_id.startswith("draft-new-"):
                         target_ans_id = region_id.replace("draft-new-", "")
                     elif region_id.startswith("new-"):
@@ -1070,6 +1073,10 @@ class GradingService:
                 target_ans = session.scalar(
                     select(Answer).where(Answer.id == target_ans_id, Answer.submission_id == submission_id)
                 )
+                if not target_ans:
+                    target_ans = session.scalar(
+                        select(Answer).where(Answer.question_id == target_ans_id, Answer.submission_id == submission_id)
+                    )
                 if target_ans:
                     new_reg_id = f"reg_{uuid.uuid4().hex[:12]}"
                     old_reg = AnswerRegion(
@@ -1162,8 +1169,16 @@ class GradingService:
                             pass
 
         if page_img.exists():
-            pdf_service.crop_answer_region(page_img, edit_req.x, edit_req.y, edit_req.width, edit_req.height, crop_path)
             pdf_service.crop_answer_region(page_img, edit_req.x, edit_req.y, edit_req.width, edit_req.height, reg_crop_path)
+            with get_session() as session:
+                first_reg = session.scalar(
+                    select(AnswerRegion)
+                    .where(AnswerRegion.answer_id == ans_id)
+                    .order_by(AnswerRegion.page_number.asc(), AnswerRegion.y.asc())
+                    .limit(1)
+                )
+                if (first_reg and first_reg.id == actual_region_id) or not crop_path.exists():
+                    pdf_service.crop_answer_region(page_img, edit_req.x, edit_req.y, edit_req.width, edit_req.height, crop_path)
 
         # Re-export annotated PDF asynchronously in background
         GradingService.trigger_background_export_pdf(submission_id)
@@ -1211,13 +1226,17 @@ class GradingService:
             session.flush()
 
             # Check remaining regions for this answer
-            remaining_pages = session.scalars(
-                select(AnswerRegion.page_number).where(AnswerRegion.answer_id == ans_id)
+            remaining_regions = session.scalars(
+                select(AnswerRegion)
+                .where(AnswerRegion.answer_id == ans_id)
+                .order_by(AnswerRegion.page_number.asc(), AnswerRegion.y.asc())
             ).all()
 
-            if remaining_pages:
-                ans.page_number = min(remaining_pages)
+            if remaining_regions:
+                ans.page_number = remaining_regions[0].page_number
+                ans.is_missing = 0
             else:
+                ans.page_number = None
                 ans.is_missing = 1
 
             ans.updated_at = now
@@ -1228,13 +1247,37 @@ class GradingService:
             session.commit()
 
         # Clean up crop files
-        crops_dir = settings.RENDERS_DIR / submission_id / "crops"
+        renders_dir = settings.RENDERS_DIR / submission_id
+        crops_dir = renders_dir / "crops"
         reg_crop = crops_dir / f"crop_{ans_id}_{region_id}.png"
         if reg_crop.exists():
             try:
                 reg_crop.unlink()
             except Exception:
                 pass
+
+        primary_crop = crops_dir / f"crop_{ans_id}.png"
+        if not remaining_regions:
+            if primary_crop.exists():
+                try:
+                    primary_crop.unlink()
+                except Exception:
+                    pass
+        else:
+            first_rem = remaining_regions[0]
+            first_rem_crop = crops_dir / f"crop_{ans_id}_{first_rem.id}.png"
+            if first_rem_crop.exists():
+                try:
+                    shutil.copy2(first_rem_crop, primary_crop)
+                except Exception:
+                    pass
+            else:
+                page_img = renders_dir / f"page_{first_rem.page_number}.png"
+                if page_img.exists():
+                    try:
+                        pdf_service.crop_answer_region(page_img, first_rem.x, first_rem.y, first_rem.width, first_rem.height, primary_crop)
+                    except Exception:
+                        pass
 
         GradingService.trigger_background_export_pdf(submission_id)
         return GradingService.get_submission_details(submission_id)

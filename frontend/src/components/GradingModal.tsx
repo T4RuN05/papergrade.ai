@@ -303,7 +303,7 @@ export function GradingModal({
                           </span>
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] text-ink-muted font-mono font-medium">
-                              Page {activePage}
+                              {activePage ? `Page ${activePage}` : "No Box"}
                             </span>
                             {onAdjustOnCanvas && (
                               <div className="flex items-center gap-2">
@@ -311,13 +311,13 @@ export function GradingModal({
                                   type="button"
                                   onClick={() => {
                                     onClose();
-                                    onAdjustOnCanvas(answer, activePage);
+                                    onAdjustOnCanvas(answer, activePage || undefined);
                                   }}
                                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active hover:underline cursor-pointer transition-colors"
                                   title="Close modal and adjust box handles directly on canvas"
                                 >
                                   <Move className="h-3 w-3" />
-                                  Adjust Box
+                                  {allRegions.length === 0 ? "Place Box" : "Adjust Box"}
                                 </button>
                                 <div className="relative">
                                   <button

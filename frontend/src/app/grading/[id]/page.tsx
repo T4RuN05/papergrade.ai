@@ -99,10 +99,18 @@ export default function GradingPage() {
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = true) => {
     const current = submission?.answers?.find((a) => a.id === ans.id) || ans;
     setSelectedAnswer(current);
-    const targetPage = current.page_number || current.regions?.[0]?.page_number;
-    if (targetPage && targetPage >= 1) {
-      setCurrentPage(targetPage);
+    const regions = current.regions || [];
+    // Only change page if the answer has existing bounding box regions and none of them is on the current page!
+    if (regions.length > 0) {
+      const hasOnCurrent = regions.some((r: any) => r.page_number === currentPage);
+      if (!hasOnCurrent) {
+        const targetPage = regions[0]?.page_number || current.page_number;
+        if (targetPage && targetPage >= 1) {
+          setCurrentPage(targetPage);
+        }
+      }
     }
+    // If the answer has NO regions (e.g. was deleted or missing), STAY on currentPage!
     if (openModal) {
       setIsModalOpen(true);
       setEditingAnswerId(null);
@@ -137,6 +145,7 @@ export default function GradingPage() {
       } else {
         await loadSubmission();
       }
+      setEditingAnswerId(null);
       toast.success("Bounding box region removed successfully.", { title: "Region Deleted" });
     } catch (err: any) {
       toast.error(err.message || "Failed to delete bounding box region.", { title: "Delete Failed" });
@@ -416,7 +425,13 @@ export default function GradingPage() {
                           <Flag className="h-3 w-3 text-purple-600" />
                         )}
                       </div>
-                      <span className="text-[10px] text-ink-muted">Page {ans.page_number}</span>
+                      <span className="text-[10px] text-ink-muted">
+                        {(ans.regions || []).length > 1
+                          ? `Pages ${Array.from(new Set((ans.regions || []).map((r: any) => r.page_number))).sort((a: any, b: any) => a - b).join(", ")}`
+                          : ans.page_number
+                          ? `Page ${ans.page_number}`
+                          : "Unassigned"}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
