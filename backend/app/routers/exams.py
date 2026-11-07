@@ -1314,16 +1314,20 @@ def get_exam_rankings(
         select(Submission)
         .where(
             Submission.exam_id == exam_id,
-            Submission.submission_status == 'SUBMITTED',
             Submission.total_awarded_marks.isnot(None),
-            Submission.status != 'FAILED'
+            Submission.status != 'FAILED',
+            or_(
+                Submission.status != 'ABSENT',
+                Submission.status.is_(None)
+            )
         )
     )
+    subs = db.scalars(stmt).all()
 
     is_exam_published = bool(
         exam.status == 'PUBLISHED' 
         or exam.lifecycle_status == 'PUBLISHED' 
-        or getattr(exam, 'is_published', 0) == 1
+        or bool(getattr(exam, 'is_published', False))
     )
 
     is_privileged = user_role in ["ROOT_ADMIN", "ADMIN", "TEACHER", "FACULTY"]
@@ -1371,7 +1375,8 @@ def get_exam_rankings(
         if is_student:
             if (student_record and s.student_id == student_record.id) or \
                (caller_roll and s.roll_number and s.roll_number.strip().lower() == caller_roll.strip().lower()) or \
-               (str(s.student_id) == str(caller_user_id)):
+               (str(s.student_id) == str(caller_user_id)) or \
+               (str(getattr(s, 'user_id', '')) == str(caller_user_id)):
                 is_you = True
 
         sub_max = float(s.max_marks or effective_max)
@@ -1386,6 +1391,7 @@ def get_exam_rankings(
             "max_marks": sub_max,
             "percentage": pct,
             "is_current_student": is_you,
+            "status": s.status or "COMPLETED",
         }
 
         # Include roll_number ONLY for staff/faculty, NEVER for student view
