@@ -1014,7 +1014,7 @@ export function DocumentViewer({
   const pageImageUrl = api.getPageImageUrl(submissionId, currentPage);
 
   return (
-    <div className="flex flex-col h-full rounded-lg border border-hairline bg-surface overflow-hidden shadow-notion-card select-none">
+    <div className="relative flex flex-col h-full rounded-lg border border-hairline bg-surface overflow-hidden shadow-notion-card select-none">
       {/* Top Toolbar - Clean Notion Aesthetic */}
       <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 border-b border-hairline bg-canvas-soft px-3 sm:px-4 py-2 sm:py-2.5">
         {/* Page selector */}
@@ -1820,21 +1820,6 @@ export function DocumentViewer({
           )}
           </div>
         </div>
-
-        {/* Floating Mobile Page Slide Gesture Indicator (Only in mobile PWA) */}
-        {pageCount > 1 && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex sm:hidden items-center gap-2 bg-surface/90 dark:bg-zinc-900/90 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-20 pointer-events-none select-none text-xs">
-            <span className="font-semibold text-ink-muted text-[11px] flex items-center gap-1">
-              <span className="text-primary font-bold">‹</span>
-              <span>Slide to turn pages</span>
-              <span className="text-primary font-bold">›</span>
-            </span>
-            <span className="h-3 w-px bg-hairline" />
-            <span className="font-mono font-bold text-ink text-[11px]">
-              {currentPage} of {pageCount}
-            </span>
-          </div>
-        )}
       </div>
   );
 }

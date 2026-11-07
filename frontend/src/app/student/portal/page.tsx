@@ -109,8 +109,8 @@ function StudentMarksTrajectory({
     return Array.from(set);
   }, [publishedSubmissions, standardSubjects]);
 
-  // Default to Physics if available, or first subject with papers, or Physics
-  const [selectedSubject, setSelectedSubject] = useState<string>("Physics");
+  // Default to ALL subjects by default
+  const [selectedSubject, setSelectedSubject] = useState<string>("ALL");
 
   // Paper count per subject
   const subjectCounts = useMemo(() => {
@@ -341,8 +341,30 @@ function StudentMarksTrajectory({
         </div>
       </div>
 
-      {/* Subject Tabs Navigation (Physics, Chemistry, Maths, Biology, All Subjects) */}
+      {/* Subject Tabs Navigation (All Subjects, Physics, Chemistry, Maths, Biology) */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-hairline/60">
+        <button
+          type="button"
+          onClick={() => setSelectedSubject("ALL")}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
+            selectedSubject === "ALL"
+              ? "bg-primary text-white shadow-2xs font-semibold"
+              : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
+          }`}
+        >
+          <span>All Subjects</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+              selectedSubject === "ALL"
+                ? "bg-white/20 text-white font-bold"
+                : publishedSubmissions.length > 0
+                ? "bg-primary/10 text-primary font-bold"
+                : "bg-surface text-ink-muted"
+            }`}
+          >
+            {publishedSubmissions.length}
+          </span>
+        </button>
         {allSubjects.map((subj) => {
           const isSelected = selectedSubject.toLowerCase() === subj.toLowerCase();
           const pCount = subjectCounts[subj.toLowerCase()] || 0;
@@ -372,26 +394,6 @@ function StudentMarksTrajectory({
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={() => setSelectedSubject("ALL")}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
-            selectedSubject === "ALL"
-              ? "bg-primary text-white shadow-2xs font-semibold"
-              : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
-          }`}
-        >
-          <span>All Subjects</span>
-          <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              selectedSubject === "ALL"
-                ? "bg-white/20 text-white font-bold"
-                : "bg-surface text-ink-muted"
-            }`}
-          >
-            {publishedSubmissions.length}
-          </span>
-        </button>
       </div>
 
       {/* Chart Canvas or Subject-Specific Empty State */}
@@ -2378,19 +2380,19 @@ export default function StudentPortalPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-700/40">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/20 dark:border-amber-700/40">
                       <div className="flex items-center gap-2.5">
                         <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                         <div>
-                          <div className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                          <div className="text-xs font-bold text-amber-950 dark:text-amber-200">
                             Evaluation in Progress • Marks Hidden
                           </div>
-                          <div className="text-[11px] text-amber-700 dark:text-amber-300/80">
+                          <div className="text-[11px] text-amber-800/90 dark:text-amber-300/80">
                             Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
                           </div>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700/50 text-amber-800 dark:text-amber-300 shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-200 shrink-0">
                         Pending Publication
                       </span>
                     </div>
@@ -3043,19 +3045,19 @@ export default function StudentPortalPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-700/40">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/20 dark:border-amber-700/40">
                         <div className="flex items-center gap-2.5">
                           <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                           <div>
-                            <div className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                            <div className="text-xs font-bold text-amber-950 dark:text-amber-200">
                               Evaluation in Progress • Marks Hidden
                             </div>
-                            <div className="text-[11px] text-amber-700 dark:text-amber-300/80">
+                            <div className="text-[11px] text-amber-800/90 dark:text-amber-300/80">
                               Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
                             </div>
                           </div>
                         </div>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-white dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700/50 text-amber-800 dark:text-amber-300 shrink-0">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-200 shrink-0">
                           Pending Publication
                         </span>
                       </div>
