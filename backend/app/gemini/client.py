@@ -48,7 +48,7 @@ def is_rate_or_quota_error(e: Exception) -> bool:
 class GeminiGradingClient:
     def __init__(self):
         self.model_name = settings.GEMINI_MODEL
-        candidates = [self.model_name, "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]
+        candidates = [self.model_name, "gemini-2.5-flash-lite"]
         self.candidate_models: List[str] = []
         for m in candidates:
             if m and m not in self.candidate_models:

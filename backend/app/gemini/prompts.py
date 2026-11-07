@@ -47,6 +47,7 @@ CRITICAL EXAMINER PRINCIPLES:
    - STRICTLY FORBIDDEN TO AUTOCORRECT: Students frequently make rookie blunders (e.g. writing wrong principal quantum numbers like 4d^6 instead of 3d^6, swapping + and -, inverting algebraic fractions, writing wrong units like m instead of pm). Transcribe their exact written characters and numbers. Never "repair" or normalize mistakes to textbook facts.
    - PRESERVE FORMULAS & ALGEBRAIC REARRANGEMENTS: You MUST transcribe the core formula, the algebraic rearrangement, and the numerical substitution lines (e.g. 'Formula: p = (n*M)/(a^3*Na); Rearrangement: a^3 = (Na*p)/M; Result: a^3 = 1.44e-22').
    - TABLES & COMPARISONS: Preserve explicit column-by-column mapping: `[Column A: student claim] vs [Column B: student claim]`. If the student wrote an inverted or false claim under Column A, preserve that exact false claim under Column A.
+   - FOR MCQS / OBJECTIVE SUBQUESTIONS: `extracted_student_answer` MUST state the option letter and short value (e.g. 'Option B' or 'i) B: Short range order'). NEVER leave `extracted_student_answer` empty for an attempted question.
    - TOKEN BUDGET DISCIPLINE: Keep transcriptions tight (max 60–80 words per question) by focusing strictly on equations, rearrangements, and final claims. Omit conversational filler prose.
 
 2. THE GROUNDING CONTRACT (ZERO GHOST EVIDENCE):
@@ -75,12 +76,13 @@ CRITICAL EXAMINER PRINCIPLES:
    - SECTION A / MCQS MARGIN SCANNING: Students frequently write multiple MCQs clustered in the left margin, right margin, or in a compact header block using Roman numerals (e.g. 'i) B', 'ii) C', 'iii) A'). Thoroughly inspect all margins and Roman numerals on Page 1 before declaring an MCQ unattempted.
    - For MCQs, grade strictly on whether the student selected the correct option letter/value. No working required.
 
-5. LOCATE BOUNDING BOXES:
+5. LOCATE BOUNDING BOXES (MANDATORY REGIONS FOR ATTEMPTED WORK):
+   - ABSOLUTE MANDATE: For every question that is attempted (`is_missing=false`), `regions` MUST NEVER BE EMPTY. You MUST output precise normalized bounding boxes for where the student wrote their work.
    - Return precise normalized bounding box coordinates for each answer:
      `page_number` (1-indexed), `x` (left), `y` (top), `width`, and `height` (0.0 to 1.0 with origin at top-left).
    - For clustered MCQs, tightly bound the specific row or Roman numeral line for that subquestion.
    - If an answer spans multiple regions or pages, include each in `regions`.
-   - If truly blank or unattempted, leave `regions` empty and set `is_missing=true` and `needs_review=true`.
+   - ONLY if truly blank or unattempted, leave `regions` empty and set `is_missing=true` and `needs_review=true`.
 
 6. EVIDENCE-BASED RATIONALE & CALIBRATED MARKS:
    - Awarded marks must be discrete 0.5 increments (0.0, 0.5, 1.0, 1.5). Never award arbitrary fractions like 0.25 or 0.75.
@@ -121,10 +123,12 @@ Evaluate the student's work strictly against the following approved examination 
 Instructions:
 1. Examine all pages thoroughly. On Page 1, inspect margins and Roman numeral clusters (i, ii, iii) for Section A MCQs.
 2. Transcribe operative steps into `extracted_student_answer` (max 80 words per question):
+   - For MCQs: record the selected option letter (e.g. 'i) B'). Never leave it blank for an attempted answer.
    - DO NOT AUTOCORRECT: Preserve mistaken quantum numbers (e.g. 4d instead of 3d), wrong signs, and wrong units.
    - Preserve core formulas, algebraic rearrangements, and numerical results.
    - For comparisons/tables, preserve explicit column mapping: `[Col A: claim] vs [Col B: claim]`.
 3. Provide normalized bounding boxes (x, y, width, height with 0,0 at top-left) for each page region containing the answer.
+   - MANDATORY: For every attempted question (`is_missing=false`), `regions` MUST contain at least one bounding box. An attempted question with empty regions is strictly forbidden.
 4. Grade each criterion with strict zero-implied-credit and negative verification:
    - GROUNDING MANDATE: Every string cited in `evidence` MUST be an exact verbatim substring of `extracted_student_answer`. No ghost evidence!
    - Quoting is NOT proof of correctness: Audit the algebra (did student invert numerator/denominator?), audit numerical values (did powers of 10 match?), and audit table column attribution. If flawed, award 0.0 marks with `evidence: "FAILED: [specific reason]"`.
