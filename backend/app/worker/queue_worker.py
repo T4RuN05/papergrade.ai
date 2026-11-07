@@ -327,17 +327,19 @@ class PersistentQueueWorker:
         for j in ready_jobs:
             s_id = j["id"]
             s1_res = stage1_results[s_id]
+            # Optimization: Filter out unattempted questions before calling Stage 2
+            attempted_answers = [
+                {
+                    "question_id": a.question_id,
+                    "subquestion_id": a.subquestion_id,
+                    "extracted_student_answer": a.extracted_student_answer,
+                }
+                for a in s1_res.answers
+                if not a.is_missing and bool((a.extracted_student_answer or "").strip())
+            ]
             batch_payloads.append({
                 "submission_id": s_id,
-                "answers": [
-                    {
-                        "question_id": a.question_id,
-                        "subquestion_id": a.subquestion_id,
-                        "extracted_student_answer": a.extracted_student_answer,
-                        "is_missing": a.is_missing,
-                    }
-                    for a in s1_res.answers
-                ]
+                "answers": attempted_answers
             })
 
         try:

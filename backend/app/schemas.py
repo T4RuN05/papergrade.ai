@@ -70,15 +70,15 @@ class CriterionScoreItem(BaseModel):
     evidence: str = Field(
         default="",
         description=(
-            "Mandatory 3-part audit format: "
-            "(1) If 100% correct: 'PASS | QUOTE: \"<exact verbatim substring from extracted_student_answer>\" | CHECK: <match verification>' "
-            "(2) If flawed/inverted/wrong unit or magnitude: 'FAIL: <specific error> | QUOTE: \"<exact verbatim substring>\" | EXPECTED: <official requirement>' "
-            "(3) If omitted: 'MISSING | QUOTE: \"NONE\" | EXPECTED: <official requirement>'"
+            "Audit format: "
+            "(1) If correct: 'PASS | QUOTE: \"<exact verbatim substring from student answer>\"' "
+            "(2) If flawed/inverted/wrong unit or magnitude: 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' "
+            "(3) If omitted: 'MISSING'"
         ),
     )
     awarded_marks: float = Field(
         ge=0.0,
-        description="MUST be 0.0 if evidence starts with 'FAIL:' or 'MISSING'. Discrete 0.5 increments only.",
+        description="MUST be 0.0 if evidence starts with 'FAIL' or 'MISSING'. Discrete 0.5 increments only.",
     )
 
 class GradedAnswerItem(BaseModel):
@@ -148,10 +148,21 @@ class Stage1BlindExtractionResult(BaseModel):
     roll_number_detected: Optional[str] = None
     answers: List[BlindExtractedAnswerItem]
 
+class Stage2CriterionEvalItem(BaseModel):
+    criterion_id: str
+    evidence: str = Field(
+        default="",
+        description="Format: 'PASS | QUOTE: \"<exact verbatim substring>\"' or 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' or 'MISSING'",
+    )
+    awarded_marks: float = Field(
+        ge=0.0,
+        description="MUST be 0.0 if evidence starts with 'FAIL' or 'MISSING'. Discrete 0.5 increments only.",
+    )
+
 class Stage2EvaluatedQuestionItem(BaseModel):
     question_id: str
     subquestion_id: Optional[str] = None
-    criterion_scores: List[CriterionScoreItem] = Field(default_factory=list)
+    criterion_scores: List[Stage2CriterionEvalItem] = Field(default_factory=list)
     grading_rationale: str
     awarded_marks: float = Field(ge=0.0)
     grading_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)

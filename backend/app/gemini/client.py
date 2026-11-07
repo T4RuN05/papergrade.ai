@@ -23,6 +23,7 @@ from backend.app.schemas import (
     CriterionScoreItem,
     BlindExtractedAnswerItem,
     Stage1BlindExtractionResult,
+    Stage2CriterionEvalItem,
     Stage2EvaluatedQuestionItem,
     Stage2StudentEvaluationItem,
     Stage2BatchedGradingResult,
@@ -108,26 +109,88 @@ def merge_stage1_and_stage2(
     Combines Stage 1 Blind OCR (extracted text, page numbers, bounding boxes)
     with Stage 2 Evaluated Audit (criterion scores, rationale, marks)
     into a complete StudentGradingExtractionResult.
+    Re-attaches static description and max_marks from rubric_dict to slim Stage 2 criteria.
+    Deterministically populates unattempted questions with 0.0 marks and MISSING criteria.
     """
     s2_lookup: Dict[Tuple[str, Optional[str]], Stage2EvaluatedQuestionItem] = {}
     for eq in stage2_student.evaluated_answers:
         s2_lookup[(eq.question_id, eq.subquestion_id)] = eq
 
     max_marks_lookup: Dict[Tuple[str, Optional[str]], float] = {}
+    rubric_criteria_lookup: Dict[Tuple[str, Optional[str], str], Dict[str, Any]] = {}
+    rubric_questions_criteria: Dict[Tuple[str, Optional[str]], List[Dict[str, Any]]] = {}
+
     if rubric_dict:
         for q in rubric_dict.get("questions", []):
-            max_marks_lookup[(q.get("question_id"), q.get("subquestion_id"))] = float(q.get("max_marks", 1.0))
+            qid = str(q.get("question_id", ""))
+            subid = str(q.get("subquestion_id", "")) if q.get("subquestion_id") else None
+            q_key = (qid, subid)
+            max_marks_lookup[q_key] = float(q.get("max_marks", 1.0))
+            raw_crits = q.get("criteria", [])
+            rubric_questions_criteria[q_key] = raw_crits
+            for c in raw_crits:
+                cid = str(c.get("criterion_id", ""))
+                rubric_criteria_lookup[(qid, subid, cid)] = {
+                    "description": str(c.get("description", "")),
+                    "max_marks": float(c.get("marks", 0.0) or c.get("max_marks", 0.0) or 1.0),
+                }
 
     graded_answers: List[GradedAnswerItem] = []
     for a1 in stage1.answers:
         key = (a1.question_id, a1.subquestion_id)
         s2_item = s2_lookup.get(key)
         q_max_marks = max_marks_lookup.get(key, 0.0)
+        is_blank = a1.is_missing or not (a1.extracted_student_answer or "").strip()
+
+        if is_blank:
+            # Deterministic 0.0 for unattempted questions with zero quota wasted in Stage 2
+            raw_crits = rubric_questions_criteria.get(key, [])
+            default_crits = [
+                CriterionScoreItem(
+                    criterion_id=str(rc.get("criterion_id", f"C{cidx+1}")),
+                    description=str(rc.get("description", "")),
+                    max_marks=float(rc.get("marks", 0.0) or rc.get("max_marks", 0.0) or 1.0),
+                    evidence="MISSING",
+                    awarded_marks=0.0,
+                )
+                for cidx, rc in enumerate(raw_crits)
+            ]
+            graded_answers.append(GradedAnswerItem(
+                question_id=a1.question_id,
+                subquestion_id=a1.subquestion_id,
+                section_id=a1.section_id,
+                page_number=a1.page_number,
+                is_missing=True,
+                extracted_student_answer="",
+                regions=[],
+                max_marks=q_max_marks,
+                criterion_scores=default_crits,
+                grading_rationale="Question unattempted by student.",
+                awarded_marks=0.0,
+                transcription_uncertainty=a1.transcription_uncertainty,
+                grading_uncertainty=0.0,
+                needs_review=False,
+                review_reason=None,
+            ))
+            continue
 
         if s2_item:
-            crit_scores = s2_item.criterion_scores
-            if not q_max_marks and crit_scores:
-                q_max_marks = sum(c.max_marks for c in crit_scores)
+            # Re-attach description and max_marks from rubric into full CriterionScoreItem
+            full_crit_scores: List[CriterionScoreItem] = []
+            for sc in s2_item.criterion_scores:
+                crit_meta = rubric_criteria_lookup.get((a1.question_id, a1.subquestion_id, sc.criterion_id), {})
+                desc = crit_meta.get("description", getattr(sc, "description", ""))
+                m_marks = crit_meta.get("max_marks", getattr(sc, "max_marks", 1.0))
+                full_crit_scores.append(CriterionScoreItem(
+                    criterion_id=sc.criterion_id,
+                    description=desc,
+                    max_marks=m_marks,
+                    evidence=sc.evidence,
+                    awarded_marks=sc.awarded_marks,
+                ))
+
+            if not q_max_marks and full_crit_scores:
+                q_max_marks = sum(c.max_marks for c in full_crit_scores)
 
             clamped_awarded = min(s2_item.awarded_marks, q_max_marks if q_max_marks > 0 else s2_item.awarded_marks)
 
@@ -136,11 +199,11 @@ def merge_stage1_and_stage2(
                 subquestion_id=a1.subquestion_id,
                 section_id=a1.section_id,
                 page_number=a1.page_number,
-                is_missing=a1.is_missing,
+                is_missing=False,
                 extracted_student_answer=a1.extracted_student_answer,
                 regions=a1.regions,
                 max_marks=q_max_marks,
-                criterion_scores=crit_scores,
+                criterion_scores=full_crit_scores,
                 grading_rationale=s2_item.grading_rationale,
                 awarded_marks=clamped_awarded,
                 transcription_uncertainty=a1.transcription_uncertainty,
@@ -154,7 +217,7 @@ def merge_stage1_and_stage2(
                 subquestion_id=a1.subquestion_id,
                 section_id=a1.section_id,
                 page_number=a1.page_number,
-                is_missing=a1.is_missing or True,
+                is_missing=False,
                 extracted_student_answer=a1.extracted_student_answer,
                 regions=a1.regions,
                 max_marks=q_max_marks,
@@ -650,13 +713,14 @@ class GeminiGradingClient:
                         types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
                         prompt_text
                     ]
+                    stage1_budget = getattr(settings, "GEMINI_STAGE1_THINKING_BUDGET", 512)
                     config = types.GenerateContentConfig(
                         system_instruction=STAGE1_BLIND_EXTRACTION_SYSTEM_INSTRUCTION,
                         response_mime_type="application/json",
                         response_schema=Stage1BlindExtractionResult,
                         temperature=0.0,
                         max_output_tokens=32768,
-                        thinking_config=types.ThinkingConfig(thinking_budget=2048)
+                        thinking_config=types.ThinkingConfig(thinking_budget=stage1_budget)
                     )
                     response = client.models.generate_content(
                         model=model_to_use,
@@ -755,11 +819,9 @@ class GeminiGradingClient:
                     ev_answers.append(Stage2EvaluatedQuestionItem(
                         question_id=qid,
                         subquestion_id=sub_qid,
-                        criterion_scores=[CriterionScoreItem(
+                        criterion_scores=[Stage2CriterionEvalItem(
                             criterion_id="C1",
-                            description="Criterion 1",
-                            max_marks=1.0,
-                            evidence='PASS | QUOTE: "Mock answer" | CHECK: verified',
+                            evidence='PASS | QUOTE: "Mock answer"',
                             awarded_marks=1.0
                         )],
                         grading_rationale="Mock evaluation passed.",
@@ -779,8 +841,9 @@ class GeminiGradingClient:
             )
             return mock_res, event_id
 
-        rubric_str = json.dumps(rubric_dict, indent=2)
-        batch_str = json.dumps(batch_payloads, indent=2)
+        # Minified JSON without whitespace/indentation tokens
+        rubric_str = json.dumps(rubric_dict, separators=(",", ":"), ensure_ascii=False)
+        batch_str = json.dumps(batch_payloads, separators=(",", ":"), ensure_ascii=False)
         prompt_text = build_stage2_batched_grading_prompt(rubric_str, batch_str)
 
         # STRICT INVARIANT: High-reasoning models only (NEVER flash-lite!)
@@ -814,8 +877,9 @@ class GeminiGradingClient:
                 active_key, client = self.get_current_client(worker_id=worker_id)
                 try:
                     thinking_cfg = None
-                    if getattr(settings, "GEMINI_THINKING_BUDGET", None) is not None:
-                        thinking_cfg = types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET)
+                    stage2_budget = getattr(settings, "GEMINI_STAGE2_THINKING_BUDGET", getattr(settings, "GEMINI_THINKING_BUDGET", 4096))
+                    if stage2_budget is not None:
+                        thinking_cfg = types.ThinkingConfig(thinking_budget=stage2_budget)
 
                     config = types.GenerateContentConfig(
                         system_instruction=STAGE2_BATCHED_GRADING_SYSTEM_INSTRUCTION,
@@ -1049,17 +1113,18 @@ class GeminiGradingClient:
                 page_count=page_count,
                 worker_id=worker_id
             )
+            attempted_answers = [
+                {
+                    "question_id": a.question_id,
+                    "subquestion_id": a.subquestion_id,
+                    "extracted_student_answer": a.extracted_student_answer,
+                }
+                for a in s1_res.answers
+                if not a.is_missing and bool((a.extracted_student_answer or "").strip())
+            ]
             batch_payload = [{
                 "submission_id": submission_id,
-                "answers": [
-                    {
-                        "question_id": a.question_id,
-                        "subquestion_id": a.subquestion_id,
-                        "extracted_student_answer": a.extracted_student_answer,
-                        "is_missing": a.is_missing,
-                    }
-                    for a in s1_res.answers
-                ]
+                "answers": attempted_answers
             }]
             s2_res, event_id = self.grade_extracted_batch(
                 exam_id=exam_id,
@@ -1091,8 +1156,9 @@ class GeminiGradingClient:
                         prompt_text
                     ]
                     thinking_cfg = None
-                    if getattr(settings, "GEMINI_THINKING_BUDGET", None) is not None:
-                        thinking_cfg = types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET)
+                    stage2_budget = getattr(settings, "GEMINI_STAGE2_THINKING_BUDGET", getattr(settings, "GEMINI_THINKING_BUDGET", 4096))
+                    if stage2_budget is not None:
+                        thinking_cfg = types.ThinkingConfig(thinking_budget=stage2_budget)
 
                     config = types.GenerateContentConfig(
                         system_instruction=STUDENT_GRADING_SYSTEM_INSTRUCTION,

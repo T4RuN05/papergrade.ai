@@ -30,8 +30,10 @@ class Settings:
     GEMINI_GRADING_FALLBACK_MODEL_2: str = os.getenv("GEMINI_GRADING_FALLBACK_MODEL_2", "gemini-3.5-flash").strip()
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
 
-    # Reasoning & Batching Controls
-    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "8192"))
+    # Reasoning & Batching Controls (Stage 1 Blind OCR = 512, Stage 2 Batched Grading = 4096)
+    GEMINI_STAGE1_THINKING_BUDGET: int = int(os.getenv("GEMINI_STAGE1_THINKING_BUDGET", "512"))
+    GEMINI_STAGE2_THINKING_BUDGET: int = int(os.getenv("GEMINI_STAGE2_THINKING_BUDGET", "4096"))
+    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "4096"))
     GRADING_BATCH_SIZE: int = int(os.getenv("GRADING_BATCH_SIZE", "4"))
     ENABLE_TWO_STAGE_PIPELINE: bool = os.getenv("ENABLE_TWO_STAGE_PIPELINE", "true").lower() in ("true", "1", "yes")
     MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "3"))
