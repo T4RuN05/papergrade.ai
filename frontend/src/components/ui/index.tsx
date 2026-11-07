@@ -22,9 +22,9 @@ export function ButtonPrimary({
   ...props
 }: ButtonPrimaryProps) {
   const sizeClasses = {
-    sm: "px-3.5 py-1.5 text-xs rounded-md",
-    md: "px-4 py-2 text-xs sm:text-sm font-semibold rounded-md",
-    lg: "px-5 py-2.5 text-sm sm:text-base font-semibold rounded-lg",
+    sm: "h-8 px-3.5 text-xs font-medium rounded-md",
+    md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-semibold rounded-md",
+    lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-semibold rounded-lg",
   }[size];
 
   if (href) {
@@ -46,7 +46,7 @@ export function ButtonPrimary({
     >
       {isLoading && (
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+          className="animate-spin -ml-0.5 mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-white"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -81,7 +81,7 @@ export interface ButtonUtilityProps extends React.ButtonHTMLAttributes<HTMLButto
 export function ButtonUtility({
   children,
   variant = "default",
-  size = "sm",
+  size = "md",
   className = "",
   disabled,
   href,
@@ -94,9 +94,9 @@ export function ButtonUtility({
   }[variant];
 
   const sizeClasses = {
-    sm: "px-3.5 py-1.5 text-xs rounded-md",
-    md: "px-4 py-2 text-xs sm:text-sm font-semibold rounded-md",
-    lg: "px-5 py-2.5 text-sm sm:text-base font-semibold rounded-lg",
+    sm: "h-8 px-3.5 text-xs font-medium rounded-md",
+    md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-semibold rounded-md",
+    lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-semibold rounded-lg",
   }[size];
 
   if (href) {

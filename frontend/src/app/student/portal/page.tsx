@@ -1739,13 +1739,13 @@ export default function StudentPortalPage() {
               <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-4 shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-[#edf5f0] text-[#1e613b] dark:bg-[#13231a] dark:text-[#86d4a4] border border-[#c8e2d2] dark:border-[#1d3d2a] flex items-center justify-center shrink-0">
                       <CheckCircle2 className="h-5 w-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-sm font-bold text-ink">Answer Sheet Submitted</h3>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a]">
                           Recorded
                         </span>
                       </div>
@@ -1764,8 +1764,8 @@ export default function StudentPortalPage() {
                     </div>
                   </div>
 
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 self-start sm:self-auto">
-                    <Clock className="h-3.5 w-3.5" />
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] self-start sm:self-auto">
+                    <Clock className="h-3.5 w-3.5 text-[#7a4e18] dark:text-[#e5ad68]" />
                     {activeExamSubmission.status === "EVALUATED" || activeExamSubmission.publication_status === "PUBLISHED"
                       ? "Evaluation Complete"
                       : "Grading in Progress"}
@@ -1818,9 +1818,9 @@ export default function StudentPortalPage() {
             ) : windowStatus?.is_active ? (
               <form onSubmit={handleUploadSubmit} className="space-y-4">
                 {isReplacingUpload && (
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] text-xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <AlertCircle className="h-4 w-4 text-[#7a4e18] dark:text-[#e5ad68] shrink-0" />
                       <span>Uploading a new file will replace your existing submitted answer sheet.</span>
                     </div>
                     <button
@@ -1829,7 +1829,7 @@ export default function StudentPortalPage() {
                         setIsReplacingUpload(false);
                         handleClearAllPages();
                       }}
-                      className="text-xs font-semibold text-amber-950 underline hover:no-underline shrink-0 cursor-pointer"
+                      className="text-xs font-semibold text-[#7a4e18] dark:text-[#e5ad68] underline hover:no-underline shrink-0 cursor-pointer"
                     >
                       Keep Current
                     </button>
@@ -3050,9 +3050,19 @@ export default function StudentPortalPage() {
                     ) : (
                       <StatusWell
                         variant="amber"
-                        title="Evaluation in Progress • Marks Hidden"
+                        icon={<Clock className="h-3.5 w-3.5 text-[#e5ad68]" />}
+                        title={
+                          <div className="flex items-center gap-1.5">
+                            <span>Evaluation in Progress</span>
+                            <span className="font-mono text-[10px] text-ink-muted font-normal">• Marks Hidden</span>
+                          </div>
+                        }
                         description="Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty."
-                        badge="Pending Publication"
+                        badge={
+                          <span className="font-mono text-[10px] sm:text-[10.5px] font-medium text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-md border border-hairline shrink-0">
+                            Pending Publication
+                          </span>
+                        }
                       />
                     )}
 
@@ -3187,12 +3197,12 @@ export default function StudentPortalPage() {
                       {isPublished && (hasOpenReval || isRevalResolved) && (
                         <div className="w-full sm:w-auto">
                           {hasOpenReval ? (
-                            <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 text-center whitespace-nowrap shadow-2xs">
+                            <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] text-center whitespace-nowrap shadow-2xs">
                               <RotateCcw className="h-3.5 w-3.5 animate-spin" />
                               <span>Revaluation Appeal Active</span>
                             </div>
                           ) : (
-                            <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 text-center whitespace-nowrap shadow-2xs">
+                            <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] text-center whitespace-nowrap shadow-2xs">
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               <span>Revaluation Completed</span>
                             </div>
@@ -3361,7 +3371,7 @@ export default function StudentPortalPage() {
                             {qLabel}
                           </span>
                           {ans.is_manual_override === 1 && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
+                            <span className="text-[10px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] px-1.5 py-0.5 rounded shrink-0">
                               Human Override
                             </span>
                           )}
@@ -3400,7 +3410,7 @@ export default function StudentPortalPage() {
 
                       {/* Human Override Justification */}
                       {ans.override_reason && (
-                        <div className="text-[11px] text-emerald-800 bg-emerald-50/70 p-2 rounded border border-emerald-200/60">
+                        <div className="text-[11px] bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] p-2 rounded">
                           <span className="font-semibold">Reviewer Justification: </span>
                           {ans.override_reason}
                         </div>
@@ -3480,10 +3490,10 @@ export default function StudentPortalPage() {
                                         <span
                                           className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold shrink-0 border ${
                                             isFull
-                                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                              ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a]"
                                               : isZero
-                                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                                              : "bg-amber-50 text-amber-700 border-amber-200"
+                                              ? "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f]"
+                                              : "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17]"
                                           }`}
                                         >
                                           {critAwarded.toFixed(1)} / {critMax}m

@@ -256,22 +256,50 @@ body {
   }
 }
 
-/* Toast Indeterminate Loading Sweep (100% Continuous Infinite Seamless Loop) */
-@keyframes toastLoadingSweep {
+/* Toast Indeterminate Loading Sweep (Continuous Dual-Pulse Material Infinite Loop) */
+@keyframes toastProgressPrimary {
   0% {
-    transform: translateX(-160%);
+    left: -35%;
+    right: 100%;
   }
-  50% {
-    transform: translateX(60%);
+  60% {
+    left: 100%;
+    right: -90%;
   }
   100% {
-    transform: translateX(280%);
+    left: 100%;
+    right: -90%;
   }
 }
 
+@keyframes toastProgressSecondary {
+  0% {
+    left: -200%;
+    right: 100%;
+  }
+  60% {
+    left: 107%;
+    right: -8%;
+  }
+  100% {
+    left: 107%;
+    right: -8%;
+  }
+}
+
+.toast-bar-primary {
+  animation: toastProgressPrimary 2s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+  will-change: left, right;
+}
+
+.toast-bar-secondary {
+  animation: toastProgressSecondary 2s cubic-bezier(0.165, 0.84, 0.44, 1) 1.15s infinite;
+  will-change: left, right;
+}
+
 .animate-toast-loading {
-  animation: toastLoadingSweep 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  will-change: transform;
+  animation: toastProgressPrimary 2s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+  will-change: left, right;
 }
 
 /* Unified Skeleton Shimmer Animation (100% Mathematically Seamless Infinite Loop) */
