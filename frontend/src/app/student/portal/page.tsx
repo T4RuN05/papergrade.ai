@@ -3650,11 +3650,11 @@ export default function StudentPortalPage() {
         {revalSubmission && (
           <form onSubmit={handleRevalSubmit} className="space-y-4 text-xs">
             {/* Faculty Policy Notice */}
-            <div className="flex items-start gap-2.5 p-3 rounded-md bg-blue-50/70 border border-blue-200/70 text-blue-900">
-              <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5 p-3 rounded-md bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/40 text-blue-900 dark:text-blue-200">
+              <ShieldCheck className="h-4 w-4 text-primary dark:text-blue-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <strong>Institutional Standard:</strong> Under faculty policy, all revaluation requests are{" "}
-                <strong>Manually reviewed by senior human examiners</strong>. Automated AI adjustments are strictly forbidden on student grievances.
+                <strong className="text-blue-950 dark:text-blue-100 font-bold">Institutional Standard:</strong> Under faculty policy, all revaluation requests are{" "}
+                <strong className="text-blue-950 dark:text-blue-100 font-bold">Manually reviewed by senior human examiners</strong>. Automated AI adjustments are strictly forbidden on student grievances.
               </div>
             </div>
 

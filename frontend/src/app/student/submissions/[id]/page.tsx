@@ -256,12 +256,12 @@ export default function StudentSubmissionViewerPage() {
           </div>
         )
       ) : (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/70 p-3.5 text-xs text-blue-900">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-blue-200 dark:border-blue-800/40 bg-blue-50/70 dark:bg-blue-950/40 p-3.5 text-xs text-blue-900 dark:text-blue-200">
           <div className="flex items-center gap-2.5">
-            <Info className="h-4 w-4 text-blue-600 shrink-0" />
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <div>
-              <span className="font-bold">Evaluation in Progress:</span> Your submitted answer sheet has been securely registered and is being evaluated by academic examiners.
-              <span className="block text-[11px] text-blue-800 mt-0.5">
+              <span className="font-bold text-blue-950 dark:text-blue-100">Evaluation in Progress:</span> Your submitted answer sheet has been securely registered and is being evaluated by academic examiners.
+              <span className="block text-[11px] text-blue-800 dark:text-blue-300/80 mt-0.5">
                 Question marks, detailed grading rubrics, and faculty feedback will be unlocked here once examination results are officially published.
               </span>
             </div>

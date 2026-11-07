@@ -56,6 +56,67 @@ export function ArtifactViewerModal({
   const [isPurged, setIsPurged] = useState<boolean>(isExamDocumentPurged);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
+  // Mobile PWA touch sliding gesture state
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [touchOffset, setTouchOffset] = useState<number>(0);
+  const [isSwiping, setIsSwiping] = useState<boolean>(false);
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1 || zoom > 1.05 || loadingMeta || !hasDoc || isPurged) return;
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+    setTouchOffset(0);
+    setIsSwiping(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX === null || touchStartY === null || zoom > 1.05) return;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartX;
+    const deltaY = currentY - touchStartY;
+
+    if (!isSwiping && Math.abs(deltaX) > 10) {
+      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        setIsSwiping(true);
+      }
+    }
+
+    if (isSwiping) {
+      const isAtStart = page <= 1 && deltaX > 0;
+      const isAtEnd = page >= totalPages && deltaX < 0;
+      const dampedDelta = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
+      setTouchOffset(dampedDelta);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isSwiping) {
+      setTouchStartX(null);
+      setTouchStartY(null);
+      setTouchOffset(0);
+      return;
+    }
+
+    const threshold = 50;
+    if (touchOffset < -threshold && page < totalPages) {
+      setSlideDirection("left");
+      setPageImgLoading(true);
+      setPage((prev) => prev + 1);
+    } else if (touchOffset > threshold && page > 1) {
+      setSlideDirection("right");
+      setPageImgLoading(true);
+      setPage((prev) => prev - 1);
+    }
+
+    setTouchOffset(0);
+    setIsSwiping(false);
+    setTouchStartX(null);
+    setTouchStartY(null);
+  };
+
   // Sync initial tab when modal opens or initialArtifact changes
   useEffect(() => {
     if (isOpen) {
@@ -305,7 +366,7 @@ export function ArtifactViewerModal({
                 }
               }}
               disabled={page <= 1 || loadingMeta || !hasDoc || isPurged}
-              className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
+              className="hidden sm:inline-flex p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
               title="Previous Page (Left Arrow)"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -324,7 +385,7 @@ export function ArtifactViewerModal({
                 }
               }}
               disabled={page >= totalPages || loadingMeta || !hasDoc || isPurged}
-              className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
+              className="hidden sm:inline-flex p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
               title="Next Page (Right Arrow)"
             >
               <ChevronRight className="h-3.5 w-3.5" />
@@ -427,11 +488,23 @@ export function ArtifactViewerModal({
           ) : (
             <div className="w-full flex flex-col items-center justify-start transition-all duration-200">
               <div
-                className="bg-white rounded-lg shadow-md border border-hairline overflow-hidden relative transition-transform duration-150 origin-top"
+                className={`bg-white rounded-lg shadow-md border border-hairline overflow-hidden relative origin-top touch-pan-y ${
+                  slideDirection === "left"
+                    ? "animate-in slide-in-from-right-6 duration-200"
+                    : slideDirection === "right"
+                    ? "animate-in slide-in-from-left-6 duration-200"
+                    : ""
+                }`}
                 style={{
                   width: `${Math.round(zoom * 100)}%`,
                   maxWidth: zoom <= 1 ? "100%" : "none",
+                  transform: isSwiping ? `translateX(${touchOffset}px)` : undefined,
+                  transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
                 }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
               >
                 {pageImgLoading && (
                   <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center z-10 min-h-[300px]">
@@ -443,7 +516,10 @@ export function ArtifactViewerModal({
                   src={api.getExamArtifactPageUrl(examId, activeArtifact, page)}
                   alt={`${activeArtifact} page ${page}`}
                   className="w-full h-auto block select-none pointer-events-auto"
-                  onLoad={() => setPageImgLoading(false)}
+                  onLoad={() => {
+                    setPageImgLoading(false);
+                    setSlideDirection(null);
+                  }}
                   onError={() => {
                     setPageImgLoading(false);
                     setErrorNotice("Failed to load page image. Please use 'Open in Tab' or 'Download PDF'.");
@@ -451,38 +527,18 @@ export function ArtifactViewerModal({
                 />
               </div>
 
-              {/* Floating Mobile Page Pill */}
+              {/* Floating Mobile Page Slide Gesture Indicator (Replaces manual button pill in mobile PWA) */}
               {totalPages > 1 && (
-                <div className="sticky bottom-3 mt-4 flex sm:hidden items-center gap-3 bg-surface/90 backdrop-blur-md border border-hairline px-3 py-1.5 rounded-full shadow-lg z-20 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (page > 1) {
-                        setPageImgLoading(true);
-                        setPage((p) => p - 1);
-                      }
-                    }}
-                    disabled={page <= 1}
-                    className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30 cursor-pointer"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <span className="font-semibold text-ink text-[11px] font-mono">
-                    {page} / {totalPages}
+                <div className="sticky bottom-3 mt-4 flex sm:hidden items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-20 text-xs select-none">
+                  <span className="text-[11px] font-semibold text-ink-muted flex items-center gap-1">
+                    <span className="text-primary font-bold">‹</span>
+                    <span>Slide to turn pages</span>
+                    <span className="text-primary font-bold">›</span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (page < totalPages) {
-                        setPageImgLoading(true);
-                        setPage((p) => p + 1);
-                      }
-                    }}
-                    disabled={page >= totalPages}
-                    className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30 cursor-pointer"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+                  <span className="h-3 w-px bg-hairline" />
+                  <span className="font-mono font-bold text-ink text-[11px]">
+                    {page} of {totalPages}
+                  </span>
                 </div>
               )}
             </div>

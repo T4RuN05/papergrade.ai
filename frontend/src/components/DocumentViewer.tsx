@@ -273,6 +273,15 @@ export function DocumentViewer({
     }
   };
 
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+
+  const pageCountRef = useRef(pageCount);
+  pageCountRef.current = pageCount;
+
+  const setCurrentPageRef = useRef(setCurrentPage);
+  setCurrentPageRef.current = setCurrentPage;
+
   // Draft coordinates for locally dragged/resized regions
   const [draftCoords, setDraftCoords] = useState<Record<string, DraftRegionCoord>>({});
   const [activeDragRegionId, setActiveDragRegionId] = useState<string | null>(null);
@@ -475,6 +484,7 @@ export function DocumentViewer({
     let touchStartClient = { x: 0, y: 0 };
     let panStart = { x: 0, y: 0 };
     let lastTapTime = 0;
+    let touchStartTime = 0;
 
     let isMousePanning = false;
     let mouseStartClient = { x: 0, y: 0 };
@@ -498,6 +508,7 @@ export function DocumentViewer({
           return;
         }
         isTouchPanning = true;
+        touchStartTime = Date.now();
         touchStartClient = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         panStart = { ...panRef.current };
       }
@@ -552,6 +563,27 @@ export function DocumentViewer({
             lastTapTime = 0;
           } else {
             lastTapTime = now;
+          }
+
+          // Slide/Swipe Gesture Detection for Mobile PWA
+          const deltaX = touch.clientX - touchStartClient.x;
+          const deltaY = touch.clientY - touchStartClient.y;
+          const elapsed = now - touchStartTime;
+
+          // When fit to screen (<= 1.15) and swipe was quick (< 600ms) with dominant horizontal delta:
+          if (
+            zoomScaleRef.current <= 1.15 &&
+            elapsed < 600 &&
+            Math.abs(deltaX) > 40 &&
+            Math.abs(deltaX) > Math.abs(deltaY) * 1.3
+          ) {
+            if (deltaX < 0 && currentPageRef.current < pageCountRef.current) {
+              // Swipe Left -> Slide to Next Page
+              setCurrentPageRef.current((p: number) => Math.min(pageCountRef.current, p + 1));
+            } else if (deltaX > 0 && currentPageRef.current > 1) {
+              // Swipe Right -> Slide to Previous Page
+              setCurrentPageRef.current((p: number) => Math.max(1, p - 1));
+            }
           }
         }
       }
@@ -990,7 +1022,7 @@ export function DocumentViewer({
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="rounded p-1 sm:p-1.5 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40 transition-colors cursor-pointer"
+            className="hidden sm:inline-flex rounded p-1 sm:p-1.5 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40 transition-colors cursor-pointer"
             title="Previous Page"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -1002,7 +1034,7 @@ export function DocumentViewer({
           <button
             onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))}
             disabled={currentPage >= pageCount}
-            className="rounded p-1 sm:p-1.5 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40 transition-colors cursor-pointer"
+            className="hidden sm:inline-flex rounded p-1 sm:p-1.5 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40 transition-colors cursor-pointer"
             title="Next Page"
           >
             <ChevronRight className="h-4 w-4" />
@@ -1788,6 +1820,21 @@ export function DocumentViewer({
           )}
           </div>
         </div>
+
+        {/* Floating Mobile Page Slide Gesture Indicator (Only in mobile PWA) */}
+        {pageCount > 1 && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex sm:hidden items-center gap-2 bg-surface/90 dark:bg-zinc-900/90 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-20 pointer-events-none select-none text-xs">
+            <span className="font-semibold text-ink-muted text-[11px] flex items-center gap-1">
+              <span className="text-primary font-bold">‹</span>
+              <span>Slide to turn pages</span>
+              <span className="text-primary font-bold">›</span>
+            </span>
+            <span className="h-3 w-px bg-hairline" />
+            <span className="font-mono font-bold text-ink text-[11px]">
+              {currentPage} of {pageCount}
+            </span>
+          </div>
+        )}
       </div>
   );
 }
