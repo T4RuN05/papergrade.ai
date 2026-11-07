@@ -114,18 +114,31 @@ class StudentGradingExtractionResult(BaseModel):
 # ====================================================================
 
 class BlindExtractedAnswerItem(BaseModel):
-    question_id: str = Field(description="Question ID from question paper skeleton, e.g. Q1")
-    subquestion_id: Optional[str] = Field(None, description="Subquestion ID if applicable, e.g. a, b, 1(a)")
+    question_id: str = Field(description="Question ID from question paper skeleton, e.g. Q1, Q1.1, Q2.2")
+    subquestion_id: Optional[str] = Field(None, description="Subquestion ID if applicable, e.g. a, b, 1(a), 1, 2")
     section_id: Optional[str] = Field(None)
     page_number: int = Field(default=1, ge=1, description="Primary 1-indexed page number")
-    is_missing: bool = Field(default=False, description="True ONLY if question is completely unattempted across all pages")
+    is_missing: bool = Field(
+        default=False,
+        description=(
+            "True ONLY if question is completely unattempted anywhere on the script. "
+            "For MCQs/Objective items: Check cluttered lines, stacked lists, Roman numerals (i, ii, iii), "
+            "and margins. If attempted in a clustered list, is_missing MUST be False."
+        ),
+    )
     extracted_student_answer: str = Field(
         default="",
-        description="Literal, character-for-character transcription of handwritten formulas, steps, numbers, units, and table columns. NEVER fix mistakes.",
+        description=(
+            "Literal, character-for-character transcription of student work. "
+            "For MCQs/Objective questions: Transcribe BOTH the option letter/symbol AND any accompanying words, "
+            "formulas, or values verbatim (e.g. '(B) Short range order' or '(D) 12'). If handwritten letter is "
+            "ambiguous between B/D or A/C, transcribe '(B/D) <text>'. If student wrote only the option text "
+            "without a letter, transcribe the text verbatim. NEVER fix student mistakes."
+        ),
     )
     regions: List[AnswerRegionItem] = Field(
         default_factory=list,
-        description="Mandatory normalized [0,1] bounding boxes for attempted work (never empty when is_missing=False)",
+        description="Mandatory normalized [0,1] bounding boxes. For clustered MCQs, provide a tight box around that specific item's line.",
     )
     transcription_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
 

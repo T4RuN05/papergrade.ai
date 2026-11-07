@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle, FileText } from "lucide-react";
-import { api, clearApiCache } from "@/lib/api";
+import { api, clearApiCache, getCached } from "@/lib/api";
 import { Exam, ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { RubricEditor } from "@/components/RubricEditor";
@@ -19,8 +19,23 @@ export default function ExamRubricPage() {
   const { currentUser } = useTenant();
   const examId = params.id as string;
 
-  const [exam, setExam] = useState<Exam | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [exam, setExam] = useState<Exam | null>(() => {
+    if (typeof window === "undefined" || !examId) return null;
+    return getCached<Exam>(`exams:detail:${examId}`);
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !examId) return true;
+    return !getCached<Exam>(`exams:detail:${examId}`);
+  });
+
+  // Safety fallback: ensure skeleton never hangs indefinitely
+  useEffect(() => {
+    if (!loading) return;
+    const fallbackTimer = setTimeout(() => {
+      setLoading(false);
+    }, 4000);
+    return () => clearTimeout(fallbackTimer);
+  }, [loading]);
 
   useSetBreadcrumbs(
     exam

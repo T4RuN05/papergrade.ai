@@ -92,7 +92,8 @@ export function clearApiCache(keyPrefix?: string): void {
 export async function fetchWithCache<T>(
   key: string,
   fetcher: () => Promise<T>,
-  ttlMs: number = 30000
+  ttlMs: number = 30000,
+  timeoutMs: number = 10000
 ): Promise<T> {
   const cached = getCached<T>(key, ttlMs);
   if (cached !== null) {
@@ -103,13 +104,24 @@ export async function fetchWithCache<T>(
     return inFlightRequests.get(key) as Promise<T>;
   }
 
-  const promise = fetcher()
+  // Hard safety timeout so an in-flight request can NEVER freeze the client indefinitely
+  let timerId: any = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timerId = setTimeout(() => {
+      inFlightRequests.delete(key);
+      reject(new Error(`Request timed out after ${timeoutMs}ms: ${key}`));
+    }, timeoutMs);
+  });
+
+  const promise = Promise.race([fetcher(), timeoutPromise])
     .then((data) => {
+      if (timerId) clearTimeout(timerId);
       setCached(key, data);
       inFlightRequests.delete(key);
       return data;
     })
     .catch((err) => {
+      if (timerId) clearTimeout(timerId);
       inFlightRequests.delete(key);
       throw err;
     });

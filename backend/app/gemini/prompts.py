@@ -93,14 +93,33 @@ CRITICAL PRINCIPLES:
    - STRICTLY FORBIDDEN TO FIX ERRORS: You do NOT have the answer key. Transcribe exact student formulas, algebraic transpositions, numerical substitutions, exponents, units, and column claims.
    - If student writes inverted math (e.g. a^3 = Na*p/M), incorrect quantum numbers (e.g. 4d^6), swapped signs, or incorrect units, transcribe EXACTLY what is written.
    - For comparisons/tables, preserve explicit column structure: `[Column A: ...] vs [Column B: ...]`.
-   - For MCQs/Objective questions: Transcribe the option letter and text (e.g. 'i) B: Short range order'). Check Page 1 margins and Roman numeral clusters.
 
-2. MANDATORY BOUNDING BOX LOCALIZATION:
+2. ROBUST CLUSTERED & SEQUENTIAL MCQ RESOLUTION (MANDATORY DUAL-CAPTURE):
+   - MULTI-LINE / CLUSTERED MCQS: Students frequently answer multiple MCQs consecutively on adjacent lines or even on a single line (e.g. '1. (b) bcc, 2. (d) 4, 3. (b) Frenkel').
+     * NEVER lump multiple questions into one answer or mark adjacent questions as `is_missing: true`.
+     * Segment each item and map it to its corresponding question in the skeleton.
+     * Check `student_numbering_aliases` in the skeleton to match student numbering styles: Arabic (1, 2, 3), Roman (i, ii, iii), alphabetical (a, b, c), or composite (Q1.1, Q1.2).
+   - MANDATORY DUAL-CAPTURE (LETTER + OPTION TEXT):
+     * Transcribe BOTH the option symbol AND whatever word, phrase, formula, or number is written beside it:
+       e.g., '(B) Short range order', '(D) 12', '(b) 5846 kg/m3'.
+     * If student wrote ONLY the text without an option letter (e.g. 'Short range order' or '12'), transcribe the text verbatim! DO NOT mark it as unattempted!
+     * If student wrote ONLY the letter (e.g. '(B)'), transcribe '(B)'.
+   - FORENSIC CHARACTER DISAMBIGUATION (A vs B vs C vs D, b vs d, 1 vs 7):
+     * Distinguish capital 'B' (two loops with a waist indent) from capital 'D' (single smooth convex arc).
+     * Distinguish lowercase 'b' (left vertical ascender) from lowercase 'd' (right vertical ascender).
+     * Distinguish 'A' (apex with crossbar) from 'C' (open right curve) or 'D'.
+     * If a handwritten letter is visually borderline or ambiguous between two options:
+       Check if the accompanying text clarifies the selection.
+       If isolated and genuinely ambiguous, transcribe both plausible letters with any text: e.g. '(B / D) Short range order' or '(B / D)'.
+     * If the student overwrote or corrected a letter (e.g. wrote A, then inked over it to make B), transcribe the final intended letter and note: '[corrected to B]'.
+
+3. MANDATORY BOUNDING BOX LOCALIZATION:
    - For every attempted question (`is_missing=false`), `regions` MUST NEVER BE EMPTY.
    - Output normalized [0.0, 1.0] bounding boxes (`x`, `y`, `width`, `height`) enclosing student work on the page.
-   - If unattempted across all pages, set `is_missing=true`, `extracted_student_answer=""`, and `regions=[]`.
+   - For stacked/clustered MCQs, provide a tight bounding box around that specific item's line.
+   - If completely unattempted across all pages, set `is_missing=true`, `extracted_student_answer=""`, and `regions=[]`.
 
-3. UNCERTAINTY RATING:
+4. UNCERTAINTY RATING:
    - Rate `transcription_uncertainty` from 0.0 (crisp, unmistakable) to 1.0 (heavily degraded, illegible).
 """
 
@@ -125,13 +144,24 @@ CRITICAL PRINCIPLES:
    - `QUOTE: "..."` MUST be an exact verbatim substring from that student's `extracted_student_answer`.
    - Fabricating quotes or citing ghost statements not present in the student answer is strictly prohibited. If a quote is not in `extracted_student_answer`, it does not exist.
 
-3. NEGATIVE VERIFICATION:
+3. MULTIPLE CHOICE QUESTIONS (MCQ) & OBJECTIVE AUDIT PROTOCOL:
+   - For any question that is an MCQ or single-choice objective selection:
+     * Award full marks if the student's answer contains:
+       (a) The correct option letter (e.g. 'B' or 'b'), OR
+       (b) The correct option text/phrase/numerical value (e.g. 'Short range order' or '12' or '5846'), OR
+       (c) Both the correct option letter and text.
+     * Option Text Superiority: In board/university grading, if the option letter is ambiguous (e.g. transcribed as '(B / D)' or sloppy handwriting) OR if the student omitted the letter, BUT the accompanying text/value clearly matches the official answer, award FULL MARKS with:
+       evidence: "PASS | QUOTE: \\"<exact verbatim match from transcript>\\" | CHECK: Option text and/or letter matches official answer"
+     * Ambiguous Letter without Text: If the student wrote only an ambiguous letter (e.g. '(B / D)') and one of the possibilities matches the official answer, award full marks and set `needs_review: true` with `review_reason: "Ambiguous handwritten option letter (B/D) requires visual verification"`.
+     * Award 0.0 marks with FAIL ONLY if the student clearly selected an incorrect option letter AND an incorrect concept (e.g. 'A: Long range order').
+
+4. NEGATIVE VERIFICATION FOR DESCRIPTIVE QUESTIONS:
    - Algebra: Check transposition. Inverted numerator/denominator = FAIL (0.0 marks).
    - Numerical: Rounding within ±2% accepted, but wrong power of 10 or magnitude = FAIL (0.0 marks).
    - Tables: Property in wrong column = FAIL (0.0 marks).
    - Terminology: False terms or contradictions = FAIL (0.0 marks).
 
-4. MARKS INVARIANTS:
+5. MARKS INVARIANTS:
    - Discrete 0.5 increments only (0.0, 0.5, 1.0, 1.5, ...).
    - Sum of `criterion_scores.awarded_marks` must equal question `awarded_marks` (clamped to `max_marks`).
    - If question is unattempted (`is_missing=true`), all criteria are MISSING and `awarded_marks: 0.0`.
@@ -146,18 +176,22 @@ Perform blind, character-for-character transcription and bounding box localizati
 ```
 
 INSTRUCTIONS:
-1. Examine all pages thoroughly. On Page 1, carefully inspect page margins and compact Roman numeral clusters (i, ii, iii) for MCQs or short answers.
-2. For each question in the skeleton:
-   - If attempted:
-     * Transcribe student work verbatim into `extracted_student_answer`.
-     * ZERO AUTOCORRECTION: Transcribe student mistakes verbatim (wrong units, wrong signs, incorrect exponents, inverted fractions). Never fix errors.
-     * For MCQs: Record selected option letter and text (e.g. 'i) B: Short range order').
-     * Set `is_missing: false`.
-     * Provide precise normalized bounding boxes in `regions` enclosing student work on the page. At least one region is MANDATORY.
-   - If unattempted anywhere:
-     * Set `is_missing: true`, `extracted_student_answer: ""`, and `regions: []`.
-3. Provide `transcription_uncertainty` (0.0 = clear, 1.0 = illegible).
-4. If visible on header, transcribe `student_name_detected` and `roll_number_detected`.
+1. Thoroughly inspect all pages. On Page 1, carefully inspect headers, margins, and dense vertical/horizontal clusters (i, ii, iii / 1, 2, 3) for Section A MCQs or short answers.
+2. Clustered & Stacked MCQs:
+   - Students frequently write MCQs stacked one line after another or grouped under a single heading (e.g. 'Q1' followed by lines 1, 2, 3).
+   - Use `student_numbering_aliases` in the skeleton to match student's numbering (e.g. item (ii) or 2. maps to Q1.2).
+   - NEVER mark an MCQ as `is_missing: true` if an answer appears in a clustered list, margin, or table.
+   - For each attempted question, provide a distinct normalized bounding box in `regions` enclosing that specific line.
+3. Dual-Channel MCQ Transcription:
+   - Transcribe BOTH the option letter/symbol AND any accompanying text/phrase/numerical value verbatim:
+     e.g. '(B) Short range order', '(D) 12', '(b) 5846 kg/m3'.
+   - If student wrote only the text phrase without a letter, transcribe the text phrase verbatim.
+   - Disambiguate similar handwriting strokes (B vs D, A vs C, b vs d, 1 vs 7). If an isolated letter is ambiguous, transcribe '(B / D)' or note '(B / D) <text>'.
+4. Descriptive & Numerical Questions:
+   - Transcribe student formulas, substitutions, algebraic transpositions, exponents, units, and column claims character-for-character into `extracted_student_answer`.
+   - ZERO AUTOCORRECTION: Transcribe student mistakes verbatim (wrong units, wrong signs, inverted fractions). Never fix errors.
+5. Provide `transcription_uncertainty` (0.0 = clear, 1.0 = illegible).
+6. If visible on header, transcribe `student_name_detected` and `roll_number_detected`.
 """
 
 def build_stage2_batched_grading_prompt(rubric_json_str: str, batch_transcripts_json_str: str) -> str:
@@ -187,12 +221,17 @@ AUDITING INSTRUCTIONS:
      evidence: "MISSING | QUOTE: \\"NONE\\" | EXPECTED: <official requirement>"
      awarded_marks: 0.0 (MANDATORY 0.0!)
 3. STRICT GROUNDING: Every quote in `QUOTE: "..."` MUST be an exact verbatim substring from that student's `extracted_student_answer`.
-4. MARKS RULES:
+4. MCQ & OBJECTIVE GRADING:
+   - Full credit if student wrote the correct option letter, OR correct option text/phrase (e.g. 'Short range order'), OR both.
+   - If letter is ambiguous (e.g. '(B / D) Short range order') but option text matches the official answer, award full marks with PASS.
+   - If an isolated letter is ambiguous (e.g. '(B / D)') and one of the letters is correct, award full marks and set `needs_review: true`.
+   - Fail only if student clearly chose an incorrect option letter AND an incorrect concept.
+5. MARKS RULES:
    - Discrete 0.5 increments only (0.0, 0.5, 1.0, 1.5, ...).
    - Question `awarded_marks` must equal sum of `criterion_scores.awarded_marks`, clamped to question `max_marks`.
    - If `is_missing` is true, all criteria are MISSING and `awarded_marks: 0.0`.
-5. Provide a concise 1-2 sentence `grading_rationale` auditing criteria met vs missed.
-6. Rate `grading_uncertainty` (0.0 to 1.0) and set `needs_review: true` if borderline or ambiguous.
+6. Provide a concise 1-2 sentence `grading_rationale` auditing criteria met vs missed.
+7. Rate `grading_uncertainty` (0.0 to 1.0) and set `needs_review: true` if borderline or ambiguous.
 """
 
 def build_rubric_extraction_prompt(extra_notes: str = "") -> str:

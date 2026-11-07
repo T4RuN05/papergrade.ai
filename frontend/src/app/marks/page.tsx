@@ -106,7 +106,7 @@ function ClassMarksPageContent() {
     } catch (e) {
       console.error(e);
     } finally {
-      if (isInitial) setLoading(false);
+      setLoading(false);
     }
   };
 

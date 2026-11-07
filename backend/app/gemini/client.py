@@ -42,14 +42,56 @@ from backend.app.gemini.prompts import (
 def build_question_skeleton_from_rubric(rubric_dict: dict) -> str:
     """Strips official_answer, accepted_alternatives, and criteria so Stage 1 OCR is 100% blind."""
     skeleton_questions = []
-    for q in rubric_dict.get("questions", []):
+    for idx, q in enumerate(rubric_dict.get("questions", [])):
+        q_id = str(q.get("question_id", ""))
+        sub_id = str(q.get("subquestion_id", "")) if q.get("subquestion_id") else None
+        q_text = str(q.get("question_text", ""))
+        notes = str(q.get("grading_notes", "")).lower()
+        official = str(q.get("official_answer", ""))
+        max_m = float(q.get("max_marks") or 1.0)
+
+        # Detect objective/MCQ nature cleanly without leaking answer
+        is_mcq = (
+            "mcq" in notes
+            or "option" in notes
+            or "multiple choice" in q_text.lower()
+            or (max_m == 1.0 and any(opt in official for opt in ["A)", "B)", "C)", "D)", "(A)", "(B)", "(C)", "(D)"]))
+        )
+
+        aliases = []
+        clean_qid = q_id.lstrip("Qq").strip()
+        parts = clean_qid.split(".")
+        if len(parts) == 2:
+            main_num, sub_num = parts[0], parts[1]
+            try:
+                sub_int = int(sub_num)
+                roman_numerals = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
+                roman = roman_numerals[sub_int - 1] if 1 <= sub_int <= len(roman_numerals) else str(sub_int)
+                alpha = chr(ord('a') + sub_int - 1) if 1 <= sub_int <= 26 else str(sub_int)
+                aliases.extend([
+                    f"{sub_num}", f"({sub_num})", f"{sub_num}.", f"{sub_num})",
+                    f"({roman})", f"{roman})", f"{roman}.",
+                    f"({alpha})", f"{alpha})",
+                    f"Q{main_num}({sub_num})", f"Q{main_num}({roman})", f"Q{main_num}.{sub_num}",
+                    f"Ans {sub_num}", f"Ans ({roman})"
+                ])
+            except ValueError:
+                aliases.append(sub_num)
+        elif sub_id:
+            aliases.extend([f"({sub_id})", f"{sub_id})", f"{q_id}({sub_id})"])
+        else:
+            aliases.extend([f"{clean_qid}", f"Q{clean_qid}", f"Ans {clean_qid}"])
+
         skeleton_questions.append({
-            "question_id": q.get("question_id"),
+            "question_id": q_id,
             "subquestion_id": q.get("subquestion_id"),
             "section_id": q.get("section_id"),
-            "question_text": q.get("question_text"),
+            "question_text": q_text,
             "max_marks": q.get("max_marks"),
+            "format": "MCQ_OBJECTIVE" if is_mcq else "DESCRIPTIVE_NUMERICAL",
+            "student_numbering_aliases": aliases[:8],
         })
+
     return json.dumps({
         "exam_title": rubric_dict.get("exam_title"),
         "subject": rubric_dict.get("subject"),

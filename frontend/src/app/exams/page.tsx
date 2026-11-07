@@ -92,6 +92,15 @@ export default function ExamsPage() {
     loadExamsAndWindows();
   }, [loadExamsAndWindows]);
 
+  // Safety fallback: ensure skeleton never hangs indefinitely if network stalls
+  useEffect(() => {
+    if (!loading) return;
+    const fallbackTimer = setTimeout(() => {
+      setLoading(false);
+    }, 4000);
+    return () => clearTimeout(fallbackTimer);
+  }, [loading]);
+
   // Real-time smooth local countdown ticker for active windows
   useEffect(() => {
     const hasActive = Object.values(windowsMap).some((w) => w?.is_active && w.seconds_remaining > 0);

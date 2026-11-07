@@ -84,13 +84,22 @@ export default function ExamDetailPage() {
   const examId = params.id as string;
   const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, isBranchManager, currentUser, switchTenancy } = useTenant();
 
-  const [exam, setExam] = useState<Exam | null>(null);
-  const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
+  const [exam, setExam] = useState<Exam | null>(() => {
+    if (typeof window === "undefined" || !examId) return null;
+    return getCached<Exam>(`exams:detail:${examId}`);
+  });
+  const [submissions, setSubmissions] = useState<SubmissionRow[]>(() => {
+    if (typeof window === "undefined" || !examId) return [];
+    return getCached<SubmissionRow[]>(`submissions:list:${examId}`) || [];
+  });
   const [batchInfo, setBatchInfo] = useState<any>(null);
   const [loadedBranches, setLoadedBranches] = useState<any[]>([]);
   const [loadedInstitutes, setLoadedInstitutes] = useState<any[]>([]);
   const [windowStatus, setWindowStatus] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !examId) return true;
+    return !getCached<Exam>(`exams:detail:${examId}`);
+  });
   const [isPublishing, setIsPublishing] = useState(false);
   const [isStartingEval, setIsStartingEval] = useState(false);
   const [deleteExamModalOpen, setDeleteExamModalOpen] = useState(false);
@@ -188,8 +197,8 @@ export default function ExamDetailPage() {
     else setIsRefreshing(true);
     try {
       const [examData, subsData, batchesData] = await Promise.all([
-        api.getExam(examId, true),
-        api.listSubmissions(examId, true).catch(() => []),
+        api.getExam(examId, Boolean(showSkeleton)),
+        api.listSubmissions(examId, Boolean(showSkeleton)).catch(() => []),
         api.listBatches().catch(() => []),
       ]);
 
@@ -228,15 +237,30 @@ export default function ExamDetailPage() {
     } catch (err) {
       console.error("Failed to load exam details:", err);
     } finally {
-      if (showSkeleton) setLoading(false);
+      setLoading(false);
       setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    const hasCache = Boolean(getCached(`exams:detail:${examId}`));
-    loadExamData(!hasCache);
+    const cachedExam = getCached<Exam>(`exams:detail:${examId}`);
+    if (cachedExam) {
+      setExam(cachedExam);
+      setLoading(false);
+      loadExamData(false);
+    } else {
+      loadExamData(true);
+    }
   }, [examId]);
+
+  // Safety fallback: ensure skeleton never hangs indefinitely if network or api stalls
+  useEffect(() => {
+    if (!loading) return;
+    const fallbackTimer = setTimeout(() => {
+      setLoading(false);
+    }, 4000);
+    return () => clearTimeout(fallbackTimer);
+  }, [loading]);
 
   const isPollingRef = useRef(false);
 
