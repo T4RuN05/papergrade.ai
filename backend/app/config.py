@@ -15,13 +15,25 @@ class Settings:
     PORT: int = 8000
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://papergrade-ai.vercel.app").strip()
 
-    # Gemini API settings
+    # Gemini API settings (Two-Stage Architecture)
     GEMINI_API_KEY: str = (os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_1") or "").strip("\"'")
     GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "").strip("\"'")
     GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "").strip("\"'")
     GEMINI_API_KEY_4: str = os.getenv("GEMINI_API_KEY_4", "").strip("\"'")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+    # Stage 1: High-RPD Blind OCR & BBox Model (500 RPD/key = 2,000 RPD across 4 keys)
+    GEMINI_EXTRACTION_MODEL: str = os.getenv("GEMINI_EXTRACTION_MODEL", "gemini-3.5-flash-lite").strip()
+
+    # Stage 2: High-Reasoning Batched Grading Models (NEVER use flash-lite for grading)
+    GEMINI_GRADING_MODEL: str = os.getenv("GEMINI_GRADING_MODEL", "gemini-3.8-flash").strip()
+    GEMINI_GRADING_FALLBACK_MODEL: str = os.getenv("GEMINI_GRADING_FALLBACK_MODEL", "gemini-3.6-flash").strip()
+    GEMINI_GRADING_FALLBACK_MODEL_2: str = os.getenv("GEMINI_GRADING_FALLBACK_MODEL_2", "gemini-3.5-flash").strip()
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+
+    # Reasoning & Batching Controls
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "8192"))
+    GRADING_BATCH_SIZE: int = int(os.getenv("GRADING_BATCH_SIZE", "4"))
+    ENABLE_TWO_STAGE_PIPELINE: bool = os.getenv("ENABLE_TWO_STAGE_PIPELINE", "true").lower() in ("true", "1", "yes")
     MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "3"))
 
     # Data & Storage

@@ -40,6 +40,7 @@ class Submission(Base, UpdatedTimestampMixin):
     submitted_at: Mapped[str] = mapped_column(Text, nullable=False, default="")
     reviewed_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     graded_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    stage1_extraction_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ttl_days: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
     retention_expires_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_document_purged: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -1,8 +1,16 @@
+from __future__ import annotations
+
 import uuid
-from typing import Optional
-from sqlalchemy import String, Text, Integer, Float, ForeignKey, Index, REAL
+from typing import TYPE_CHECKING, Optional
+from sqlalchemy import Text, Integer, ForeignKey, Index, REAL
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.db.base import Base, TimestampMixin, UpdatedTimestampMixin, get_iso_now
+
+if TYPE_CHECKING:
+    from backend.app.db.models.auth import User
+    from backend.app.db.models.tenancy import Branch
+    from backend.app.db.models.academic import Exam
+    from backend.app.db.models.grading import Submission
 
 
 class Notification(Base, TimestampMixin):
@@ -100,6 +108,11 @@ class AuditLog(Base):
 class ApiUsageEvent(Base):
     """Telemetry instrumentation recording token count and costs per Gemini inference call."""
     __tablename__ = "api_usage_events"
+    __table_args__ = (
+        Index("idx_api_usage_exam", "exam_id"),
+        Index("idx_api_usage_batch", "batch_id"),
+        Index("idx_api_usage_timestamp", "timestamp"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"use_{uuid.uuid4().hex[:12]}")
     timestamp: Mapped[str] = mapped_column(Text, nullable=False, default=get_iso_now)
@@ -108,6 +121,7 @@ class ApiUsageEvent(Base):
     submission_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     request_purpose: Mapped[str] = mapped_column(Text, nullable=False)
     model_name: Mapped[str] = mapped_column(Text, nullable=False)
+    api_key_masked: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     input_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -139,6 +153,10 @@ class UserQuotaSetting(Base):
 class ExperimentBenchmark(Base, TimestampMixin):
     """Ground truth evaluation benchmark records for accuracy evaluation."""
     __tablename__ = "experiment_benchmarks"
+    __table_args__ = (
+        Index("idx_exp_bench_exam", "exam_id"),
+        Index("idx_exp_bench_sub", "submission_id"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"bm_{uuid.uuid4().hex[:12]}")
     exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
@@ -152,3 +170,14 @@ class ExperimentBenchmark(Base, TimestampMixin):
     explanation_sufficient: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)
     manual_intervention_required: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+__all__ = [
+    "Notification",
+    "PushSubscription",
+    "TechnicalReport",
+    "AuditLog",
+    "ApiUsageEvent",
+    "UserQuotaSetting",
+    "ExperimentBenchmark",
+]

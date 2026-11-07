@@ -438,6 +438,7 @@ def init_db():
             submitted_at {text_type} NOT NULL DEFAULT '',
             reviewed_at {text_type},
             graded_at {text_type},
+            stage1_extraction_json {text_type},
             ttl_days {int_type} NOT NULL DEFAULT 15,
             retention_expires_at {text_type},
             is_document_purged {int_type} NOT NULL DEFAULT 0,
@@ -646,6 +647,7 @@ def init_db():
             submission_id {text_type},
             request_purpose {text_type} NOT NULL,
             model_name {text_type} NOT NULL,
+            api_key_masked {text_type},
             input_tokens {int_type},
             output_tokens {int_type},
             total_tokens {int_type},
@@ -724,6 +726,8 @@ def init_db():
                 cursor.execute("ALTER TABLE submissions ADD COLUMN is_document_purged INTEGER NOT NULL DEFAULT 0")
             if "purged_at" not in cols:
                 cursor.execute("ALTER TABLE submissions ADD COLUMN purged_at TEXT")
+            if "stage1_extraction_json" not in cols:
+                cursor.execute("ALTER TABLE submissions ADD COLUMN stage1_extraction_json TEXT")
 
             cursor.execute("PRAGMA table_info(exams)")
             exam_cols = [row[1] for row in cursor.fetchall()]
@@ -824,6 +828,11 @@ def init_db():
             if "subjects" not in br_cols:
                 cursor.execute("ALTER TABLE branches ADD COLUMN subjects TEXT")
 
+            cursor.execute("PRAGMA table_info(api_usage_events)")
+            api_cols = [row[1] for row in cursor.fetchall()]
+            if "api_key_masked" not in api_cols:
+                cursor.execute("ALTER TABLE api_usage_events ADD COLUMN api_key_masked TEXT")
+
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS subjects (
                 id TEXT PRIMARY KEY,
@@ -841,6 +850,8 @@ def init_db():
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS retention_expires_at TEXT;")
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_document_purged INTEGER NOT NULL DEFAULT 0;")
                 cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS purged_at TEXT;")
+                cursor.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS stage1_extraction_json TEXT;")
+                cursor.execute("ALTER TABLE api_usage_events ADD COLUMN IF NOT EXISTS api_key_masked TEXT;")
                 cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS retention_expires_at TEXT;")
                 cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_document_purged INTEGER NOT NULL DEFAULT 0;")
                 cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS purged_at TEXT;")

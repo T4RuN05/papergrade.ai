@@ -74,6 +74,7 @@ class UsageService:
                 "submission_id": e.submission_id,
                 "request_purpose": e.request_purpose,
                 "model_name": e.model_name,
+                "api_key_masked": getattr(e, "api_key_masked", None),
                 "input_tokens": e.input_tokens,
                 "output_tokens": e.output_tokens,
                 "total_tokens": e.total_tokens,
@@ -100,7 +101,10 @@ class UsageService:
         successful = [e for e in events if e["success"] == 1]
         failed = [e for e in events if e["success"] == 0]
         retries = [e for e in events if e["retry_attempt"] > 0]
-        grading_events = [e for e in events if e["request_purpose"] == "SUBMISSION_GRADING" and e["success"] == 1]
+        grading_events = [
+            e for e in events
+            if e["request_purpose"] in ("SUBMISSION_GRADING", "STAGE2_BATCH_GRADE", "STAGE1_BLIND_OCR") and e["success"] == 1
+        ]
         setup_events = [e for e in events if e["request_purpose"] == "EXAM_SETUP"]
 
         durations = sorted([e["duration_ms"] for e in events if e["duration_ms"] is not None])

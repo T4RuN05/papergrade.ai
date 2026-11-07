@@ -374,7 +374,10 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                       </span>
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px] text-primary">
-                      {ev.model_name}
+                      <div>{ev.model_name}</div>
+                      {ev.api_key_masked && (
+                        <div className="text-[10px] text-ink-muted font-sans font-normal">{ev.api_key_masked}</div>
+                      )}
                       {ev.is_mock === 1 && (
                         <span className="ml-1 text-[9px] text-[#dd5b00]">(mock)</span>
                       )}

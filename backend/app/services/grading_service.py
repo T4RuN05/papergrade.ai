@@ -1,5 +1,6 @@
 import uuid
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -30,7 +31,52 @@ from backend.app.services.retention_service import RetentionService
 from backend.app.services.storage import get_storage_service
 
 
+def _enforce_evidence_grounding_and_verdict(
+    awarded_marks: float,
+    max_marks: float,
+    evidence: str,
+    extracted_student_answer: str,
+) -> float:
+    """
+    Deterministic kill-switch:
+    1. Forces 0.0 marks if evidence does not start with 'PASS' or contains failure markers.
+    2. Forces 0.0 marks if the quoted text is missing or fabricated (not in extracted_student_answer).
+    3. Rounds valid marks to nearest 0.5 step within [0.0, max_marks].
+    """
+    ev = (evidence or "").strip()
+    ev_upper = ev.upper()
+
+    # Rule 1: Explicit FAIL / MISSING / NOT FOUND check
+    if (
+        not ev_upper.startswith("PASS")
+        or ev_upper.startswith("FAIL")
+        or ev_upper.startswith("MISSING")
+        or "FAILED:" in ev_upper
+        or "NOT FOUND" in ev_upper
+    ):
+        return 0.0
+
+    # Rule 2: Verify QUOTE substring exists in extracted_student_answer
+    quote_match = re.search(r'QUOTE:\s*["\']([^"\']*)["\']', ev, flags=re.IGNORECASE)
+    if quote_match:
+        raw_quote = quote_match.group(1).strip()
+        norm_quote = " ".join(raw_quote.lower().split())
+        norm_transcript = " ".join((extracted_student_answer or "").lower().split())
+
+        if norm_quote in {"", "none", "missing", "n/a", "null"}:
+            return 0.0
+        # If quote is > 6 chars and not a literal substring of the transcript, it's ghost evidence
+        if len(norm_quote) > 6 and norm_quote not in norm_transcript:
+            return 0.0
+
+    # Rule 3: Clamp to [0.0, max_marks] and snap to discrete 0.5 increments
+    clamped = max(0.0, min(float(awarded_marks), float(max_marks)))
+    return round(clamped * 2.0) / 2.0
+
+
 class GradingService:
+    _enforce_evidence_grounding_and_verdict = staticmethod(_enforce_evidence_grounding_and_verdict)
+
     @staticmethod
     def apply_best_of_n_and_compute_totals(
         cursor,
@@ -222,17 +268,23 @@ class GradingService:
                 raw_awarded = ans.awarded_marks
                 validated_awarded = max(0.0, min(float(raw_awarded), max_m))
 
-                # Invariant 2: Criterion-level validation
+                # Invariant 2: Criterion-level validation with deterministic kill-switch
                 validated_crit_scores = []
-                if ans.criterion_scores:
+                if ans.is_missing:
+                    validated_awarded = 0.0
+                elif ans.criterion_scores:
                     crit_sum = 0.0
                     for c in ans.criterion_scores:
                         c_max = float(c.max_marks)
-                        c_awarded = max(0.0, min(float(c.awarded_marks), c_max))
+                        c_awarded = _enforce_evidence_grounding_and_verdict(
+                            awarded_marks=c.awarded_marks,
+                            max_marks=c_max,
+                            evidence=c.evidence,
+                            extracted_student_answer=ans.extracted_student_answer
+                        )
                         crit_sum += c_awarded
                         validated_crit_scores.append((c.criterion_id, c.description, c_max, c_awarded, c.evidence))
-                    if crit_sum > 0.0 or len(ans.criterion_scores) > 0:
-                        validated_awarded = max(0.0, min(crit_sum, max_m))
+                    validated_awarded = max(0.0, min(crit_sum, max_m))
 
                 total_awarded_submission += validated_awarded
                 if ans.needs_review:

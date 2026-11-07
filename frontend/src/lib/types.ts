@@ -290,6 +290,7 @@ export interface UsageMetrics {
     timestamp: string;
     request_purpose: string;
     model_name: string;
+    api_key_masked?: string;
     input_tokens?: number;
     output_tokens?: number;
     total_tokens?: number;

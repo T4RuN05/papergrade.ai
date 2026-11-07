@@ -66,8 +66,20 @@ class CriterionScoreItem(BaseModel):
     criterion_id: str
     description: str
     max_marks: float = Field(ge=0.0)
-    awarded_marks: float = Field(ge=0.0)
-    evidence: str = Field(default="", description="MUST be a verbatim substring from extracted_student_answer. If omitted, incorrect, algebraically inverted, or differing in magnitude from the official solution, state 'FAILED: [reason]' or 'NOT FOUND: [item]' and award 0.0 marks.")
+    # CRITICAL: `evidence` MUST precede `awarded_marks` so the LLM audits before scoring!
+    evidence: str = Field(
+        default="",
+        description=(
+            "Mandatory 3-part audit format: "
+            "(1) If 100% correct: 'PASS | QUOTE: \"<exact verbatim substring from extracted_student_answer>\" | CHECK: <match verification>' "
+            "(2) If flawed/inverted/wrong unit or magnitude: 'FAIL: <specific error> | QUOTE: \"<exact verbatim substring>\" | EXPECTED: <official requirement>' "
+            "(3) If omitted: 'MISSING | QUOTE: \"NONE\" | EXPECTED: <official requirement>'"
+        ),
+    )
+    awarded_marks: float = Field(
+        ge=0.0,
+        description="MUST be 0.0 if evidence starts with 'FAIL:' or 'MISSING'. Discrete 0.5 increments only.",
+    )
 
 class GradedAnswerItem(BaseModel):
     question_id: str = Field(description="Question identifier corresponding to approved rubric, e.g. Q1")
@@ -75,23 +87,70 @@ class GradedAnswerItem(BaseModel):
     section_id: Optional[str] = Field(None, description="Section ID if question belongs to a section")
     is_extra_attempt: bool = Field(default=False, description="True if answer is an extra attempt beyond the section limit, excluded from total score")
     page_number: int = Field(default=1, ge=1, description="Primary page number for this answer")
-    extracted_student_answer: str = Field(default="", description="Faithful transcription of operative formulas, algebraic rearrangements, numerical steps, and tabular claims without autocorrecting errors. Max 80 words.")
+    is_missing: bool = Field(default=False, description="True if student did not attempt or answer cannot be found")
+    extracted_student_answer: str = Field(
+        default="",
+        description="Literal character-for-character transcription of student work without summarizing or autocorrecting errors.",
+    )
     regions: List[AnswerRegionItem] = Field(default_factory=list, description="Normalized bounding boxes enclosing this answer")
     max_marks: float = Field(ge=0.0, description="Max marks configured for this question")
-    awarded_marks: float = Field(ge=0.0, description="Marks awarded to student")
+    # CRITICAL: `criterion_scores` and `grading_rationale` MUST precede `awarded_marks`!
     criterion_scores: List[CriterionScoreItem] = Field(default_factory=list)
-    grading_rationale: str = Field(description="Evidence-based explanation of criteria met vs missed")
+    grading_rationale: str = Field(description="Concise 1-2 sentence audit summary of criteria met vs missed")
+    awarded_marks: float = Field(ge=0.0, description="Sum of awarded_marks from criterion_scores, clamped to max_marks")
     transcription_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0, description="Heuristic uncertainty indicator for handwriting transcription (0=clear, 1=unreadable)")
     grading_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0, description="Heuristic uncertainty indicator for marking decision")
     needs_review: bool = Field(default=False, description="Whether human teacher inspection is recommended")
     review_reason: Optional[str] = Field(None, description="Reason why review was flagged")
-    is_missing: bool = Field(default=False, description="True if student did not attempt or answer cannot be found")
 
 class StudentGradingExtractionResult(BaseModel):
     submission_identifier: Optional[str] = Field(None, description="Identifier of the paper")
     student_name_detected: Optional[str] = Field(None, description="Student name if visible on page header")
     roll_number_detected: Optional[str] = Field(None, description="Roll number if visible on page header")
     answers: List[GradedAnswerItem] = Field(description="Evaluated answers for all rubric questions")
+
+# ====================================================================
+# Two-Stage Pipeline Schemas (Stage 1 Blind OCR + Stage 2 Batch Audit)
+# ====================================================================
+
+class BlindExtractedAnswerItem(BaseModel):
+    question_id: str = Field(description="Question ID from question paper skeleton, e.g. Q1")
+    subquestion_id: Optional[str] = Field(None, description="Subquestion ID if applicable, e.g. a, b, 1(a)")
+    section_id: Optional[str] = Field(None)
+    page_number: int = Field(default=1, ge=1, description="Primary 1-indexed page number")
+    is_missing: bool = Field(default=False, description="True ONLY if question is completely unattempted across all pages")
+    extracted_student_answer: str = Field(
+        default="",
+        description="Literal, character-for-character transcription of handwritten formulas, steps, numbers, units, and table columns. NEVER fix mistakes.",
+    )
+    regions: List[AnswerRegionItem] = Field(
+        default_factory=list,
+        description="Mandatory normalized [0,1] bounding boxes for attempted work (never empty when is_missing=False)",
+    )
+    transcription_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
+
+class Stage1BlindExtractionResult(BaseModel):
+    submission_identifier: Optional[str] = None
+    student_name_detected: Optional[str] = None
+    roll_number_detected: Optional[str] = None
+    answers: List[BlindExtractedAnswerItem]
+
+class Stage2EvaluatedQuestionItem(BaseModel):
+    question_id: str
+    subquestion_id: Optional[str] = None
+    criterion_scores: List[CriterionScoreItem] = Field(default_factory=list)
+    grading_rationale: str
+    awarded_marks: float = Field(ge=0.0)
+    grading_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
+    needs_review: bool = Field(default=False)
+    review_reason: Optional[str] = None
+
+class Stage2StudentEvaluationItem(BaseModel):
+    submission_id: str = Field(description="Exact submission_id from the input batch")
+    evaluated_answers: List[Stage2EvaluatedQuestionItem]
+
+class Stage2BatchedGradingResult(BaseModel):
+    results: List[Stage2StudentEvaluationItem]
 
 # ====================================================================
 # API Request & Response Schemas

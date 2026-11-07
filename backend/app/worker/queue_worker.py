@@ -1,8 +1,9 @@
 import time
 import json
 import threading
+import concurrent.futures
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 import random
 from sqlalchemy.orm import Session
@@ -19,9 +20,17 @@ from backend.app.db.models import (
     Exam,
     Answer,
 )
+from backend.app.schemas import (
+    Stage1BlindExtractionResult,
+    Stage2StudentEvaluationItem,
+)
 from backend.app.services.storage import get_storage_service
 from backend.app.services.grading_service import grading_service
-from backend.app.gemini.client import gemini_client, AllGeminiKeysExhaustedError
+from backend.app.gemini.client import (
+    gemini_client,
+    AllGeminiKeysExhaustedError,
+    merge_stage1_and_stage2,
+)
 from backend.app.services.notification_service import notify_branch_managers, notify_root_admins
 
 
@@ -117,7 +126,7 @@ class PersistentQueueWorker:
         time.sleep(worker_id * 0.75)
         while self.running:
             try:
-                processed = self.process_next_job(worker_id=worker_id)
+                processed = self.process_next_batch(worker_id=worker_id)
                 if processed:
                     time.sleep(1.5)
                 else:
@@ -126,241 +135,314 @@ class PersistentQueueWorker:
                 print(f"[QueueWorker-{worker_id}] Unexpected loop error: {e}")
                 time.sleep(self.poll_interval_sec)
 
-    def process_next_job(self, worker_id: int = 0) -> bool:
-        """
-        Atomically fetches the oldest QUEUED submission using row locking,
-        locks it as PROCESSING, and runs the Gemini grading workflow for worker_id.
-        Returns True if a job was found and processed, False if queue is empty.
-        """
-        job = None
+    def _claim_next_batch(self, worker_id: int = 0) -> List[Dict[str, Any]]:
+        batch_size = max(1, getattr(settings, "GRADING_BATCH_SIZE", 4))
         now = get_iso_now()
+        jobs: List[Dict[str, Any]] = []
 
         with self._claim_lock:
             with get_session() as session:
-                sub = session.scalar(
+                anchor = session.scalar(
                     select(Submission)
                     .where(Submission.status == 'QUEUED')
                     .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
                     .with_for_update(skip_locked=True)
                     .limit(1)
                 )
-                if not sub:
-                    return False
+                if not anchor:
+                    return []
 
-                job = {
-                    "id": sub.id,
-                    "exam_id": sub.exam_id,
-                    "batch_id": sub.batch_id,
-                    "canonical_pdf_path": sub.canonical_pdf_path,
-                    "page_count": sub.page_count,
-                    "retry_count": sub.retry_count or 0,
-                    "roll_number": sub.roll_number,
-                }
+                target_exam_id = anchor.exam_id
 
-                sub.status = 'PROCESSING'
-                sub.updated_at = now
+                subs = session.scalars(
+                    select(Submission)
+                    .where(
+                        Submission.status == 'QUEUED',
+                        Submission.exam_id == target_exam_id
+                    )
+                    .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
+                    .with_for_update(skip_locked=True)
+                    .limit(batch_size)
+                ).all()
 
-                if sub.batch_id:
-                    batch = session.scalar(select(Batch).where(Batch.id == sub.batch_id))
-                    if batch and batch.status in ('QUEUED', 'PAUSED_QUOTA'):
-                        batch.status = 'PROCESSING'
-                        batch.updated_at = now
+                sub_ids = [s.id for s in subs]
+                for s in subs:
+                    jobs.append({
+                        "id": s.id,
+                        "exam_id": s.exam_id,
+                        "batch_id": s.batch_id,
+                        "canonical_pdf_path": s.canonical_pdf_path,
+                        "page_count": s.page_count,
+                        "retry_count": s.retry_count or 0,
+                        "roll_number": s.roll_number,
+                        "stage1_extraction_json": s.stage1_extraction_json,
+                    })
+                    s.status = 'PROCESSING'
+                    s.updated_at = now
 
-                session.commit()
+                    if s.batch_id:
+                        batch = session.scalar(select(Batch).where(Batch.id == s.batch_id))
+                        if batch and batch.status in ('QUEUED', 'PAUSED_QUOTA'):
+                            batch.status = 'PROCESSING'
+                            batch.updated_at = now
 
-        # Execute grading
-        submission_id = job["id"]
-        exam_id = job["exam_id"]
-        batch_id = job["batch_id"]
-        raw_pdf_path = job["canonical_pdf_path"]
-        page_count = job["page_count"]
-        retry_count = job["retry_count"]
-
-        try:
-            pdf_path = Path(raw_pdf_path) if raw_pdf_path else None
-            if not pdf_path or not pdf_path.is_file() or not pdf_path.exists():
-                storage = get_storage_service()
-                try:
-                    pdf_path = storage.get_local_path_or_download(raw_pdf_path)
-                except Exception as dl_err:
-                    raise FileNotFoundError(f"Could not locate or download student PDF for key '{raw_pdf_path}': {dl_err}")
-
-            # 1. Fetch approved rubric
-            with get_session() as session:
-                r_row = session.scalar(
-                    select(RubricVersion)
-                    .where(RubricVersion.exam_id == exam_id, RubricVersion.is_approved == 1)
-                    .order_by(RubricVersion.version_num.desc())
-                    .limit(1)
-                )
-                if not r_row or not r_row.rubric_data:
-                    raise ValueError(f"No approved rubric found for exam {exam_id}. Cannot grade submission.")
-                rubric_data = json.loads(r_row.rubric_data)
-
-            # 2. Call Gemini grading client (single multimodal pass) with worker_id for dedicated key allocation
-            grading_result, usage_event_id = gemini_client.grade_student_submission(
-                exam_id=exam_id,
-                batch_id=batch_id,
-                submission_id=submission_id,
-                student_pdf_path=pdf_path,
-                rubric_json=rubric_data,
-                page_count=page_count,
-                worker_id=worker_id
-            )
-
-            # 3. Enforce invariants, save answers, compute totals
-            grading_service.enforce_invariants_and_save(
-                submission_id=submission_id,
-                exam_id=exam_id,
-                grading_result=grading_result,
-                rubric_data=rubric_data
-            )
-
-            # 4. Mark queue item as completed
-            now = get_iso_now()
-            with get_session() as session:
                 session.execute(
                     update(EvaluationQueue)
-                    .where(EvaluationQueue.submission_id == submission_id)
-                    .values(status='COMPLETED', updated_at=now)
+                    .where(EvaluationQueue.submission_id.in_(sub_ids))
+                    .values(
+                        status='PROCESSING',
+                        claimed_by_worker=f"worker-{worker_id}",
+                        claimed_at=now,
+                        updated_at=now
+                    )
                 )
                 session.commit()
 
-            # 5. Update batch counts
-            if batch_id:
-                self._update_batch_progress(batch_id)
+        return jobs
 
-            # 6. Update exam evaluation status if all jobs finished
-            self._update_exam_evaluation_status(exam_id)
+    def process_next_batch(self, worker_id: int = 0) -> bool:
+        """
+        Process a batch of up to GRADING_BATCH_SIZE submissions for the same exam
+        using the Two-Stage Quota Architecture:
+        1. Stage 1 (Blind OCR & BBox): gemini-3.5-flash-lite across 4 keys in parallel.
+           Persisted to DB (submissions.stage1_extraction_json).
+        2. Stage 2 (Batched Audit): gemini-3.8-flash pure-text grading in ONE API call.
+        """
+        jobs = self._claim_next_batch(worker_id=worker_id)
+        if not jobs:
+            return False
 
-            print(f"[QueueWorker-{worker_id}] Successfully processed submission {submission_id}.")
+        exam_id = jobs[0]["exam_id"]
+        now = get_iso_now()
+
+        # 1. Fetch approved rubric for this exam
+        with get_session() as session:
+            r_row = session.scalar(
+                select(RubricVersion)
+                .where(RubricVersion.exam_id == exam_id, RubricVersion.is_approved == 1)
+                .order_by(RubricVersion.version_num.desc())
+                .limit(1)
+            )
+            if not r_row or not r_row.rubric_data:
+                err_msg = f"No approved rubric found for exam {exam_id}. Cannot grade batch."
+                print(f"[QueueWorker-{worker_id}] ERROR: {err_msg}")
+                with get_session() as sess:
+                    for j in jobs:
+                        sess.execute(update(Submission).where(Submission.id == j["id"]).values(status='FAILED', error_message=err_msg, updated_at=now))
+                        sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == j["id"]).values(status='FAILED', last_error=err_msg, updated_at=now))
+                    sess.commit()
+                return True
+
+            rubric_data = json.loads(r_row.rubric_data)
+
+        # STAGE 1: Blind Forensic OCR & BBox Localization
+        stage1_results: Dict[str, Stage1BlindExtractionResult] = {}
+        jobs_needing_stage1 = []
+
+        for job in jobs:
+            sub_id = job["id"]
+            if job["stage1_extraction_json"]:
+                try:
+                    s1_cached = Stage1BlindExtractionResult.model_validate_json(job["stage1_extraction_json"])
+                    stage1_results[sub_id] = s1_cached
+                    print(f"[QueueWorker-{worker_id}] Loaded Stage 1 OCR from DB cache for {sub_id} (0 API calls!).")
+                    continue
+                except Exception as e:
+                    print(f"[QueueWorker-{worker_id}] Warning: Failed deserializing cached Stage 1 JSON for {sub_id}: {e}. Re-extracting.")
+            jobs_needing_stage1.append(job)
+
+        if jobs_needing_stage1:
+            def _extract_single_sub(j_item, worker_idx):
+                s_id = j_item["id"]
+                raw_pdf = j_item["canonical_pdf_path"]
+                pdf_path = Path(raw_pdf) if raw_pdf else None
+                if not pdf_path or not pdf_path.is_file() or not pdf_path.exists():
+                    storage = get_storage_service()
+                    pdf_path = storage.get_local_path_or_download(raw_pdf)
+
+                s1_res, event_id = gemini_client.extract_student_submission_blind(
+                    exam_id=exam_id,
+                    submission_id=s_id,
+                    student_pdf_path=pdf_path,
+                    rubric_dict=rubric_data,
+                    page_count=j_item["page_count"],
+                    worker_id=worker_idx
+                )
+                now_str = get_iso_now()
+                with get_session() as sess:
+                    sess.execute(
+                        update(Submission)
+                        .where(Submission.id == s_id)
+                        .values(
+                            stage1_extraction_json=s1_res.model_dump_json(),
+                            updated_at=now_str
+                        )
+                    )
+                    sess.commit()
+                return s_id, s1_res
+
+            max_threads = min(len(jobs_needing_stage1), 4)
+            keys_count = max(1, len(settings.configured_api_keys))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+                futures = {
+                    executor.submit(_extract_single_sub, j_item, (worker_id + idx) % keys_count): j_item
+                    for idx, j_item in enumerate(jobs_needing_stage1)
+                }
+                for fut in concurrent.futures.as_completed(futures):
+                    j_item = futures[fut]
+                    s_id = j_item["id"]
+                    try:
+                        _, s1_res = fut.result()
+                        stage1_results[s_id] = s1_res
+                    except AllGeminiKeysExhaustedError as quota_err:
+                        err_msg = str(quota_err)
+                        print(f"[QueueWorker-{worker_id}] Stage 1 Quota Paused for {s_id}: {err_msg}")
+                        now_str = get_iso_now()
+                        with get_session() as sess:
+                            sess.execute(update(Submission).where(Submission.id == s_id).values(status='QUEUED', error_message=f"Quota Paused (Stage 1): {err_msg[:200]}", updated_at=now_str))
+                            sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == s_id).values(status='QUEUED', last_error=f"Quota Paused: {err_msg[:200]}", updated_at=now_str))
+                            sess.commit()
+                    except Exception as err:
+                        err_msg = str(err)
+                        print(f"[QueueWorker-{worker_id}] Stage 1 failed for {s_id}: {err_msg}")
+                        now_str = get_iso_now()
+                        new_retries = (j_item.get("retry_count") or 0) + 1
+                        with get_session() as sess:
+                            if new_retries < 3:
+                                sess.execute(update(Submission).where(Submission.id == s_id).values(status='QUEUED', retry_count=new_retries, error_message=f"Retry {new_retries}: {err_msg[:200]}", updated_at=now_str))
+                                sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == s_id).values(status='QUEUED', attempt_count=new_retries, last_error=err_msg[:200], updated_at=now_str))
+                            else:
+                                sess.execute(update(Submission).where(Submission.id == s_id).values(status='FAILED', retry_count=new_retries, error_message=f"Stage 1 Failed: {err_msg[:300]}", updated_at=now_str))
+                                sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == s_id).values(status='FAILED', attempt_count=new_retries, last_error=err_msg[:300], updated_at=now_str))
+                            sess.commit()
+
+        # If no submissions successfully completed Stage 1, stop here
+        ready_jobs = [j for j in jobs if j["id"] in stage1_results]
+        if not ready_jobs:
             return True
 
-        except AllGeminiKeysExhaustedError as e:
-            err_msg = str(e)
-            print(f"[QueueWorker-{worker_id}] QUOTA LIMIT REACHED across all keys: {err_msg}")
-            now = get_iso_now()
-            with get_session() as session:
-                session.execute(
-                    update(Submission)
-                    .where(Submission.id == submission_id)
-                    .values(
-                        status='QUEUED',
-                        error_message=f"Quota Paused: {err_msg[:200]}",
-                        updated_at=now
-                    )
-                )
-                session.execute(
-                    update(EvaluationQueue)
-                    .where(EvaluationQueue.submission_id == submission_id)
-                    .values(
-                        status='QUEUED',
-                        last_error=f"Quota Paused: {err_msg[:200]}",
-                        updated_at=now
-                    )
-                )
-                if batch_id:
-                    session.execute(
-                        update(Batch)
-                        .where(Batch.id == batch_id)
-                        .values(status='PAUSED_QUOTA', updated_at=now)
-                    )
-                session.commit()
+        # STAGE 2: Multi-Student Batched Rubric Evaluation (gemini-3.8-flash)
+        batch_payloads = []
+        for j in ready_jobs:
+            s_id = j["id"]
+            s1_res = stage1_results[s_id]
+            batch_payloads.append({
+                "submission_id": s_id,
+                "answers": [
+                    {
+                        "question_id": a.question_id,
+                        "subquestion_id": a.subquestion_id,
+                        "extracted_student_answer": a.extracted_student_answer,
+                        "is_missing": a.is_missing,
+                    }
+                    for a in s1_res.answers
+                ]
+            })
 
-            print(f"[QueueWorker-{worker_id}] Pausing worker loop for 30s cooldown to allow quota reset...")
+        try:
+            s2_batch_result, usage_event_id = gemini_client.grade_extracted_batch(
+                exam_id=exam_id,
+                rubric_dict=rubric_data,
+                batch_payloads=batch_payloads,
+                worker_id=worker_id
+            )
+        except AllGeminiKeysExhaustedError as quota_err:
+            err_msg = str(quota_err)
+            print(f"[QueueWorker-{worker_id}] Stage 2 QUOTA LIMIT REACHED across all keys: {err_msg}")
+            now_str = get_iso_now()
+            with get_session() as sess:
+                for j in ready_jobs:
+                    s_id = j["id"]
+                    sess.execute(
+                        update(Submission)
+                        .where(Submission.id == s_id)
+                        .values(
+                            status='QUEUED',
+                            retry_count=0,
+                            error_message=f"Quota Paused (Stage 1 cached): {err_msg[:200]}",
+                            updated_at=now_str
+                        )
+                    )
+                    sess.execute(
+                        update(EvaluationQueue)
+                        .where(EvaluationQueue.submission_id == s_id)
+                        .values(
+                            status='QUEUED',
+                            last_error=f"Quota Paused: {err_msg[:200]}",
+                            updated_at=now_str
+                        )
+                    )
+                    if j.get("batch_id"):
+                        sess.execute(
+                            update(Batch)
+                            .where(Batch.id == j["batch_id"])
+                            .values(status='PAUSED_QUOTA', updated_at=now_str)
+                        )
+                sess.commit()
+
+            print(f"[QueueWorker-{worker_id}] Pausing worker loop for 30s cooldown to allow Stage 2 quota reset...")
             time.sleep(30.0)
             return False
 
-        except Exception as e:
-            err_msg = str(e)
-            print(f"[QueueWorker-{worker_id}] Error grading submission {submission_id}: {err_msg}")
-            new_retries = retry_count + 1
-            max_job_retries = 3
-            now = get_iso_now()
-
-            for attempt in range(5):
-                try:
-                    with get_session() as session:
-                        ans_cnt = session.scalar(
-                            select(func.count(Answer.id)).where(Answer.submission_id == submission_id)
-                        ) or 0
-
-                        if ans_cnt > 0:
-                            print(f"[QueueWorker-{worker_id}] Submission {submission_id} has {ans_cnt} evaluated answers in DB. Preserving evaluated state despite post-grading error: {err_msg[:100]}")
-                            session.execute(
-                                update(Submission)
-                                .where(Submission.id == submission_id)
-                                .values(
-                                    status='NEEDS_REVIEW',
-                                    error_message=f"Graded with post-process warning: {err_msg[:150]}",
-                                    updated_at=now
-                                )
-                            )
-                            session.execute(
-                                update(EvaluationQueue)
-                                .where(EvaluationQueue.submission_id == submission_id)
-                                .values(
-                                    status='COMPLETED',
-                                    last_error=err_msg[:200],
-                                    updated_at=now
-                                )
-                            )
-                        elif new_retries < max_job_retries:
-                            session.execute(
-                                update(Submission)
-                                .where(Submission.id == submission_id)
-                                .values(
-                                    status='QUEUED',
-                                    retry_count=new_retries,
-                                    error_message=f"Retry {new_retries}: {err_msg[:200]}",
-                                    updated_at=now
-                                )
-                            )
-                            session.execute(
-                                update(EvaluationQueue)
-                                .where(EvaluationQueue.submission_id == submission_id)
-                                .values(
-                                    status='QUEUED',
-                                    attempt_count=new_retries,
-                                    last_error=err_msg[:200],
-                                    updated_at=now
-                                )
-                            )
-                        else:
-                            session.execute(
-                                update(Submission)
-                                .where(Submission.id == submission_id)
-                                .values(
-                                    status='FAILED',
-                                    retry_count=new_retries,
-                                    error_message=f"Failed: {err_msg[:300]}",
-                                    updated_at=now
-                                )
-                            )
-                            session.execute(
-                                update(EvaluationQueue)
-                                .where(EvaluationQueue.submission_id == submission_id)
-                                .values(
-                                    status='FAILED',
-                                    attempt_count=new_retries,
-                                    last_error=err_msg[:300],
-                                    updated_at=now
-                                )
-                            )
-                        session.commit()
-                        break
-                except Exception as db_err:
-                    if attempt == 4:
-                        print(f"[QueueWorker-{worker_id}] CRITICAL: Could not persist failure state for {submission_id} after 5 DB retries: {db_err}")
-                    time.sleep(0.2 * (attempt + 1) + random.uniform(0.05, 0.15))
-
-            try:
-                if batch_id:
-                    self._update_batch_progress(batch_id)
-                self._update_exam_evaluation_status(exam_id)
-            except Exception:
-                pass
+        except Exception as stage2_err:
+            err_msg = str(stage2_err)
+            print(f"[QueueWorker-{worker_id}] Stage 2 grading batch error: {err_msg}")
+            now_str = get_iso_now()
+            with get_session() as sess:
+                for j in ready_jobs:
+                    s_id = j["id"]
+                    new_retries = (j.get("retry_count") or 0) + 1
+                    sess.execute(
+                        update(Submission)
+                        .where(Submission.id == s_id)
+                        .values(status='QUEUED', retry_count=new_retries, error_message=f"Stage 2 Retry {new_retries}: {err_msg[:200]}", updated_at=now_str)
+                    )
+                    sess.execute(
+                        update(EvaluationQueue)
+                        .where(EvaluationQueue.submission_id == s_id)
+                        .values(status='QUEUED', attempt_count=new_retries, last_error=err_msg[:200], updated_at=now_str)
+                    )
+                sess.commit()
             return True
+
+        # MERGE STAGE 1 + STAGE 2 AND PERSIST
+        s2_lookup = {r.submission_id: r for r in s2_batch_result.results}
+
+        for j in ready_jobs:
+            s_id = j["id"]
+            b_id = j["batch_id"]
+            s1_res = stage1_results[s_id]
+            s2_student = s2_lookup.get(s_id) or Stage2StudentEvaluationItem(submission_id=s_id, evaluated_answers=[])
+
+            merged_result = merge_stage1_and_stage2(s1_res, s2_student, rubric_dict=rubric_data)
+
+            grading_service.enforce_invariants_and_save(
+                submission_id=s_id,
+                exam_id=exam_id,
+                grading_result=merged_result,
+                rubric_data=rubric_data
+            )
+
+            now_str = get_iso_now()
+            with get_session() as sess:
+                sess.execute(
+                    update(EvaluationQueue)
+                    .where(EvaluationQueue.submission_id == s_id)
+                    .values(status='COMPLETED', updated_at=now_str)
+                )
+                sess.commit()
+
+            if b_id:
+                self._update_batch_progress(b_id)
+
+        self._update_exam_evaluation_status(exam_id)
+        print(f"[QueueWorker-{worker_id}] Successfully evaluated batch of {len(ready_jobs)} submissions for exam {exam_id}.")
+        return True
+
+    def process_next_job(self, worker_id: int = 0) -> bool:
+        """Alias for backward compatibility."""
+        return self.process_next_batch(worker_id=worker_id)
 
     def _update_exam_evaluation_status(self, exam_id: str):
         if not exam_id:

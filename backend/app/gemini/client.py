@@ -20,15 +20,117 @@ from backend.app.schemas import (
     RubricCriterion,
     GradedAnswerItem,
     AnswerRegionItem,
-    CriterionScoreItem
+    CriterionScoreItem,
+    BlindExtractedAnswerItem,
+    Stage1BlindExtractionResult,
+    Stage2EvaluatedQuestionItem,
+    Stage2StudentEvaluationItem,
+    Stage2BatchedGradingResult,
 )
 from backend.app.gemini.pricing import calculate_paid_equivalent_cost
 from backend.app.gemini.prompts import (
     RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION,
     STUDENT_GRADING_SYSTEM_INSTRUCTION,
+    STAGE1_BLIND_EXTRACTION_SYSTEM_INSTRUCTION,
+    STAGE2_BATCHED_GRADING_SYSTEM_INSTRUCTION,
     build_rubric_extraction_prompt,
-    build_student_grading_prompt
+    build_student_grading_prompt,
+    build_stage1_blind_extraction_prompt,
+    build_stage2_batched_grading_prompt,
 )
+
+def build_question_skeleton_from_rubric(rubric_dict: dict) -> str:
+    """Strips official_answer, accepted_alternatives, and criteria so Stage 1 OCR is 100% blind."""
+    skeleton_questions = []
+    for q in rubric_dict.get("questions", []):
+        skeleton_questions.append({
+            "question_id": q.get("question_id"),
+            "subquestion_id": q.get("subquestion_id"),
+            "section_id": q.get("section_id"),
+            "question_text": q.get("question_text"),
+            "max_marks": q.get("max_marks"),
+        })
+    return json.dumps({
+        "exam_title": rubric_dict.get("exam_title"),
+        "subject": rubric_dict.get("subject"),
+        "sections": rubric_dict.get("sections", []),
+        "questions": skeleton_questions,
+    }, ensure_ascii=False)
+
+def merge_stage1_and_stage2(
+    stage1: Stage1BlindExtractionResult,
+    stage2_student: Stage2StudentEvaluationItem,
+    rubric_dict: Optional[Dict[str, Any]] = None,
+) -> StudentGradingExtractionResult:
+    """
+    Combines Stage 1 Blind OCR (extracted text, page numbers, bounding boxes)
+    with Stage 2 Evaluated Audit (criterion scores, rationale, marks)
+    into a complete StudentGradingExtractionResult.
+    """
+    s2_lookup: Dict[Tuple[str, Optional[str]], Stage2EvaluatedQuestionItem] = {}
+    for eq in stage2_student.evaluated_answers:
+        s2_lookup[(eq.question_id, eq.subquestion_id)] = eq
+
+    max_marks_lookup: Dict[Tuple[str, Optional[str]], float] = {}
+    if rubric_dict:
+        for q in rubric_dict.get("questions", []):
+            max_marks_lookup[(q.get("question_id"), q.get("subquestion_id"))] = float(q.get("max_marks", 1.0))
+
+    graded_answers: List[GradedAnswerItem] = []
+    for a1 in stage1.answers:
+        key = (a1.question_id, a1.subquestion_id)
+        s2_item = s2_lookup.get(key)
+        q_max_marks = max_marks_lookup.get(key, 0.0)
+
+        if s2_item:
+            crit_scores = s2_item.criterion_scores
+            if not q_max_marks and crit_scores:
+                q_max_marks = sum(c.max_marks for c in crit_scores)
+
+            clamped_awarded = min(s2_item.awarded_marks, q_max_marks if q_max_marks > 0 else s2_item.awarded_marks)
+
+            graded_answers.append(GradedAnswerItem(
+                question_id=a1.question_id,
+                subquestion_id=a1.subquestion_id,
+                section_id=a1.section_id,
+                page_number=a1.page_number,
+                is_missing=a1.is_missing,
+                extracted_student_answer=a1.extracted_student_answer,
+                regions=a1.regions,
+                max_marks=q_max_marks,
+                criterion_scores=crit_scores,
+                grading_rationale=s2_item.grading_rationale,
+                awarded_marks=clamped_awarded,
+                transcription_uncertainty=a1.transcription_uncertainty,
+                grading_uncertainty=s2_item.grading_uncertainty,
+                needs_review=s2_item.needs_review,
+                review_reason=s2_item.review_reason,
+            ))
+        else:
+            graded_answers.append(GradedAnswerItem(
+                question_id=a1.question_id,
+                subquestion_id=a1.subquestion_id,
+                section_id=a1.section_id,
+                page_number=a1.page_number,
+                is_missing=a1.is_missing or True,
+                extracted_student_answer=a1.extracted_student_answer,
+                regions=a1.regions,
+                max_marks=q_max_marks,
+                criterion_scores=[],
+                grading_rationale="Omitted or not evaluated by grading model.",
+                awarded_marks=0.0,
+                transcription_uncertainty=a1.transcription_uncertainty,
+                grading_uncertainty=1.0,
+                needs_review=True,
+                review_reason="Unmatched question in Stage 2 evaluation",
+            ))
+
+    return StudentGradingExtractionResult(
+        submission_identifier=stage2_student.submission_id or stage1.submission_identifier,
+        student_name_detected=stage1.student_name_detected,
+        roll_number_detected=stage1.roll_number_detected,
+        answers=graded_answers,
+    )
 
 class AllGeminiKeysExhaustedError(RuntimeError):
     """Raised when all configured Gemini API keys have exhausted their quota / rate limits."""
@@ -100,6 +202,16 @@ class GeminiGradingClient:
             print(f"[GeminiClient] Worker #{worker_id} key failover: #{old_idx + 1} ({masked_old}) -> #{new_idx + 1} ({masked_new}). Reason: {reason}")
             return new_key
 
+    def mask_key(self, api_key: Optional[str]) -> str:
+        if not api_key:
+            return "default"
+        try:
+            key_idx = self._keys.index(api_key) + 1
+        except ValueError:
+            key_idx = "?"
+        masked = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else "***"
+        return f"Key #{key_idx} ({masked})"
+
     def _record_usage_event(
         self,
         exam_id: Optional[str],
@@ -119,9 +231,11 @@ class GeminiGradingClient:
         error_code: Optional[str] = None,
         retry_attempt: int = 0,
         is_mock: bool = False,
-        model_name: Optional[str] = None
+        model_name: Optional[str] = None,
+        api_key: Optional[str] = None
     ) -> str:
         actual_model = model_name or self.model_name
+        masked_key = self.mask_key(api_key) if api_key else "default"
         cost = calculate_paid_equivalent_cost(
             input_tokens=input_tokens or 0,
             output_tokens=output_tokens or 0,
@@ -130,33 +244,41 @@ class GeminiGradingClient:
             model_name=actual_model
         )
         event_id = str(uuid.uuid4())
-        with get_session() as session:
-            event = ApiUsageEvent(
-                id=event_id,
-                timestamp=get_iso_now(),
-                exam_id=exam_id,
-                batch_id=batch_id,
-                submission_id=submission_id,
-                request_purpose=request_purpose,
-                model_name=actual_model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=total_tokens,
-                thinking_tokens=thinking_tokens,
-                cached_tokens=cached_tokens,
-                duration_ms=duration_ms,
-                page_count=page_count,
-                file_size_bytes=file_size_bytes,
-                success=1 if success else 0,
-                http_status=http_status,
-                error_code=error_code,
-                retry_attempt=retry_attempt,
-                estimated_cost_usd=cost,
-                pricing_version=settings.PRICING_VERSION,
-                is_mock=1 if is_mock else 0
-            )
-            session.add(event)
-            session.commit()
+        try:
+            with get_session() as session:
+                event = ApiUsageEvent(
+                    id=event_id,
+                    timestamp=get_iso_now(),
+                    exam_id=exam_id,
+                    batch_id=batch_id,
+                    submission_id=submission_id,
+                    request_purpose=request_purpose,
+                    model_name=actual_model,
+                    api_key_masked=masked_key,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    thinking_tokens=thinking_tokens,
+                    cached_tokens=cached_tokens,
+                    duration_ms=duration_ms,
+                    page_count=page_count,
+                    file_size_bytes=file_size_bytes,
+                    success=1 if success else 0,
+                    http_status=http_status,
+                    error_code=error_code,
+                    retry_attempt=retry_attempt,
+                    estimated_cost_usd=cost,
+                    pricing_version=settings.PRICING_VERSION,
+                    is_mock=1 if is_mock else 0
+                )
+                session.add(event)
+                session.commit()
+        except Exception as log_err:
+            print(f"[GeminiClient] Warning: Could not record usage event to DB: {log_err}")
+
+        # Console telemetry output for developer observability
+        status_tag = f"status={http_status}" if http_status else ("SUCCESS" if success else "FAILED")
+        print(f"[Telemetry] {actual_model} via {masked_key} | {request_purpose} | {status_tag} | {duration_ms}ms | tokens: in={input_tokens or 0}, out={output_tokens or 0}")
         return event_id
 
     def extract_exam_rubric(
@@ -313,7 +435,8 @@ class GeminiGradingClient:
                         request_purpose="EXAM_SETUP", duration_ms=duration_ms, success=True,
                         input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
                         cached_tokens=cached_tok, file_size_bytes=file_size,
-                        retry_attempt=attempt, is_mock=False, model_name=model_to_use
+                        retry_attempt=attempt, is_mock=False, model_name=model_to_use,
+                        api_key=active_key
                     )
                     return parsed, event_id
 
@@ -328,7 +451,7 @@ class GeminiGradingClient:
                         request_purpose="EXAM_SETUP", duration_ms=duration_ms, success=False,
                         file_size_bytes=file_size, http_status=http_status,
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use
+                        is_mock=False, model_name=model_to_use, api_key=active_key
                     )
 
                     if is_rate_or_quota_error(e):
@@ -413,6 +536,323 @@ class GeminiGradingClient:
             return repaired
         except Exception:
             return None
+
+    def extract_student_submission_blind(
+        self,
+        exam_id: str,
+        submission_id: str,
+        student_pdf_path: Path,
+        rubric_dict: Dict[str, Any],
+        page_count: int = 1,
+        worker_id: int = 0
+    ) -> Tuple[Stage1BlindExtractionResult, str]:
+        """
+        Stage 1: Blind Forensic OCR & BBox Localization (gemini-3.5-flash-lite | 2,000 RPD Pool).
+        Input: Student PDF bytes + stripped Question Skeleton JSON (no official_answer, no criteria).
+        Output: Verbatim student transcription + normalized [0.0, 1.0] bounding boxes.
+        """
+        pdf_bytes = student_pdf_path.read_bytes()
+        file_size = len(pdf_bytes)
+
+        if not self.is_live:
+            skeleton = json.loads(build_question_skeleton_from_rubric(rubric_dict))
+            mock_answers = []
+            for q in skeleton.get("questions", []):
+                mock_answers.append(BlindExtractedAnswerItem(
+                    question_id=q["question_id"],
+                    subquestion_id=q.get("subquestion_id"),
+                    section_id=q.get("section_id"),
+                    page_number=1,
+                    is_missing=False,
+                    extracted_student_answer="Mock handwritten answer for " + q["question_id"],
+                    regions=[AnswerRegionItem(page_number=1, x=0.1, y=0.1, width=0.8, height=0.2)],
+                    transcription_uncertainty=0.05
+                ))
+            mock_res = Stage1BlindExtractionResult(
+                submission_identifier=submission_id,
+                student_name_detected="Student Name",
+                roll_number_detected="C25-001",
+                answers=mock_answers
+            )
+            event_id = self._record_usage_event(
+                exam_id=exam_id, batch_id=None, submission_id=submission_id,
+                request_purpose="STAGE1_BLIND_OCR", duration_ms=400, success=True,
+                page_count=page_count, file_size_bytes=file_size, is_mock=True,
+                model_name=settings.GEMINI_EXTRACTION_MODEL
+            )
+            return mock_res, event_id
+
+        skeleton_json_str = build_question_skeleton_from_rubric(rubric_dict)
+        prompt_text = build_stage1_blind_extraction_prompt(skeleton_json_str)
+
+        extraction_models = [settings.GEMINI_EXTRACTION_MODEL]
+        if "flash-lite" not in settings.GEMINI_EXTRACTION_MODEL:
+            extraction_models.append("gemini-3.5-flash-lite")
+
+        now_ts = time.time()
+        active_extraction_models = [m for m in extraction_models if self._model_cooldown_until.get(m, 0) <= now_ts]
+        models_to_try = active_extraction_models if active_extraction_models else extraction_models
+
+        num_keys = max(1, len(self._keys))
+        max_retries = max(4, num_keys * 2)
+        backoff_sec = 2.0
+        last_error = None
+
+        for model_to_use in models_to_try:
+            exhausted_keys = set()
+            for attempt in range(max_retries):
+                start_time = time.time()
+                active_key, client = self.get_current_client(worker_id=worker_id)
+                try:
+                    contents = [
+                        types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                        prompt_text
+                    ]
+                    config = types.GenerateContentConfig(
+                        system_instruction=STAGE1_BLIND_EXTRACTION_SYSTEM_INSTRUCTION,
+                        response_mime_type="application/json",
+                        response_schema=Stage1BlindExtractionResult,
+                        temperature=0.0,
+                        max_output_tokens=32768,
+                        thinking_config=types.ThinkingConfig(thinking_budget=2048)
+                    )
+                    response = client.models.generate_content(
+                        model=model_to_use,
+                        contents=contents,
+                        config=config
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    raw_text = response.text or ""
+                    try:
+                        parsed = Stage1BlindExtractionResult.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = Stage1BlindExtractionResult.model_validate_json(repaired)
+                        else:
+                            raise parse_err
+
+                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
+                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
+                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
+                    thk_tok = getattr(response.usage_metadata, "thoughts_token_count", None) if response.usage_metadata else None
+                    if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
+                        inferred = tot_tok - (in_tok + out_tok)
+                        thk_tok = inferred if inferred > 0 else 0
+
+                    event_id = self._record_usage_event(
+                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
+                        request_purpose="STAGE1_BLIND_OCR", duration_ms=duration_ms, success=True,
+                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
+                        thinking_tokens=thk_tok, cached_tokens=cached_tok, page_count=page_count,
+                        file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
+                        model_name=model_to_use, api_key=active_key
+                    )
+                    return parsed, event_id
+
+                except Exception as e:
+                    last_error = e
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    err_code = type(e).__name__
+                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
+
+                    self._record_usage_event(
+                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
+                        request_purpose="STAGE1_BLIND_OCR", duration_ms=duration_ms, success=False,
+                        page_count=page_count, file_size_bytes=file_size, http_status=http_status,
+                        error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
+                        is_mock=False, model_name=model_to_use, api_key=active_key
+                    )
+
+                    if is_rate_or_quota_error(e):
+                        exhausted_keys.add(active_key)
+                        if len(exhausted_keys) >= len(self._keys):
+                            print(f"[GeminiClient Stage1] All {len(self._keys)} keys exhausted quota for model '{model_to_use}'. Cooldown for 30m; attempting next model.")
+                            self._model_cooldown_until[model_to_use] = time.time() + 1800
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Stage 1 rate limit: {e}")
+                        time.sleep(0.5)
+                        continue
+
+                    if attempt == max_retries - 1:
+                        print(f"[GeminiClient Stage1] Non-quota error on '{model_to_use}': {e}. Trying next model.")
+                        break
+
+                    time.sleep(backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5))
+
+        if last_error and not is_rate_or_quota_error(last_error):
+            raise last_error
+
+        raise AllGeminiKeysExhaustedError(
+            f"Stage 1 OCR: All {len(self._keys)} keys exhausted quota for {extraction_models}: {last_error}"
+        )
+
+    def grade_extracted_batch(
+        self,
+        exam_id: str,
+        rubric_dict: Dict[str, Any],
+        batch_payloads: List[Dict[str, Any]],
+        worker_id: int = 0
+    ) -> Tuple[Stage2BatchedGradingResult, str]:
+        """
+        Stage 2: Multi-Student Batched Rubric Evaluation (gemini-3.8-flash -> gemini-3.5-flash | 80-160 RPD Pool).
+        Input: Full Rubric + list of up to GRADING_BATCH_SIZE (4) student Stage-1 transcripts.
+        Output: Stage2BatchedGradingResult evaluated in ONE single API call (4x RPD multiplier!).
+        RESTRICTION: NEVER use gemini-3.5-flash-lite or gemini-flash-lite-latest in this cascade.
+        """
+        if not self.is_live:
+            mock_results = []
+            for b in batch_payloads:
+                sub_id = b["submission_id"]
+                ev_answers = []
+                for ans in b.get("answers", []):
+                    qid = ans["question_id"]
+                    sub_qid = ans.get("subquestion_id")
+                    ev_answers.append(Stage2EvaluatedQuestionItem(
+                        question_id=qid,
+                        subquestion_id=sub_qid,
+                        criterion_scores=[CriterionScoreItem(
+                            criterion_id="C1",
+                            description="Criterion 1",
+                            max_marks=1.0,
+                            evidence='PASS | QUOTE: "Mock answer" | CHECK: verified',
+                            awarded_marks=1.0
+                        )],
+                        grading_rationale="Mock evaluation passed.",
+                        awarded_marks=1.0,
+                        grading_uncertainty=0.02,
+                        needs_review=False
+                    ))
+                mock_results.append(Stage2StudentEvaluationItem(
+                    submission_id=sub_id,
+                    evaluated_answers=ev_answers
+                ))
+            mock_res = Stage2BatchedGradingResult(results=mock_results)
+            event_id = self._record_usage_event(
+                exam_id=exam_id, batch_id=None, submission_id=None,
+                request_purpose="STAGE2_BATCH_GRADE", duration_ms=600, success=True,
+                is_mock=True, model_name=settings.GEMINI_GRADING_MODEL
+            )
+            return mock_res, event_id
+
+        rubric_str = json.dumps(rubric_dict, indent=2)
+        batch_str = json.dumps(batch_payloads, indent=2)
+        prompt_text = build_stage2_batched_grading_prompt(rubric_str, batch_str)
+
+        # STRICT INVARIANT: High-reasoning models only (NEVER flash-lite!)
+        raw_grading_models = [
+            settings.GEMINI_GRADING_MODEL,
+            settings.GEMINI_GRADING_FALLBACK_MODEL,
+            getattr(settings, "GEMINI_GRADING_FALLBACK_MODEL_2", "gemini-3.5-flash"),
+        ]
+        now_ts = time.time()
+        grading_models = []
+        for m in raw_grading_models:
+            if m and "lite" not in m.lower() and m not in grading_models:
+                if self._model_cooldown_until.get(m, 0) <= now_ts:
+                    grading_models.append(m)
+
+        if not grading_models:
+            grading_models = [m for m in raw_grading_models if m and "lite" not in m.lower()]
+
+        if not grading_models:
+            grading_models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
+
+        num_keys = max(1, len(self._keys))
+        max_retries = max(4, num_keys * 2)
+        backoff_sec = 2.0
+        last_error = None
+
+        for model_to_use in grading_models:
+            exhausted_keys = set()
+            for attempt in range(max_retries):
+                start_time = time.time()
+                active_key, client = self.get_current_client(worker_id=worker_id)
+                try:
+                    thinking_cfg = None
+                    if getattr(settings, "GEMINI_THINKING_BUDGET", None) is not None:
+                        thinking_cfg = types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET)
+
+                    config = types.GenerateContentConfig(
+                        system_instruction=STAGE2_BATCHED_GRADING_SYSTEM_INSTRUCTION,
+                        response_mime_type="application/json",
+                        response_schema=Stage2BatchedGradingResult,
+                        temperature=0.0,
+                        max_output_tokens=65536,
+                        thinking_config=thinking_cfg
+                    )
+                    response = client.models.generate_content(
+                        model=model_to_use,
+                        contents=[prompt_text],
+                        config=config
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    raw_text = response.text or ""
+                    try:
+                        parsed = Stage2BatchedGradingResult.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = Stage2BatchedGradingResult.model_validate_json(repaired)
+                        else:
+                            raise parse_err
+
+                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
+                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
+                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
+                    thk_tok = getattr(response.usage_metadata, "thoughts_token_count", None) if response.usage_metadata else None
+                    if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
+                        inferred = tot_tok - (in_tok + out_tok)
+                        thk_tok = inferred if inferred > 0 else 0
+
+                    event_id = self._record_usage_event(
+                        exam_id=exam_id, batch_id=None, submission_id=None,
+                        request_purpose="STAGE2_BATCH_GRADE", duration_ms=duration_ms, success=True,
+                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
+                        thinking_tokens=thk_tok, cached_tokens=cached_tok, retry_attempt=attempt,
+                        is_mock=False, model_name=model_to_use, api_key=active_key
+                    )
+                    return parsed, event_id
+
+                except Exception as e:
+                    last_error = e
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    err_code = type(e).__name__
+                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
+
+                    self._record_usage_event(
+                        exam_id=exam_id, batch_id=None, submission_id=None,
+                        request_purpose="STAGE2_BATCH_GRADE", duration_ms=duration_ms, success=False,
+                        http_status=http_status, error_code=f"{err_code}: {str(e)[:150]}",
+                        retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
+                    )
+
+                    if is_rate_or_quota_error(e):
+                        exhausted_keys.add(active_key)
+                        if len(exhausted_keys) >= len(self._keys):
+                            print(f"[GeminiClient Stage2] All {len(self._keys)} keys exhausted quota for model '{model_to_use}'. Cooldown for 30m; falling back to next model.")
+                            self._model_cooldown_until[model_to_use] = time.time() + 1800
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Stage 2 rate limit: {e}")
+                        time.sleep(0.5)
+                        continue
+
+                    if attempt == max_retries - 1:
+                        print(f"[GeminiClient Stage2] Non-quota error on '{model_to_use}': {e}. Trying next model.")
+                        break
+
+                    time.sleep(backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5))
+
+        if last_error and not is_rate_or_quota_error(last_error):
+            raise last_error
+
+        raise AllGeminiKeysExhaustedError(
+            f"Stage 2 Batched Grading: All {len(self._keys)} keys exhausted quota for {grading_models}: {last_error}"
+        )
 
     def grade_student_submission(
         self,
@@ -557,6 +997,38 @@ class GeminiGradingClient:
             )
             return mock_result, event_id
 
+        # If Two-Stage Pipeline is enabled, delegate to decoupled Stage 1 (Blind OCR) + Stage 2 (Audit)
+        if getattr(settings, "ENABLE_TWO_STAGE_PIPELINE", True):
+            s1_res, _ = self.extract_student_submission_blind(
+                exam_id=exam_id,
+                submission_id=submission_id,
+                student_pdf_path=student_pdf_path,
+                rubric_dict=rubric_json,
+                page_count=page_count,
+                worker_id=worker_id
+            )
+            batch_payload = [{
+                "submission_id": submission_id,
+                "answers": [
+                    {
+                        "question_id": a.question_id,
+                        "subquestion_id": a.subquestion_id,
+                        "extracted_student_answer": a.extracted_student_answer,
+                        "is_missing": a.is_missing,
+                    }
+                    for a in s1_res.answers
+                ]
+            }]
+            s2_res, event_id = self.grade_extracted_batch(
+                exam_id=exam_id,
+                rubric_dict=rubric_json,
+                batch_payloads=batch_payload,
+                worker_id=worker_id
+            )
+            s2_student = s2_res.results[0] if s2_res.results else Stage2StudentEvaluationItem(submission_id=submission_id, evaluated_answers=[])
+            merged = merge_stage1_and_stage2(s1_res, s2_student, rubric_dict=rubric_json)
+            return merged, event_id
+
         # Real Gemini multimodal grading request with multi-key failover and model fallback
         num_keys = max(1, len(self._keys))
         max_retries = max(4, num_keys * 2)
@@ -621,7 +1093,7 @@ class GeminiGradingClient:
                         input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
                         thinking_tokens=thk_tok, cached_tokens=cached_tok, page_count=page_count,
                         file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
-                        model_name=model_to_use
+                        model_name=model_to_use, api_key=active_key
                     )
                     return parsed, event_id
 
@@ -636,7 +1108,7 @@ class GeminiGradingClient:
                         request_purpose="SUBMISSION_GRADING", duration_ms=duration_ms, success=False,
                         page_count=page_count, file_size_bytes=file_size, http_status=http_status,
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use
+                        is_mock=False, model_name=model_to_use, api_key=active_key
                     )
 
                     if is_rate_or_quota_error(e):
