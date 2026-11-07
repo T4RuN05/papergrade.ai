@@ -21,7 +21,7 @@ class Settings:
     GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "").strip("\"'")
     GEMINI_API_KEY_4: str = os.getenv("GEMINI_API_KEY_4", "").strip("\"'")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "1024"))
+    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "8192"))
     MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "3"))
 
     # Data & Storage
