@@ -1320,16 +1320,16 @@ def get_exam_rankings(
         )
     )
 
-    is_exam_published = bool(exam.status == 'PUBLISHED' or exam.lifecycle_status == 'PUBLISHED' or getattr(exam, 'is_published', False))
+    is_exam_published = bool(
+        exam.status == 'PUBLISHED' 
+        or exam.lifecycle_status == 'PUBLISHED' 
+        or getattr(exam, 'is_published', 0) == 1
+    )
 
-    if is_student:
-        # If student, only include published papers
-        if not is_exam_published:
-            stmt = stmt.where(Submission.publication_status == 'PUBLISHED')
+    is_privileged = user_role in ["ROOT_ADMIN", "ADMIN", "TEACHER", "FACULTY"]
 
-    subs = db.scalars(stmt).all()
-
-    if is_student and not subs and not is_exam_published:
+    # The ranking system must NOT be visible to students until the exam is officially published
+    if not is_privileged and not is_exam_published:
         return {
             "exam_id": exam_id,
             "exam_title": exam.title,

@@ -1100,7 +1100,7 @@ export function EvaluationViewerSkeleton({ isStudent = false }: { isStudent?: bo
           </div>
 
           {/* Card 2: Unattempted / Missing Questions */}
-          <div className="rounded-lg border border-red-200 bg-red-50/40 p-4 space-y-2.5">
+          <div className="rounded-xl border border-rose-200/80 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 p-4 space-y-2.5">
             <div className="flex items-center gap-1.5">
               <Skeleton className="h-3.5 w-3.5 rounded-full" />
               <Skeleton className="h-3.5 w-36 rounded" />
@@ -1108,7 +1108,7 @@ export function EvaluationViewerSkeleton({ isStudent = false }: { isStudent?: bo
             <Skeleton className="h-2.5 w-full rounded" />
             <Skeleton className="h-2.5 w-4/5 rounded" />
             <div className="pt-1">
-              <div className="w-full flex items-center justify-between p-2.5 rounded-md border border-red-200 bg-surface">
+              <div className="w-full flex items-center justify-between p-2.5 rounded-lg border border-rose-200/80 dark:border-rose-900/40 bg-surface">
                 <div className="space-y-1">
                   <Skeleton className="h-3.5 w-10 rounded" />
                   <Skeleton className="h-2 w-8 rounded" />

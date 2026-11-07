@@ -188,7 +188,7 @@ export default function GradingPage() {
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
         <FeatureCard className="p-8 text-center space-y-4">
-          <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+          <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
             {isConnError ? <RefreshCw className="h-6 w-6 animate-spin text-primary" /> : <AlertTriangle className="h-6 w-6" />}
           </div>
           <h2 className="text-base font-bold text-ink">
@@ -231,7 +231,7 @@ export default function GradingPage() {
           <div className="mx-auto h-12 w-12 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-primary">
             <RefreshCw className="h-6 w-6 animate-spin" />
           </div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
             <Lock className="h-3 w-3" />
             <span>Runtime Inspection Locked</span>
           </div>
@@ -392,10 +392,10 @@ export default function GradingPage() {
                 const isSelected = selectedAnswer?.id === ans.id;
                 const scoreColor =
                   ans.awarded_marks >= ans.max_marks
-                    ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                    ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50"
                     : ans.awarded_marks > 0
-                    ? "text-amber-600 bg-amber-50 border-amber-200"
-                    : "text-rose-600 bg-rose-50 border-rose-200";
+                    ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50"
+                    : "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50";
 
                 return (
                   <button
@@ -449,27 +449,27 @@ export default function GradingPage() {
 
           {/* Missing Answers List */}
           {missingAnswers.length > 0 && (
-            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4 space-y-2">
-              <h4 className="text-xs font-bold text-red-700 flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+            <div className="rounded-xl border border-rose-200/80 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-950/20 p-4 space-y-2.5 transition-colors">
+              <h4 className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
                 Unattempted / Missing ({missingAnswers.length})
               </h4>
-              <p className="text-[11px] text-ink-muted leading-relaxed">
+              <p className="text-[11px] text-rose-700/80 dark:text-rose-300/70 leading-relaxed">
                 Questions where the model could not detect a student handwriting region.
               </p>
               <div className="space-y-1.5 pt-1">
                 {missingAnswers.map((mAns) => (
                   <div
                     key={mAns.id}
-                    className="w-full flex items-center justify-between p-2 rounded-md bg-surface border border-red-200 hover:border-red-300 text-xs transition-colors gap-2"
+                    className="w-full flex items-center justify-between p-2.5 rounded-lg bg-surface border border-rose-200/80 dark:border-rose-900/40 hover:border-rose-300 dark:hover:border-rose-700/50 text-xs transition-colors gap-2 shadow-2xs"
                   >
                     <button
                       type="button"
                       onClick={() => handleSelectAnswer(mAns, true)}
                       className="flex-1 flex items-center justify-between text-left hover:underline cursor-pointer min-w-0"
                     >
-                      <span className="font-mono font-bold text-red-700 truncate">{mAns.question_id}</span>
-                      <span className="text-[10px] text-red-600 font-mono shrink-0 ml-2">0 / {mAns.max_marks}</span>
+                      <span className="font-mono font-bold text-rose-700 dark:text-rose-300 truncate">{mAns.question_id}</span>
+                      <span className="text-[10px] text-rose-600 dark:text-rose-400 font-mono font-semibold shrink-0 ml-2">0 / {mAns.max_marks}</span>
                     </button>
                     <button
                       type="button"
@@ -478,7 +478,7 @@ export default function GradingPage() {
                         setSelectedAnswer(mAns);
                         setEditingAnswerId(mAns.id);
                       }}
-                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary text-white hover:bg-primary-hover transition-colors shrink-0 cursor-pointer shadow-2xs"
+                      className="px-2.5 py-1 rounded text-[11px] font-semibold bg-primary hover:bg-primary-hover text-white transition-colors shrink-0 cursor-pointer shadow-2xs flex items-center gap-1"
                       title={`Add bounding box for ${mAns.question_id} on current page`}
                     >
                       + Add Box

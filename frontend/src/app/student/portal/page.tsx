@@ -780,6 +780,20 @@ export default function StudentPortalPage() {
   const [isRankingsLoading, setIsRankingsLoading] = useState(false);
 
   const handleOpenRankingsModal = async (sub: any) => {
+    const isExamPublished = Boolean(
+      sub?.exam_is_published === 1 ||
+      sub?.exam_is_published === true ||
+      sub?.exam_lifecycle_status === "PUBLISHED" ||
+      sub?.exam_status === "PUBLISHED"
+    );
+
+    if (!isExamPublished) {
+      toast.info("Class standings will become available once results are officially published by faculty.", {
+        title: "Standings Pending",
+      });
+      return;
+    }
+
     const examId = sub.exam_id;
     const examTitle = sub.exam_title || sub.title || "Exam";
     const maxMarks = sub.max_marks || sub.exam_total_marks || 25;
@@ -790,25 +804,14 @@ export default function StudentPortalPage() {
 
     try {
       const data = await api.getExamRankings(examId);
-      if (data && Array.isArray(data.rankings)) {
+      if (data && Array.isArray(data.rankings) && data.is_published !== false) {
         setRankingsData(data.rankings);
       } else {
         setRankingsData([]);
       }
     } catch (err: any) {
       console.warn("Could not load exam rankings:", err);
-      setRankingsData([
-        {
-          id: sub.id,
-          student_name: user?.name || "You",
-          score: Number(sub.total_awarded_marks || 0),
-          total_awarded_marks: Number(sub.total_awarded_marks || 0),
-          max_marks: maxMarks,
-          percentage: Number(sub.percentage || 0),
-          rank: 1,
-          is_current_student: true,
-        },
-      ]);
+      setRankingsData([]);
     } finally {
       setIsRankingsLoading(false);
     }
@@ -2072,6 +2075,14 @@ export default function StudentPortalPage() {
             <div className="grid grid-cols-1 gap-4">
               {pastSubmissionsList.slice(0, 1).map((sub) => {
               const isAbsent = sub.status === "ABSENT" || Boolean(sub.is_absent);
+              const isExamPublished =
+                !isAbsent &&
+                Boolean(
+                  sub.exam_is_published === 1 ||
+                  sub.exam_is_published === true ||
+                  sub.exam_lifecycle_status === "PUBLISHED" ||
+                  sub.exam_status === "PUBLISHED"
+                );
               const isPublished =
                 !isAbsent && (
                   sub.publication_status === "PUBLISHED" ||
@@ -2340,8 +2351,8 @@ export default function StudentPortalPage() {
                         </button>
                       )}
 
-                      {/* Class Standings & Rankings */}
-                      {isPublished && (
+                      {/* Class Standings & Rankings (Only visible once exam results are officially published) */}
+                      {isExamPublished && (
                         <button
                           type="button"
                           onClick={() => handleOpenRankingsModal(sub)}
@@ -2690,6 +2701,14 @@ export default function StudentPortalPage() {
         <div className="space-y-3">
           {filteredPastSubmissions.map((sub) => {
             const isAbsent = sub.status === "ABSENT" || Boolean(sub.is_absent);
+            const isExamPublished =
+              !isAbsent &&
+              Boolean(
+                sub.exam_is_published === 1 ||
+                sub.exam_is_published === true ||
+                sub.exam_lifecycle_status === "PUBLISHED" ||
+                sub.exam_status === "PUBLISHED"
+              );
             const isExpanded = Boolean(expandedCardIds[sub.id]);
             const isPublished =
               !isAbsent && (
@@ -3007,8 +3026,8 @@ export default function StudentPortalPage() {
                           </button>
                         )}
 
-                        {/* Class Standings & Rankings */}
-                        {isPublished && (
+                        {/* Class Standings & Rankings (Only visible once exam results are officially published) */}
+                        {isExamPublished && (
                           <button
                             type="button"
                             onClick={() => handleOpenRankingsModal(sub)}
@@ -3173,18 +3192,26 @@ export default function StudentPortalPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBreakdownModalOpen(false);
-                    handleOpenRankingsModal(breakdownSubmission);
-                  }}
-                  className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-all shrink-0 shadow-2xs whitespace-nowrap cursor-pointer"
-                  title="View Official Class Standings"
-                >
-                  <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                  <span>Class Standings</span>
-                </button>
+                {Boolean(
+                  breakdownSubmission &&
+                  (breakdownSubmission.exam_is_published === 1 ||
+                    breakdownSubmission.exam_is_published === true ||
+                    breakdownSubmission.exam_lifecycle_status === "PUBLISHED" ||
+                    breakdownSubmission.exam_status === "PUBLISHED")
+                ) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBreakdownModalOpen(false);
+                      handleOpenRankingsModal(breakdownSubmission);
+                    }}
+                    className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-300 dark:border-amber-700/50 transition-all shrink-0 shadow-2xs whitespace-nowrap cursor-pointer"
+                    title="View Official Class Standings"
+                  >
+                    <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Class Standings</span>
+                  </button>
+                )}
 
                 {(breakdownSubmission.publication_status === "PUBLISHED" || breakdownSubmission.is_published) && !breakdownSubmission.is_document_purged && (
                   <a

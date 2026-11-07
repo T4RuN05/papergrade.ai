@@ -310,13 +310,15 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 "exam_title": ex.title,
                 "exam_subject": ex.subject,
                 "exam_total_marks": ex.total_marks,
-                "exam_is_published": ex.is_published,
+                "exam_is_published": 1 if bool(ex.is_published == 1 or ex.status == "PUBLISHED" or ex.lifecycle_status == "PUBLISHED") else 0,
+                "exam_status": ex.status,
+                "exam_lifecycle_status": ex.lifecycle_status,
                 "exam_question_paper_path": ex.question_paper_path,
                 "exam_answer_key_path": ex.answer_key_path,
                 "exam_is_document_purged": bool(ex.is_document_purged)
             }
 
-            is_pub = bool(sub.get("publication_status") == "PUBLISHED" or ex.is_published == 1)
+            is_pub = bool(sub.get("publication_status") == "PUBLISHED" or sub["exam_is_published"] == 1)
             sub["is_published"] = is_pub
             exam_purged = bool(ex.is_document_purged)
             sub["has_question_paper"] = bool(is_pub and ex.question_paper_path and not exam_purged)
