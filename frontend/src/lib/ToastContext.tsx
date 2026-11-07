@@ -427,7 +427,7 @@ function ToastCard({
         </div>
       ) : toast.type === "loading" ? (
         /* Indeterminate loading bar for active processing toasts */
-        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/[0.05] overflow-hidden rounded-b-xl">
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/[0.05] dark:bg-white/[0.08] overflow-hidden rounded-b-xl">
           <div
             className={`h-full w-2/5 bg-gradient-to-r ${style.barGradient} rounded-full animate-toast-loading`}
           />

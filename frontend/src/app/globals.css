@@ -209,21 +209,21 @@ body {
   }
 }
 
-/* Toast Indeterminate Loading Sweep (for loading state toasts) */
+/* Toast Indeterminate Loading Sweep (for loading state toasts - 100% Seamless Infinite Loop) */
 @keyframes toastLoadingSweep {
   0% {
     transform: translateX(-100%);
   }
   50% {
-    transform: translateX(30%);
+    transform: translateX(75%);
   }
   100% {
-    transform: translateX(120%);
+    transform: translateX(250%);
   }
 }
 
 .animate-toast-loading {
-  animation: toastLoadingSweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: toastLoadingSweep 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 /* Unified Skeleton Shimmer Animation (100% Mathematically Seamless Infinite Loop) */

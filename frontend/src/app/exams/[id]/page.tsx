@@ -1541,6 +1541,7 @@ export default function ExamDetailPage() {
       {uploadQpOpen && (
         <ModalCard
           title="Upload / Replace Question Paper"
+          maxWidth="max-w-xl"
           preventBackdropClose={true}
           onClose={() => {
             setUploadQpOpen(false);
@@ -1638,18 +1639,26 @@ export default function ExamDetailPage() {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-hairline/60">
               <ButtonUtility
                 type="button"
+                size="md"
                 onClick={() => {
                   setUploadQpOpen(false);
                   setQpFilesToUpload([]);
                 }}
+                className="whitespace-nowrap"
               >
                 Cancel
               </ButtonUtility>
-              <ButtonPrimary type="submit" disabled={qpFilesToUpload.length === 0 || isUploadingQp} isLoading={isUploadingQp}>
-                Upload Question Paper
+              <ButtonPrimary
+                type="submit"
+                size="md"
+                disabled={qpFilesToUpload.length === 0 || isUploadingQp}
+                isLoading={isUploadingQp}
+                className="whitespace-nowrap"
+              >
+                {isUploadingQp ? "Uploading..." : "Upload Question Paper"}
               </ButtonPrimary>
             </div>
           </form>
@@ -1660,6 +1669,7 @@ export default function ExamDetailPage() {
       {uploadAkOpen && (
         <ModalCard
           title="Upload Official Answer Key"
+          maxWidth="max-w-xl"
           preventBackdropClose={true}
           onClose={() => {
             setUploadAkOpen(false);
@@ -1766,35 +1776,38 @@ export default function ExamDetailPage() {
 
             {/* In-progress status banner */}
             {isUploadingAk && (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-1 animate-in fade-in">
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200 text-xs space-y-1 animate-in fade-in">
                 <div className="font-semibold flex items-center gap-1.5">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-700" />
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
                   <span>AI Rubric Generation in Progress...</span>
                 </div>
-                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                <p className="text-[11px] text-emerald-800 dark:text-emerald-300/80 leading-relaxed">
                   Gemini Vision AI is analyzing questions, choices, marking schemes, and criteria. You can close this window at any time.
                 </p>
               </div>
             )}
 
-            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-hairline/60">
               <ButtonUtility
                 type="button"
+                size="md"
                 onClick={() => {
                   setUploadAkOpen(false);
                   if (!isUploadingAk) setAkFilesToUpload([]);
                 }}
+                className="whitespace-nowrap"
               >
-                {isUploadingAk ? "Close Window (Continues in background)" : "Cancel"}
+                {isUploadingAk ? "Run in Background" : "Cancel"}
               </ButtonUtility>
 
               <ButtonPrimary
                 type="submit"
+                size="md"
                 disabled={akFilesToUpload.length === 0 || isUploadingAk}
                 isLoading={isUploadingAk}
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-emerald-600 hover:bg-emerald-700 whitespace-nowrap"
               >
-                Upload & Generate Rubric
+                {isUploadingAk ? "Generating Rubric..." : "Upload & Generate Rubric"}
               </ButtonPrimary>
             </div>
           </form>
