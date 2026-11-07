@@ -37,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <BreadcrumbProvider>
             <NavigationProgressBar />
           {isAdminRoute ? (
-        <div className="flex min-h-screen bg-canvas-soft text-ink selection:bg-primary selection:text-white max-w-full overflow-x-hidden">
+        <div className="flex min-h-screen bg-canvas-soft text-ink selection:bg-primary selection:text-white">
           {/* Left Admin Sidebar */}
           <AdminSidebar
             mobileOpen={mobileSidebarOpen}
@@ -45,9 +45,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           />
 
           {/* Right Main Content Area */}
-          <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
+          <div className="flex-1 flex flex-col min-w-0">
             <AdminHeader onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
-            <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 overflow-x-hidden">
+            <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
               {children}
             </main>
             <footer className="border-t border-hairline bg-surface/60 px-4 py-4 text-center text-xs text-ink-muted">
@@ -61,10 +61,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NotificationDrawer />
         </div>
       ) : (
-        <div className="min-h-screen bg-canvas-soft text-ink flex flex-col font-sans selection:bg-primary selection:text-white max-w-full overflow-x-hidden">
+        <div className="min-h-screen bg-canvas-soft text-ink flex flex-col font-sans selection:bg-primary selection:text-white">
           {/* Public / Student Navbar */}
           <Navbar />
-          <main className="flex-1 w-full max-w-full overflow-x-hidden">
+          <main className="flex-1 w-full">
             {children}
           </main>
           {pathname !== "/" && (

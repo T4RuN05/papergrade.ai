@@ -45,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="overflow-x-hidden max-w-[100vw]">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -77,7 +77,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className="min-h-screen bg-canvas-soft text-ink font-sans selection:bg-primary selection:text-white max-w-[100vw] overflow-x-hidden"
+        className="min-h-screen bg-canvas-soft text-ink font-sans selection:bg-primary selection:text-white"
         suppressHydrationWarning
       >
         <ThemeProvider>
