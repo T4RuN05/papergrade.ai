@@ -377,8 +377,14 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-hairline">
-              <ButtonUtility size="md" type="button" onClick={onClose} disabled={isSubmitting}>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
+              <ButtonUtility
+                size="md"
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="h-10 px-5 min-w-[100px] text-xs sm:text-sm font-semibold justify-center"
+              >
                 Cancel
               </ButtonUtility>
               <ButtonPrimary
@@ -386,7 +392,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={!subject.trim() || !description.trim() || isOverLimit}
-                className="gap-1.5"
+                className="h-10 px-5 gap-2 text-xs sm:text-sm font-semibold justify-center"
               >
                 <Send className="h-3.5 w-3.5" />
                 <span>Submit Technical Report</span>

@@ -66,43 +66,42 @@ class CriterionScoreItem(BaseModel):
     criterion_id: str
     description: str
     max_marks: float = Field(ge=0.0)
-    # CRITICAL: `evidence` MUST precede `awarded_marks` so the LLM audits before scoring!
+    # CRITICAL: `evidence` MUST precede `awarded_marks` so the model audits before scoring!
     evidence: str = Field(
         default="",
         description=(
-            "Audit format: "
-            "(1) If correct: 'PASS | QUOTE: \"<exact verbatim substring from student answer>\"' "
-            "(2) If flawed/inverted/wrong unit or magnitude: 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' "
+            "Strict 3-part format: "
+            "(1) If 100% satisfied: 'PASS | QUOTE: \"<exact verbatim substring from extracted_student_answer>\"' "
+            "(2) If flawed/inverted/wrong magnitude/crude sketch/unlabelled: 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' "
             "(3) If omitted: 'MISSING'"
         ),
     )
     awarded_marks: float = Field(
         ge=0.0,
-        description="MUST be 0.0 if evidence starts with 'FAIL' or 'MISSING'. Discrete 0.5 increments only.",
+        description="MUST be 0.0 if evidence starts with 'FAIL:' or 'MISSING'. Discrete 0.5 increments only.",
     )
 
 class GradedAnswerItem(BaseModel):
     question_id: str = Field(description="Question identifier corresponding to approved rubric, e.g. Q1")
     subquestion_id: Optional[str] = Field(None, description="Subquestion if applicable, e.g. a, b")
     section_id: Optional[str] = Field(None, description="Section ID if question belongs to a section")
-    is_extra_attempt: bool = Field(default=False, description="True if answer is an extra attempt beyond the section limit, excluded from total score")
+    is_extra_attempt: bool = Field(default=False, description="True if answer is an extra attempt beyond the section limit")
     page_number: int = Field(default=1, ge=1, description="Primary page number for this answer")
     is_missing: bool = Field(default=False, description="True if student did not attempt or answer cannot be found")
-    has_diagram: bool = Field(default=False, description="True if answer contains a visual diagram, structure, or plot")
     extracted_student_answer: str = Field(
         default="",
-        description="Literal character-for-character transcription of student work without summarizing or autocorrecting errors.",
+        description="Literal character-for-character transcription of physical ink (including 4-field [DIAGRAM: ...] blocks for sketches). Stop where ink ends; never autocorrect or solve.",
     )
-    regions: List[AnswerRegionItem] = Field(default_factory=list, description="Normalized bounding boxes enclosing this answer")
+    regions: List[AnswerRegionItem] = Field(default_factory=list, description="Normalized [0,1] bounding boxes enclosing this answer")
     max_marks: float = Field(ge=0.0, description="Max marks configured for this question")
     # CRITICAL: `criterion_scores` and `grading_rationale` MUST precede `awarded_marks`!
     criterion_scores: List[CriterionScoreItem] = Field(default_factory=list)
     grading_rationale: str = Field(description="Concise 1-2 sentence audit summary of criteria met vs missed")
     awarded_marks: float = Field(ge=0.0, description="Sum of awarded_marks from criterion_scores, clamped to max_marks")
-    transcription_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0, description="Heuristic uncertainty indicator for handwriting transcription (0=clear, 1=unreadable)")
-    grading_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0, description="Heuristic uncertainty indicator for marking decision")
-    needs_review: bool = Field(default=False, description="Whether human teacher inspection is recommended")
-    review_reason: Optional[str] = Field(None, description="Reason why review was flagged")
+    transcription_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
+    grading_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
+    needs_review: bool = Field(default=False)
+    review_reason: Optional[str] = Field(None)
 
 class StudentGradingExtractionResult(BaseModel):
     submission_identifier: Optional[str] = Field(None, description="Identifier of the paper")
@@ -110,76 +109,6 @@ class StudentGradingExtractionResult(BaseModel):
     roll_number_detected: Optional[str] = Field(None, description="Roll number if visible on page header")
     answers: List[GradedAnswerItem] = Field(description="Evaluated answers for all rubric questions")
 
-# ====================================================================
-# Two-Stage Pipeline Schemas (Stage 1 Blind OCR + Stage 2 Batch Audit)
-# ====================================================================
-
-class BlindExtractedAnswerItem(BaseModel):
-    question_id: str = Field(description="Question ID from question paper skeleton, e.g. Q1, Q1.1, Q2.2")
-    subquestion_id: Optional[str] = Field(None, description="Subquestion ID if applicable, e.g. a, b, 1(a), 1, 2")
-    section_id: Optional[str] = Field(None)
-    page_number: int = Field(default=1, ge=1, description="Primary 1-indexed page number")
-    is_missing: bool = Field(
-        default=False,
-        description=(
-            "True ONLY if question is completely unattempted anywhere on the script. "
-            "For MCQs/Objective items: Check cluttered lines, stacked lists, Roman numerals (i, ii, iii), "
-            "and margins. If attempted in a clustered list, is_missing MUST be False."
-        ),
-    )
-    has_diagram: bool = Field(
-        default=False,
-        description="True if student drew a chemical structure, circuit, ray diagram, geometry figure, biological sketch, or graph.",
-    )
-    extracted_student_answer: str = Field(
-        default="",
-        description=(
-            "Literal, character-for-character transcription of student work. "
-            "For MCQs/Objective questions: Transcribe BOTH the option letter/symbol AND any accompanying words, "
-            "formulas, or values verbatim (e.g. '(B) Short range order' or '(D) 12'). If handwritten letter is "
-            "ambiguous between B/D or A/C, transcribe '(B/D) <text>'. If student wrote only the option text "
-            "without a letter, transcribe the text verbatim. NEVER fix student mistakes."
-        ),
-    )
-    regions: List[AnswerRegionItem] = Field(
-        default_factory=list,
-        description="Mandatory normalized [0,1] bounding boxes. For clustered MCQs, provide a tight box around that specific item's line.",
-    )
-    transcription_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
-
-class Stage1BlindExtractionResult(BaseModel):
-    submission_identifier: Optional[str] = None
-    student_name_detected: Optional[str] = None
-    roll_number_detected: Optional[str] = None
-    answers: List[BlindExtractedAnswerItem]
-
-class Stage2CriterionEvalItem(BaseModel):
-    criterion_id: str
-    evidence: str = Field(
-        default="",
-        description="Format: 'PASS | QUOTE: \"<exact verbatim substring>\"' or 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' or 'MISSING'",
-    )
-    awarded_marks: float = Field(
-        ge=0.0,
-        description="MUST be 0.0 if evidence starts with 'FAIL' or 'MISSING'. Discrete 0.5 increments only.",
-    )
-
-class Stage2EvaluatedQuestionItem(BaseModel):
-    question_id: str
-    subquestion_id: Optional[str] = None
-    criterion_scores: List[Stage2CriterionEvalItem] = Field(default_factory=list)
-    grading_rationale: str
-    awarded_marks: float = Field(ge=0.0)
-    grading_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
-    needs_review: bool = Field(default=False)
-    review_reason: Optional[str] = None
-
-class Stage2StudentEvaluationItem(BaseModel):
-    submission_id: str = Field(description="Exact submission_id from the input batch")
-    evaluated_answers: List[Stage2EvaluatedQuestionItem]
-
-class Stage2BatchedGradingResult(BaseModel):
-    results: List[Stage2StudentEvaluationItem]
 
 # ====================================================================
 # API Request & Response Schemas

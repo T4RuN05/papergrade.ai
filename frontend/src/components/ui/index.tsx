@@ -164,17 +164,17 @@ export function StatusWell({
   ...props
 }: StatusWellProps) {
   const accentBorder = {
-    amber: "border-l-amber-500 dark:border-l-amber-400",
-    blue: "border-l-blue-500 dark:border-l-blue-400",
-    green: "border-l-emerald-500 dark:border-l-emerald-400",
-    rose: "border-l-rose-500 dark:border-l-rose-400",
-    purple: "border-l-purple-500 dark:border-l-purple-400",
-    neutral: "border-l-ink-muted/50 dark:border-l-ink-muted/40",
+    amber: "border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.06] dark:border-amber-500/20",
+    blue: "border-blue-500/30 bg-blue-500/[0.04] dark:bg-blue-500/[0.06] dark:border-blue-500/20",
+    green: "border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06] dark:border-emerald-500/20",
+    rose: "border-rose-500/30 bg-rose-500/[0.04] dark:bg-rose-500/[0.06] dark:border-rose-500/20",
+    purple: "border-purple-500/30 bg-purple-500/[0.04] dark:bg-purple-500/[0.06] dark:border-purple-500/20",
+    neutral: "border-hairline bg-surface",
   }[variant];
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-surface border border-hairline border-l-4 ${accentBorder} shadow-2xs ${className}`}
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border ${accentBorder} shadow-2xs ${className}`}
       {...props}
     >
       <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -242,15 +242,15 @@ export interface BadgePillProps {
 
 export function BadgePill({ label, color = "gray", className = "" }: BadgePillProps) {
   const colorMap: Record<StickerColor, string> = {
-    green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    teal: "bg-[#ebf5f5] text-[#1b5e5c] border-[#c3e3e1] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#122424] dark:text-[#7cd1cd] dark:border-[#1a3d3c] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    sky: "bg-[#edf2f8] text-[#1c4d7e] border-[#c8d9eb] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#131f2d] dark:text-[#85b5e6] dark:border-[#1f3752] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    purple: "bg-[#f4f0f8] text-[#553578] border-[#dcd0ea] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#1f162a] dark:text-[#bf9fe3] dark:border-[#38264e] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    pink: "bg-[#f8eff4] text-[#7d2859] border-[#e7cddb] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#27131e] dark:text-[#dd84b3] dark:border-[#421d31] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    orange: "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#221b14] dark:text-[#c4ae97] dark:border-[#382b20] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    gray: "bg-[#f1f0ee] text-[#4d4a46] border-[#dedcd8] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    red: "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    green: "bg-emerald-50 text-emerald-800 border-emerald-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    teal: "bg-teal-50 text-teal-800 border-teal-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    sky: "bg-sky-50 text-sky-800 border-sky-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    purple: "bg-purple-50 text-purple-800 border-purple-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    pink: "bg-pink-50 text-pink-800 border-pink-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-pink-500/10 dark:text-pink-300 dark:border-pink-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    orange: "bg-amber-50 text-amber-800 border-amber-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-stone-500/10 dark:text-stone-300 dark:border-stone-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    gray: "bg-zinc-100 text-zinc-700 border-zinc-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-white/[0.05] dark:text-zinc-300 dark:border-white/[0.08] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    red: "bg-rose-50 text-rose-800 border-rose-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
   };
 
   return (

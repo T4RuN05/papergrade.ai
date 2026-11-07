@@ -15,28 +15,13 @@ class Settings:
     PORT: int = 8000
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://papergrade-ai.vercel.app").strip()
 
-    # Gemini API settings (Two-Stage Architecture)
-    GEMINI_API_KEY: str = (os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_1") or "").strip("\"'")
-    GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "").strip("\"'")
-    GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "").strip("\"'")
-    GEMINI_API_KEY_4: str = os.getenv("GEMINI_API_KEY_4", "").strip("\"'")
-
-    # Stage 1: High-RPD Blind OCR & BBox Model (500 RPD/key = 2,000 RPD across 4 keys)
-    GEMINI_EXTRACTION_MODEL: str = os.getenv("GEMINI_EXTRACTION_MODEL", "gemini-3.5-flash-lite").strip()
-
-    # Stage 2: High-Reasoning Batched Grading Models (NEVER use flash-lite for grading)
-    GEMINI_GRADING_MODEL: str = os.getenv("GEMINI_GRADING_MODEL", "gemini-3.8-flash").strip()
-    GEMINI_GRADING_FALLBACK_MODEL: str = os.getenv("GEMINI_GRADING_FALLBACK_MODEL", "gemini-3.6-flash").strip()
-    GEMINI_GRADING_FALLBACK_MODEL_2: str = os.getenv("GEMINI_GRADING_FALLBACK_MODEL_2", "gemini-3.5-flash").strip()
+    # Gemini API settings (Single-Pass Flash-Only Architecture)
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
-
-    # Reasoning & Batching Controls (Stage 1 Blind OCR = 512, Stage 2 Batched Grading = 4096)
-    GEMINI_STAGE1_THINKING_BUDGET: int = int(os.getenv("GEMINI_STAGE1_THINKING_BUDGET", "512"))
-    GEMINI_STAGE2_THINKING_BUDGET: int = int(os.getenv("GEMINI_STAGE2_THINKING_BUDGET", "4096"))
+    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash").strip()
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "4096"))
-    GRADING_BATCH_SIZE: int = int(os.getenv("GRADING_BATCH_SIZE", "4"))
-    ENABLE_TWO_STAGE_PIPELINE: bool = os.getenv("ENABLE_TWO_STAGE_PIPELINE", "true").lower() in ("true", "1", "yes")
-    MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "3"))
+    ENABLE_TWO_STAGE_PIPELINE: bool = False
+    GRADING_BATCH_SIZE: int = 1
+    MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "2"))
 
     # Data & Storage
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
@@ -100,12 +85,30 @@ class Settings:
             directory.mkdir(parents=True, exist_ok=True)
 
     @property
-    def configured_api_keys(self) -> list:
-        keys = []
-        for k in [self.GEMINI_API_KEY, self.GEMINI_API_KEY_2, self.GEMINI_API_KEY_3, self.GEMINI_API_KEY_4]:
-            if k and k.strip() and k.strip() != "your_gemini_api_key_here":
-                keys.append(k.strip())
-        return keys
+    def configured_api_keys(self) -> list[str]:
+        raw_candidates: list[str] = []
+        # 1. Support comma-separated list in GEMINI_API_KEYS
+        csv_keys = os.getenv("GEMINI_API_KEYS", "")
+        if csv_keys:
+            raw_candidates.extend(csv_keys.split(","))
+
+        # 2. Support GEMINI_API_KEY and GEMINI_API_KEY_1 .. GEMINI_API_KEY_20
+        if os.getenv("GEMINI_API_KEY"):
+            raw_candidates.append(os.getenv("GEMINI_API_KEY", ""))
+        for i in range(1, 21):
+            val = os.getenv(f"GEMINI_API_KEY_{i}", "")
+            if val:
+                raw_candidates.append(val)
+
+        # Deduplicate while preserving order
+        seen = set()
+        valid_keys = []
+        for k in raw_candidates:
+            clean = k.strip().strip("\"'")
+            if clean and clean != "your_gemini_api_key_here" and clean not in seen:
+                seen.add(clean)
+                valid_keys.append(clean)
+        return valid_keys
 
     @property
     def is_gemini_configured(self) -> bool:

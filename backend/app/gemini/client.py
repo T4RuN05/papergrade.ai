@@ -8,46 +8,6 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
-import fitz
-
-DIAGRAM_KEYWORDS = ("draw", "diagram", "structure", "isomer", "sketch", "graph", "circuit", "ray", "plot", "figure", "geometry", "curve")
-
-def _extract_diagram_crop_part(pdf_path: str, region: dict, max_dim: int = 512) -> Optional[types.Part]:
-    """
-    Crops the exact bounding box from the student PDF at 120 DPI using PyMuPDF.
-    Ensures dimensions <= 512px so Gemini charges only ~258 tokens per crop!
-    """
-    if not pdf_path or not Path(pdf_path).exists():
-        return None
-    try:
-        doc = fitz.open(pdf_path)
-        page_num = int(region.get("page_number", 1))
-        page_idx = max(0, page_num - 1)
-        if page_idx >= len(doc):
-            doc.close()
-            return None
-        page = doc[page_idx]
-        rect = page.rect
-
-        # Clamp normalized coords to [0.0, 1.0]
-        x = max(0.0, min(1.0, float(region.get("x", 0.0))))
-        y = max(0.0, min(1.0, float(region.get("y", 0.0))))
-        w = max(0.02, min(1.0 - x, float(region.get("width", 0.5))))
-        h = max(0.02, min(1.0 - y, float(region.get("height", 0.5))))
-
-        clip = fitz.Rect(
-            x * rect.width,
-            y * rect.height,
-            (x + w) * rect.width,
-            (y + h) * rect.height
-        )
-        pix = page.get_pixmap(clip=clip, dpi=120)
-        png_bytes = pix.tobytes("png")
-        doc.close()
-        return types.Part.from_bytes(data=png_bytes, mime_type="image/png")
-    except Exception as crop_err:
-        print(f"[GeminiClient] Diagram crop error for {pdf_path}: {crop_err}")
-        return None
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
@@ -61,228 +21,20 @@ from backend.app.schemas import (
     GradedAnswerItem,
     AnswerRegionItem,
     CriterionScoreItem,
-    BlindExtractedAnswerItem,
-    Stage1BlindExtractionResult,
-    Stage2CriterionEvalItem,
-    Stage2EvaluatedQuestionItem,
-    Stage2StudentEvaluationItem,
-    Stage2BatchedGradingResult,
 )
 from backend.app.gemini.pricing import calculate_paid_equivalent_cost
 from backend.app.gemini.prompts import (
     RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION,
     STUDENT_GRADING_SYSTEM_INSTRUCTION,
-    STAGE1_BLIND_EXTRACTION_SYSTEM_INSTRUCTION,
-    STAGE2_BATCHED_GRADING_SYSTEM_INSTRUCTION,
     build_rubric_extraction_prompt,
     build_student_grading_prompt,
-    build_stage1_blind_extraction_prompt,
-    build_stage2_batched_grading_prompt,
 )
 
-def build_question_skeleton_from_rubric(rubric_dict: dict) -> str:
-    """Strips official_answer, accepted_alternatives, and criteria so Stage 1 OCR is 100% blind."""
-    skeleton_questions = []
-    for idx, q in enumerate(rubric_dict.get("questions", [])):
-        q_id = str(q.get("question_id", ""))
-        sub_id = str(q.get("subquestion_id", "")) if q.get("subquestion_id") else None
-        q_text = str(q.get("question_text", ""))
-        notes = str(q.get("grading_notes", "")).lower()
-        official = str(q.get("official_answer", ""))
-        max_m = float(q.get("max_marks") or 1.0)
-
-        # Detect objective/MCQ nature cleanly without leaking answer
-        is_mcq = (
-            "mcq" in notes
-            or "option" in notes
-            or "multiple choice" in q_text.lower()
-            or (max_m == 1.0 and any(opt in official for opt in ["A)", "B)", "C)", "D)", "(A)", "(B)", "(C)", "(D)"]))
-        )
-
-        aliases = []
-        clean_qid = q_id.lstrip("Qq").strip()
-        parts = clean_qid.split(".")
-        if len(parts) == 2:
-            main_num, sub_num = parts[0], parts[1]
-            try:
-                sub_int = int(sub_num)
-                roman_numerals = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
-                roman = roman_numerals[sub_int - 1] if 1 <= sub_int <= len(roman_numerals) else str(sub_int)
-                alpha = chr(ord('a') + sub_int - 1) if 1 <= sub_int <= 26 else str(sub_int)
-                aliases.extend([
-                    f"{sub_num}", f"({sub_num})", f"{sub_num}.", f"{sub_num})",
-                    f"({roman})", f"{roman})", f"{roman}.",
-                    f"({alpha})", f"{alpha})",
-                    f"Q{main_num}({sub_num})", f"Q{main_num}({roman})", f"Q{main_num}.{sub_num}",
-                    f"Ans {sub_num}", f"Ans ({roman})"
-                ])
-            except ValueError:
-                aliases.append(sub_num)
-        elif sub_id:
-            aliases.extend([f"({sub_id})", f"{sub_id})", f"{q_id}({sub_id})"])
-        else:
-            aliases.extend([f"{clean_qid}", f"Q{clean_qid}", f"Ans {clean_qid}"])
-
-        skeleton_questions.append({
-            "question_id": q_id,
-            "subquestion_id": q.get("subquestion_id"),
-            "section_id": q.get("section_id"),
-            "question_text": q_text,
-            "max_marks": q.get("max_marks"),
-            "format": "MCQ_OBJECTIVE" if is_mcq else "DESCRIPTIVE_NUMERICAL",
-            "student_numbering_aliases": aliases[:8],
-        })
-
-    return json.dumps({
-        "exam_title": rubric_dict.get("exam_title"),
-        "subject": rubric_dict.get("subject"),
-        "sections": rubric_dict.get("sections", []),
-        "questions": skeleton_questions,
-    }, ensure_ascii=False)
-
-def merge_stage1_and_stage2(
-    stage1: Stage1BlindExtractionResult,
-    stage2_student: Stage2StudentEvaluationItem,
-    rubric_dict: Optional[Dict[str, Any]] = None,
-) -> StudentGradingExtractionResult:
-    """
-    Combines Stage 1 Blind OCR (extracted text, page numbers, bounding boxes)
-    with Stage 2 Evaluated Audit (criterion scores, rationale, marks)
-    into a complete StudentGradingExtractionResult.
-    Re-attaches static description and max_marks from rubric_dict to slim Stage 2 criteria.
-    Deterministically populates unattempted questions with 0.0 marks and MISSING criteria.
-    """
-    s2_lookup: Dict[Tuple[str, Optional[str]], Stage2EvaluatedQuestionItem] = {}
-    for eq in stage2_student.evaluated_answers:
-        s2_lookup[(eq.question_id, eq.subquestion_id)] = eq
-
-    max_marks_lookup: Dict[Tuple[str, Optional[str]], float] = {}
-    rubric_criteria_lookup: Dict[Tuple[str, Optional[str], str], Dict[str, Any]] = {}
-    rubric_questions_criteria: Dict[Tuple[str, Optional[str]], List[Dict[str, Any]]] = {}
-
-    if rubric_dict:
-        for q in rubric_dict.get("questions", []):
-            qid = str(q.get("question_id", ""))
-            subid = str(q.get("subquestion_id", "")) if q.get("subquestion_id") else None
-            q_key = (qid, subid)
-            max_marks_lookup[q_key] = float(q.get("max_marks", 1.0))
-            raw_crits = q.get("criteria", [])
-            rubric_questions_criteria[q_key] = raw_crits
-            for c in raw_crits:
-                cid = str(c.get("criterion_id", ""))
-                rubric_criteria_lookup[(qid, subid, cid)] = {
-                    "description": str(c.get("description", "")),
-                    "max_marks": float(c.get("marks", 0.0) or c.get("max_marks", 0.0) or 1.0),
-                }
-
-    graded_answers: List[GradedAnswerItem] = []
-    for a1 in stage1.answers:
-        key = (a1.question_id, a1.subquestion_id)
-        s2_item = s2_lookup.get(key)
-        q_max_marks = max_marks_lookup.get(key, 0.0)
-        is_blank = a1.is_missing or not (a1.extracted_student_answer or "").strip()
-
-        if is_blank:
-            # Deterministic 0.0 for unattempted questions with zero quota wasted in Stage 2
-            raw_crits = rubric_questions_criteria.get(key, [])
-            default_crits = [
-                CriterionScoreItem(
-                    criterion_id=str(rc.get("criterion_id", f"C{cidx+1}")),
-                    description=str(rc.get("description", "")),
-                    max_marks=float(rc.get("marks", 0.0) or rc.get("max_marks", 0.0) or 1.0),
-                    evidence="MISSING",
-                    awarded_marks=0.0,
-                )
-                for cidx, rc in enumerate(raw_crits)
-            ]
-            graded_answers.append(GradedAnswerItem(
-                question_id=a1.question_id,
-                subquestion_id=a1.subquestion_id,
-                section_id=a1.section_id,
-                page_number=a1.page_number,
-                is_missing=True,
-                has_diagram=getattr(a1, "has_diagram", False),
-                extracted_student_answer="",
-                regions=[],
-                max_marks=q_max_marks,
-                criterion_scores=default_crits,
-                grading_rationale="Question unattempted by student.",
-                awarded_marks=0.0,
-                transcription_uncertainty=a1.transcription_uncertainty,
-                grading_uncertainty=0.0,
-                needs_review=False,
-                review_reason=None,
-            ))
-            continue
-
-        if s2_item:
-            # Re-attach description and max_marks from rubric into full CriterionScoreItem
-            full_crit_scores: List[CriterionScoreItem] = []
-            for sc in s2_item.criterion_scores:
-                crit_meta = rubric_criteria_lookup.get((a1.question_id, a1.subquestion_id, sc.criterion_id), {})
-                desc = crit_meta.get("description", getattr(sc, "description", ""))
-                m_marks = crit_meta.get("max_marks", getattr(sc, "max_marks", 1.0))
-                full_crit_scores.append(CriterionScoreItem(
-                    criterion_id=sc.criterion_id,
-                    description=desc,
-                    max_marks=m_marks,
-                    evidence=sc.evidence,
-                    awarded_marks=sc.awarded_marks,
-                ))
-
-            if not q_max_marks and full_crit_scores:
-                q_max_marks = sum(c.max_marks for c in full_crit_scores)
-
-            clamped_awarded = min(s2_item.awarded_marks, q_max_marks if q_max_marks > 0 else s2_item.awarded_marks)
-
-            graded_answers.append(GradedAnswerItem(
-                question_id=a1.question_id,
-                subquestion_id=a1.subquestion_id,
-                section_id=a1.section_id,
-                page_number=a1.page_number,
-                is_missing=False,
-                has_diagram=getattr(a1, "has_diagram", False),
-                extracted_student_answer=a1.extracted_student_answer,
-                regions=a1.regions,
-                max_marks=q_max_marks,
-                criterion_scores=full_crit_scores,
-                grading_rationale=s2_item.grading_rationale,
-                awarded_marks=clamped_awarded,
-                transcription_uncertainty=a1.transcription_uncertainty,
-                grading_uncertainty=s2_item.grading_uncertainty,
-                needs_review=s2_item.needs_review,
-                review_reason=s2_item.review_reason,
-            ))
-        else:
-            graded_answers.append(GradedAnswerItem(
-                question_id=a1.question_id,
-                subquestion_id=a1.subquestion_id,
-                section_id=a1.section_id,
-                page_number=a1.page_number,
-                is_missing=False,
-                has_diagram=getattr(a1, "has_diagram", False),
-                extracted_student_answer=a1.extracted_student_answer,
-                regions=a1.regions,
-                max_marks=q_max_marks,
-                criterion_scores=[],
-                grading_rationale="Omitted or not evaluated by grading model.",
-                awarded_marks=0.0,
-                transcription_uncertainty=a1.transcription_uncertainty,
-                grading_uncertainty=1.0,
-                needs_review=True,
-                review_reason="Unmatched question in Stage 2 evaluation",
-            ))
-
-    return StudentGradingExtractionResult(
-        submission_identifier=stage2_student.submission_id or stage1.submission_identifier,
-        student_name_detected=stage1.student_name_detected,
-        roll_number_detected=stage1.roll_number_detected,
-        answers=graded_answers,
-    )
 
 class AllGeminiKeysExhaustedError(RuntimeError):
     """Raised when all configured Gemini API keys have exhausted their quota / rate limits."""
     pass
+
 
 def is_rate_or_quota_error(e: Exception) -> bool:
     code = getattr(e, "code", None)
@@ -295,10 +47,20 @@ def is_rate_or_quota_error(e: Exception) -> bool:
         return True
     return False
 
+
 class GeminiGradingClient:
     def __init__(self):
-        self.model_name = settings.GEMINI_MODEL
-        self.candidate_models: List[str] = [self.model_name]
+        ALLOWED_FLASH_MODELS = [
+            settings.GEMINI_MODEL,           # "gemini-3.8-flash"
+            settings.GEMINI_FALLBACK_MODEL,  # "gemini-3.5-flash"
+        ]
+        # Strictly ban any -lite or 1.5 models
+        self.candidate_models: List[str] = list(
+            dict.fromkeys(m for m in ALLOWED_FLASH_MODELS if m and "lite" not in m.lower() and "1.5" not in m)
+        )
+        if not self.candidate_models:
+            self.candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash"]
+        self.model_name = self.candidate_models[0]
         self._model_cooldown_until: Dict[str, float] = {}
 
         self._keys = settings.configured_api_keys
@@ -448,7 +210,7 @@ class GeminiGradingClient:
         exam_id = exam_id or kwargs.get("exam_id", "")
         ak_p = answer_key_path or answer_key_pdf or kwargs.get("answer_key_pdf")
         qp_p = question_paper_path or question_paper_pdf or kwargs.get("question_paper_pdf") or ak_p
-        
+
         if ak_p is None:
             raise ValueError("An answer key PDF path must be provided.")
         if not ak_p.exists():
@@ -465,7 +227,6 @@ class GeminiGradingClient:
         file_size = len(qp_bytes) + len(ak_bytes)
 
         if not self.is_live:
-            # Fallback mock rubric for development/testing when no API key is provided
             time.sleep(0.5)
             mock_result = ExamRubricExtractionResult(
                 exam_title="Physics & Mechanics Midterm (Mock)",
@@ -572,7 +333,6 @@ class GeminiGradingClient:
                         else:
                             raise parse_err
 
-                    # Token usage
                     in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
                     out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
                     tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
@@ -582,9 +342,8 @@ class GeminiGradingClient:
                         exam_id=exam_id, batch_id=None, submission_id=None,
                         request_purpose="EXAM_SETUP", duration_ms=duration_ms, success=True,
                         input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
-                        cached_tokens=cached_tok, file_size_bytes=file_size,
-                        retry_attempt=attempt, is_mock=False, model_name=model_to_use,
-                        api_key=active_key
+                        cached_tokens=cached_tok, page_count=None, file_size_bytes=file_size,
+                        retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
                     )
                     return parsed, event_id
 
@@ -597,7 +356,7 @@ class GeminiGradingClient:
                     self._record_usage_event(
                         exam_id=exam_id, batch_id=None, submission_id=None,
                         request_purpose="EXAM_SETUP", duration_ms=duration_ms, success=False,
-                        file_size_bytes=file_size, http_status=http_status,
+                        page_count=None, file_size_bytes=file_size, http_status=http_status,
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
                         is_mock=False, model_name=model_to_use, api_key=active_key
                     )
@@ -605,9 +364,9 @@ class GeminiGradingClient:
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)
                         if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] Quota exhausted on all {len(self._keys)} keys for model '{model_to_use}'. Cooldown for 30m; attempting next model.")
-                            self._model_cooldown_until[model_to_use] = time.time() + 1800
-                            break
+                            print(f"[GeminiClient] All {len(self._keys)} keys hit rate limits for '{model_to_use}'. Pausing 5s for RPM window reset.")
+                            time.sleep(5.0)
+                            exhausted_keys.clear()
                         self.rotate_to_next_key(reason=f"Rate limit / unavailability: {e}")
                         time.sleep(1.0)
                         continue
@@ -628,55 +387,49 @@ class GeminiGradingClient:
 
     @staticmethod
     def _repair_truncated_json(raw_text: str) -> Optional[str]:
-        """
-        Attempts to gracefully repair slightly truncated JSON from LLM generation
-        by closing open strings, brackets, and braces.
-        """
+        """Repairs incomplete JSON caused by token cutoff by closing unclosed brackets/braces."""
         if not raw_text or not raw_text.strip():
             return None
         text = raw_text.strip()
-        # If wrapped in markdown code fence, strip it
-        if text.startswith("```json"):
-            text = text[7:]
-        elif text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
 
-        # Count unbalanced structures
-        in_string = False
-        escape = False
         stack = []
-        for char in text:
-            if escape:
-                escape = False
+        in_string = False
+        escape_next = False
+        for ch in text:
+            if escape_next:
+                escape_next = False
                 continue
-            if char == "\\":
-                escape = True
+            if ch == '\\' and in_string:
+                escape_next = True
                 continue
-            if char == '"':
+            if ch == '"':
                 in_string = not in_string
                 continue
             if not in_string:
-                if char in ('{', '['):
-                    stack.append(char)
-                elif char == '}':
-                    if stack and stack[-1] == '{':
+                if ch in ('{', '['):
+                    stack.append(ch)
+                elif ch in ('}', ']'):
+                    if stack:
                         stack.pop()
-                elif char == ']':
-                    if stack and stack[-1] == '[':
-                        stack.pop()
+
+        if not stack and not in_string:
+            return text
 
         repaired = text
         if in_string:
             repaired += '"'
-
-        while stack:
-            opener = stack.pop()
-            if opener == '{':
+        repaired = repaired.rstrip(", \n\r\t")
+        for open_ch in reversed(stack):
+            if open_ch == '{':
                 repaired += '}'
-            elif opener == '[':
+            elif open_ch == '[':
                 repaired += ']'
 
         try:
@@ -684,365 +437,6 @@ class GeminiGradingClient:
             return repaired
         except Exception:
             return None
-
-    def extract_student_submission_blind(
-        self,
-        exam_id: str,
-        submission_id: str,
-        student_pdf_path: Path,
-        rubric_dict: Dict[str, Any],
-        page_count: int = 1,
-        worker_id: int = 0
-    ) -> Tuple[Stage1BlindExtractionResult, str]:
-        """
-        Stage 1: Blind Forensic OCR & BBox Localization (gemini-3.5-flash-lite | 2,000 RPD Pool).
-        Input: Student PDF bytes + stripped Question Skeleton JSON (no official_answer, no criteria).
-        Output: Verbatim student transcription + normalized [0.0, 1.0] bounding boxes.
-        """
-        pdf_bytes = student_pdf_path.read_bytes()
-        file_size = len(pdf_bytes)
-
-        if not self.is_live:
-            skeleton = json.loads(build_question_skeleton_from_rubric(rubric_dict))
-            mock_answers = []
-            for q in skeleton.get("questions", []):
-                mock_answers.append(BlindExtractedAnswerItem(
-                    question_id=q["question_id"],
-                    subquestion_id=q.get("subquestion_id"),
-                    section_id=q.get("section_id"),
-                    page_number=1,
-                    is_missing=False,
-                    extracted_student_answer="Mock handwritten answer for " + q["question_id"],
-                    regions=[AnswerRegionItem(page_number=1, x=0.1, y=0.1, width=0.8, height=0.2)],
-                    transcription_uncertainty=0.05
-                ))
-            mock_res = Stage1BlindExtractionResult(
-                submission_identifier=submission_id,
-                student_name_detected="Student Name",
-                roll_number_detected="C25-001",
-                answers=mock_answers
-            )
-            event_id = self._record_usage_event(
-                exam_id=exam_id, batch_id=None, submission_id=submission_id,
-                request_purpose="STAGE1_BLIND_OCR", duration_ms=400, success=True,
-                page_count=page_count, file_size_bytes=file_size, is_mock=True,
-                model_name=settings.GEMINI_EXTRACTION_MODEL
-            )
-            return mock_res, event_id
-
-        skeleton_json_str = build_question_skeleton_from_rubric(rubric_dict)
-        prompt_text = build_stage1_blind_extraction_prompt(skeleton_json_str)
-
-        extraction_models = [settings.GEMINI_EXTRACTION_MODEL]
-        if "flash-lite" not in settings.GEMINI_EXTRACTION_MODEL:
-            extraction_models.append("gemini-3.5-flash-lite")
-
-        now_ts = time.time()
-        active_extraction_models = [m for m in extraction_models if self._model_cooldown_until.get(m, 0) <= now_ts]
-        models_to_try = active_extraction_models if active_extraction_models else extraction_models
-
-        num_keys = max(1, len(self._keys))
-        max_retries = max(4, num_keys * 2)
-        backoff_sec = 2.0
-        last_error = None
-
-        for model_to_use in models_to_try:
-            exhausted_keys = set()
-            for attempt in range(max_retries):
-                start_time = time.time()
-                active_key, client = self.get_current_client(worker_id=worker_id)
-                try:
-                    contents = [
-                        types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                        prompt_text
-                    ]
-                    stage1_budget = getattr(settings, "GEMINI_STAGE1_THINKING_BUDGET", 512)
-                    config = types.GenerateContentConfig(
-                        system_instruction=STAGE1_BLIND_EXTRACTION_SYSTEM_INSTRUCTION,
-                        response_mime_type="application/json",
-                        response_schema=Stage1BlindExtractionResult,
-                        temperature=0.0,
-                        max_output_tokens=32768,
-                        thinking_config=types.ThinkingConfig(thinking_budget=stage1_budget)
-                    )
-                    response = client.models.generate_content(
-                        model=model_to_use,
-                        contents=contents,
-                        config=config
-                    )
-                    duration_ms = int((time.time() - start_time) * 1000)
-
-                    raw_text = response.text or ""
-                    try:
-                        parsed = Stage1BlindExtractionResult.model_validate_json(raw_text)
-                    except Exception as parse_err:
-                        repaired = self._repair_truncated_json(raw_text)
-                        if repaired:
-                            parsed = Stage1BlindExtractionResult.model_validate_json(repaired)
-                        else:
-                            raise parse_err
-
-                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
-                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
-                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
-                    thk_tok = getattr(response.usage_metadata, "thoughts_token_count", None) if response.usage_metadata else None
-                    if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
-                        inferred = tot_tok - (in_tok + out_tok)
-                        thk_tok = inferred if inferred > 0 else 0
-
-                    event_id = self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
-                        request_purpose="STAGE1_BLIND_OCR", duration_ms=duration_ms, success=True,
-                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
-                        thinking_tokens=thk_tok, cached_tokens=cached_tok, page_count=page_count,
-                        file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
-                        model_name=model_to_use, api_key=active_key
-                    )
-                    return parsed, event_id
-
-                except Exception as e:
-                    last_error = e
-                    duration_ms = int((time.time() - start_time) * 1000)
-                    err_code = type(e).__name__
-                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
-
-                    self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
-                        request_purpose="STAGE1_BLIND_OCR", duration_ms=duration_ms, success=False,
-                        page_count=page_count, file_size_bytes=file_size, http_status=http_status,
-                        error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-
-                    if is_rate_or_quota_error(e):
-                        exhausted_keys.add(active_key)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient Stage1] All {len(self._keys)} keys exhausted quota for model '{model_to_use}'. Cooldown for 30m; attempting next model.")
-                            self._model_cooldown_until[model_to_use] = time.time() + 1800
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Stage 1 rate limit: {e}")
-                        time.sleep(0.5)
-                        continue
-
-                    if attempt == max_retries - 1:
-                        print(f"[GeminiClient Stage1] Non-quota error on '{model_to_use}': {e}. Trying next model.")
-                        break
-
-                    time.sleep(backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5))
-
-        if last_error and not is_rate_or_quota_error(last_error):
-            raise last_error
-
-        raise AllGeminiKeysExhaustedError(
-            f"Stage 1 OCR: All {len(self._keys)} keys exhausted quota for {extraction_models}: {last_error}"
-        )
-
-    def grade_extracted_batch(
-        self,
-        exam_id: str,
-        rubric_dict: Dict[str, Any],
-        batch_payloads: List[Dict[str, Any]],
-        worker_id: int = 0
-    ) -> Tuple[Stage2BatchedGradingResult, str]:
-        """
-        Stage 2: Multi-Student Batched Rubric Evaluation (gemini-3.8-flash -> gemini-3.5-flash | 80-160 RPD Pool).
-        Input: Full Rubric + list of up to GRADING_BATCH_SIZE (4) student Stage-1 transcripts.
-        Output: Stage2BatchedGradingResult evaluated in ONE single API call (4x RPD multiplier!).
-        RESTRICTION: NEVER use gemini-3.5-flash-lite or gemini-flash-lite-latest in this cascade.
-        """
-        if not self.is_live:
-            mock_results = []
-            for b in batch_payloads:
-                sub_id = b["submission_id"]
-                ev_answers = []
-                for ans in b.get("answers", []):
-                    qid = ans["question_id"]
-                    sub_qid = ans.get("subquestion_id")
-                    ev_answers.append(Stage2EvaluatedQuestionItem(
-                        question_id=qid,
-                        subquestion_id=sub_qid,
-                        criterion_scores=[Stage2CriterionEvalItem(
-                            criterion_id="C1",
-                            evidence='PASS | QUOTE: "Mock answer"',
-                            awarded_marks=1.0
-                        )],
-                        grading_rationale="Mock evaluation passed.",
-                        awarded_marks=1.0,
-                        grading_uncertainty=0.02,
-                        needs_review=False
-                    ))
-                mock_results.append(Stage2StudentEvaluationItem(
-                    submission_id=sub_id,
-                    evaluated_answers=ev_answers
-                ))
-            mock_res = Stage2BatchedGradingResult(results=mock_results)
-            event_id = self._record_usage_event(
-                exam_id=exam_id, batch_id=None, submission_id=None,
-                request_purpose="STAGE2_BATCH_GRADE", duration_ms=600, success=True,
-                is_mock=True, model_name=settings.GEMINI_GRADING_MODEL
-            )
-            return mock_res, event_id
-
-        # Build contents with targeted visual diagram crops for diagram questions
-        contents: List[Any] = []
-        rubric_q_lookup = {}
-        for q in rubric_dict.get("questions", []):
-            qid = str(q.get("question_id", ""))
-            subid = str(q.get("subquestion_id", "")) if q.get("subquestion_id") else None
-            q_text = str(q.get("question_text", ""))
-            rubric_q_lookup[(qid, subid)] = q_text
-            rubric_q_lookup[(qid, None)] = q_text
-
-        slim_batch_payload = []
-        for b in batch_payloads:
-            sub_id = b["submission_id"]
-            pdf_p = b.get("pdf_path")
-            slim_answers = []
-            for ans in b.get("answers", []):
-                qid = ans["question_id"]
-                sub_qid = ans.get("subquestion_id")
-                q_text = (rubric_q_lookup.get((qid, sub_qid)) or rubric_q_lookup.get((qid, None)) or "").lower()
-                has_diag = bool(ans.get("has_diagram")) or any(k in q_text for k in DIAGRAM_KEYWORDS)
-
-                # If diagram question, extract lightweight crop (~258 tokens)
-                if has_diag and pdf_p and ans.get("regions"):
-                    primary_region = ans["regions"][0]
-                    crop_part = _extract_diagram_crop_part(pdf_p, primary_region)
-                    if crop_part:
-                        contents.append(f"[VISUAL DIAGRAM CROP | submission_id={sub_id} | question_id={qid}]:")
-                        contents.append(crop_part)
-
-                # Keep only fields needed by text prompt
-                slim_answers.append({
-                    "question_id": qid,
-                    "subquestion_id": sub_qid,
-                    "extracted_student_answer": ans.get("extracted_student_answer", "")
-                })
-            slim_batch_payload.append({
-                "submission_id": sub_id,
-                "answers": slim_answers
-            })
-
-        # Minified JSON without whitespace/indentation tokens
-        rubric_str = json.dumps(rubric_dict, separators=(",", ":"), ensure_ascii=False)
-        batch_str = json.dumps(slim_batch_payload, separators=(",", ":"), ensure_ascii=False)
-        prompt_text = build_stage2_batched_grading_prompt(rubric_str, batch_str)
-        contents.append(prompt_text)
-
-        # STRICT INVARIANT: High-reasoning models only (NEVER flash-lite!)
-        raw_grading_models = [
-            settings.GEMINI_GRADING_MODEL,
-            settings.GEMINI_GRADING_FALLBACK_MODEL,
-            getattr(settings, "GEMINI_GRADING_FALLBACK_MODEL_2", "gemini-3.5-flash"),
-        ]
-        now_ts = time.time()
-        grading_models = []
-        for m in raw_grading_models:
-            if m and "lite" not in m.lower() and m not in grading_models:
-                if self._model_cooldown_until.get(m, 0) <= now_ts:
-                    grading_models.append(m)
-
-        if not grading_models:
-            grading_models = [m for m in raw_grading_models if m and "lite" not in m.lower()]
-
-        if not grading_models:
-            grading_models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
-
-        num_keys = max(1, len(self._keys))
-        max_retries = max(4, num_keys * 2)
-        backoff_sec = 2.0
-        last_error = None
-
-        for model_to_use in grading_models:
-            exhausted_keys = set()
-            for attempt in range(max_retries):
-                start_time = time.time()
-                active_key, client = self.get_current_client(worker_id=worker_id)
-                try:
-                    thinking_cfg = None
-                    stage2_budget = getattr(settings, "GEMINI_STAGE2_THINKING_BUDGET", getattr(settings, "GEMINI_THINKING_BUDGET", 4096))
-                    if stage2_budget is not None:
-                        thinking_cfg = types.ThinkingConfig(thinking_budget=stage2_budget)
-
-                    config = types.GenerateContentConfig(
-                        system_instruction=STAGE2_BATCHED_GRADING_SYSTEM_INSTRUCTION,
-                        response_mime_type="application/json",
-                        response_schema=Stage2BatchedGradingResult,
-                        temperature=0.0,
-                        max_output_tokens=65536,
-                        thinking_config=thinking_cfg
-                    )
-                    response = client.models.generate_content(
-                        model=model_to_use,
-                        contents=contents,
-                        config=config
-                    )
-                    duration_ms = int((time.time() - start_time) * 1000)
-
-                    raw_text = response.text or ""
-                    try:
-                        parsed = Stage2BatchedGradingResult.model_validate_json(raw_text)
-                    except Exception as parse_err:
-                        repaired = self._repair_truncated_json(raw_text)
-                        if repaired:
-                            parsed = Stage2BatchedGradingResult.model_validate_json(repaired)
-                        else:
-                            raise parse_err
-
-                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
-                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
-                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
-                    thk_tok = getattr(response.usage_metadata, "thoughts_token_count", None) if response.usage_metadata else None
-                    if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
-                        inferred = tot_tok - (in_tok + out_tok)
-                        thk_tok = inferred if inferred > 0 else 0
-
-                    event_id = self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=None,
-                        request_purpose="STAGE2_BATCH_GRADE", duration_ms=duration_ms, success=True,
-                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
-                        thinking_tokens=thk_tok, cached_tokens=cached_tok, retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-                    return parsed, event_id
-
-                except Exception as e:
-                    last_error = e
-                    duration_ms = int((time.time() - start_time) * 1000)
-                    err_code = type(e).__name__
-                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
-
-                    self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=None,
-                        request_purpose="STAGE2_BATCH_GRADE", duration_ms=duration_ms, success=False,
-                        http_status=http_status, error_code=f"{err_code}: {str(e)[:150]}",
-                        retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-
-                    if is_rate_or_quota_error(e):
-                        exhausted_keys.add(active_key)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient Stage2] All {len(self._keys)} keys exhausted quota for model '{model_to_use}'. Cooldown for 30m; falling back to next model.")
-                            self._model_cooldown_until[model_to_use] = time.time() + 1800
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Stage 2 rate limit: {e}")
-                        time.sleep(0.5)
-                        continue
-
-                    if attempt == max_retries - 1:
-                        print(f"[GeminiClient Stage2] Non-quota error on '{model_to_use}': {e}. Trying next model.")
-                        break
-
-                    time.sleep(backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5))
-
-        if last_error and not is_rate_or_quota_error(last_error):
-            raise last_error
-
-        raise AllGeminiKeysExhaustedError(
-            f"Stage 2 Batched Grading: All {len(self._keys)} keys exhausted quota for {grading_models}: {last_error}"
-        )
 
     def grade_student_submission(
         self,
@@ -1055,8 +449,8 @@ class GeminiGradingClient:
         worker_id: int = 0
     ) -> Tuple[StudentGradingExtractionResult, str]:
         """
-        Primary experimental grading pass:
-        Performs transcription, mapping, localization, grading, and explanation in ONE request.
+        Single-Pass Multimodal Architecture:
+        Evaluates student script PDF directly against approved rubric in ONE request.
         """
         pdf_bytes = student_pdf_path.read_bytes()
         file_size = len(pdf_bytes)
@@ -1066,112 +460,33 @@ class GeminiGradingClient:
             time.sleep(0.6)
             mock_answers = []
             questions = rubric_json.get("questions", [])
-
             for idx, q in enumerate(questions):
                 qid = q.get("question_id", f"Q{idx+1}")
                 max_m = float(q.get("max_marks", 4.0))
                 criteria = q.get("criteria", [])
-
-                # Create realistic variation across questions
-                if idx == 0:
-                    # Full marks answer
-                    crit_scores = [
-                        CriterionScoreItem(
-                            criterion_id=c.get("criterion_id", "C1"),
-                            description=c.get("description", ""),
-                            max_marks=float(c.get("marks", 2.0)),
-                            awarded_marks=float(c.get("marks", 2.0)),
-                            evidence="Student wrote: 'Newton's second law: Rate of change of momentum is proportional to applied force. F = ma.'"
-                        ) for c in criteria
-                    ]
-                    awarded = sum(c.awarded_marks for c in crit_scores) or max_m
-                    mock_answers.append(GradedAnswerItem(
-                        question_id=qid,
-                        page_number=1,
-                        extracted_student_answer="Newton's 2nd law states that the rate of change of momentum of a body is directly proportional to the applied force. Equation: F = m * a.",
-                        regions=[AnswerRegionItem(page_number=1, x=0.08, y=0.12, width=0.84, height=0.18)],
-                        max_marks=max_m,
-                        awarded_marks=awarded,
-                        criterion_scores=crit_scores,
-                        grading_rationale="Both statement and formula are clearly articulated. Full marks awarded.",
-                        transcription_uncertainty=0.05,
-                        grading_uncertainty=0.02,
-                        needs_review=False
-                    ))
-                elif idx == 1:
-                    # Partial marks answer with units error
-                    crit_scores = []
-                    for c_idx, c in enumerate(criteria):
-                        c_max = float(c.get("marks", 2.0))
-                        c_awarded = c_max if c_idx < len(criteria) - 1 else 1.0
-                        evid = "Found acceleration a = 2 m/s^2, F = 3000 but omitted unit N" if c_idx == len(criteria) - 1 else "Correct step demonstrated."
-                        crit_scores.append(CriterionScoreItem(
-                            criterion_id=c.get("criterion_id", f"C{c_idx+1}"),
-                            description=c.get("description", ""),
-                            max_marks=c_max,
-                            awarded_marks=c_awarded,
-                            evidence=evid
-                        ))
-                    awarded = sum(c.awarded_marks for c in crit_scores)
-                    mock_answers.append(GradedAnswerItem(
-                        question_id=qid,
-                        page_number=1,
-                        extracted_student_answer="a = (v - u)/t = (20 - 0)/10 = 2 m/s^2.\nF = m * a = 1500 * 2 = 3000.",
-                        regions=[AnswerRegionItem(page_number=1, x=0.08, y=0.34, width=0.84, height=0.22)],
-                        max_marks=max_m,
-                        awarded_marks=awarded,
-                        criterion_scores=crit_scores,
-                        grading_rationale="Acceleration and numerical calculation are correct, but the unit of force (Newton) was omitted. 1 mark deducted as per rubric.",
-                        transcription_uncertainty=0.12,
-                        grading_uncertainty=0.15,
-                        needs_review=True,
-                        review_reason="Borderline unit deduction: teacher confirmation advised"
-                    ))
-                elif idx == 2:
-                    # Multi-region answer
-                    crit_scores = [
-                        CriterionScoreItem(
-                            criterion_id=c.get("criterion_id", "C1"),
-                            description=c.get("description", ""),
-                            max_marks=float(c.get("marks", 2.5)),
-                            awarded_marks=float(c.get("marks", 2.5)),
-                            evidence="Provided definition: W = F * d = 50 * 6 = 300 Joules."
-                        ) for c in criteria
-                    ]
-                    awarded = sum(c.awarded_marks for c in crit_scores) or max_m
-                    mock_answers.append(GradedAnswerItem(
-                        question_id=qid,
-                        page_number=min(2, page_count),
-                        extracted_student_answer="Work is defined as force multiplied by displacement in direction of force. W = 50 N * 6 m = 300 J.",
-                        regions=[
-                            AnswerRegionItem(page_number=min(2, page_count), x=0.08, y=0.10, width=0.84, height=0.14),
-                            AnswerRegionItem(page_number=min(2, page_count), x=0.08, y=0.26, width=0.84, height=0.12)
-                        ],
-                        max_marks=max_m,
-                        awarded_marks=awarded,
-                        criterion_scores=crit_scores,
-                        grading_rationale="Work definition and calculation are exact. Full marks awarded.",
-                        transcription_uncertainty=0.08,
-                        grading_uncertainty=0.04,
-                        needs_review=False
-                    ))
-                else:
-                    # Missing answer
-                    mock_answers.append(GradedAnswerItem(
-                        question_id=qid,
-                        page_number=min(2, page_count),
-                        extracted_student_answer="",
-                        regions=[],
-                        max_marks=max_m,
-                        awarded_marks=0.0,
-                        criterion_scores=[],
-                        grading_rationale="No attempted solution found on any page.",
-                        transcription_uncertainty=0.0,
-                        grading_uncertainty=0.0,
-                        needs_review=True,
-                        review_reason="Question was not attempted by student",
-                        is_missing=True
-                    ))
+                crit_scores = [
+                    CriterionScoreItem(
+                        criterion_id=c.get("criterion_id", "C1"),
+                        description=c.get("description", ""),
+                        max_marks=float(c.get("marks", 2.0)),
+                        awarded_marks=float(c.get("marks", 2.0)),
+                        evidence="PASS | QUOTE: \"Newton's second law: F = ma.\""
+                    ) for c in criteria
+                ]
+                awarded = sum(c.awarded_marks for c in crit_scores) or max_m
+                mock_answers.append(GradedAnswerItem(
+                    question_id=qid,
+                    page_number=1,
+                    extracted_student_answer="Newton's 2nd law states that F = m * a.",
+                    regions=[AnswerRegionItem(page_number=1, x=0.08, y=0.12, width=0.84, height=0.18)],
+                    max_marks=max_m,
+                    criterion_scores=crit_scores,
+                    grading_rationale="Statement and formula provided. Full marks awarded.",
+                    awarded_marks=awarded,
+                    transcription_uncertainty=0.05,
+                    grading_uncertainty=0.02,
+                    needs_review=False
+                ))
 
             mock_result = StudentGradingExtractionResult(
                 submission_identifier=submission_id,
@@ -1181,54 +496,19 @@ class GeminiGradingClient:
             )
             event_id = self._record_usage_event(
                 exam_id=exam_id, batch_id=batch_id, submission_id=submission_id,
-                request_purpose="SUBMISSION_GRADING", duration_ms=850, success=True,
+                request_purpose="STUDENT_GRADING", duration_ms=850, success=True,
                 input_tokens=2450, output_tokens=680, total_tokens=3130,
                 page_count=page_count, file_size_bytes=file_size, is_mock=True
             )
             return mock_result, event_id
 
-        # If Two-Stage Pipeline is enabled, delegate to decoupled Stage 1 (Blind OCR) + Stage 2 (Audit)
-        if getattr(settings, "ENABLE_TWO_STAGE_PIPELINE", True):
-            s1_res, _ = self.extract_student_submission_blind(
-                exam_id=exam_id,
-                submission_id=submission_id,
-                student_pdf_path=student_pdf_path,
-                rubric_dict=rubric_json,
-                page_count=page_count,
-                worker_id=worker_id
-            )
-            attempted_answers = [
-                {
-                    "question_id": a.question_id,
-                    "subquestion_id": a.subquestion_id,
-                    "extracted_student_answer": a.extracted_student_answer,
-                    "has_diagram": getattr(a, "has_diagram", False),
-                    "regions": [r.model_dump() for r in a.regions] if a.regions else [],
-                }
-                for a in s1_res.answers
-                if not a.is_missing and bool((a.extracted_student_answer or "").strip())
-            ]
-            batch_payload = [{
-                "submission_id": submission_id,
-                "pdf_path": str(student_pdf_path) if student_pdf_path else None,
-                "answers": attempted_answers
-            }]
-            s2_res, event_id = self.grade_extracted_batch(
-                exam_id=exam_id,
-                rubric_dict=rubric_json,
-                batch_payloads=batch_payload,
-                worker_id=worker_id
-            )
-            s2_student = s2_res.results[0] if s2_res.results else Stage2StudentEvaluationItem(submission_id=submission_id, evaluated_answers=[])
-            merged = merge_stage1_and_stage2(s1_res, s2_student, rubric_dict=rubric_json)
-            return merged, event_id
+        # Minified JSON without whitespace tokens to save ~1,000 tokens
+        rubric_str = json.dumps(rubric_json, separators=(",", ":"), ensure_ascii=False)
+        prompt_text = build_student_grading_prompt(rubric_str)
 
-        # Real Gemini multimodal grading request with multi-key failover and model fallback
         num_keys = max(1, len(self._keys))
         max_retries = max(4, num_keys * 2)
         backoff_sec = 2.0
-        rubric_str = json.dumps(rubric_json, indent=2)
-        prompt_text = build_student_grading_prompt(rubric_str)
         models_to_try = self.get_active_models()
         last_error = None
 
@@ -1242,18 +522,13 @@ class GeminiGradingClient:
                         types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
                         prompt_text
                     ]
-                    thinking_cfg = None
-                    stage2_budget = getattr(settings, "GEMINI_STAGE2_THINKING_BUDGET", getattr(settings, "GEMINI_THINKING_BUDGET", 4096))
-                    if stage2_budget is not None:
-                        thinking_cfg = types.ThinkingConfig(thinking_budget=stage2_budget)
-
                     config = types.GenerateContentConfig(
                         system_instruction=STUDENT_GRADING_SYSTEM_INSTRUCTION,
+                        temperature=0.0,
+                        max_output_tokens=65536,
+                        thinking_config=types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET),
                         response_mime_type="application/json",
                         response_schema=StudentGradingExtractionResult,
-                        temperature=0.1,
-                        max_output_tokens=65536,
-                        thinking_config=thinking_cfg
                     )
                     response = client.models.generate_content(
                         model=model_to_use,
@@ -1284,7 +559,7 @@ class GeminiGradingClient:
 
                     event_id = self._record_usage_event(
                         exam_id=exam_id, batch_id=batch_id, submission_id=submission_id,
-                        request_purpose="SUBMISSION_GRADING", duration_ms=duration_ms, success=True,
+                        request_purpose="STUDENT_GRADING", duration_ms=duration_ms, success=True,
                         input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
                         thinking_tokens=thk_tok, cached_tokens=cached_tok, page_count=page_count,
                         file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
@@ -1300,7 +575,7 @@ class GeminiGradingClient:
 
                     self._record_usage_event(
                         exam_id=exam_id, batch_id=batch_id, submission_id=submission_id,
-                        request_purpose="SUBMISSION_GRADING", duration_ms=duration_ms, success=False,
+                        request_purpose="STUDENT_GRADING", duration_ms=duration_ms, success=False,
                         page_count=page_count, file_size_bytes=file_size, http_status=http_status,
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
                         is_mock=False, model_name=model_to_use, api_key=active_key
@@ -1329,5 +604,6 @@ class GeminiGradingClient:
         raise AllGeminiKeysExhaustedError(
             f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
         )
+
 
 gemini_client = GeminiGradingClient()

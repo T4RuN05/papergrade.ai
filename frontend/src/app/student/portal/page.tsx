@@ -301,20 +301,20 @@ function StudentMarksTrajectory({
 
           {trendDiff !== null && (
             <div
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${
                 trendDiff > 0
-                  ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a]"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20"
                   : trendDiff < 0
-                  ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17]"
-                  : "bg-[#f1f0ee] text-[#4d4a46] border-[#dedcd8] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f]"
-              }`}
+                  ? "bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20"
+                  : "bg-surface text-ink-secondary border-hairline"
+              } shadow-2xs font-mono`}
             >
               {trendDiff > 0 ? (
-                <TrendingUp className="h-3 w-3" />
+                <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
               ) : trendDiff < 0 ? (
-                <TrendingDown className="h-3 w-3" />
+                <TrendingDown className="h-3 w-3 text-amber-600 dark:text-amber-400" />
               ) : (
-                <Minus className="h-3 w-3" />
+                <Minus className="h-3 w-3 text-ink-muted" />
               )}
               <span>
                 {trendDiff > 0
@@ -327,16 +327,16 @@ function StudentMarksTrajectory({
           )}
 
           {avgPct !== null && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-[#f5f0fa] text-[#4c2c78] border-[#d8c8ea] dark:bg-[#1e1329] dark:text-[#b89fe6] dark:border-[#38234c]">
-              <Award className="h-3 w-3 text-purple-600 dark:text-[#b89fe6]" />
-              <span>Avg: {avgPct}%</span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-surface text-ink-secondary border border-hairline shadow-2xs font-mono">
+              <Award className="h-3.5 w-3.5 text-ink-muted" />
+              <span>Avg: <strong className="text-ink font-semibold">{avgPct}%</strong></span>
             </div>
           )}
 
           {maxPct !== null && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-[#edf2f8] text-[#1c4d7e] border-[#c8d9eb] dark:bg-[#131f2d] dark:text-[#85b5e6] dark:border-[#1f3752]">
-              <Sparkles className="h-3 w-3 text-[#1c4d7e] dark:text-[#85b5e6]" />
-              <span>Peak: {maxPct}%</span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-surface text-ink-secondary border border-hairline shadow-2xs font-mono">
+              <Sparkles className="h-3.5 w-3.5 text-ink-muted" />
+              <span>Peak: <strong className="text-ink font-semibold">{maxPct}%</strong></span>
             </div>
           )}
         </div>
@@ -2250,7 +2250,7 @@ export default function StudentPortalPage() {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 shadow-2xs whitespace-nowrap">
                           <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                           Grading in Progress
                         </span>
@@ -2890,8 +2890,8 @@ export default function StudentPortalPage() {
                         )}
                       </>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                        <Clock className="h-3 w-3 text-[#7a4e18] dark:text-[#e5ad68]" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 whitespace-nowrap shadow-2xs">
+                        <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                         Grading in Progress
                       </span>
                     )}
