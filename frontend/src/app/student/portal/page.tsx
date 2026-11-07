@@ -62,6 +62,7 @@ import {
   ModalCard,
   FormInput,
   StudentPortalSkeleton,
+  StatusWell,
 } from "@/components/ui";
 
 interface TrajectoryPoint {
@@ -2249,7 +2250,7 @@ export default function StudentPortalPage() {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap">
                           <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                           Grading in Progress
                         </span>
@@ -2257,19 +2258,19 @@ export default function StudentPortalPage() {
 
                       {/* Revaluation Status Pill */}
                       {hasOpenReval && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700/50 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap">
                           <RotateCcw className="h-3.5 w-3.5 animate-spin" />
                           Revaluation In Review
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Marks Revised
                         </span>
                       )}
                       {isRevalResolved && reval.decision === "MARKS_UPHELD" && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700/50 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#f1f0ee] text-[#4d4a46] border border-[#dedcd8] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap">
                           <ShieldCheck className="h-3.5 w-3.5" />
                           Marks Upheld
                         </span>
@@ -2380,22 +2381,23 @@ export default function StudentPortalPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/20 dark:border-amber-700/40">
-                      <div className="flex items-center gap-2.5">
-                        <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <div>
-                          <div className="text-xs font-bold text-amber-950 dark:text-amber-200">
-                            Evaluation in Progress • Marks Hidden
-                          </div>
-                          <div className="text-[11px] text-amber-800/90 dark:text-amber-300/80">
-                            Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
-                          </div>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-200 shrink-0">
-                        Pending Publication
-                      </span>
-                    </div>
+                    <StatusWell
+                      variant="amber"
+                      icon={<Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
+                      title={
+                        <>
+                          <span>Evaluation in Progress</span>
+                          <span className="font-mono text-[10px] text-ink-muted font-normal">• MARKS_PENDING</span>
+                        </>
+                      }
+                      badge={
+                        <span className="font-mono text-[10px] sm:text-[10.5px] font-medium text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-md border border-hairline shrink-0">
+                          PENDING PUBLICATION
+                        </span>
+                      }
+                    >
+                      Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
+                    </StatusWell>
                   )}
 
                   {/* Actions Row */}
@@ -2404,7 +2406,7 @@ export default function StudentPortalPage() {
                       {/* Primary: Inspect in PDF Viewer */}
                       <Link
                         href={`/student/submissions/${sub.id}`}
-                        className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 rounded-md shadow-2xs transition-colors cursor-pointer text-center shrink-0 whitespace-nowrap"
+                        className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md btn-glass-primary px-4 cursor-pointer text-center shrink-0 whitespace-nowrap"
                       >
                         <Eye className="h-3.5 w-3.5 shrink-0" />
                         <span>
@@ -2421,7 +2423,7 @@ export default function StudentPortalPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenBreakdownModal(sub)}
-                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md btn-glass-utility px-3.5 cursor-pointer text-center whitespace-nowrap shrink-0"
                         >
                           <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                           <span>View Summary</span>
@@ -2431,7 +2433,7 @@ export default function StudentPortalPage() {
                           type="button"
                           disabled
                           title="Detailed breakdown will be accessible once marks are officially published by faculty."
-                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0 opacity-60"
                         >
                           <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                           <span>Summary Pending</span>
@@ -2443,10 +2445,10 @@ export default function StudentPortalPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenRankingsModal(sub)}
-                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md btn-glass-utility px-3.5 cursor-pointer text-center whitespace-nowrap shrink-0"
                           title="View Official Class Standings & Rankings"
                         >
-                          <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                           <span>Class Standings</span>
                         </button>
                       )}
@@ -2467,7 +2469,7 @@ export default function StudentPortalPage() {
                             setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
                             setArtifactModalOpen(true);
                           }}
-                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 shadow-2xs"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium rounded-md btn-glass-utility px-3.5 cursor-pointer text-center whitespace-nowrap shrink-0"
                           title="View Question Paper & Official Answer Key"
                         >
                           <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -2495,10 +2497,10 @@ export default function StudentPortalPage() {
                             onClick={() =>
                               toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
                             }
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs"
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md btn-glass-utility px-3.5 text-center whitespace-nowrap shrink-0"
                             title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
                           >
-                            <Download className="h-3.5 w-3.5 shrink-0" />
+                            <Download className="h-3.5 w-3.5 text-primary shrink-0" />
                             <span>Download PDF</span>
                           </a>
                         )
@@ -2507,7 +2509,7 @@ export default function StudentPortalPage() {
                           type="button"
                           disabled
                           title="Evaluated PDF download will be enabled once faculty officially publishes results."
-                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0 opacity-60"
                         >
                           <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                           <span>PDF Pending</span>
@@ -2564,10 +2566,11 @@ export default function StudentPortalPage() {
       </div>
 
       {/* Direct Technical Support & Report Issue Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline shadow-2xs">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <LifeBuoy className="h-5 w-5" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline relative overflow-hidden shadow-2xs">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-ink-muted/30" />
+        <div className="flex items-start sm:items-center gap-3 pl-1">
+          <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline text-ink-muted flex items-center justify-center shrink-0">
+            <LifeBuoy className="h-4 w-4" />
           </div>
           <div>
             <h3 className="text-xs font-bold text-ink">Facing a technical issue?</h3>
@@ -2579,9 +2582,9 @@ export default function StudentPortalPage() {
         <button
           type="button"
           onClick={() => setReportModalOpen(true)}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary-active transition-colors shrink-0 shadow-2xs cursor-pointer"
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md btn-glass-utility text-xs font-semibold shrink-0 cursor-pointer"
         >
-          <AlertTriangle className="h-3.5 w-3.5" />
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           <span>Report Technical Issue</span>
         </button>
       </div>
@@ -3228,10 +3231,11 @@ export default function StudentPortalPage() {
       )}
 
       {/* Direct Technical Support & Report Issue Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline shadow-2xs">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <LifeBuoy className="h-5 w-5" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline relative overflow-hidden shadow-2xs">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-ink-muted/30" />
+        <div className="flex items-start sm:items-center gap-3 pl-1">
+          <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline text-ink-muted flex items-center justify-center shrink-0">
+            <LifeBuoy className="h-4 w-4" />
           </div>
           <div>
             <h3 className="text-xs font-bold text-ink">Facing a technical issue?</h3>
@@ -3243,9 +3247,9 @@ export default function StudentPortalPage() {
         <button
           type="button"
           onClick={() => setReportModalOpen(true)}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary-active transition-colors shrink-0 shadow-2xs cursor-pointer"
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md btn-glass-utility text-xs font-semibold shrink-0 cursor-pointer"
         >
-          <AlertTriangle className="h-3.5 w-3.5" />
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           <span>Report Technical Issue</span>
         </button>
       </div>
@@ -3652,13 +3656,15 @@ export default function StudentPortalPage() {
         {revalSubmission && (
           <form onSubmit={handleRevalSubmit} className="space-y-4 text-xs">
             {/* Faculty Policy Notice */}
-            <div className="flex items-start gap-2.5 p-3 rounded-md bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/40 text-blue-900 dark:text-blue-200">
-              <ShieldCheck className="h-4 w-4 text-primary dark:text-blue-400 shrink-0 mt-0.5" />
-              <div className="leading-relaxed">
-                <strong className="text-blue-950 dark:text-blue-100 font-bold">Institutional Standard:</strong> Under faculty policy, all revaluation requests are{" "}
-                <strong className="text-blue-950 dark:text-blue-100 font-bold">Manually reviewed by senior human examiners</strong>. Automated AI adjustments are strictly forbidden on student grievances.
-              </div>
-            </div>
+            <StatusWell
+              variant="blue"
+              icon={<ShieldCheck className="h-3.5 w-3.5 text-primary" />}
+              title="Institutional Standard: Human Examiner Verification"
+              className="p-3"
+            >
+              Under faculty policy, all revaluation requests are{" "}
+              <strong className="text-ink font-semibold">manually reviewed by senior human examiners</strong>. Automated AI adjustments are strictly forbidden on student grievances.
+            </StatusWell>
 
             {/* Questions to Challenge */}
             <div className="space-y-2">
@@ -3706,7 +3712,7 @@ export default function StudentPortalPage() {
                         }}
                         className={`flex items-center justify-between p-2.5 rounded-md border text-left transition-colors cursor-pointer ${
                           isSelected
-                            ? "bg-primary/10 border-primary text-primary font-semibold"
+                            ? "bg-surface border-primary ring-1 ring-primary/40 text-ink font-semibold shadow-2xs"
                             : "bg-surface border-hairline text-ink hover:bg-canvas-soft"
                         }`}
                       >
@@ -3718,7 +3724,7 @@ export default function StudentPortalPage() {
                           )}
                           <span>{qId.replace(/^q_?/i, "Q")}</span>
                         </div>
-                        <span className="text-[10px] opacity-75 font-mono">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-canvas-soft border border-hairline text-ink-muted">
                           {Number(ans.awarded_marks || 0).toFixed(1)}/{ans.max_marks || 1}m
                         </span>
                       </button>

@@ -473,6 +473,127 @@ body {
 }
 
 /* ==========================================================================
+   Curved-Glass Micro-Tactility System (Minimal/No Blur, Specular Edge Refraction)
+   ========================================================================== */
+.btn-glass-primary {
+  position: relative;
+  background: linear-gradient(180deg, #1d8cf8 0%, #006fe6 100%);
+  border: 1px solid rgba(0, 90, 190, 0.45);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.18),
+    0 2px 5px -1px rgba(0, 110, 230, 0.28),
+    0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  color: #ffffff !important;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.2);
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-glass-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2b95fa 0%, #0077f5 100%);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
+    0 3px 8px -1px rgba(0, 110, 230, 0.36),
+    0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  transform: translateY(-0.5px);
+}
+
+.btn-glass-primary:active:not(:disabled) {
+  background: linear-gradient(180deg, #0060cc 0%, #0050ab 100%);
+  box-shadow:
+    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.32),
+    0 1px 2px 0 rgba(0, 0, 0, 0.12);
+  transform: translateY(0.5px);
+}
+
+.dark .btn-glass-primary {
+  background: linear-gradient(180deg, #2888ec 0%, #176fc8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.48),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
+    0 3px 10px -2px rgba(0, 0, 0, 0.55);
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .btn-glass-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #3895f5 0%, #1e7ddb 100%);
+  box-shadow:
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.62),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
+    0 4px 14px -2px rgba(35, 131, 226, 0.35);
+  transform: translateY(-0.5px);
+}
+
+.dark .btn-glass-primary:active:not(:disabled) {
+  background: linear-gradient(180deg, #1462b3 0%, #105296 100%);
+  box-shadow:
+    inset 0 2px 4px 0 rgba(0, 0, 0, 0.5),
+    0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  transform: translateY(0.5px);
+}
+
+.btn-glass-utility {
+  position: relative;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f5f4 100%);
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  color: var(--ink);
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-glass-utility:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff 0%, #eeeeec 100%);
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
+    0 2px 5px -1px rgba(0, 0, 0, 0.08);
+  transform: translateY(-0.5px);
+}
+
+.btn-glass-utility:active:not(:disabled) {
+  background: #ebe9e6;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  transform: translateY(0.5px);
+}
+
+.dark .btn-glass-utility {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), #222222;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25),
+    0 1px 3px 0 rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+}
+
+.dark .btn-glass-utility:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%), #262626;
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 2px 6px 0 rgba(0, 0, 0, 0.4);
+  transform: translateY(-0.5px);
+}
+
+.dark .btn-glass-utility:active:not(:disabled) {
+  background: #1c1c1c;
+  box-shadow:
+    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.45);
+  transform: translateY(0.5px);
+}
+
+/* ==========================================================================
    Notion Dark Mode Systematic Badge & Banner Tone Engine
    Converts all pastel/light badge fills and borders across the platform into
    deep, muted, eye-friendly luminous wells with soft borders.

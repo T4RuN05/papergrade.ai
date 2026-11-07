@@ -31,7 +31,7 @@ export function ButtonPrimary({
     return (
       <Link
         href={href}
-        className={`inline-flex items-center justify-center font-medium rounded-full bg-primary hover:bg-primary-active active:bg-primary-active text-white transition-all shadow-sm ${sizeClasses} ${className}`}
+        className={`inline-flex items-center justify-center font-medium rounded-full btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
       >
         {children}
       </Link>
@@ -40,7 +40,7 @@ export function ButtonPrimary({
 
   return (
     <button
-      className={`inline-flex items-center justify-center font-medium rounded-full bg-primary hover:bg-primary-active active:bg-primary-active text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
+      className={`inline-flex items-center justify-center font-medium rounded-full btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
@@ -88,7 +88,7 @@ export function ButtonUtility({
   ...props
 }: ButtonUtilityProps) {
   const variantClasses = {
-    default: "bg-surface border border-hairline text-ink hover:bg-canvas-soft active:bg-[#eee] dark:active:bg-[#2c2c2c]",
+    default: "btn-glass-utility",
     danger: "bg-surface border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 active:bg-red-100",
     ghost: "bg-transparent text-ink-secondary hover:bg-canvas-soft",
   }[variant];
@@ -103,7 +103,7 @@ export function ButtonUtility({
     return (
       <Link
         href={href}
-        className={`inline-flex items-center justify-center font-medium transition-colors ${sizeClasses} ${variantClasses} ${className}`}
+        className={`inline-flex items-center justify-center font-medium transition-all ${sizeClasses} ${variantClasses} ${className}`}
       >
         {children}
       </Link>
@@ -112,7 +112,7 @@ export function ButtonUtility({
 
   return (
     <button
-      className={`inline-flex items-center justify-center font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${variantClasses} ${className}`}
+      className={`inline-flex items-center justify-center font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${variantClasses} ${className}`}
       disabled={disabled}
       {...props}
     >
@@ -140,6 +140,59 @@ export function FeatureCard({
       {...props}
     >
       {children}
+    </div>
+  );
+}
+
+export interface StatusWellProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+  variant?: "amber" | "blue" | "green" | "rose" | "purple" | "neutral";
+  icon?: React.ReactNode;
+  title: React.ReactNode;
+  badge?: React.ReactNode;
+  children?: React.ReactNode;
+}
+
+export function StatusWell({
+  variant = "neutral",
+  icon,
+  title,
+  badge,
+  children,
+  className = "",
+  ...props
+}: StatusWellProps) {
+  const accentBorder = {
+    amber: "border-l-amber-500 dark:border-l-amber-400",
+    blue: "border-l-blue-500 dark:border-l-blue-400",
+    green: "border-l-emerald-500 dark:border-l-emerald-400",
+    rose: "border-l-rose-500 dark:border-l-rose-400",
+    purple: "border-l-purple-500 dark:border-l-purple-400",
+    neutral: "border-l-ink-muted/50 dark:border-l-ink-muted/40",
+  }[variant];
+
+  return (
+    <div
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-surface border border-hairline border-l-4 ${accentBorder} shadow-2xs ${className}`}
+      {...props}
+    >
+      <div className="flex items-start sm:items-center gap-3 min-w-0">
+        {icon && (
+          <div className="h-7 w-7 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0 mt-0.5 sm:mt-0">
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-ink flex flex-wrap items-center gap-2">
+            {title}
+          </div>
+          {children && (
+            <div className="text-[11px] text-ink-muted mt-0.5 leading-relaxed">
+              {children}
+            </div>
+          )}
+        </div>
+      </div>
+      {badge && <div className="shrink-0 self-start sm:self-auto">{badge}</div>}
     </div>
   );
 }
@@ -182,15 +235,15 @@ export interface BadgePillProps {
 
 export function BadgePill({ label, color = "gray", className = "" }: BadgePillProps) {
   const colorMap: Record<StickerColor, string> = {
-    green: "bg-[#eaf7ed] text-[#1aae39] border-[#c2ecd0] dark:bg-[#132b1d] dark:text-[#4ade80] dark:border-[rgba(74,222,128,0.25)]",
-    teal: "bg-[#e6f6f6] text-[#2a9d99] border-[#bee7e5] dark:bg-[#143433] dark:text-[#42b8b4] dark:border-[rgba(66,184,180,0.25)]",
-    sky: "bg-[#edf5fd] text-[#0075de] border-[#bee0fc] dark:bg-[#152e4d] dark:text-[#60a5fa] dark:border-[rgba(96,165,250,0.25)]",
-    purple: "bg-[#f5eefc] text-[#793caf] border-[#dfcbf6] dark:bg-[#251536] dark:text-[#c084fc] dark:border-[rgba(192,132,252,0.25)]",
-    pink: "bg-[#ffeff8] text-[#c92a95] border-[#fbcce7] dark:bg-[#311424] dark:text-[#f472b6] dark:border-[rgba(244,114,182,0.25)]",
-    orange: "bg-[#fef4ea] text-[#dd5b00] border-[#fed8b8] dark:bg-[#2d1b0d] dark:text-[#fb923c] dark:border-[rgba(251,146,60,0.25)]",
-    brown: "bg-[#f5efe8] text-[#523410] border-[#d8c5b0] dark:bg-[#2a2016] dark:text-[#cfab80] dark:border-[rgba(207,171,128,0.25)]",
-    gray: "bg-[#f1f1ef] text-[#615d59] border-[#e2e1de] dark:bg-[#242424] dark:text-[#a3a3a3] dark:border-[rgba(255,255,255,0.1)]",
-    red: "bg-[#fef2f2] text-[#dc2626] border-[#fecaca] dark:bg-[#3f1212] dark:text-[#f87171] dark:border-[rgba(248,113,113,0.25)]",
+    green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    teal: "bg-[#ebf5f5] text-[#1b5e5c] border-[#c3e3e1] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#122424] dark:text-[#7cd1cd] dark:border-[#1a3d3c] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    sky: "bg-[#edf2f8] text-[#1c4d7e] border-[#c8d9eb] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#131f2d] dark:text-[#85b5e6] dark:border-[#1f3752] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    purple: "bg-[#f4f0f8] text-[#553578] border-[#dcd0ea] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#1f162a] dark:text-[#bf9fe3] dark:border-[#38264e] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    pink: "bg-[#f8eff4] text-[#7d2859] border-[#e7cddb] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#27131e] dark:text-[#dd84b3] dark:border-[#421d31] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    orange: "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#221b14] dark:text-[#c4ae97] dark:border-[#382b20] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    gray: "bg-[#f1f0ee] text-[#4d4a46] border-[#dedcd8] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    red: "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
   };
 
   return (

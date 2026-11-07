@@ -406,10 +406,10 @@ export default function StudentSubmissionViewerPage() {
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
                             isFull
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                               : isZero
-                              ? "bg-rose-50 text-rose-700 border-rose-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
+                              ? "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                              : "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                           }`}>
                             {ansPct}%
                           </span>
@@ -474,10 +474,10 @@ export default function StudentSubmissionViewerPage() {
                     const ansMax = Number(ans.max_marks || 1);
                     const scoreColor =
                       ansScore >= ansMax
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                        ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                         : ansScore > 0
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200";
+                        ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                        : "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
 
                     const reval = ans.revaluation;
                     const hasPendingReval =
@@ -498,7 +498,7 @@ export default function StudentSubmissionViewerPage() {
                           <div className="flex items-center gap-1.5 font-bold text-xs text-ink">
                             <span>{ans.question_id}</span>
                             {ans.is_manual_override && (
-                              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-normal">
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] font-normal">
                                 Override
                               </span>
                             )}
@@ -513,19 +513,19 @@ export default function StudentSubmissionViewerPage() {
 
                         {/* Revaluation Flag on Card */}
                         {hasPendingReval && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-[#7a4e18] bg-[#faf4ec] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] px-1.5 py-0.5 rounded">
                             <Flag className="h-3 w-3 fill-current" />
                             <span>Revaluation Appeal Pending</span>
                           </div>
                         )}
                         {isResolved && reval.decision === "MARKS_REVISED" && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-[#1e613b] bg-[#edf5f0] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] px-1.5 py-0.5 rounded">
                             <CheckCircle2 className="h-3 w-3" />
                             <span>Marks Revised</span>
                           </div>
                         )}
                         {isResolved && reval.decision === "MARKS_UPHELD" && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-[#4d4a46] bg-[#f1f0ee] border border-[#dedcd8] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] px-1.5 py-0.5 rounded">
                             <ShieldCheck className="h-3 w-3" />
                             <span>Marks Upheld</span>
                           </div>
@@ -542,12 +542,13 @@ export default function StudentSubmissionViewerPage() {
               </FeatureCard>
 
               {/* Quick Info Box */}
-              <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-[11px] text-ink-muted space-y-1">
-                <div className="font-semibold text-ink flex items-center gap-1">
+              <div className="rounded-lg border border-hairline bg-surface p-3 text-[11px] text-ink-muted space-y-1 relative overflow-hidden shadow-2xs">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/80 dark:bg-blue-400/70" />
+                <div className="font-semibold text-ink flex items-center gap-1.5 pl-1">
                   <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                  Human Revaluation Guarantee
+                  <span>Human Revaluation Guarantee</span>
                 </div>
-                <p>
+                <p className="pl-1 leading-relaxed">
                   Under faculty policy, student grievance appeals are manually reviewed by human senior examiners. Automated AI regrading is strictly forbidden.
                 </p>
               </div>

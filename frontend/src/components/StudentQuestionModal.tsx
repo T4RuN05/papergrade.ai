@@ -140,17 +140,17 @@ export function StudentQuestionModal({
 
         {/* Active Revaluation Status Banner */}
         {hasActiveReval && (
-          <div className="p-2.5 rounded-lg bg-orange-50/90 border border-orange-200 text-orange-950 space-y-1">
-            <div className="flex items-center justify-between font-bold text-[11px] text-orange-900">
+          <div className="p-3 rounded-lg bg-surface border border-hairline border-l-4 border-l-amber-500 space-y-1.5 shadow-2xs">
+            <div className="flex items-center justify-between font-bold text-[11px] text-ink">
               <span className="flex items-center gap-1.5">
-                <RotateCcw className="h-3 w-3 animate-spin text-orange-700" />
-                Revaluation In Progress
+                <RotateCcw className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400" />
+                <span>Revaluation In Progress</span>
               </span>
-              <span className="text-[9.5px] uppercase font-semibold bg-orange-200/80 px-1.5 py-0.2 rounded">
+              <span className="text-[9.5px] uppercase font-mono font-semibold bg-canvas-soft border border-hairline text-ink-muted px-1.5 py-0.5 rounded">
                 Under Review
               </span>
             </div>
-            <p className="text-[10.5px] text-orange-900 dark:text-orange-300 leading-relaxed italic bg-surface/70 dark:bg-[#1a1a1a] p-1.5 rounded border border-orange-200/60 dark:border-orange-800/40">
+            <p className="text-[10.5px] text-ink-muted leading-relaxed italic bg-canvas-soft p-2 rounded border border-hairline">
               &ldquo;{reval.student_reason}&rdquo;
             </p>
           </div>
@@ -159,28 +159,26 @@ export function StudentQuestionModal({
         {/* Resolved Revaluation Status Banner */}
         {isRevalResolved && (
           <div
-            className={`p-2.5 rounded-lg border space-y-1 ${
-              reval.decision === "MARKS_REVISED"
-                ? "bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-200"
-                : "bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-700/50 text-slate-900 dark:text-zinc-200"
+            className={`p-3 rounded-lg bg-surface border border-hairline border-l-4 space-y-1.5 shadow-2xs ${
+              reval.decision === "MARKS_REVISED" ? "border-l-emerald-500" : "border-l-ink-muted/50"
             }`}
           >
-            <div className="flex items-center justify-between font-bold text-[11px]">
+            <div className="flex items-center justify-between font-bold text-[11px] text-ink">
               <span className="flex items-center gap-1.5">
                 {reval.decision === "MARKS_REVISED" ? (
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 ) : (
-                  <ShieldCheck className="h-3.5 w-3.5 text-slate-600 dark:text-zinc-400" />
+                  <ShieldCheck className="h-3.5 w-3.5 text-ink-muted" />
                 )}
-                Decision: {reval.decision === "MARKS_REVISED" ? "Marks Revised" : "Marks Upheld"}
+                <span>Decision: {reval.decision === "MARKS_REVISED" ? "Marks Revised" : "Marks Upheld"}</span>
               </span>
-              <span className="text-[9.5px] uppercase font-semibold bg-surface dark:bg-[#1a1a1a] px-1.5 py-0.2 rounded border border-hairline">
+              <span className="text-[9.5px] uppercase font-mono font-semibold bg-canvas-soft border border-hairline text-ink-muted px-1.5 py-0.5 rounded">
                 Finalized
               </span>
             </div>
             {reval.reviewer_notes && (
-              <p className="text-[10.5px] leading-relaxed italic bg-surface/70 dark:bg-[#1a1a1a] p-1.5 rounded border border-hairline">
-                <span className="font-semibold not-italic">Examiner Remarks: </span>&ldquo;{reval.reviewer_notes}&rdquo;
+              <p className="text-[10.5px] text-ink-muted leading-relaxed italic bg-canvas-soft p-2 rounded border border-hairline">
+                <span className="font-semibold text-ink not-italic">Examiner Remarks: </span>&ldquo;{reval.reviewer_notes}&rdquo;
               </p>
             )}
           </div>
@@ -277,10 +275,10 @@ export function StudentQuestionModal({
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 border whitespace-nowrap ${
                           isFull
-                            ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40"
+                            ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                             : isZero
-                            ? "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/40"
-                            : "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40"
+                            ? "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                            : "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                         }`}
                       >
                         {critAwarded.toFixed(1)} / {critMax}m
@@ -288,8 +286,8 @@ export function StudentQuestionModal({
                     </div>
 
                     {crit.evidence && (
-                      <div className="text-[10.5px] text-ink dark:text-ink/90 bg-surface dark:bg-[#181818] p-2 rounded border border-hairline/60 leading-relaxed">
-                        <span className="font-semibold text-ink-secondary dark:text-ink-secondary mr-1">AI Finding / Evidence:</span>
+                      <div className="text-[10.5px] text-ink-muted bg-canvas-soft p-2 rounded border border-hairline leading-relaxed">
+                        <span className="font-semibold text-ink mr-1">AI Finding / Evidence:</span>
                         {crit.evidence}
                       </div>
                     )}
@@ -305,12 +303,12 @@ export function StudentQuestionModal({
           <div className="grid grid-cols-1 gap-2 pt-0.5">
             {/* Student's Transcribed Text */}
             {answer.extracted_text && (
-              <div className="p-2.5 rounded-lg bg-blue-50/30 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
+              <div className="p-3 rounded-lg bg-surface border border-hairline space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-ink uppercase tracking-wider">
                   <Cpu className="h-3 w-3 text-primary shrink-0" />
                   <span>Transcribed Student Answer (AI Vision)</span>
                 </div>
-                <div className="text-[10.5px] text-ink dark:text-ink/90 font-mono leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#181818] p-2.5 rounded border border-blue-100 dark:border-blue-900/30 max-h-28 overflow-y-auto">
+                <div className="text-[10.5px] text-ink font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
                   {answer.extracted_text}
                 </div>
               </div>
@@ -318,12 +316,12 @@ export function StudentQuestionModal({
 
             {/* Official Model Solution if available */}
             {answer.official_answer && (
-              <div className="p-2.5 rounded-lg bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
+              <div className="p-3 rounded-lg bg-surface border border-hairline border-l-4 border-l-emerald-500/80 space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-ink uppercase tracking-wider">
                   <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>Official Model Solution</span>
                 </div>
-                <div className="text-[10.5px] text-ink dark:text-ink/90 leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#181818] p-2.5 rounded border border-emerald-100 dark:border-emerald-900/30 max-h-28 overflow-y-auto">
+                <div className="text-[10.5px] text-ink font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
                   {answer.official_answer}
                 </div>
               </div>

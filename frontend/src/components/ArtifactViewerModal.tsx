@@ -435,7 +435,7 @@ export function ArtifactViewerModal({
                   href={pdfUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-lg hover:bg-canvas-soft transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md btn-glass-utility cursor-pointer"
                 >
                   <ExternalLink className="h-3 w-3" />
                   <span>Open in Tab</span>
@@ -443,7 +443,7 @@ export function ArtifactViewerModal({
                 <a
                   href={pdfUrl}
                   download={`${activeArtifact}_${examId}.pdf`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md btn-glass-primary cursor-pointer"
                 >
                   <Download className="h-3 w-3" />
                   <span>Download PDF</span>
