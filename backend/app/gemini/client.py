@@ -48,11 +48,7 @@ def is_rate_or_quota_error(e: Exception) -> bool:
 class GeminiGradingClient:
     def __init__(self):
         self.model_name = settings.GEMINI_MODEL
-        candidates = [self.model_name, "gemini-2.5-flash-lite"]
-        self.candidate_models: List[str] = []
-        for m in candidates:
-            if m and m not in self.candidate_models:
-                self.candidate_models.append(m)
+        self.candidate_models: List[str] = [self.model_name]
         self._model_cooldown_until: Dict[str, float] = {}
 
         self._keys = settings.configured_api_keys
@@ -646,9 +642,9 @@ class GeminiGradingClient:
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)
                         if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] Quota exhausted on all {len(self._keys)} keys for model '{model_to_use}'. Cooldown for 30m; attempting next model.")
-                            self._model_cooldown_until[model_to_use] = time.time() + 1800
-                            break
+                            print(f"[GeminiClient] All {len(self._keys)} keys hit rate limits for '{model_to_use}'. Pausing 5s for RPM window reset.")
+                            time.sleep(5.0)
+                            exhausted_keys.clear()
                         self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
                         time.sleep(1.0)
                         continue
