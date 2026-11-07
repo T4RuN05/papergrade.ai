@@ -12,6 +12,7 @@ import {
   XCircle,
   Flag,
   Eye,
+  EyeOff,
   Move,
   Check,
   Loader2,
@@ -58,6 +59,7 @@ interface DocumentViewerProps {
   readOnly?: boolean;
   hideScoreStamp?: boolean;
   isDocumentPurged?: boolean;
+  initialShowAnnotations?: boolean;
 }
 
 // In-memory client LRU cache for loaded PDF documents across page changes & reopens
@@ -83,6 +85,7 @@ export function DocumentViewer({
   readOnly = false,
   hideScoreStamp = false,
   isDocumentPurged = false,
+  initialShowAnnotations = true,
 }: DocumentViewerProps) {
   const [internalPage, setInternalPage] = useState<number>(1);
   const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -94,6 +97,14 @@ export function DocumentViewer({
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const zoomScaleRef = useRef(zoomScale);
   zoomScaleRef.current = zoomScale;
+
+  // Counter-scaling factor: keeps annotations, badges, borders and tools crisp and constant in screen size
+  const invScale = useMemo(() => {
+    return Math.min(1.2, 1 / zoomScale);
+  }, [zoomScale]);
+
+  // Annotations visibility toggle (allows turning overlays on/off to view raw scans)
+  const [showAnnotations, setShowAnnotations] = useState<boolean>(initialShowAnnotations);
 
   const didPanRef = useRef(false);
   const isInitialFitRef = useRef(false);
@@ -272,6 +283,7 @@ export function DocumentViewer({
   // Sync with propEditingAnswerId
   useEffect(() => {
     if (propEditingAnswerId) {
+      setShowAnnotations(true);
       const match = answers.find((a) => a.id === propEditingAnswerId);
       const regOnThisPage = (match?.regions || []).find((r) => r.page_number === currentPage);
       if (regOnThisPage) {
@@ -298,6 +310,7 @@ export function DocumentViewer({
   }, [propEditingAnswerId, answers, currentPage]);
 
   const handleSpawnDraftBox = (ansId: string) => {
+    setShowAnnotations(true);
     const match = answers.find((a) => a.id === ansId);
     if (!match) return;
     const newRegId = `draft-add-${match.id}-${currentPage}`;
@@ -806,6 +819,7 @@ export function DocumentViewer({
   ) => {
     e.preventDefault();
     e.stopPropagation();
+    setShowAnnotations(true);
     const regId = region.id || answer.id;
     setEditingRegionId(regId);
     if (onSetEditingAnswerId) {
@@ -1122,6 +1136,26 @@ export function DocumentViewer({
           </span>
         </div>
 
+        {/* Annotations Visibility Toggle Switch */}
+        <button
+          type="button"
+          onClick={() => setShowAnnotations((prev) => !prev)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer shadow-2xs ${
+            showAnnotations
+              ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
+              : "bg-surface border-hairline text-ink-muted hover:text-ink hover:bg-canvas-soft"
+          }`}
+          title={showAnnotations ? "Hide bounding boxes & annotations" : "Show bounding boxes & annotations"}
+          aria-label={showAnnotations ? "Hide annotations" : "Show annotations"}
+        >
+          {showAnnotations ? (
+            <Eye className="h-3.5 w-3.5 text-primary" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5 text-ink-muted" />
+          )}
+          <span className="hidden sm:inline">{showAnnotations ? "Annotations On" : "Annotations Off"}</span>
+        </button>
+
         {/* Zoom Controls */}
         <div className="flex items-center gap-1 bg-surface rounded-md p-0.5 sm:p-1 border border-hairline shadow-2xs">
           <button
@@ -1251,8 +1285,14 @@ export function DocumentViewer({
             <>
 
           {/* Page 1 Teacher Score Stamp (Clean Red Ink Stamp Aesthetic) */}
-          {!hideScoreStamp && currentPage === 1 && totalMax > 0 && totalAwardedMarks !== undefined && totalAwardedMarks !== null && (
-            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 pointer-events-none select-none rounded-md sm:rounded-lg border sm:border-2 border-red-600/90 bg-white/95 backdrop-blur-xs px-2 py-1 sm:px-4 sm:py-2 shadow-sm text-left border-dashed">
+          {showAnnotations && !hideScoreStamp && currentPage === 1 && totalMax > 0 && totalAwardedMarks !== undefined && totalAwardedMarks !== null && (
+            <div
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 pointer-events-none select-none rounded-md sm:rounded-lg border sm:border-2 border-red-600/90 bg-white/95 backdrop-blur-xs px-2 py-1 sm:px-4 sm:py-2 shadow-sm text-left border-dashed"
+              style={{
+                transformOrigin: "top right",
+                transform: `scale(${invScale})`,
+              }}
+            >
               <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-red-700">
                 Total Marks
               </div>
@@ -1286,6 +1326,9 @@ export function DocumentViewer({
               editingRegionId === regId ||
               (Boolean(propEditingAnswerId) && propEditingAnswerId === answer.id);
 
+            // Hide bounding box if annotations are toggled off and this box is not actively being edited
+            if (!showAnnotations && !isEditing) return null;
+
             const allRegions = answer.regions || [];
             const regionIndex = allRegions.findIndex(
               (r) =>
@@ -1293,6 +1336,9 @@ export function DocumentViewer({
                 (r.page_number === region.page_number && r.x === region.x && r.y === region.y)
             );
             const isMultiRegion = allRegions.length > 1;
+            const isNearPageTop = coords.y < 0.035;
+            const isNearRightEdge = coords.x + coords.width > 0.95;
+            const isNearBottom = coords.y + coords.height > 0.85;
 
             return (
               <div
@@ -1308,13 +1354,13 @@ export function DocumentViewer({
                 }}
                 onMouseEnter={() => setHoveredAnswerId(answer.id)}
                 onMouseLeave={() => setHoveredAnswerId(null)}
-                className={`absolute rounded-xs border-2 box-border transition-colors ${
+                className={`absolute rounded-xs box-border transition-colors ${
                   isModified ? "border-dashed border-primary bg-primary/10 shadow-sm" : `${style.border} ${style.bg}`
                 } ${
                   isEditing
-                    ? "ring-2 ring-primary ring-offset-2 ring-offset-white z-30 cursor-move"
+                    ? "z-30 cursor-move"
                     : isSelected
-                    ? "ring-1 ring-primary/60 z-20 cursor-pointer"
+                    ? "z-20 cursor-pointer"
                     : "z-10 hover:z-20 cursor-pointer"
                 }`}
                 style={{
@@ -1322,6 +1368,12 @@ export function DocumentViewer({
                   top: `${coords.y * 100}%`,
                   width: `${coords.width * 100}%`,
                   height: `${coords.height * 100}%`,
+                  borderWidth: `${Math.max(1, Number((2 * invScale).toFixed(2)))}px`,
+                  boxShadow: isEditing
+                    ? `0 0 0 ${Math.max(1, Number((2 * invScale).toFixed(2)))}px #2563eb`
+                    : isSelected
+                    ? `0 0 0 ${Math.max(1, Number((1.5 * invScale).toFixed(2)))}px rgba(37, 99, 235, 0.6)`
+                    : undefined,
                 }}
                 onMouseDown={(e) => {
                   // Drag inside box to move only when in edit mode
@@ -1330,11 +1382,18 @@ export function DocumentViewer({
                   }
                 }}
               >
-                {/* Score badge at top-left of box */}
+                {/* Score badge at top-left of box - Counter-scaled with zoom */}
                 <div
-                  className={`absolute -top-6 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs transition-all pointer-events-none select-none ${
+                  className={`absolute flex items-center gap-1.5 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs transition-all pointer-events-none select-none ${
                     style.badge
-                  } ${isEditing ? "scale-105" : ""}`}
+                  }`}
+                  style={{
+                    bottom: isNearPageTop ? undefined : "100%",
+                    top: isNearPageTop ? 0 : undefined,
+                    left: 0,
+                    transformOrigin: isNearPageTop ? "top left" : "bottom left",
+                    transform: `scale(${invScale}) translateY(${isNearPageTop ? "2px" : "-2px"})`,
+                  }}
                 >
                   <StatusIcon className="h-3 w-3" />
                   <span>
@@ -1347,16 +1406,23 @@ export function DocumentViewer({
                   </span>
                 </div>
 
-                {/* Revaluation Flag on Question (Admin & Student) */}
+                {/* Revaluation Flag on Question (Admin & Student) - Counter-scaled with zoom */}
                 {answer.revaluation && (
                   <div
-                    className={`absolute -top-6 right-0 flex items-center gap-1 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs select-none z-30 ${
+                    className={`absolute flex items-center gap-1 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs select-none z-30 ${
                       answer.revaluation.status === "SUBMITTED" || answer.revaluation.status === "UNDER_REVIEW"
                         ? "bg-amber-500 text-white animate-pulse border border-amber-600"
                         : answer.revaluation.decision === "MARKS_REVISED"
                         ? "bg-emerald-600 text-white border border-emerald-700"
                         : "bg-slate-600 text-white border border-slate-700"
                     }`}
+                    style={{
+                      bottom: isNearPageTop ? undefined : "100%",
+                      top: isNearPageTop ? 0 : undefined,
+                      right: 0,
+                      transformOrigin: isNearPageTop ? "top right" : "bottom right",
+                      transform: `scale(${invScale}) translateY(${isNearPageTop ? "2px" : "-2px"})`,
+                    }}
                   >
                     {answer.revaluation.status === "SUBMITTED" || answer.revaluation.status === "UNDER_REVIEW" ? (
                       <>
@@ -1377,19 +1443,31 @@ export function DocumentViewer({
                   </div>
                 )}
 
-                {/* Live Dimensions Tooltip during Drag */}
+                {/* Live Dimensions Tooltip during Drag - Counter-scaled with zoom */}
                 {isActivelyDragging && (
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none bg-black/80 text-white font-mono text-[10px] px-2 py-0.5 rounded-full shadow-md z-50 whitespace-nowrap">
+                  <div
+                    className="absolute top-1/2 left-1/2 pointer-events-none bg-black/80 text-white font-mono text-[10px] px-2 py-0.5 rounded-full shadow-md z-50 whitespace-nowrap"
+                    style={{
+                      transformOrigin: "center",
+                      transform: `translate(-50%, -50%) scale(${invScale})`,
+                    }}
+                  >
                     {Math.round(coords.width * 100)}% × {Math.round(coords.height * 100)}%
                   </div>
                 )}
 
-                {/* Action Buttons Cluster + Notion Hover Tooltip */}
+                {/* Action Buttons Cluster + Notion Hover Tooltip - Counter-scaled with zoom */}
                 {(() => {
                   const isNearLeft = coords.x + coords.width < 0.35;
                   return (
                     <div
-                      className="absolute -top-3.5 -right-3.5 z-40 flex items-center"
+                      className="absolute z-40 flex items-center"
+                      style={{
+                        top: 0,
+                        right: 0,
+                        transformOrigin: "top right",
+                        transform: `scale(${invScale}) translate(${isNearRightEdge ? "-2px" : "6px"}, ${isNearPageTop ? "4px" : "-6px"})`,
+                      }}
                       onMouseEnter={() => setHoveredAnswerId(answer.id)}
                     >
                       {/* Notion Tooltip Overlay beside Eye icon */}
@@ -1509,7 +1587,7 @@ export function DocumentViewer({
                   );
                 })()}
 
-                {/* 8 Interactive Drag Resize Handles (Visible ONLY when in edit mode and NOT readOnly) */}
+                {/* 8 Interactive Drag Resize Handles (Visible ONLY when in edit mode and NOT readOnly) - Counter-scaled with zoom */}
                 {!readOnly && isEditing && (
                   <>
                     {/* NW Corner */}
@@ -1517,7 +1595,13 @@ export function DocumentViewer({
                       data-handle="nw"
                       onMouseDown={(e) => handleStartDrag(e, "nw", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "nw", region, answer)}
-                      className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        top: 0,
+                        left: 0,
+                        transformOrigin: "center",
+                        transform: `translate(-50%, -50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize top-left"
                     />
                     {/* N Edge */}
@@ -1525,7 +1609,13 @@ export function DocumentViewer({
                       data-handle="n"
                       onMouseDown={(e) => handleStartDrag(e, "n", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "n", region, answer)}
-                      className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        top: 0,
+                        left: "50%",
+                        transformOrigin: "center",
+                        transform: `translate(-50%, -50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize top"
                     />
                     {/* NE Corner */}
@@ -1533,7 +1623,13 @@ export function DocumentViewer({
                       data-handle="ne"
                       onMouseDown={(e) => handleStartDrag(e, "ne", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "ne", region, answer)}
-                      className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        top: 0,
+                        right: 0,
+                        transformOrigin: "center",
+                        transform: `translate(50%, -50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize top-right"
                     />
                     {/* E Edge */}
@@ -1541,7 +1637,13 @@ export function DocumentViewer({
                       data-handle="e"
                       onMouseDown={(e) => handleStartDrag(e, "e", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "e", region, answer)}
-                      className="absolute top-1/2 -translate-y-1/2 -right-1.5 w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        top: "50%",
+                        right: 0,
+                        transformOrigin: "center",
+                        transform: `translate(50%, -50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize right"
                     />
                     {/* SE Corner */}
@@ -1549,7 +1651,13 @@ export function DocumentViewer({
                       data-handle="se"
                       onMouseDown={(e) => handleStartDrag(e, "se", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "se", region, answer)}
-                      className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nwse-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        bottom: 0,
+                        right: 0,
+                        transformOrigin: "center",
+                        transform: `translate(50%, 50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize bottom-right"
                     />
                     {/* S Edge */}
@@ -1557,7 +1665,13 @@ export function DocumentViewer({
                       data-handle="s"
                       onMouseDown={(e) => handleStartDrag(e, "s", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "s", region, answer)}
-                      className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        bottom: 0,
+                        left: "50%",
+                        transformOrigin: "center",
+                        transform: `translate(-50%, 50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize bottom"
                     />
                     {/* SW Corner */}
@@ -1565,7 +1679,13 @@ export function DocumentViewer({
                       data-handle="sw"
                       onMouseDown={(e) => handleStartDrag(e, "sw", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "sw", region, answer)}
-                      className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-nesw-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        bottom: 0,
+                        left: 0,
+                        transformOrigin: "center",
+                        transform: `translate(-50%, 50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize bottom-left"
                     />
                     {/* W Edge */}
@@ -1573,18 +1693,30 @@ export function DocumentViewer({
                       data-handle="w"
                       onMouseDown={(e) => handleStartDrag(e, "w", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "w", region, answer)}
-                      className="absolute top-1/2 -translate-y-1/2 -left-1.5 w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 hover:scale-125 transition-transform"
+                      className="absolute w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      style={{
+                        top: "50%",
+                        left: 0,
+                        transformOrigin: "center",
+                        transform: `translate(-50%, -50%) scale(${invScale})`,
+                      }}
                       title="Drag to resize left"
                     />
                   </>
                 )}
 
-                {/* Floating Save / Revert / Exit Action Bar on Modified or Editing Box */}
+                {/* Floating Save / Revert / Exit Action Bar on Modified or Editing Box - Counter-scaled with zoom */}
                 {(isModified || isEditing) && (
                   <div
-                    className={`absolute ${
-                      coords.y + coords.height > 0.88 ? "-top-10" : "-bottom-10"
-                    } left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-surface border border-hairline shadow-lg px-2.5 py-1 rounded-md text-xs z-50 animate-in fade-in zoom-in-95 pointer-events-auto select-none whitespace-nowrap`}
+                    className="absolute flex items-center gap-1.5 bg-surface border border-hairline shadow-lg px-2.5 py-1 rounded-md text-xs z-50 animate-in fade-in zoom-in-95 pointer-events-auto select-none whitespace-nowrap"
+                    style={{
+                      [isNearBottom ? "bottom" : "top"]: "100%",
+                      left: "50%",
+                      transformOrigin: isNearBottom ? "bottom center" : "top center",
+                      transform: `translateX(-50%) translateY(${
+                        isNearBottom ? `-${8 * invScale}px` : `${8 * invScale}px`
+                      }) scale(${invScale})`,
+                    }}
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                   >
