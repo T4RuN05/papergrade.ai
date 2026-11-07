@@ -22,16 +22,16 @@ export function ButtonPrimary({
   ...props
 }: ButtonPrimaryProps) {
   const sizeClasses = {
-    sm: "px-4 py-1.5 text-xs",
-    md: "px-6 py-2.5 text-sm",
-    lg: "px-8 py-3 text-base",
+    sm: "px-3.5 py-1.5 text-xs rounded-md",
+    md: "px-4 py-2 text-xs sm:text-sm font-semibold rounded-md",
+    lg: "px-5 py-2.5 text-sm sm:text-base font-semibold rounded-lg",
   }[size];
 
   if (href) {
     return (
       <Link
         href={href}
-        className={`inline-flex items-center justify-center font-medium rounded-full btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
+        className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
       >
         {children}
       </Link>
@@ -40,7 +40,7 @@ export function ButtonPrimary({
 
   return (
     <button
-      className={`inline-flex items-center justify-center font-medium rounded-full btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${className}`}
+      className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
@@ -94,9 +94,9 @@ export function ButtonUtility({
   }[variant];
 
   const sizeClasses = {
-    sm: "px-3 py-1.5 text-xs rounded-md",
-    md: "px-4 py-2 text-sm rounded-md",
-    lg: "px-5 py-2.5 text-base rounded-lg",
+    sm: "px-3.5 py-1.5 text-xs rounded-md",
+    md: "px-4 py-2 text-xs sm:text-sm font-semibold rounded-md",
+    lg: "px-5 py-2.5 text-sm sm:text-base font-semibold rounded-lg",
   }[size];
 
   if (href) {
@@ -148,6 +148,7 @@ export interface StatusWellProps extends Omit<React.HTMLAttributes<HTMLDivElemen
   variant?: "amber" | "blue" | "green" | "rose" | "purple" | "neutral";
   icon?: React.ReactNode;
   title: React.ReactNode;
+  description?: React.ReactNode;
   badge?: React.ReactNode;
   children?: React.ReactNode;
 }
@@ -156,6 +157,7 @@ export function StatusWell({
   variant = "neutral",
   icon,
   title,
+  description,
   badge,
   children,
   className = "",
@@ -185,6 +187,11 @@ export function StatusWell({
           <div className="text-xs font-semibold text-ink flex flex-wrap items-center gap-2">
             {title}
           </div>
+          {description && (
+            <div className="text-[11px] text-ink-muted mt-0.5 leading-relaxed">
+              {description}
+            </div>
+          )}
           {children && (
             <div className="text-[11px] text-ink-muted mt-0.5 leading-relaxed">
               {children}

@@ -1805,7 +1805,7 @@ export default function ExamDetailPage() {
                 size="md"
                 disabled={akFilesToUpload.length === 0 || isUploadingAk}
                 isLoading={isUploadingAk}
-                className="bg-emerald-600 hover:bg-emerald-700 whitespace-nowrap"
+                className="whitespace-nowrap"
               >
                 {isUploadingAk ? "Generating Rubric..." : "Upload & Generate Rubric"}
               </ButtonPrimary>

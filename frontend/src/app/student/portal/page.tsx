@@ -303,10 +303,10 @@ function StudentMarksTrajectory({
             <div
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${
                 trendDiff > 0
-                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40"
+                  ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a]"
                   : trendDiff < 0
-                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40"
-                  : "bg-slate-50 dark:bg-zinc-800/50 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700/50"
+                  ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17]"
+                  : "bg-[#f1f0ee] text-[#4d4a46] border-[#dedcd8] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f]"
               }`}
             >
               {trendDiff > 0 ? (
@@ -327,15 +327,15 @@ function StudentMarksTrajectory({
           )}
 
           {avgPct !== null && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40">
-              <Award className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-[#f5f0fa] text-[#4c2c78] border-[#d8c8ea] dark:bg-[#1e1329] dark:text-[#b89fe6] dark:border-[#38234c]">
+              <Award className="h-3 w-3 text-purple-600 dark:text-[#b89fe6]" />
               <span>Avg: {avgPct}%</span>
             </div>
           )}
 
           {maxPct !== null && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/40">
-              <Sparkles className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-[#edf2f8] text-[#1c4d7e] border-[#c8d9eb] dark:bg-[#131f2d] dark:text-[#85b5e6] dark:border-[#1f3752]">
+              <Sparkles className="h-3 w-3 text-[#1c4d7e] dark:text-[#85b5e6]" />
               <span>Peak: {maxPct}%</span>
             </div>
           )}
@@ -349,7 +349,7 @@ function StudentMarksTrajectory({
           onClick={() => setSelectedSubject("ALL")}
           className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
             selectedSubject === "ALL"
-              ? "bg-primary text-white shadow-2xs font-semibold"
+              ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs font-semibold"
               : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
           }`}
         >
@@ -357,7 +357,7 @@ function StudentMarksTrajectory({
           <span
             className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
               selectedSubject === "ALL"
-                ? "bg-white/20 text-white font-bold"
+                ? "bg-surface/25 text-surface dark:bg-zinc-900/20 dark:text-zinc-900 font-bold"
                 : publishedSubmissions.length > 0
                 ? "bg-primary/10 text-primary font-bold"
                 : "bg-surface text-ink-muted"
@@ -376,7 +376,7 @@ function StudentMarksTrajectory({
               onClick={() => setSelectedSubject(subj)}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
                 isSelected
-                  ? "bg-primary text-white shadow-2xs font-semibold"
+                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs font-semibold"
                   : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
               }`}
             >
@@ -1474,10 +1474,10 @@ export default function StudentPortalPage() {
           <button
             type="button"
             onClick={() => setReportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold btn-glass-utility transition-all cursor-pointer shadow-2xs"
             title="Report a technical issue with the portal"
           >
-            <AlertTriangle className="h-3.5 w-3.5" />
+            <AlertTriangle className="h-3.5 w-3.5 text-primary" />
             <span>Report Issue</span>
           </button>
         </div>
@@ -2679,7 +2679,7 @@ export default function StudentPortalPage() {
               onClick={() => setExamSubjectFilter("ALL")}
               className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examSubjectFilter === "ALL"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
+                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
               }`}
             >
@@ -2692,7 +2692,7 @@ export default function StudentPortalPage() {
                 onClick={() => setExamSubjectFilter(sub)}
                 className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                   examSubjectFilter === sub
-                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
                     : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
                 }`}
               >
@@ -2711,7 +2711,7 @@ export default function StudentPortalPage() {
               onClick={() => setExamStatusFilter("ALL")}
               className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "ALL"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
+                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
               }`}
             >
@@ -2722,7 +2722,7 @@ export default function StudentPortalPage() {
               onClick={() => setExamStatusFilter("PUBLISHED")}
               className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "PUBLISHED"
-                  ? "bg-emerald-600 dark:bg-emerald-600/90 text-white font-semibold shadow-2xs"
+                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
               }`}
             >
@@ -2733,7 +2733,7 @@ export default function StudentPortalPage() {
               onClick={() => setExamStatusFilter("IN_PROGRESS")}
               className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
                 examStatusFilter === "IN_PROGRESS"
-                  ? "bg-amber-600 dark:bg-amber-600/90 text-white font-semibold shadow-2xs"
+                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
               }`}
             >
@@ -2862,27 +2862,27 @@ export default function StudentPortalPage() {
 
                   <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center pt-0.5 sm:pt-0">
                     {isAbsent ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50 whitespace-nowrap">
-                        <AlertCircle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#fbf0f0] text-[#872323] border border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                        <AlertCircle className="h-3 w-3 text-[#872323] dark:text-[#e87878]" />
                         Absent
                       </span>
                     ) : isPublished ? (
                       <>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50 whitespace-nowrap">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                          <CheckCircle2 className="h-3 w-3 text-[#1e613b] dark:text-[#86d4a4]" />
                           Results Published
                         </span>
                         {sub.is_document_purged ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#f1f0ee] text-[#4d4a46] border border-[#dedcd8] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] whitespace-nowrap">
                             <AlertCircle className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                             PDF Archived
                           </span>
                         ) : (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                             title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
                           >
-                            <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                            <Clock className="h-3 w-3 text-[#7a4e18] dark:text-[#e5ad68]" />
                             {sub.days_remaining !== undefined && sub.days_remaining !== null
                               ? `${sub.days_remaining}d until purge`
                               : "15d retention"}
@@ -2890,22 +2890,22 @@ export default function StudentPortalPage() {
                         )}
                       </>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50 whitespace-nowrap">
-                        <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                        <Clock className="h-3 w-3 text-[#7a4e18] dark:text-[#e5ad68]" />
                         Grading in Progress
                       </span>
                     )}
 
                     {hasOpenReval && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700/50 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] whitespace-nowrap">
                         <RotateCcw className="h-3 w-3 animate-spin" />
                         In Review
                       </span>
                     )}
 
                     {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50 whitespace-nowrap">
-                        <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] whitespace-nowrap">
+                        <Sparkles className="h-3 w-3 text-[#1e613b] dark:text-[#86d4a4]" />
                         Marks Revised
                       </span>
                     )}
@@ -3048,22 +3048,12 @@ export default function StudentPortalPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/20 dark:border-amber-700/40">
-                        <div className="flex items-center gap-2.5">
-                          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                          <div>
-                            <div className="text-xs font-bold text-amber-950 dark:text-amber-200">
-                              Evaluation in Progress • Marks Hidden
-                            </div>
-                            <div className="text-[11px] text-amber-800/90 dark:text-amber-300/80">
-                              Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
-                            </div>
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-200 shrink-0">
-                          Pending Publication
-                        </span>
-                      </div>
+                      <StatusWell
+                        variant="amber"
+                        title="Evaluation in Progress • Marks Hidden"
+                        description="Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty."
+                        badge="Pending Publication"
+                      />
                     )}
 
                     {/* Actions Row */}
@@ -3081,7 +3071,7 @@ export default function StudentPortalPage() {
                         ) : (
                           <Link
                             href={`/student/submissions/${sub.id}`}
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 rounded-md shadow-2xs transition-colors cursor-pointer text-center shrink-0 whitespace-nowrap"
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md btn-glass-primary transition-all cursor-pointer text-center shrink-0 whitespace-nowrap px-4"
                           >
                             <Eye className="h-3.5 w-3.5 shrink-0" />
                             <span>
@@ -3099,7 +3089,7 @@ export default function StudentPortalPage() {
                           <button
                             type="button"
                             onClick={() => handleOpenBreakdownModal(sub)}
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold btn-glass-utility px-3.5 rounded-md transition-all cursor-pointer text-center whitespace-nowrap shrink-0"
                           >
                             <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                             <span>View Summary</span>
@@ -3121,7 +3111,7 @@ export default function StudentPortalPage() {
                           <button
                             type="button"
                             onClick={() => handleOpenRankingsModal(sub)}
-                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer shadow-2xs text-center whitespace-nowrap shrink-0"
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold btn-glass-utility px-3.5 rounded-md transition-all cursor-pointer text-center whitespace-nowrap shrink-0"
                             title="View Official Class Standings & Rankings"
                           >
                             <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />

@@ -30,6 +30,7 @@ interface GradingModalProps {
   onClose: () => void;
   onUpdated: (updatedSub: Submission) => void;
   onAdjustOnCanvas?: (answer: GradedAnswer, pageNum?: number) => void;
+  currentPage?: number;
 }
 
 export function GradingModal({
@@ -39,6 +40,7 @@ export function GradingModal({
   onClose,
   onUpdated,
   onAdjustOnCanvas,
+  currentPage,
 }: GradingModalProps) {
   const { toast } = useToast();
   const [awardedMarks, setAwardedMarks] = useState<number>(answer?.awarded_marks || 0);
@@ -292,7 +294,9 @@ export function GradingModal({
                     const activeCropUrl = activeRegion
                       ? api.getAnswerCropUrl(submission.id, answer, activeRegion.id)
                       : api.getAnswerCropUrl(submission.id, answer);
-                    const activePage = activeRegion?.page_number || answer.page_number;
+                    const activePage =
+                      activeRegion?.page_number ||
+                      (allRegions.length > 0 ? answer.page_number : undefined);
 
                     return (
                       <>
@@ -311,7 +315,11 @@ export function GradingModal({
                                   type="button"
                                   onClick={() => {
                                     onClose();
-                                    onAdjustOnCanvas(answer, activePage || undefined);
+                                    if (allRegions.length === 0) {
+                                      onAdjustOnCanvas(answer, currentPage || undefined);
+                                    } else {
+                                      onAdjustOnCanvas(answer, activePage || undefined);
+                                    }
                                   }}
                                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active hover:underline cursor-pointer transition-colors"
                                   title="Close modal and adjust box handles directly on canvas"

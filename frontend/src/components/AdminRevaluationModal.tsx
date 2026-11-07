@@ -404,12 +404,13 @@ export function AdminRevaluationModal({
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-hairline">
-                <ButtonUtility type="button" onClick={onClose}>
+              <div className="flex items-center justify-between pt-3 border-t border-hairline">
+                <ButtonUtility size="md" type="button" onClick={onClose}>
                   Cancel
                 </ButtonUtility>
 
                 <ButtonPrimary
+                  size="md"
                   type="submit"
                   isLoading={isSubmitting}
                   disabled={!reviewerNotes.trim()}

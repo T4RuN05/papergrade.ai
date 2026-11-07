@@ -377,17 +377,18 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-hairline">
-              <ButtonUtility type="button" onClick={onClose} disabled={isSubmitting}>
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-hairline">
+              <ButtonUtility size="md" type="button" onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </ButtonUtility>
               <ButtonPrimary
+                size="md"
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={!subject.trim() || !description.trim() || isOverLimit}
                 className="gap-1.5"
               >
-                <Send className="h-3 w-3" />
+                <Send className="h-3.5 w-3.5" />
                 <span>Submit Technical Report</span>
               </ButtonPrimary>
             </div>

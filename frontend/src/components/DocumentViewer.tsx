@@ -34,6 +34,7 @@ interface DraftRegionCoord {
   y: number;
   width: number;
   height: number;
+  page_number?: number;
   isModified?: boolean;
 }
 
@@ -301,17 +302,24 @@ export function DocumentViewer({
       } else if (match) {
         // Answer has 0 regions on this specific page: spawn a draft continuation box on THIS page!
         const newRegId = `draft-add-${match.id}-${currentPage}`;
-        setDraftCoords((prev) => ({
-          ...prev,
-          [newRegId]: {
+        setDraftCoords((prev) => {
+          const next = { ...prev };
+          // Clean up any stale uncommitted drafts for this answer on other pages
+          Object.keys(next).forEach((k) => {
+            if (k.startsWith(`draft-add-${match.id}-`) || k.startsWith(`draft-new-${match.id}`)) {
+              delete next[k];
+            }
+          });
+          next[newRegId] = {
             x: 0.15,
             y: 0.20,
             width: 0.70,
             height: 0.15,
             page_number: currentPage,
             isModified: true,
-          },
-        }));
+          };
+          return next;
+        });
         setEditingRegionId(newRegId);
       }
     } else if (propEditingAnswerId === null) {
@@ -324,17 +332,23 @@ export function DocumentViewer({
     const match = answers.find((a) => a.id === ansId || a.question_id === ansId);
     if (!match) return;
     const newRegId = `draft-add-${match.id}-${currentPage}`;
-    setDraftCoords((prev) => ({
-      ...prev,
-      [newRegId]: {
+    setDraftCoords((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (k.startsWith(`draft-add-${match.id}-`) || k.startsWith(`draft-new-${match.id}`)) {
+          delete next[k];
+        }
+      });
+      next[newRegId] = {
         x: 0.15,
         y: 0.20,
         width: 0.70,
         height: 0.15,
         page_number: currentPage,
         isModified: true,
-      },
-    }));
+      };
+      return next;
+    });
     setEditingRegionId(newRegId);
     if (onSetEditingAnswerId) {
       onSetEditingAnswerId(match.id);

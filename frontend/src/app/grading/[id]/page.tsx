@@ -513,6 +513,7 @@ export default function GradingPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onUpdated={handleUpdated}
+        currentPage={currentPage}
         onAdjustOnCanvas={(ans, pageNum) => {
           setIsModalOpen(false);
           setSelectedAnswer(ans);
