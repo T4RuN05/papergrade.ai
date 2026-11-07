@@ -192,11 +192,27 @@ function StudentMarksTrajectory({
 
   const [lineAnimated, setLineAnimated] = useState(false);
 
+  // Easing: starts slow, accelerates fast through the middle, decelerates smoothly to a landing
+  const EASING_SLOW_FAST_SLOW = "cubic-bezier(0.75, 0.02, 0.18, 0.98)";
+  const DURATION_SECS = 1.4;
+
   useEffect(() => {
     setLineAnimated(false);
-    const t = setTimeout(() => setLineAnimated(true), 40);
-    return () => clearTimeout(t);
+    const frame = requestAnimationFrame(() => {
+      const t = setTimeout(() => setLineAnimated(true), 50);
+      return () => clearTimeout(t);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [selectedSubject, points.length]);
+
+  // Synchronize data dot pop-in with the exact physical velocity of the S-curve line tip
+  const getPointDelay = (idx: number, total: number) => {
+    if (total <= 1) return 0.2;
+    const p = idx / (total - 1);
+    // S-curve smoothstep mapping (3p^2 - 2p^3) matching slow-fast-slow progression
+    const s = p * p * (3 - 2 * p);
+    return Number((0.15 + s * 1.15).toFixed(2));
+  };
 
   // SVG Coordinates calculation (optimized 520x165 dynamic viewBox)
   const svgWidth = 520;
@@ -399,12 +415,28 @@ function StudentMarksTrajectory({
             className="w-full h-auto select-none overflow-visible block"
           >
             <defs>
+              {/* Dynamic Marks Trajectory Area Wash */}
               <linearGradient id="pgMarksTrajectoryGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.32" />
+                <stop offset="55%" stopColor="#6366f1" stopOpacity="0.10" />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
               </linearGradient>
-              <filter id="pgPointGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.25" />
+
+              {/* Cool Bi-Chromatic Trajectory Line Gradient */}
+              <linearGradient id="pgLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#2563eb" />
+                <stop offset="45%" stopColor="#4f46e5" />
+                <stop offset="100%" stopColor="#7c3aed" />
+              </linearGradient>
+
+              {/* Data Node Glow */}
+              <filter id="pgPointGlow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor="#2563eb" floodOpacity="0.35" />
+              </filter>
+
+              {/* Fluid Line Drop Shadow Glow */}
+              <filter id="pgLineGlow" x="-5%" y="-20%" width="110%" height="150%">
+                <feDropShadow dx="0" dy="2" stdDeviation="3.5" floodColor="#4f46e5" floodOpacity="0.28" />
               </filter>
             </defs>
 
@@ -421,12 +453,13 @@ function StudentMarksTrajectory({
                     stroke="#e2e8f0"
                     strokeWidth="1"
                     strokeDasharray={pct === 0 ? "none" : "3 3"}
+                    className="stroke-slate-200 dark:stroke-zinc-800 transition-colors"
                   />
                   <text
                     x={padLeft - 6}
                     y={y + 3.5}
                     textAnchor="end"
-                    className="fill-slate-400 font-mono text-[8.5px] select-none"
+                    className="fill-slate-400 dark:fill-zinc-500 font-mono text-[8.5px] select-none"
                   >
                     {pct}%
                   </text>
@@ -434,9 +467,14 @@ function StudentMarksTrajectory({
               );
             })}
 
-            {/* Dotted Average Benchmark Line */}
+            {/* Dotted Average Benchmark Line with Soft Mount Fade */}
             {avgPct !== null && count >= 2 && (
-              <g>
+              <g
+                style={{
+                  opacity: lineAnimated ? 1 : 0,
+                  transition: "opacity 0.8s ease 0.4s",
+                }}
+              >
                 <line
                   x1={padLeft}
                   y1={getY(Number(avgPct))}
@@ -446,50 +484,73 @@ function StudentMarksTrajectory({
                   strokeWidth="1.5"
                   strokeDasharray="4 4"
                   strokeOpacity="0.75"
+                  className="dark:stroke-purple-400"
                 />
                 <text
                   x={svgWidth - padRight + 4}
                   y={getY(Number(avgPct)) + 3}
-                  className="fill-purple-600 font-mono text-[8.5px] font-bold"
+                  className="fill-purple-600 dark:fill-purple-400 font-mono text-[8.5px] font-bold"
                 >
                   Avg {avgPct}%
                 </text>
               </g>
             )}
 
-            {/* Area Fill with Fade In */}
+            {/* Area Fill - Sweeps from Left-to-Right in Sync with the Line */}
             {areaD && (
               <path
                 d={areaD}
                 fill="url(#pgMarksTrajectoryGrad)"
                 style={{
+                  clipPath: lineAnimated ? "inset(0% 0% 0% 0%)" : "inset(0% 100% 0% 0%)",
                   opacity: lineAnimated ? 1 : 0,
-                  transition: "opacity 0.6s ease 0.3s",
+                  transition: `clip-path ${DURATION_SECS}s ${EASING_SLOW_FAST_SLOW}, opacity 0.5s ease`,
                 }}
               />
             )}
 
-            {/* Line Path with Lightweight Smooth Draw Animation */}
+            {/* Ambient Glow Aura (Follows the Line Tip) */}
             {pathD && (
               <path
                 d={pathD}
                 fill="none"
-                stroke="#2563eb"
-                strokeWidth="2.5"
+                stroke="url(#pgLineGrad)"
+                strokeWidth="6"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                opacity={lineAnimated ? 0.3 : 0}
                 style={{
-                  strokeDasharray: 1200,
-                  strokeDashoffset: lineAnimated ? 0 : 1200,
-                  transition: "stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)",
+                  strokeDasharray: 1400,
+                  strokeDashoffset: lineAnimated ? 0 : 1400,
+                  filter: "blur(4px)",
+                  transition: `stroke-dashoffset ${DURATION_SECS}s ${EASING_SLOW_FAST_SLOW}, opacity 0.4s ease`,
                 }}
               />
             )}
 
-            {/* Data Nodes with Pop-in Animation */}
+            {/* Main Fluid Trajectory Line - Slow Start, Fast Middle, Slow End */}
+            {pathD && (
+              <path
+                d={pathD}
+                fill="none"
+                stroke="url(#pgLineGrad)"
+                strokeWidth="2.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                filter="url(#pgLineGlow)"
+                style={{
+                  strokeDasharray: 1400,
+                  strokeDashoffset: lineAnimated ? 0 : 1400,
+                  transition: `stroke-dashoffset ${DURATION_SECS}s ${EASING_SLOW_FAST_SLOW}`,
+                }}
+              />
+            )}
+
+            {/* Data Nodes with Synchronized Velocity Pop-in Animation */}
             {points.map((p, idx) => {
               const cx = getX(idx);
               const cy = getY(p.percentage);
+              const delay = getPointDelay(idx, count);
 
               return (
                 <g
@@ -497,12 +558,30 @@ function StudentMarksTrajectory({
                   className="group transition-all"
                   style={{
                     opacity: lineAnimated ? 1 : 0,
-                    transform: lineAnimated ? "scale(1)" : "scale(0.3)",
+                    transform: lineAnimated ? "scale(1)" : "scale(0)",
                     transformOrigin: `${cx}px ${cy}px`,
-                    transition: `opacity 0.35s ease ${0.25 + idx * 0.08}s, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${0.25 + idx * 0.08}s`,
+                    transition: `opacity 0.25s ease ${delay}s, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s`,
                   }}
                 >
                   <title>{`${p.title} (${p.subject}): ${p.marks}/${p.maxMarks} (${p.percentage}%)`}</title>
+
+                  {/* Latest Exam Result Pulse Beacon */}
+                  {idx === count - 1 && lineAnimated && (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r="8"
+                      fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth="1.5"
+                      className="animate-ping opacity-60"
+                      style={{
+                        animationDuration: "2.4s",
+                        animationIterationCount: "infinite",
+                        animationDelay: "1.4s",
+                      }}
+                    />
+                  )}
 
                   {/* Revaluation Upgraded Halo */}
                   {p.isMarksRevised && (
@@ -526,12 +605,14 @@ function StudentMarksTrajectory({
                         ? "#10b981"
                         : p.isRevalPending
                         ? "#f59e0b"
+                        : idx === count - 1
+                        ? "#7c3aed"
                         : "#2563eb"
                     }
                     stroke="#ffffff"
                     strokeWidth="2"
                     filter="url(#pgPointGlow)"
-                    className="transition-all duration-150 group-hover:r-[6.5px]"
+                    className="transition-all duration-150 group-hover:r-[6.5px] dark:stroke-zinc-900"
                   />
 
                   {/* Score Label above node */}
@@ -540,7 +621,11 @@ function StudentMarksTrajectory({
                     y={cy - 9}
                     textAnchor="middle"
                     className={`font-mono text-[9px] font-bold select-none ${
-                      p.isMarksRevised ? "fill-emerald-700" : "fill-slate-700"
+                      p.isMarksRevised
+                        ? "fill-emerald-700 dark:fill-emerald-400"
+                        : idx === count - 1
+                        ? "fill-purple-700 dark:fill-purple-300 font-black"
+                        : "fill-slate-700 dark:fill-zinc-300"
                     }`}
                   >
                     {p.percentage}%
@@ -551,7 +636,7 @@ function StudentMarksTrajectory({
                     x={cx}
                     y={svgHeight - 8}
                     textAnchor="middle"
-                    className="font-sans text-[8.5px] fill-slate-500 select-none"
+                    className="font-sans text-[8.5px] fill-slate-500 dark:fill-zinc-400 select-none"
                   >
                     {p.dateStr}
                   </text>
