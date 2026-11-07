@@ -25,10 +25,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Apply theme to DOM and PWA meta tags
   const applyTheme = useCallback((targetTheme: ResolvedTheme) => {
     const root = document.documentElement;
-    if (targetTheme === "dark") {
+    const isDark = targetTheme === "dark";
+    if (isDark) {
       root.classList.add("dark");
+      root.style.backgroundColor = "#191919";
+      if (document.body) document.body.style.backgroundColor = "#191919";
     } else {
       root.classList.remove("dark");
+      root.style.backgroundColor = "#f6f5f4";
+      if (document.body) document.body.style.backgroundColor = "#f6f5f4";
     }
 
     // Synchronize PWA browser chrome bar
@@ -38,7 +43,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       metaThemeColor.setAttribute("name", "theme-color");
       document.head.appendChild(metaThemeColor);
     }
-    metaThemeColor.setAttribute("content", targetTheme === "dark" ? "#191919" : "#f6f5f4");
+    metaThemeColor.setAttribute("content", isDark ? "#191919" : "#f6f5f4");
+
+    // Synchronize PWA manifest for dynamic splash screen background
+    let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
+    if (manifestLink) {
+      manifestLink.href = isDark ? "/manifest-dark.webmanifest" : "/manifest.webmanifest";
+    }
+
+    // Synchronize Apple status bar style
+    let appleMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (appleMeta) {
+      appleMeta.setAttribute("content", isDark ? "black" : "default");
+    }
   }, []);
 
   // Compute resolved theme from setting and system preference

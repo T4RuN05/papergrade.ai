@@ -23,6 +23,15 @@
           "value": "application/manifest+json"
         }
       ]
+    },
+    {
+      "source": "/manifest-dark.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
     }
   ]
 }

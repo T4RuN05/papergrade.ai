@@ -24,7 +24,7 @@ import dynamic from "next/dynamic";
 import { api, getAuthToken } from "@/lib/api";
 import { StudentQuestionModal } from "@/components/StudentQuestionModal";
 import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton } from "@/components/ui";
+import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton, StatusWell } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
 
@@ -235,38 +235,48 @@ export default function StudentSubmissionViewerPage() {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/80 p-3.5 text-xs text-amber-900">
-            <div className="flex items-center gap-2.5">
-              <Clock className="h-4 w-4 text-amber-600 shrink-0 animate-pulse" />
-              <div>
-                <span className="font-bold">Document Retention Active:</span> This graded answer sheet is scheduled to expire on{" "}
-                <strong>{submission.retention_expires_at ? new Date(submission.retention_expires_at).toLocaleDateString() : "in 15 days"}</strong> ({submission.days_remaining !== undefined && submission.days_remaining !== null ? `${submission.days_remaining} days remaining` : "15 days"}).
-                <span className="block text-[11px] text-amber-800 mt-0.5">Please download your graded copy now to maintain a personal archive. Revaluation appeals remain open for 7 days post-publication.</span>
-              </div>
-            </div>
-            <a
-              href={api.getAnnotatedPdfUrl(submission.id)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shrink-0 shadow-2xs transition-colors"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Save Copy Now
-            </a>
-          </div>
+          <StatusWell
+            variant="amber"
+            icon={<Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
+            title={
+              <>
+                <span>Document Retention Active</span>
+                <span className="font-mono text-[10px] text-ink-muted font-normal">
+                  • {submission.days_remaining !== undefined && submission.days_remaining !== null ? `${submission.days_remaining}d remaining` : "15d remaining"}
+                </span>
+              </>
+            }
+            badge={
+              <a
+                href={api.getAnnotatedPdfUrl(submission.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md btn-glass-primary text-xs font-semibold shrink-0 cursor-pointer"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Save Copy Now</span>
+              </a>
+            }
+          >
+            This graded answer sheet is scheduled to expire on{" "}
+            <strong className="text-ink font-semibold">
+              {submission.retention_expires_at ? new Date(submission.retention_expires_at).toLocaleDateString() : "in 15 days"}
+            </strong>. Download your personal copy before purge. Revaluation appeals remain open for 7 days post-publication.
+          </StatusWell>
         )
       ) : (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-blue-200 dark:border-blue-800/40 bg-blue-50/70 dark:bg-blue-950/40 p-3.5 text-xs text-blue-900 dark:text-blue-200">
-          <div className="flex items-center gap-2.5">
-            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-            <div>
-              <span className="font-bold text-blue-950 dark:text-blue-100">Evaluation in Progress:</span> Your submitted answer sheet has been securely registered and is being evaluated by academic examiners.
-              <span className="block text-[11px] text-blue-800 dark:text-blue-300/80 mt-0.5">
-                Question marks, detailed grading rubrics, and faculty feedback will be unlocked here once examination results are officially published.
-              </span>
-            </div>
-          </div>
-        </div>
+        <StatusWell
+          variant="blue"
+          icon={<Info className="h-3.5 w-3.5 text-primary" />}
+          title={
+            <>
+              <span>Evaluation in Progress</span>
+              <span className="font-mono text-[10px] text-ink-muted font-normal">• MARKS_LOCKED</span>
+            </>
+          }
+        >
+          Your submitted answer sheet has been securely registered and is being evaluated by academic examiners. Question marks, detailed grading rubrics, and faculty feedback will be unlocked here once examination results are officially published.
+        </StatusWell>
       )}
 
       {/* Student & Examination Banner */}

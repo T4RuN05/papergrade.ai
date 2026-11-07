@@ -86,7 +86,20 @@
   border-color: var(--hairline);
 }
 
+html {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: #f6f5f4;
+}
+
+html.dark {
+  background-color: #191919;
+}
+
 body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  width: 100%;
   color: var(--ink);
   background-color: var(--canvas-soft);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "lnum" 1;
@@ -104,7 +117,41 @@ body {
 
 ::-webkit-scrollbar {
   width: 6px;
-  height: 6px;
+  height: 0px;
+}
+
+/* Hide horizontal scrollbars across all overflow containers while preserving smooth touch swipe navigation */
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+.overflow-x-auto {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  -webkit-overflow-scrolling: touch;
+}
+.overflow-x-auto::-webkit-scrollbar {
+  height: 0px !important;
+  width: 0px !important;
+  display: none !important;
+}
+
+/* Explicit opt-in for desktop data tables that need a visible horizontal scrollbar thumb */
+.sleek-horizontal-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+.sleek-horizontal-scrollbar::-webkit-scrollbar {
+  height: 5px !important;
+  display: block !important;
 }
 
 ::-webkit-scrollbar-track {

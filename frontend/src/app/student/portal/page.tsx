@@ -343,7 +343,7 @@ function StudentMarksTrajectory({
       </div>
 
       {/* Subject Tabs Navigation (All Subjects, Physics, Chemistry, Maths, Biology) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-hairline/60">
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 text-xs border-b border-hairline/60">
         <button
           type="button"
           onClick={() => setSelectedSubject("ALL")}
@@ -2670,7 +2670,7 @@ export default function StudentPortalPage() {
         {/* Filter Pills (Subject & Status) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-hairline/70 text-xs">
           {/* Subject Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto sleek-scrollbar pb-1 sm:pb-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
             <span className="text-[10.5px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
               Subject:
             </span>
@@ -2702,7 +2702,7 @@ export default function StudentPortalPage() {
           </div>
 
           {/* Status Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto sleek-scrollbar shrink-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
             <span className="text-[10.5px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
               Status:
             </span>

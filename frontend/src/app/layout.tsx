@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "PaperGrade AI",
     startupImage: [
       {
@@ -30,7 +30,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0075de",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f5f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#191919" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -42,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="overflow-x-hidden max-w-[100vw]">
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -51,10 +54,21 @@ export default function RootLayout({
                 try {
                   var stored = localStorage.getItem('papergrade_theme');
                   var isDark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  var root = document.documentElement;
                   if (isDark) {
-                    document.documentElement.classList.add('dark');
+                    root.classList.add('dark');
+                    root.style.backgroundColor = '#191919';
                   } else {
-                    document.documentElement.classList.remove('dark');
+                    root.classList.remove('dark');
+                    root.style.backgroundColor = '#f6f5f4';
+                  }
+                  var manifestTag = document.querySelector('link[rel="manifest"]');
+                  if (manifestTag) {
+                    manifestTag.href = isDark ? '/manifest-dark.webmanifest' : '/manifest.webmanifest';
+                  }
+                  var themeMeta = document.querySelector('meta[name="theme-color"]');
+                  if (themeMeta) {
+                    themeMeta.content = isDark ? '#191919' : '#f6f5f4';
                   }
                 } catch (e) {}
               })();
@@ -63,7 +77,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className="min-h-screen bg-canvas-soft text-ink font-sans selection:bg-primary selection:text-white"
+        className="min-h-screen bg-canvas-soft text-ink font-sans selection:bg-primary selection:text-white max-w-[100vw] overflow-x-hidden"
         suppressHydrationWarning
       >
         <ThemeProvider>
