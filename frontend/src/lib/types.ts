@@ -158,7 +158,8 @@ export interface Submission {
   student_name: string;
   roll_number: string;
   page_count: number;
-  status: "UPLOADED" | "QUEUED" | "PROCESSING" | "NEEDS_REVIEW" | "COMPLETED" | "FAILED";
+  status: "UPLOADED" | "QUEUED" | "PROCESSING" | "NEEDS_REVIEW" | "COMPLETED" | "FAILED" | "ABSENT" | string;
+  is_absent?: boolean;
   error_message?: string;
   retry_count: number;
   total_awarded_marks: number;

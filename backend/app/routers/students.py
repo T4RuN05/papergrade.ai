@@ -409,6 +409,50 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
 
             submissions.append(sub)
 
+        # Reconcile absent exams: if an exam is closed or published and student never submitted
+        for ex in exam_rows:
+            if ex["id"] not in seen_exam_ids:
+                w_row = windows_by_exam.get(ex["id"])
+                w_stat = _compute_window_status(w_row)
+                is_closed = (w_row is not None and not w_stat.get("is_active")) or bool(ex.get("is_published")) or ex.get("status") in ["RUBRIC_APPROVED", "COMPLETED"]
+                if is_closed and (w_row is not None or bool(ex.get("is_published"))):
+                    sub = {
+                        "id": f"absent_{ex['id']}_{student_id or user_id}",
+                        "exam_id": ex["id"],
+                        "batch_id": batch_id,
+                        "student_id": student_id,
+                        "roll_number": roll_number or "",
+                        "student_name": user_dict.get("full_name", "Student"),
+                        "submission_status": "ABSENT",
+                        "status": "ABSENT",
+                        "is_absent": True,
+                        "total_awarded_marks": 0.0,
+                        "max_marks": ex.get("total_marks", 25.0),
+                        "percentage": 0.0,
+                        "total_pages": 0,
+                        "storage_path": "",
+                        "created_at": ex.get("created_at"),
+                        "updated_at": ex.get("created_at"),
+                        "publication_status": "PUBLISHED" if ex.get("is_published") else "UNPUBLISHED",
+                        "is_document_purged": False,
+                        "exam_title": ex["title"],
+                        "exam_subject": ex["subject"],
+                        "exam_total_marks": ex["total_marks"],
+                        "exam_is_published": ex.get("is_published"),
+                        "exam_question_paper_path": ex.get("question_paper_path"),
+                        "exam_answer_key_path": ex.get("answer_key_path"),
+                        "exam_is_document_purged": False,
+                        "is_published": bool(ex.get("is_published")),
+                        "student_status": "Absent",
+                        "has_question_paper": bool(ex.get("is_published") and ex.get("question_paper_path")),
+                        "has_answer_key": bool(ex.get("is_published") and ex.get("answer_key_path")),
+                        "answers": [],
+                        "revaluation": None,
+                        "days_remaining": None,
+                        "retention": {"days_remaining": None, "is_active": False}
+                    }
+                    submissions.append(sub)
+
         return {
             "user": user_dict,
             "active_exam": active_exam,

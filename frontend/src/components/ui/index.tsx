@@ -171,7 +171,8 @@ export type StickerColor =
   | "pink"
   | "orange"
   | "brown"
-  | "gray";
+  | "gray"
+  | "red";
 
 export interface BadgePillProps {
   label: string;
@@ -189,6 +190,7 @@ export function BadgePill({ label, color = "gray", className = "" }: BadgePillPr
     orange: "bg-[#fef4ea] text-[#dd5b00] border-[#fed8b8] dark:bg-[#2d1b0d] dark:text-[#fb923c] dark:border-[rgba(251,146,60,0.25)]",
     brown: "bg-[#f5efe8] text-[#523410] border-[#d8c5b0] dark:bg-[#2a2016] dark:text-[#cfab80] dark:border-[rgba(207,171,128,0.25)]",
     gray: "bg-[#f1f1ef] text-[#615d59] border-[#e2e1de] dark:bg-[#242424] dark:text-[#a3a3a3] dark:border-[rgba(255,255,255,0.1)]",
+    red: "bg-[#fef2f2] text-[#dc2626] border-[#fecaca] dark:bg-[#3f1212] dark:text-[#f87171] dark:border-[rgba(248,113,113,0.25)]",
   };
 
   return (

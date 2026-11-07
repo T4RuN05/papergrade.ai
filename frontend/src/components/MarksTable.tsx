@@ -45,6 +45,9 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
       if (filterStatus === "COMPLETED") {
         return matchSearch && sub.status === "COMPLETED";
       }
+      if (filterStatus === "ABSENT") {
+        return matchSearch && (sub.status === "ABSENT" || Boolean((sub as any).is_absent));
+      }
       return matchSearch;
     })
     .sort((a, b) => {
@@ -90,9 +93,10 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="w-full sm:w-auto rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink focus:border-primary focus:outline-none shadow-2xs"
           >
-            <option value="ALL">All Submissions ({submissions.length})</option>
-            <option value="REVIEW">Needs Review</option>
+            <option value="ALL">All Candidates ({submissions.length})</option>
             <option value="COMPLETED">Finalized / Completed</option>
+            <option value="REVIEW">Needs Review</option>
+            <option value="ABSENT">Absent ({submissions.filter((s) => s.status === "ABSENT" || (s as any).is_absent).length})</option>
           </select>
         </div>
 
@@ -236,7 +240,9 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                       {sub.percentage}%
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {hasReview ? (
+                      {sub.status === "ABSENT" || (sub as any).is_absent ? (
+                        <BadgePill label="Absent" color="red" />
+                      ) : hasReview ? (
                         <BadgePill label="Review" color="purple" />
                       ) : sub.status === "COMPLETED" ? (
                         <BadgePill label="Completed" color="green" />
@@ -245,7 +251,11 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      {Boolean(
+                      {sub.status === "ABSENT" || (sub as any).is_absent ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200">
+                          No Submission
+                        </span>
+                      ) : Boolean(
                         sub.status &&
                           ["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(
                             sub.status.toUpperCase()

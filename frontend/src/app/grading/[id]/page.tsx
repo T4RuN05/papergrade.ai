@@ -116,33 +116,30 @@ export default function GradingPage() {
     if (!submission) return;
     try {
       const updatedSub = await api.editRegion(submission.id, regionId, coords);
-      const timestamp = Date.now();
-      const baseSub = updatedSub && updatedSub.answers ? updatedSub : submission;
-      const patchedAnswers = (baseSub.answers || []).map((ans: any) => {
-        const hasRegion = (ans.regions || []).some((reg: any) => reg.id === regionId || (!reg.id && ans.id === regionId));
-        if (hasRegion || ans.id === regionId) {
-          const updatedRegions = (ans.regions || []).map((reg: any) => {
-            if (reg.id === regionId || (!reg.id && ans.id === regionId)) {
-              return { ...reg, ...coords, _lastUpdated: timestamp };
-            }
-            return reg;
-          });
-          return {
-            ...ans,
-            regions: updatedRegions.length > 0 ? updatedRegions : [{ id: regionId, ...coords, _lastUpdated: timestamp }],
-            page_number: coords.page_number,
-            _lastUpdated: timestamp,
-          };
-        }
-        return ans;
-      });
-
-      const nextSub = { ...baseSub, answers: patchedAnswers };
-      handleUpdated(nextSub);
+      if (updatedSub && updatedSub.answers) {
+        handleUpdated(updatedSub);
+      } else {
+        await loadSubmission();
+      }
       toast.success("Bounding box updated & student crop regenerated.", { title: "Bounding Box Saved" });
     } catch (err: any) {
       toast.error(err.message || "Failed to update bounding box.", { title: "Update Failed" });
       throw err;
+    }
+  };
+
+  const handleDeleteRegion = async (regionId: string) => {
+    if (!submission) return;
+    try {
+      const updatedSub = await api.deleteRegion(submission.id, regionId);
+      if (updatedSub && updatedSub.answers) {
+        handleUpdated(updatedSub);
+      } else {
+        await loadSubmission();
+      }
+      toast.success("Bounding box region removed successfully.", { title: "Region Deleted" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete bounding box region.", { title: "Delete Failed" });
     }
   };
 
@@ -354,6 +351,7 @@ export default function GradingPage() {
             currentPage={currentPage}
             onPageChange={setCurrentPage}
             onUpdateRegion={handleUpdateRegion}
+            onDeleteRegion={handleDeleteRegion}
             totalAwardedMarks={submission.total_awarded_marks}
             maxMarks={submission.max_marks}
             isDocumentPurged={Boolean(submission.is_document_purged)}
@@ -421,11 +419,27 @@ export default function GradingPage() {
                       <span className="text-[10px] text-ink-muted">Page {ans.page_number}</span>
                     </div>
 
-                    <div className="font-mono text-xs font-bold">
-                      <span className={`px-2 py-0.5 rounded-md border ${scoreColor}`}>
-                        {ans.awarded_marks}
-                        <span className="text-ink-muted font-normal">/{ans.max_marks}</span>
-                      </span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="font-mono text-xs font-bold">
+                        <span className={`px-2 py-0.5 rounded-md border ${scoreColor}`}>
+                          {ans.awarded_marks}
+                          <span className="text-ink-muted font-normal">/{ans.max_marks}</span>
+                        </span>
+                      </div>
+                      {!(ans.regions || []).some((r: any) => r.page_number === currentPage) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAnswer(ans);
+                            setEditingAnswerId(ans.id);
+                          }}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors shrink-0 shadow-2xs"
+                          title={`Add bounding box for ${ans.question_id} on Page ${currentPage}`}
+                        >
+                          + Sheet {currentPage}
+                        </button>
+                      )}
                     </div>
                   </button>
                 );

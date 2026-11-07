@@ -16,6 +16,7 @@ import {
   Save,
   CheckCircle2,
   Move,
+  Plus,
 } from "lucide-react";
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -54,6 +55,7 @@ export function GradingModal({
     answer?.criterion_scores || []
   );
   const [selectedRegionIndex, setSelectedRegionIndex] = useState(0);
+  const [showAddPageDropdown, setShowAddPageDropdown] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isRendered, setIsRendered] = useState(isOpen);
   const [isExiting, setIsExiting] = useState(false);
@@ -304,18 +306,68 @@ export function GradingModal({
                               Page {activePage}
                             </span>
                             {onAdjustOnCanvas && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onClose();
-                                  onAdjustOnCanvas(answer, activePage);
-                                }}
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active hover:underline cursor-pointer transition-colors"
-                                title="Close modal and adjust box handles directly on canvas"
-                              >
-                                <Move className="h-3 w-3" />
-                                Adjust Box on Canvas
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onClose();
+                                    onAdjustOnCanvas(answer, activePage);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active hover:underline cursor-pointer transition-colors"
+                                  title="Close modal and adjust box handles directly on canvas"
+                                >
+                                  <Move className="h-3 w-3" />
+                                  Adjust Box
+                                </button>
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAddPageDropdown((prev) => !prev)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded hover:bg-teal-100 transition-colors cursor-pointer shadow-2xs"
+                                    title="Add an additional bounding box continuation on another sheet"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    <span>+ Add Sheet</span>
+                                  </button>
+                                  {showAddPageDropdown && (
+                                    <div className="absolute top-full right-0 mt-1 w-48 bg-surface border border-hairline shadow-lg rounded-lg p-1.5 z-50 space-y-1">
+                                      <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-2 py-1 border-b border-hairline flex items-center justify-between">
+                                        <span>Link on Sheet:</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setShowAddPageDropdown(false)}
+                                          className="text-ink-muted hover:text-ink cursor-pointer"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                      <div className="max-h-40 overflow-y-auto space-y-0.5">
+                                        {Array.from({ length: submission.page_count || 1 }).map((_, pIdx) => {
+                                          const pNum = pIdx + 1;
+                                          const hasRegOnP = allRegions.some((r) => r.page_number === pNum);
+                                          return (
+                                            <button
+                                              key={pNum}
+                                              type="button"
+                                              onClick={() => {
+                                                setShowAddPageDropdown(false);
+                                                onClose();
+                                                onAdjustOnCanvas(answer, pNum);
+                                              }}
+                                              className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-canvas-soft transition-colors cursor-pointer"
+                                            >
+                                              <span className="font-medium text-ink">Page {pNum}</span>
+                                              <span className={`text-[10px] ${hasRegOnP ? "text-emerald-600 font-semibold" : "text-ink-muted"}`}>
+                                                {hasRegOnP ? "(Has Box)" : "+ Add Box"}
+                                              </span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>

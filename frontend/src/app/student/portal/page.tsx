@@ -2071,9 +2071,12 @@ export default function StudentPortalPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4">
               {pastSubmissionsList.slice(0, 1).map((sub) => {
+              const isAbsent = sub.status === "ABSENT" || Boolean(sub.is_absent);
               const isPublished =
-                sub.publication_status === "PUBLISHED" ||
-                (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
+                !isAbsent && (
+                  sub.publication_status === "PUBLISHED" ||
+                  (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published))
+                );
               const hasAnswers = sub.answers && sub.answers.length > 0;
               const reval = sub.revaluation;
               const hasOpenReval =
@@ -2099,7 +2102,7 @@ export default function StudentPortalPage() {
                         <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                           <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
                           <span>
-                            Submitted on{" "}
+                            {isAbsent ? "Examination missed" : "Submitted on"}{" "}
                             {sub.created_at
                               ? new Date(sub.created_at).toLocaleDateString(undefined, {
                                   year: "numeric",
@@ -2119,7 +2122,12 @@ export default function StudentPortalPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-auto pt-0.5 sm:pt-0">
-                      {isPublished ? (
+                      {isAbsent ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-600" />
+                          Absent
+                        </span>
+                      ) : isPublished ? (
                         <>
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50 whitespace-nowrap">
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -2203,7 +2211,23 @@ export default function StudentPortalPage() {
                   )}
 
                   {/* Score & Revaluation Feedback Banner */}
-                  {isPublished ? (
+                  {isAbsent ? (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
+                      <div className="flex items-center gap-2.5">
+                        <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold text-rose-900 dark:text-rose-200">Candidate Recorded as Absent</div>
+                          <div className="text-[11px] text-rose-700 dark:text-rose-400">
+                            No answer sheet was uploaded during the exam window. This paper was not evaluated.
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-left sm:text-right shrink-0">
+                        <div className="text-sm font-bold text-rose-700 dark:text-rose-300 font-mono">0.0 / {sub.exam_total_marks || 25}</div>
+                        <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold uppercase">Absent</div>
+                      </div>
+                    </div>
+                  ) : isPublished ? (
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline">
                       <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-4">
                         <div>
@@ -2665,10 +2689,13 @@ export default function StudentPortalPage() {
       ) : (
         <div className="space-y-3">
           {filteredPastSubmissions.map((sub) => {
+            const isAbsent = sub.status === "ABSENT" || Boolean(sub.is_absent);
             const isExpanded = Boolean(expandedCardIds[sub.id]);
             const isPublished =
-              sub.publication_status === "PUBLISHED" ||
-              (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published));
+              !isAbsent && (
+                sub.publication_status === "PUBLISHED" ||
+                (sub.publication_status !== "UNPUBLISHED" && Boolean(sub.exam_is_published || sub.is_published))
+              );
             const hasAnswers = sub.answers && sub.answers.length > 0;
             const reval = sub.revaluation;
             const hasOpenReval =
@@ -2705,7 +2732,7 @@ export default function StudentPortalPage() {
                       <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                         <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
                         <span>
-                          Submitted on{" "}
+                          {isAbsent ? "Examination missed" : "Submitted on"}{" "}
                           {sub.created_at
                             ? new Date(sub.created_at).toLocaleDateString(undefined, {
                                 year: "numeric",
@@ -2725,7 +2752,12 @@ export default function StudentPortalPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center pt-0.5 sm:pt-0">
-                    {isPublished ? (
+                    {isAbsent ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50 whitespace-nowrap">
+                        <AlertCircle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
+                        Absent
+                      </span>
+                    ) : isPublished ? (
                       <>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50 whitespace-nowrap">
                           <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
@@ -2769,12 +2801,16 @@ export default function StudentPortalPage() {
                       </span>
                     )}
 
-                    {isPublished && sub.total_awarded_marks !== null && (
+                    {isAbsent ? (
+                      <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-xs font-bold text-rose-700 dark:text-rose-300 whitespace-nowrap shrink-0">
+                        0.0 / {sub.max_marks || sub.exam_total_marks || 25}m
+                      </span>
+                    ) : isPublished && sub.total_awarded_marks !== null ? (
                       <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-bold text-ink whitespace-nowrap shrink-0">
                         {Number(sub.total_awarded_marks).toFixed(1)} / {sub.max_marks || sub.exam_total_marks || 25}m
                         {sub.percentage !== null && ` (${Number(sub.percentage).toFixed(0)}%)`}
                       </span>
-                    )}
+                    ) : null}
 
                     <button
                       type="button"
@@ -2833,7 +2869,23 @@ export default function StudentPortalPage() {
                       )
                     )}
 
-                    {isPublished ? (
+                    {isAbsent ? (
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
+                        <div className="flex items-center gap-2.5">
+                          <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                          <div>
+                            <div className="text-xs font-bold text-rose-900 dark:text-rose-200">Candidate Recorded as Absent</div>
+                            <div className="text-[11px] text-rose-700 dark:text-rose-400">
+                              No answer sheet was uploaded during the exam window. This paper was not evaluated.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-left sm:text-right shrink-0">
+                          <div className="text-sm font-bold text-rose-700 dark:text-rose-300 font-mono">0.0 / {sub.exam_total_marks || 25}</div>
+                          <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold uppercase">Absent</div>
+                        </div>
+                      </div>
+                    ) : isPublished ? (
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline">
                         <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-4">
                           <div>
@@ -2908,19 +2960,30 @@ export default function StudentPortalPage() {
                     {/* Actions Row */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-                        <Link
-                          href={`/student/submissions/${sub.id}`}
-                          className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 rounded-md shadow-2xs transition-colors cursor-pointer text-center shrink-0 whitespace-nowrap"
-                        >
-                          <Eye className="h-3.5 w-3.5 shrink-0" />
-                          <span>
-                            {isPublished
-                              ? sub.is_document_purged
-                                ? "View Archived Question Marks →"
-                                : "Inspect in PDF Viewer →"
-                              : "View Submitted Script →"}
-                          </span>
-                        </Link>
+                        {isAbsent ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/70 bg-canvas-soft border border-hairline px-4 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                            <span>No Script Uploaded</span>
+                          </button>
+                        ) : (
+                          <Link
+                            href={`/student/submissions/${sub.id}`}
+                            className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-4 rounded-md shadow-2xs transition-colors cursor-pointer text-center shrink-0 whitespace-nowrap"
+                          >
+                            <Eye className="h-3.5 w-3.5 shrink-0" />
+                            <span>
+                              {isPublished
+                                ? sub.is_document_purged
+                                  ? "View Archived Question Marks →"
+                                  : "Inspect in PDF Viewer →"
+                                : "View Submitted Script →"}
+                            </span>
+                          </Link>
+                        )}
 
                         {/* Secondary: View Breakdown */}
                         {isPublished ? (

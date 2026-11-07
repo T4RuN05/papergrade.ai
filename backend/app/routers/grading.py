@@ -77,10 +77,11 @@ def edit_answer(
 @router.post("/regions/{submission_id}/{region_id}/edit")
 @router.post("/{submission_id}/regions/{region_id}")
 @router.patch("/{submission_id}/regions/{region_id}")
+@router.post("/regions/{submission_id}/add")
 def edit_region(
     submission_id: str,
-    region_id: str,
-    req: ManualEditRegionRequest,
+    region_id: str = "new",
+    req: ManualEditRegionRequest = None,
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
     try:
@@ -90,6 +91,22 @@ def edit_region(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to edit region: {str(e)}")
+
+
+@router.delete("/regions/{submission_id}/{region_id}")
+@router.delete("/{submission_id}/regions/{region_id}")
+def delete_region(
+    submission_id: str,
+    region_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    try:
+        updated = grading_service.delete_region(submission_id, region_id)
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete region: {str(e)}")
 
 
 @router.get("/page-image/{submission_id}/{page_num}")

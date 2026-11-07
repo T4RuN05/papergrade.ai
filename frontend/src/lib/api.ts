@@ -1271,12 +1271,33 @@ export const api = {
         width: data.width,
         height: data.height,
         reason: data.reason || "Teacher adjusted bounding box",
-        answer_id: (data as any).answer_id || (regionId.startsWith("draft-new-") ? regionId.replace("draft-new-", "") : undefined),
+        answer_id:
+          (data as any).answer_id ||
+          (regionId.startsWith("draft-add-")
+            ? regionId.split("-")[2]
+            : regionId.startsWith("draft-new-")
+            ? regionId.replace("draft-new-", "")
+            : undefined),
       }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to update bounding box region" }));
       throw new Error(err.detail || "Failed to update bounding box region");
+    }
+    const resData = await res.json();
+    clearApiCache(`submissions:detail:${submissionId}`);
+    clearApiCache(`submissions:list:`);
+    return resData;
+  },
+
+  async deleteRegion(submissionId: string, regionId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/grading/regions/${submissionId}/${regionId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to delete bounding box region" }));
+      throw new Error(err.detail || "Failed to delete bounding box region");
     }
     const resData = await res.json();
     clearApiCache(`submissions:detail:${submissionId}`);

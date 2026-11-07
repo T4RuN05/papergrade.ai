@@ -74,11 +74,50 @@ def _enforce_evidence_grounding_and_verdict(
             or "[diagram" in norm_transcript
         )
         if not is_visual_or_diagram:
-            # If quote is > 6 chars and not a literal substring of the transcript, check alphanumeric match
+            # If quote is > 6 chars and not a literal substring of the transcript, check alphanumeric & segment matches
             if len(norm_quote) > 6 and norm_quote not in norm_transcript:
-                clean_q = re.sub(r'[^a-z0-9]', '', norm_quote)
                 clean_t = re.sub(r'[^a-z0-9]', '', norm_transcript)
-                if not clean_q or clean_q not in clean_t:
+                clean_quote_str = norm_quote
+                for lt in [r'\implies', r'\therefore', r'\times', r'\cdot', r'\neq', r'\approx', r'\pm', r'\left', r'\right']:
+                    clean_quote_str = clean_quote_str.replace(lt, ' ')
+
+                clean_q = re.sub(r'[^a-z0-9]', '', clean_quote_str.replace(r'\rightarrow', ' ').replace('->', ' '))
+                if not clean_t:
+                    return 0.0
+
+                # Check 1: direct alphanumeric match
+                is_grounded = bool(clean_q and clean_q in clean_t)
+
+                # Check 2: segmented / ellipsis / arrow-separated quote matching
+                if not is_grounded:
+                    segments = [s.strip() for s in re.split(r'\\\.{3,}|\u2026|\||\\rightarrow|->', clean_quote_str) if s.strip()]
+                    if len(segments) > 1:
+                        valid_segs = 0
+                        matched_segs = 0
+                        for seg in segments:
+                            clean_seg = re.sub(r'[^a-z0-9]', '', seg)
+                            if len(clean_seg) >= 3:
+                                valid_segs += 1
+                                if clean_seg in clean_t:
+                                    matched_segs += 1
+                                else:
+                                    words = seg.split()
+                                    if len(words) >= 3:
+                                        sub_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]))
+                                        if sub_clean and sub_clean in clean_t:
+                                            matched_segs += 1
+                        if valid_segs > 0 and (matched_segs == valid_segs or (valid_segs >= 3 and matched_segs >= valid_segs - 1)):
+                            is_grounded = True
+
+                # Check 3: anchor prefix (at least 4 consecutive words from start of quote)
+                if not is_grounded:
+                    words = clean_quote_str.split()
+                    if len(words) >= 4:
+                        head_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]))
+                        if len(head_clean) >= 10 and head_clean in clean_t:
+                            is_grounded = True
+
+                if not is_grounded:
                     return 0.0
 
     # Rule 3: Clamp to [0.0, max_marks] and snap to discrete 0.5 increments
@@ -993,23 +1032,46 @@ class GradingService:
         edit_req: ManualEditRegionRequest
     ) -> Dict[str, Any]:
         """
-        Adjusts bounding box coordinates, writes audit log, updates crop & export PDF via ORM.
+        Adjusts bounding box coordinates or adds a new multi-page region,
+        writes audit log, updates crops & export PDF via ORM.
         """
         now = get_iso_now()
+        is_new_addition = (
+            region_id.startswith("draft-add-")
+            or region_id.startswith("draft-new-")
+            or region_id.startswith("new-")
+            or region_id == "new"
+        )
+
         with get_session() as session:
-            old_reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+            old_reg = None
+            if not is_new_addition:
+                old_reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+                if not old_reg:
+                    old_reg = session.scalar(
+                        select(AnswerRegion).where(AnswerRegion.answer_id == region_id).order_by(AnswerRegion.id.asc()).limit(1)
+                    )
+
             if not old_reg:
-                old_reg = session.scalar(
-                    select(AnswerRegion).where(AnswerRegion.answer_id == region_id).order_by(AnswerRegion.id.asc()).limit(1)
-                )
-            if not old_reg:
-                # Handle newly created bounding box for an answer that previously had 0 regions
-                target_ans_id = edit_req.answer_id or region_id.replace("draft-new-", "")
+                # Handle newly created bounding box for an answer (e.g. multi-page continuation or previously missing)
+                target_ans_id = edit_req.answer_id
+                if not target_ans_id:
+                    if region_id.startswith("draft-add-"):
+                        parts = region_id.split("-")
+                        if len(parts) >= 3:
+                            target_ans_id = parts[2]
+                    elif region_id.startswith("draft-new-"):
+                        target_ans_id = region_id.replace("draft-new-", "")
+                    elif region_id.startswith("new-"):
+                        target_ans_id = region_id.replace("new-", "")
+                    else:
+                        target_ans_id = region_id
+
                 target_ans = session.scalar(
                     select(Answer).where(Answer.id == target_ans_id, Answer.submission_id == submission_id)
                 )
                 if target_ans:
-                    new_reg_id = str(uuid.uuid4())
+                    new_reg_id = f"reg_{uuid.uuid4().hex[:12]}"
                     old_reg = AnswerRegion(
                         id=new_reg_id,
                         answer_id=target_ans.id,
@@ -1022,10 +1084,9 @@ class GradingService:
                     )
                     session.add(old_reg)
                     target_ans.is_missing = 0
-                    target_ans.page_number = edit_req.page_number
                     session.flush()
                 else:
-                    raise ValueError("Region or Answer record not found.")
+                    raise ValueError(f"Region or Answer record not found for id={region_id}, answer_id={target_ans_id}")
 
             actual_region_id = old_reg.id
             ans_id = old_reg.answer_id
@@ -1040,7 +1101,7 @@ class GradingService:
                 new_value=f"[{edit_req.x:.2f}, {edit_req.y:.2f}, {edit_req.width:.2f}, {edit_req.height:.2f}]",
                 reason=edit_req.reason,
                 edited_by="teacher",
-                action="MANUAL_EDIT",
+                action="ADD_REGION" if is_new_addition else "MANUAL_EDIT",
                 resource_type="REGION",
                 resource_id=submission_id,
                 details_json=json.dumps({
@@ -1063,7 +1124,14 @@ class GradingService:
 
             ans = session.scalar(select(Answer).where(Answer.id == ans_id))
             if ans:
-                ans.page_number = edit_req.page_number
+                all_pages = session.scalars(
+                    select(AnswerRegion.page_number).where(AnswerRegion.answer_id == ans_id)
+                ).all()
+                if all_pages:
+                    ans.page_number = min(all_pages)
+                else:
+                    ans.page_number = edit_req.page_number
+                ans.is_missing = 0
                 ans.updated_at = now
 
             sub = session.scalar(select(Submission).where(Submission.id == submission_id))
@@ -1098,6 +1166,76 @@ class GradingService:
             pdf_service.crop_answer_region(page_img, edit_req.x, edit_req.y, edit_req.width, edit_req.height, reg_crop_path)
 
         # Re-export annotated PDF asynchronously in background
+        GradingService.trigger_background_export_pdf(submission_id)
+        return GradingService.get_submission_details(submission_id)
+
+    @staticmethod
+    def delete_region(submission_id: str, region_id: str) -> Dict[str, Any]:
+        """
+        Deletes a specific bounding box region from an answer.
+        Updates answer page_number, re-exports PDF, and recalculates totals.
+        """
+        now = get_iso_now()
+        with get_session() as session:
+            reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+            if not reg:
+                raise ValueError(f"Region {region_id} not found")
+
+            ans_id = reg.answer_id
+            ans = session.scalar(select(Answer).where(Answer.id == ans_id, Answer.submission_id == submission_id))
+            if not ans:
+                raise ValueError(f"Answer for region {region_id} not found")
+
+            session.add(AuditLog(
+                id=str(uuid.uuid4()),
+                user_id="teacher",
+                submission_id=submission_id,
+                answer_id=ans_id,
+                field_name="bounding_box",
+                old_value=f"[Page {reg.page_number}: {reg.x:.2f}, {reg.y:.2f}, {reg.width:.2f}, {reg.height:.2f}]",
+                new_value="DELETED",
+                reason="Teacher deleted bounding box region",
+                edited_by="teacher",
+                action="DELETE_REGION",
+                resource_type="REGION",
+                resource_id=region_id,
+                details_json=json.dumps({
+                    "answer_id": ans_id,
+                    "region_id": region_id,
+                    "page_number": reg.page_number
+                }),
+                created_at=now
+            ))
+
+            session.delete(reg)
+            session.flush()
+
+            # Check remaining regions for this answer
+            remaining_pages = session.scalars(
+                select(AnswerRegion.page_number).where(AnswerRegion.answer_id == ans_id)
+            ).all()
+
+            if remaining_pages:
+                ans.page_number = min(remaining_pages)
+            else:
+                ans.is_missing = 1
+
+            ans.updated_at = now
+            sub = session.scalar(select(Submission).where(Submission.id == submission_id))
+            if sub:
+                sub.updated_at = now
+
+            session.commit()
+
+        # Clean up crop files
+        crops_dir = settings.RENDERS_DIR / submission_id / "crops"
+        reg_crop = crops_dir / f"crop_{ans_id}_{region_id}.png"
+        if reg_crop.exists():
+            try:
+                reg_crop.unlink()
+            except Exception:
+                pass
+
         GradingService.trigger_background_export_pdf(submission_id)
         return GradingService.get_submission_details(submission_id)
 

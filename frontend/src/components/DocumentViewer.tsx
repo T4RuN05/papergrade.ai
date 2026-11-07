@@ -20,6 +20,8 @@ import {
   X,
   ShieldCheck,
   Archive,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { GradedAnswer, AnswerRegion } from "@/lib/types";
 import { api, getAuthToken } from "@/lib/api";
@@ -50,6 +52,7 @@ interface DocumentViewerProps {
     regionId: string,
     coords: { x: number; y: number; width: number; height: number; page_number: number }
   ) => Promise<void>;
+  onDeleteRegion?: (regionId: string) => Promise<void>;
   totalAwardedMarks?: number;
   maxMarks?: number;
   readOnly?: boolean;
@@ -74,6 +77,7 @@ export function DocumentViewer({
   currentPage: propCurrentPage,
   onPageChange,
   onUpdateRegion,
+  onDeleteRegion,
   totalAwardedMarks,
   maxMarks,
   readOnly = false,
@@ -263,18 +267,18 @@ export function DocumentViewer({
   const [activeDragRegionId, setActiveDragRegionId] = useState<string | null>(null);
   const [savingRegionId, setSavingRegionId] = useState<string | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null);
+  const [showAddBoxDropdown, setShowAddBoxDropdown] = useState<boolean>(false);
 
   // Sync with propEditingAnswerId
   useEffect(() => {
     if (propEditingAnswerId) {
       const match = answers.find((a) => a.id === propEditingAnswerId);
       const regOnThisPage = (match?.regions || []).find((r) => r.page_number === currentPage);
-      const reg = regOnThisPage || match?.regions?.[0];
-      if (reg && match) {
-        setEditingRegionId(reg.id || match.id);
+      if (regOnThisPage) {
+        setEditingRegionId(regOnThisPage.id || null);
       } else if (match) {
-        // Answer has 0 regions on this page: spawn a default centered bounding box in edit mode
-        const newRegId = `draft-new-${match.id}`;
+        // Answer has 0 regions on this specific page: spawn a draft continuation box on THIS page!
+        const newRegId = `draft-add-${match.id}-${currentPage}`;
         setDraftCoords((prev) => ({
           ...prev,
           [newRegId]: {
@@ -292,6 +296,28 @@ export function DocumentViewer({
       setEditingRegionId(null);
     }
   }, [propEditingAnswerId, answers, currentPage]);
+
+  const handleSpawnDraftBox = (ansId: string) => {
+    const match = answers.find((a) => a.id === ansId);
+    if (!match) return;
+    const newRegId = `draft-add-${match.id}-${currentPage}`;
+    setDraftCoords((prev) => ({
+      ...prev,
+      [newRegId]: {
+        x: 0.15,
+        y: 0.20,
+        width: 0.70,
+        height: 0.15,
+        page_number: currentPage,
+        isModified: true,
+      },
+    }));
+    setEditingRegionId(newRegId);
+    if (onSetEditingAnswerId) {
+      onSetEditingAnswerId(match.id);
+    }
+    onSelectAnswer(match);
+  };
 
   // Ref to the zoomable image container and viewport
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -806,17 +832,22 @@ export function DocumentViewer({
     }
   };
 
-  const handleSaveRegion = async (regionId: string, coords: DraftRegionCoord) => {
+  const handleSaveRegion = async (
+    regionId: string,
+    coords: DraftRegionCoord,
+    targetAnswerId?: string
+  ) => {
     if (!onUpdateRegion) return;
     setSavingRegionId(regionId);
     try {
       await onUpdateRegion(regionId, {
+        answer_id: targetAnswerId,
         page_number: currentPage,
         x: coords.x,
         y: coords.y,
         width: coords.width,
         height: coords.height,
-      });
+      } as any);
       // Clear draft coords on save so the server response updates the display
       setDraftCoords((prev) => {
         const copy = { ...prev };
@@ -864,11 +895,13 @@ export function DocumentViewer({
     });
   });
 
-  // If we are actively editing a draft region for an unallocated answer on this page, include it in pageRegions
-  if (editingRegionId && editingRegionId.startsWith("draft-new-")) {
-    const ansId = editingRegionId.replace("draft-new-", "");
+  // If we are actively editing a draft region for an unallocated answer or multi-page continuation on this page, include it in pageRegions
+  if (editingRegionId && (editingRegionId.startsWith("draft-new-") || editingRegionId.startsWith("draft-add-"))) {
+    const ansId = editingRegionId.startsWith("draft-add-")
+      ? editingRegionId.split("-")[2]
+      : editingRegionId.replace("draft-new-", "");
     const match = answers.find((a) => a.id === ansId);
-    if (match && !pageRegions.some((pr) => pr.answer.id === match.id)) {
+    if (match && !pageRegions.some((pr) => pr.region.id === editingRegionId)) {
       const draft = draftCoords[editingRegionId] || {
         x: 0.15,
         y: 0.20,
@@ -980,6 +1013,72 @@ export function DocumentViewer({
             </div>
           )}
         </div>
+
+        {/* "+ Add Box on Sheet" Quick Dropdown for Multi-Page Continuation */}
+        {!readOnly && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAddBoxDropdown((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-hairline hover:border-primary text-xs font-semibold text-ink hover:text-primary transition-all shadow-2xs cursor-pointer"
+              title={`Add bounding box for any question on Page ${currentPage}`}
+            >
+              <Plus className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">+ Add Box to Page {currentPage}</span>
+              <span className="sm:hidden">+ Box</span>
+            </button>
+            {showAddBoxDropdown && (
+              <div className="absolute top-full left-0 mt-1 w-72 max-h-64 overflow-y-auto rounded-lg bg-surface border border-hairline shadow-lg z-50 p-1.5 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-2 py-1 border-b border-hairline flex items-center justify-between">
+                  <span>Add Box on Page {currentPage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBoxDropdown(false)}
+                    className="text-ink-muted hover:text-ink cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="text-[11px] text-ink-muted px-2 py-0.5">
+                  Select question to link continuation:
+                </div>
+                {answers.map((ans) => {
+                  const hasRegionHere = (ans.regions || []).some((r) => r.page_number === currentPage);
+                  const regionCount = (ans.regions || []).length;
+                  return (
+                    <button
+                      key={ans.id}
+                      type="button"
+                      onClick={() => {
+                        setShowAddBoxDropdown(false);
+                        handleSpawnDraftBox(ans.id);
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-canvas-soft transition-colors cursor-pointer group"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <span className="font-mono font-bold text-ink group-hover:text-primary block truncate">
+                          {ans.question_id}
+                        </span>
+                        <span className="text-[10px] text-ink-muted block truncate">
+                          {ans.question_text ? ans.question_text.slice(0, 30) + "..." : `${ans.awarded_marks}/${ans.max_marks} marks`}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium shrink-0 ${
+                        hasRegionHere
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : regionCount > 0
+                          ? "bg-teal-50 text-teal-700 border border-teal-200"
+                          : "bg-canvas-soft text-ink-muted border border-hairline"
+                      }`}>
+                        {hasRegionHere ? "On Sheet" : regionCount > 0 ? `+ Spans (${regionCount})` : "+ Add New"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Drag & Resize Instruction Indicator */}
         {editingRegionId || propEditingAnswerId ? (
@@ -1494,7 +1593,7 @@ export function DocumentViewer({
                         <span className="text-[10px] text-ink-muted font-medium">Box adjusted</span>
                         <button
                           type="button"
-                          onClick={() => handleSaveRegion(region.id || answer.id, coords)}
+                          onClick={() => handleSaveRegion(region.id || answer.id, coords, answer.id)}
                           disabled={savingRegionId === (region.id || answer.id)}
                           className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-primary text-white text-[11px] font-semibold hover:bg-primary-active transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
                         >
@@ -1519,6 +1618,25 @@ export function DocumentViewer({
                       <span className="text-[10px] text-ink-muted font-medium">
                         Drag handles to resize or body to move
                       </span>
+                    )}
+                    {onDeleteRegion && region.id && !region.id.startsWith("draft-") && (
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const targetRegId = region.id;
+                          if (!targetRegId) return;
+                          if (confirm(`Remove this bounding box region on Page ${currentPage} for ${answer.question_id}?`)) {
+                            await onDeleteRegion(targetRegId);
+                            handleExitEditMode();
+                          }
+                        }}
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors text-[11px] font-medium cursor-pointer ml-1"
+                        title="Delete this bounding box region"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Delete
+                      </button>
                     )}
                     <button
                       type="button"

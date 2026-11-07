@@ -541,8 +541,65 @@ def get_submissions_for_exam(
             "updated_at": s.updated_at,
             "submitted_at": s.submitted_at,
             "answers": answers_by_sub.get(s.id, []),
+            "is_absent": False,
         }
         output.append(s_dict)
+
+    # Roster reconciliation: identify enrolled students who did not submit and flag as ABSENT
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    batch_ids = set()
+    if exam:
+        if exam.batch_ids:
+            try:
+                parsed = json.loads(exam.batch_ids)
+                if isinstance(parsed, list):
+                    batch_ids.update(str(b).strip() for b in parsed if str(b).strip())
+            except Exception:
+                batch_ids.update(b.strip() for b in exam.batch_ids.split(",") if b.strip())
+        ex_batches = db.scalars(select(ExamBatch.batch_id).where(ExamBatch.exam_id == exam_id)).all()
+        batch_ids.update(b for b in ex_batches if b)
+
+        if not batch_ids and exam.branch_id:
+            branch_batches = db.scalars(select(Batch.id).where(Batch.branch_id == exam.branch_id)).all()
+            batch_ids.update(branch_batches)
+
+    if batch_ids:
+        enrolled_students = db.scalars(
+            select(Student).where(Student.batch_id.in_(list(batch_ids))).order_by(Student.roll_number.asc())
+        ).all()
+        submitted_rolls = {s.roll_number.strip().upper() for s in subs if s.roll_number}
+        submitted_stu_ids = {s.student_id for s in subs if s.student_id}
+
+        for st in enrolled_students:
+            clean_roll = (st.roll_number or "").strip().upper()
+            is_submitted = (st.id in submitted_stu_ids) or (clean_roll and clean_roll in submitted_rolls)
+            if not is_submitted:
+                output.append({
+                    "id": f"absent_{st.id}",
+                    "exam_id": exam_id,
+                    "batch_id": st.batch_id,
+                    "student_id": st.id,
+                    "student_name": st.full_name,
+                    "roll_number": st.roll_number,
+                    "page_count": 0,
+                    "file_size_bytes": 0,
+                    "original_file_path": "",
+                    "canonical_pdf_path": "",
+                    "annotated_pdf_path": None,
+                    "total_awarded_marks": 0.0,
+                    "max_marks": exam.total_marks if exam else 0.0,
+                    "percentage": 0.0,
+                    "status": "ABSENT",
+                    "submission_status": "ABSENT",
+                    "publication_status": "PUBLISHED" if (exam and exam.is_published) else "UNPUBLISHED",
+                    "created_at": exam.created_at if exam else "",
+                    "updated_at": exam.created_at if exam else "",
+                    "submitted_at": "",
+                    "answers": [],
+                    "is_absent": True,
+                })
+
+    output.sort(key=lambda x: x.get("roll_number", ""))
     return output
 
 
