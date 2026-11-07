@@ -88,6 +88,7 @@ class GradedAnswerItem(BaseModel):
     is_extra_attempt: bool = Field(default=False, description="True if answer is an extra attempt beyond the section limit, excluded from total score")
     page_number: int = Field(default=1, ge=1, description="Primary page number for this answer")
     is_missing: bool = Field(default=False, description="True if student did not attempt or answer cannot be found")
+    has_diagram: bool = Field(default=False, description="True if answer contains a visual diagram, structure, or plot")
     extracted_student_answer: str = Field(
         default="",
         description="Literal character-for-character transcription of student work without summarizing or autocorrecting errors.",
@@ -125,6 +126,10 @@ class BlindExtractedAnswerItem(BaseModel):
             "For MCQs/Objective items: Check cluttered lines, stacked lists, Roman numerals (i, ii, iii), "
             "and margins. If attempted in a clustered list, is_missing MUST be False."
         ),
+    )
+    has_diagram: bool = Field(
+        default=False,
+        description="True if student drew a chemical structure, circuit, ray diagram, geometry figure, biological sketch, or graph.",
     )
     extracted_student_answer: str = Field(
         default="",

@@ -65,12 +65,21 @@ def _enforce_evidence_grounding_and_verdict(
 
         if norm_quote in {"", "none", "missing", "n/a", "null"}:
             return 0.0
-        # If quote is > 6 chars and not a literal substring of the transcript, check alphanumeric match
-        if len(norm_quote) > 6 and norm_quote not in norm_transcript:
-            clean_q = re.sub(r'[^a-z0-9]', '', norm_quote)
-            clean_t = re.sub(r'[^a-z0-9]', '', norm_transcript)
-            if not clean_q or clean_q not in clean_t:
-                return 0.0
+
+        # Allow visual diagram evidence verified from attached crop or [DIAGRAM: ...] tags
+        is_visual_or_diagram = (
+            norm_quote.startswith("[diagram")
+            or norm_quote.startswith("visual:")
+            or norm_quote.startswith("[visual")
+            or "[diagram" in norm_transcript
+        )
+        if not is_visual_or_diagram:
+            # If quote is > 6 chars and not a literal substring of the transcript, check alphanumeric match
+            if len(norm_quote) > 6 and norm_quote not in norm_transcript:
+                clean_q = re.sub(r'[^a-z0-9]', '', norm_quote)
+                clean_t = re.sub(r'[^a-z0-9]', '', norm_transcript)
+                if not clean_q or clean_q not in clean_t:
+                    return 0.0
 
     # Rule 3: Clamp to [0.0, max_marks] and snap to discrete 0.5 increments
     clamped = max(0.0, min(float(awarded_marks), float(max_marks)))

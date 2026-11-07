@@ -94,7 +94,23 @@ CRITICAL PRINCIPLES:
    - If student writes inverted math (e.g. a^3 = Na*p/M), incorrect quantum numbers (e.g. 4d^6), swapped signs, or incorrect units, transcribe EXACTLY what is written.
    - For comparisons/tables, preserve explicit column structure: `[Column A: ...] vs [Column B: ...]`.
 
-2. ROBUST CLUSTERED & SEQUENTIAL MCQ RESOLUTION (MANDATORY DUAL-CAPTURE):
+2. STRIKETHROUGH & CANCELLATION FORENSICS (MANDATORY EXCLUSION OF VOID DRAFTS):
+   - Students frequently cross out or strike through erroneous formulas, intermediate arithmetic, or mistaken attempts before writing the correct work adjacent, above, or below.
+   - Any formula, equation, term, or diagram crossed through with a horizontal line (e.g. strikethrough over '24 - 12 + 12'), diagonal strike, cross ('X'), or scribbled-out ink is CANCELLED AND VOID.
+   - STRICTLY FORBIDDEN to transcribe struck-through or cancelled text into the active student answer.
+   - Transcribe ONLY the final uncancelled, corrected replacement (e.g. if student crossed out '24 - 12 + 12' and wrote '= 24 - 0 + 12 = 36', transcribe '= 24 - 0 + 12 = 36' and final boxed 'EAN = 36').
+   - NEVER stitch a struck-through draft into the final answer.
+
+3. DIAGRAMS, CHEMICAL STRUCTURES, CIRCUITS & GRAPHS (NEVER WRITE PLACEHOLDERS):
+   - STRICTLY FORBIDDEN: Never write vague summaries like "diagram drawn", "cis and trans structures drawn", or "graph sketched".
+   - Because downstream grading relies on your description, serialize every drawing into explicit spatial/topological text inside `[DIAGRAM: ...]` tags:
+     * CHEMICAL / COORDINATION / ORGANIC STRUCTURES: State central atom/ring, total bond count, exact spatial positions of every attached ligand/group (e.g. "two Cl ligands adjacent at ~90°", "two Cl ligands opposite/axial at 180°", "wedge/dash", "ortho/meta/para"), brackets, charges, and bottom labels (e.g. 'Cis', 'Trans').
+       Example: `[DIAGRAM 1 (labeled 'Cis'): Central Co with 6 octahedral bonds; two Cl ligands adjacent (~90° at top and right); four NH3 ligands at remaining positions; no brackets/charge] | [DIAGRAM 2 (labeled 'Trans'): Central Co with 6 bonds; two Cl ligands opposite (180° axial top and bottom); four NH3 ligands equatorial; no brackets/charge]`
+     * PHYSICS / RAY / CIRCUIT DIAGRAMS: State components in connection order, arrow directions, angle labels, and polarity signs.
+     * GRAPHS / PLOTS: State `[X-axis: label & unit]`, `[Y-axis: label & unit]`, curve shape (linear/exponential), intercept, and labeled points.
+   - Set `has_diagram = true` on the answer item whenever the student's answer includes a drawing, chemical structure, circuit, or graph.
+
+4. ROBUST CLUSTERED & SEQUENTIAL MCQ RESOLUTION (MANDATORY DUAL-CAPTURE):
    - MULTI-LINE / CLUSTERED MCQS: Students frequently answer multiple MCQs consecutively on adjacent lines or even on a single line (e.g. '1. (b) bcc, 2. (d) 4, 3. (b) Frenkel').
      * NEVER lump multiple questions into one answer or mark adjacent questions as `is_missing: true`.
      * Segment each item and map it to its corresponding question in the skeleton.
@@ -113,13 +129,13 @@ CRITICAL PRINCIPLES:
        If isolated and genuinely ambiguous, transcribe both plausible letters with any text: e.g. '(B / D) Short range order' or '(B / D)'.
      * If the student overwrote or corrected a letter (e.g. wrote A, then inked over it to make B), transcribe the final intended letter and note: '[corrected to B]'.
 
-3. MANDATORY BOUNDING BOX LOCALIZATION:
+5. MANDATORY BOUNDING BOX LOCALIZATION:
    - For every attempted question (`is_missing=false`), `regions` MUST NEVER BE EMPTY.
    - Output normalized [0.0, 1.0] bounding boxes (`x`, `y`, `width`, `height`) enclosing student work on the page.
    - For stacked/clustered MCQs, provide a tight bounding box around that specific item's line.
    - If completely unattempted across all pages, set `is_missing=true`, `extracted_student_answer=""`, and `regions=[]`.
 
-4. UNCERTAINTY RATING:
+6. UNCERTAINTY RATING:
    - Rate `transcription_uncertainty` from 0.0 (crisp, unmistakable) to 1.0 (heavily degraded, illegible).
 """
 
@@ -187,11 +203,18 @@ INSTRUCTIONS:
      e.g. '(B) Short range order', '(D) 12', '(b) 5846 kg/m3'.
    - If student wrote only the text phrase without a letter, transcribe the text phrase verbatim.
    - Disambiguate similar handwriting strokes (B vs D, A vs C, b vs d, 1 vs 7). If an isolated letter is ambiguous, transcribe '(B / D)' or note '(B / D) <text>'.
-4. Descriptive & Numerical Questions:
+4. Strikethrough & Cancellations:
+   - Struck-through or crossed-out formulas (e.g. horizontal pen line through arithmetic) are CANCELLED. Do NOT transcribe cancelled text.
+   - Transcribe ONLY the corrected replacement work.
+5. Diagrams, Structures & Graphs (Never write placeholders):
+   - Never write "diagram drawn" or "cis/trans drawn".
+   - Serialize into spatial/topological text in `[DIAGRAM: ...]`: central atom, bond count, positions/angles of groups, brackets, charges, and labels.
+   - Set `has_diagram: true` whenever a drawing, structure, circuit, or graph is present.
+6. Descriptive & Numerical Questions:
    - Transcribe student formulas, substitutions, algebraic transpositions, exponents, units, and column claims character-for-character into `extracted_student_answer`.
    - ZERO AUTOCORRECTION: Transcribe student mistakes verbatim (wrong units, wrong signs, inverted fractions). Never fix errors.
-5. Provide `transcription_uncertainty` (0.0 = clear, 1.0 = illegible).
-6. If visible on header, transcribe `student_name_detected` and `roll_number_detected`.
+7. Provide `transcription_uncertainty` (0.0 = clear, 1.0 = illegible).
+8. If visible on header, transcribe `student_name_detected` and `roll_number_detected`.
 """
 
 def build_stage2_batched_grading_prompt(rubric_json_str: str, batch_transcripts_json_str: str) -> str:
@@ -220,18 +243,23 @@ AUDITING INSTRUCTIONS:
    - MISSING (unattempted or step omitted):
      evidence: "MISSING"
      awarded_marks: 0.0 (MANDATORY 0.0!)
-3. STRICT GROUNDING: Every quote in `QUOTE: "..."` MUST be an exact verbatim substring from that student's `extracted_student_answer`.
-4. MCQ & OBJECTIVE GRADING:
+3. STRICT GROUNDING: Every quote in `QUOTE: "..."` MUST be an exact verbatim substring from that student's `extracted_student_answer` (or cite `VISUAL: <feature verified from crop>` when a visual diagram crop is provided).
+4. DIAGRAMS & STRUCTURAL AUDITING:
+   - For questions with diagrams, chemical structures, or graphs:
+     * Cross-reference any attached `[VISUAL DIAGRAM CROP]` image parts with the student's text transcript.
+     * If the student's drawing or `[DIAGRAM: ...]` description satisfies the rubric (e.g. cis has adjacent/90° ligands, trans has opposite/180° axial ligands), award full marks with PASS.
+     * Quotes in `QUOTE: "..."` may quote from `[DIAGRAM: ...]` or cite `VISUAL: <feature verified from crop>`.
+5. MCQ & OBJECTIVE GRADING:
    - Full credit if student wrote the correct option letter, OR correct option text/phrase (e.g. 'Short range order'), OR both.
    - If letter is ambiguous (e.g. '(B / D) Short range order') but option text matches the official answer, award full marks with PASS.
    - If an isolated letter is ambiguous (e.g. '(B / D)') and one of the letters is correct, award full marks and set `needs_review: true`.
    - Fail only if student clearly chose an incorrect option letter AND an incorrect concept.
-5. MARKS RULES:
+6. MARKS RULES:
    - Discrete 0.5 increments only (0.0, 0.5, 1.0, 1.5, ...).
    - Question `awarded_marks` must equal sum of `criterion_scores.awarded_marks`, clamped to question `max_marks`.
    - If `is_missing` is true, all criteria are MISSING and `awarded_marks: 0.0`.
-6. Provide a concise 1-2 sentence `grading_rationale` auditing criteria met vs missed.
-7. Rate `grading_uncertainty` (0.0 to 1.0) and set `needs_review: true` if borderline or ambiguous.
+7. Provide a concise 1-2 sentence `grading_rationale` auditing criteria met vs missed.
+8. Rate `grading_uncertainty` (0.0 to 1.0) and set `needs_review: true` if borderline or ambiguous.
 """
 
 def build_rubric_extraction_prompt(extra_notes: str = "") -> str:

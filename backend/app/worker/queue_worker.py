@@ -327,18 +327,22 @@ class PersistentQueueWorker:
         for j in ready_jobs:
             s_id = j["id"]
             s1_res = stage1_results[s_id]
+            pdf_path = j.get("canonical_pdf_path")
             # Optimization: Filter out unattempted questions before calling Stage 2
             attempted_answers = [
                 {
                     "question_id": a.question_id,
                     "subquestion_id": a.subquestion_id,
                     "extracted_student_answer": a.extracted_student_answer,
+                    "has_diagram": getattr(a, "has_diagram", False),
+                    "regions": [r.model_dump() for r in a.regions] if a.regions else [],
                 }
                 for a in s1_res.answers
                 if not a.is_missing and bool((a.extracted_student_answer or "").strip())
             ]
             batch_payloads.append({
                 "submission_id": s_id,
+                "pdf_path": pdf_path,
                 "answers": attempted_answers
             })
 

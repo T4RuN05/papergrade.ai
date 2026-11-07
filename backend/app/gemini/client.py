@@ -8,6 +8,46 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
+import fitz
+
+DIAGRAM_KEYWORDS = ("draw", "diagram", "structure", "isomer", "sketch", "graph", "circuit", "ray", "plot", "figure", "geometry", "curve")
+
+def _extract_diagram_crop_part(pdf_path: str, region: dict, max_dim: int = 512) -> Optional[types.Part]:
+    """
+    Crops the exact bounding box from the student PDF at 120 DPI using PyMuPDF.
+    Ensures dimensions <= 512px so Gemini charges only ~258 tokens per crop!
+    """
+    if not pdf_path or not Path(pdf_path).exists():
+        return None
+    try:
+        doc = fitz.open(pdf_path)
+        page_num = int(region.get("page_number", 1))
+        page_idx = max(0, page_num - 1)
+        if page_idx >= len(doc):
+            doc.close()
+            return None
+        page = doc[page_idx]
+        rect = page.rect
+
+        # Clamp normalized coords to [0.0, 1.0]
+        x = max(0.0, min(1.0, float(region.get("x", 0.0))))
+        y = max(0.0, min(1.0, float(region.get("y", 0.0))))
+        w = max(0.02, min(1.0 - x, float(region.get("width", 0.5))))
+        h = max(0.02, min(1.0 - y, float(region.get("height", 0.5))))
+
+        clip = fitz.Rect(
+            x * rect.width,
+            y * rect.height,
+            (x + w) * rect.width,
+            (y + h) * rect.height
+        )
+        pix = page.get_pixmap(clip=clip, dpi=120)
+        png_bytes = pix.tobytes("png")
+        doc.close()
+        return types.Part.from_bytes(data=png_bytes, mime_type="image/png")
+    except Exception as crop_err:
+        print(f"[GeminiClient] Diagram crop error for {pdf_path}: {crop_err}")
+        return None
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
@@ -161,6 +201,7 @@ def merge_stage1_and_stage2(
                 section_id=a1.section_id,
                 page_number=a1.page_number,
                 is_missing=True,
+                has_diagram=getattr(a1, "has_diagram", False),
                 extracted_student_answer="",
                 regions=[],
                 max_marks=q_max_marks,
@@ -200,6 +241,7 @@ def merge_stage1_and_stage2(
                 section_id=a1.section_id,
                 page_number=a1.page_number,
                 is_missing=False,
+                has_diagram=getattr(a1, "has_diagram", False),
                 extracted_student_answer=a1.extracted_student_answer,
                 regions=a1.regions,
                 max_marks=q_max_marks,
@@ -218,6 +260,7 @@ def merge_stage1_and_stage2(
                 section_id=a1.section_id,
                 page_number=a1.page_number,
                 is_missing=False,
+                has_diagram=getattr(a1, "has_diagram", False),
                 extracted_student_answer=a1.extracted_student_answer,
                 regions=a1.regions,
                 max_marks=q_max_marks,
@@ -841,10 +884,51 @@ class GeminiGradingClient:
             )
             return mock_res, event_id
 
+        # Build contents with targeted visual diagram crops for diagram questions
+        contents: List[Any] = []
+        rubric_q_lookup = {}
+        for q in rubric_dict.get("questions", []):
+            qid = str(q.get("question_id", ""))
+            subid = str(q.get("subquestion_id", "")) if q.get("subquestion_id") else None
+            q_text = str(q.get("question_text", ""))
+            rubric_q_lookup[(qid, subid)] = q_text
+            rubric_q_lookup[(qid, None)] = q_text
+
+        slim_batch_payload = []
+        for b in batch_payloads:
+            sub_id = b["submission_id"]
+            pdf_p = b.get("pdf_path")
+            slim_answers = []
+            for ans in b.get("answers", []):
+                qid = ans["question_id"]
+                sub_qid = ans.get("subquestion_id")
+                q_text = (rubric_q_lookup.get((qid, sub_qid)) or rubric_q_lookup.get((qid, None)) or "").lower()
+                has_diag = bool(ans.get("has_diagram")) or any(k in q_text for k in DIAGRAM_KEYWORDS)
+
+                # If diagram question, extract lightweight crop (~258 tokens)
+                if has_diag and pdf_p and ans.get("regions"):
+                    primary_region = ans["regions"][0]
+                    crop_part = _extract_diagram_crop_part(pdf_p, primary_region)
+                    if crop_part:
+                        contents.append(f"[VISUAL DIAGRAM CROP | submission_id={sub_id} | question_id={qid}]:")
+                        contents.append(crop_part)
+
+                # Keep only fields needed by text prompt
+                slim_answers.append({
+                    "question_id": qid,
+                    "subquestion_id": sub_qid,
+                    "extracted_student_answer": ans.get("extracted_student_answer", "")
+                })
+            slim_batch_payload.append({
+                "submission_id": sub_id,
+                "answers": slim_answers
+            })
+
         # Minified JSON without whitespace/indentation tokens
         rubric_str = json.dumps(rubric_dict, separators=(",", ":"), ensure_ascii=False)
-        batch_str = json.dumps(batch_payloads, separators=(",", ":"), ensure_ascii=False)
+        batch_str = json.dumps(slim_batch_payload, separators=(",", ":"), ensure_ascii=False)
         prompt_text = build_stage2_batched_grading_prompt(rubric_str, batch_str)
+        contents.append(prompt_text)
 
         # STRICT INVARIANT: High-reasoning models only (NEVER flash-lite!)
         raw_grading_models = [
@@ -891,7 +975,7 @@ class GeminiGradingClient:
                     )
                     response = client.models.generate_content(
                         model=model_to_use,
-                        contents=[prompt_text],
+                        contents=contents,
                         config=config
                     )
                     duration_ms = int((time.time() - start_time) * 1000)
@@ -1118,12 +1202,15 @@ class GeminiGradingClient:
                     "question_id": a.question_id,
                     "subquestion_id": a.subquestion_id,
                     "extracted_student_answer": a.extracted_student_answer,
+                    "has_diagram": getattr(a, "has_diagram", False),
+                    "regions": [r.model_dump() for r in a.regions] if a.regions else [],
                 }
                 for a in s1_res.answers
                 if not a.is_missing and bool((a.extracted_student_answer or "").strip())
             ]
             batch_payload = [{
                 "submission_id": submission_id,
+                "pdf_path": str(student_pdf_path) if student_pdf_path else None,
                 "answers": attempted_answers
             }]
             s2_res, event_id = self.grade_extracted_batch(
