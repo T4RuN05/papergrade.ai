@@ -863,59 +863,159 @@ export function AnalyticsSkeleton() {
 
 export function StudentPortalSkeleton() {
   return (
-    <div className="space-y-6 sm:space-y-8 max-w-5xl mx-auto py-6 sm:py-8 px-4 animate-in fade-in duration-200">
-      {/* Student Identity Hero Card */}
-      <FeatureCard className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <SkeletonAvatar size="lg" />
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-5 w-40" />
-                <Skeleton className="h-4 w-16 rounded-xs" />
-              </div>
-              <Skeleton className="h-3.5 w-52" />
-            </div>
+    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 animate-in fade-in duration-200">
+      {/* Header Profile Greeting Skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-3 border-b border-hairline">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 sm:h-7 w-48 sm:w-56" />
+            <Skeleton className="h-5 w-24 rounded-full" />
           </div>
           <div className="flex items-center gap-2">
-            <Skeleton className="h-7 w-28 rounded-full" />
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-3.5 w-32" />
+          </div>
+        </div>
+        <div className="flex items-center shrink-0 self-start sm:self-auto">
+          <Skeleton className="h-8 w-28 rounded-md" />
+        </div>
+      </div>
+
+      {/* Portal Top Navigation Switcher Skeleton (Segmented Control) */}
+      <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
+        <div className="flex-1 sm:flex-initial h-8 w-full sm:w-32 rounded-lg bg-surface border border-hairline/60 flex items-center justify-center gap-1.5 px-3.5">
+          <Skeleton className="h-3.5 w-3.5 rounded" />
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+        <div className="flex-1 sm:flex-initial h-8 w-full sm:w-32 rounded-lg flex items-center justify-center gap-1.5 px-3.5">
+          <Skeleton className="h-3.5 w-3.5 rounded" />
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+      </div>
+
+      {/* Top Academic Summary Counters Skeleton (2 cols on mobile, 4 on sm+) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs space-y-1">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-2.5 sm:h-3 w-14 sm:w-16" />
+              <Skeleton className="h-3.5 w-3.5 rounded" />
+            </div>
+            <Skeleton className="h-6 sm:h-7 w-12 sm:w-14" />
+            <Skeleton className="h-2.5 w-20" />
+          </div>
+        ))}
+      </div>
+
+      {/* Marks Trajectory Graph Card Skeleton */}
+      <FeatureCard className="p-4 sm:p-5 space-y-3.5">
+        {/* Graph Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-6 rounded-md shrink-0" />
+            <Skeleton className="h-4 sm:h-5 w-40 sm:w-48" />
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Skeleton className="h-6 w-16 rounded-md" />
+            <Skeleton className="h-6 w-16 rounded-md" />
+            <Skeleton className="h-6 w-20 rounded-md" />
+          </div>
+        </div>
+
+        {/* Subject Tabs Navigation Skeleton */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-hairline/60">
+          <Skeleton className="h-7 w-24 rounded-full shrink-0" />
+          <Skeleton className="h-7 w-20 rounded-full shrink-0" />
+          <Skeleton className="h-7 w-24 rounded-full shrink-0" />
+          <Skeleton className="h-7 w-18 rounded-full shrink-0" />
+          <Skeleton className="h-7 w-20 rounded-full shrink-0" />
+        </div>
+
+        {/* Graph Chart Canvas Skeleton */}
+        <div className="h-[200px] sm:h-[240px] w-full rounded-md border border-hairline/60 bg-canvas-soft/40 relative overflow-hidden flex flex-col justify-between p-4">
+          <div className="flex justify-between items-center opacity-30">
+            <Skeleton className="h-2 w-8" />
+            <div className="h-px w-full bg-hairline mx-2" />
+          </div>
+          <div className="flex justify-between items-center opacity-30">
+            <Skeleton className="h-2 w-8" />
+            <div className="h-px w-full bg-hairline mx-2" />
+          </div>
+          <div className="flex justify-between items-center opacity-30">
+            <Skeleton className="h-2 w-8" />
+            <div className="h-px w-full bg-hairline mx-2" />
+          </div>
+          <div className="flex justify-between items-center opacity-30">
+            <Skeleton className="h-2 w-8" />
+            <div className="h-px w-full bg-hairline mx-2" />
+          </div>
+          <div className="flex justify-between pt-2">
+            {[1, 2, 3, 4, 5, 6].map((idx) => (
+              <Skeleton key={idx} className="h-2.5 w-10 sm:w-14" />
+            ))}
           </div>
         </div>
       </FeatureCard>
 
-      {/* 4 Summary Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <FeatureCard key={i} className="p-3.5 sm:p-4 space-y-1.5">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-7 w-14 font-mono" />
-            <Skeleton className="h-2.5 w-24" />
-          </FeatureCard>
-        ))}
-      </div>
-
-      {/* Submissions Section */}
+      {/* Past Exam Submissions Section Skeleton */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-5 w-36" />
-          <Skeleton className="h-8 w-48 rounded-md" />
+        {/* Section Title */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 sm:h-6 w-48 sm:w-56" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-64 sm:w-80" />
+          </div>
         </div>
 
-        {/* 3 Submission Cards */}
-        <div className="space-y-3.5">
-          {[1, 2, 3].map((i) => (
-            <FeatureCard key={i} className="p-4 sm:p-5 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-44 sm:w-60" />
-                    <Skeleton className="h-4 w-14 rounded-xs" />
+        {/* Submission Cards (2 cards for realistic preview) */}
+        <div className="space-y-4">
+          {[1, 2].map((i) => (
+            <FeatureCard key={i} className="p-4 sm:p-5 space-y-4">
+              {/* Card Top Header */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4 pb-3 border-b border-hairline">
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Skeleton className="h-4 sm:h-5 w-48 sm:w-64" />
+                    <Skeleton className="h-4 w-16 rounded-md" />
                   </div>
-                  <Skeleton className="h-3 w-36" />
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-20 rounded" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Skeleton className="h-8 w-20 rounded font-mono" />
-                  <Skeleton className="h-8 w-28 rounded-full" />
+                <Skeleton className="h-6 w-28 rounded-md shrink-0 self-start sm:self-auto" />
+              </div>
+
+              {/* Score Metric Wells / Progress Banner Skeleton */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-canvas-soft border border-hairline">
+                <div className="flex items-center gap-5 sm:gap-8">
+                  <div className="space-y-1">
+                    <Skeleton className="h-2.5 w-14" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                  <div className="space-y-1">
+                    <Skeleton className="h-2.5 w-14" />
+                    <Skeleton className="h-5 w-14" />
+                  </div>
+                  <div className="space-y-1">
+                    <Skeleton className="h-2.5 w-14" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Actions Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                  <Skeleton className="h-9 w-full sm:w-44 rounded-md" />
+                  <Skeleton className="h-9 w-full sm:w-32 rounded-md" />
+                </div>
+                <div className="flex items-center gap-2 justify-end">
+                  <Skeleton className="h-7 w-24 rounded" />
+                  <Skeleton className="h-7 w-24 rounded" />
                 </div>
               </div>
             </FeatureCard>
