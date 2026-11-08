@@ -1878,48 +1878,6 @@ export function DocumentViewer({
             );
           })}
         </div>
-
-        {/* STABLE FLOATING NAVIGATOR: ANCHORED AT BOTTOM OF VIEWPORT */}
-        {totalPages > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-30 text-xs select-none pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => {
-                if (currentPage > 1) {
-                  setIsPageImageLoading(true);
-                  setCurrentPage((cur) => cur - 1);
-                }
-              }}
-              disabled={currentPage <= 1}
-              className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-              title="Previous Page"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-
-            <div className="flex items-center gap-1.5 px-1 font-mono font-bold text-xs text-ink">
-              <span>Page</span>
-              <span className="text-primary">{currentPage}</span>
-              <span className="text-ink-muted font-normal">/</span>
-              <span className="text-ink-muted font-normal">{totalPages}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (currentPage < totalPages) {
-                  setIsPageImageLoading(true);
-                  setCurrentPage((cur) => cur + 1);
-                }
-              }}
-              disabled={currentPage >= totalPages}
-              className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-              title="Next Page"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

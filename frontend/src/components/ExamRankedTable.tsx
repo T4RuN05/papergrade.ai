@@ -444,15 +444,15 @@ export function ExamRankedTable({
             )}
           </div>
 
-          {/* Quick Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5">
+          {/* Quick Filter Pills (Inline and Horizontally Scrollable) */}
+          <div className="flex items-center gap-1.5 text-xs overflow-x-auto no-scrollbar py-0.5 shrink-0 select-none" data-no-swipe="true">
+            <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5 shrink-0">
               Filter:
             </span>
             <button
               type="button"
               onClick={() => setInternalBracketFilter("ALL")}
-              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 effectiveBracketFilter === "ALL"
                   ? "bg-primary text-white font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
@@ -463,7 +463,7 @@ export function ExamRankedTable({
             <button
               type="button"
               onClick={() => setInternalBracketFilter("TOP10")}
-              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 effectiveBracketFilter === "TOP10"
                   ? "bg-primary text-white font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
@@ -474,7 +474,7 @@ export function ExamRankedTable({
             <button
               type="button"
               onClick={() => setInternalBracketFilter("DISTINCTION")}
-              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 effectiveBracketFilter === "DISTINCTION"
                   ? "bg-emerald-600 text-white font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
@@ -490,7 +490,7 @@ export function ExamRankedTable({
                   setInternalSearchTerm("");
                   setInternalBracketFilter("ALL");
                 }}
-                className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer"
+                className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 Reset
               </button>
@@ -517,32 +517,42 @@ export function ExamRankedTable({
       ) : isStudentView ? (
         /* =========================================================================
            STUDENT PWA VIEW: EXACTLY 3 COLUMNS (Rank, Student, Score)
-           Zero side-to-side overflow. Completely fluid and fits on any mobile screen.
+           Zero side-to-side overflow. Minimal and uncluttered layout.
            ========================================================================= */
-        <div className="w-full rounded-xl border border-hairline bg-surface shadow-2xs overflow-hidden">
+        <div className="w-full rounded-xl border border-hairline bg-surface shadow-2xs overflow-hidden [perspective:800px]">
           <table className="w-full text-left text-xs border-collapse table-fixed">
             <thead>
               <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium text-[10.5px] sm:text-[11px] uppercase tracking-wider">
                 <th className="py-2.5 px-2.5 sm:px-3 text-center w-14 sm:w-16">Rank</th>
                 <th className="py-2.5 px-2 sm:px-3">Student</th>
-                <th className="py-2.5 px-2.5 sm:px-3 text-right w-24 sm:w-28">Score</th>
+                <th className="py-2.5 px-2.5 sm:px-3 text-right w-20 sm:w-24">Score (/{maxMarks}m)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline">
-              {filteredRanked.map((item) => {
-                const isTop3 = item.rank <= 3;
+              {filteredRanked.map((item, idx) => {
                 const isYou = item.isCurrentStudent;
+                const isRank1 = item.rank === 1;
+                const isRank2 = item.rank === 2;
+                const isRank3 = item.rank === 3;
+
+                // Subtle row-wise gold, silver, bronze tint from left fading to right
+                const rowTintClass = isYou
+                  ? "bg-gradient-to-r from-primary/20 via-primary/5 to-transparent border-l-4 border-l-primary font-medium"
+                  : isRank1
+                  ? "bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-400/20 dark:via-amber-400/5 dark:to-transparent hover:from-amber-500/20"
+                  : isRank2
+                  ? "bg-gradient-to-r from-slate-400/15 via-slate-400/5 to-transparent dark:from-slate-300/20 dark:via-slate-300/5 dark:to-transparent hover:from-slate-400/20"
+                  : isRank3
+                  ? "bg-gradient-to-r from-amber-700/15 via-amber-700/5 to-transparent dark:from-amber-600/20 dark:via-amber-600/5 dark:to-transparent hover:from-amber-700/20"
+                  : "bg-surface hover:bg-canvas-soft/50";
 
                 return (
                   <tr
                     key={item.id}
-                    className={`transition-colors ${
-                      isYou
-                        ? "bg-primary/10 hover:bg-primary/15 font-medium border-l-4 border-l-primary"
-                        : isTop3
-                        ? "bg-surface hover:bg-canvas-soft/70"
-                        : "hover:bg-canvas-soft/50"
-                    }`}
+                    className={`transition-colors will-change-transform ${rowTintClass}`}
+                    style={{
+                      animation: `rankRowPopulate 340ms cubic-bezier(0.16, 1, 0.3, 1) ${Math.min(idx * 30, 450)}ms both`,
+                    }}
                   >
                     {/* Column 1: Rank */}
                     <td className="py-2.5 px-2 sm:px-2.5 text-center whitespace-nowrap">
@@ -563,17 +573,11 @@ export function ExamRankedTable({
                       </div>
                     </td>
 
-                    {/* Column 3: Score */}
+                    {/* Column 3: Score (Minimal: only score number, total marks in header) */}
                     <td className="py-2.5 px-2.5 sm:px-3 text-right whitespace-nowrap">
-                      <div className="font-mono font-bold text-ink text-xs sm:text-sm">
+                      <span className="font-mono font-bold text-ink text-xs sm:text-sm">
                         {item.effectiveScore.toFixed(1)}
-                        <span className="text-[10px] sm:text-xs text-ink-muted font-normal ml-0.5">
-                          / {item.effectiveMaxMarks}m
-                        </span>
-                      </div>
-                      <div className="text-[9.5px] sm:text-[10px] text-ink-muted font-mono">
-                        {item.effectivePercentage.toFixed(0)}%
-                      </div>
+                      </span>
                     </td>
                   </tr>
                 );

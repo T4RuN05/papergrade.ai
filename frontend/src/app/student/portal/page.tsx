@@ -713,12 +713,60 @@ export default function StudentPortalPage() {
     return () => window.removeEventListener("popstate", handleUrlTab);
   }, []);
 
-  const handleTabSwitch = (newTab: "dashboard" | "exams") => {
+  const handleTabSwitch = (newTab: "dashboard" | "exams", scrollToTop = true) => {
     if (newTab === activeTab) return;
     setTabDirection(newTab === "exams" ? "right" : "left");
     setActiveTab(newTab);
     const newUrl = newTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
     window.history.replaceState(null, "", newUrl);
+    if (scrollToTop && typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  };
+
+  // Mobile horizontal swipe between Dashboard and Past Exams
+  const portalTouchStartXRef = useRef<number | null>(null);
+  const portalTouchStartYRef = useRef<number | null>(null);
+
+  const handlePortalTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const target = e.target as HTMLElement;
+    // Don't swipe if touching inside a scrollable table/list, input, button, or open modal
+    if (
+      breakdownModalOpen ||
+      rankingsModalOpen ||
+      revalModalOpen ||
+      reportModalOpen ||
+      artifactModalOpen ||
+      target.closest(".overflow-x-auto, [data-no-swipe], input, textarea, button, a, [role='dialog']")
+    ) {
+      portalTouchStartXRef.current = null;
+      portalTouchStartYRef.current = null;
+      return;
+    }
+    portalTouchStartXRef.current = e.touches[0].clientX;
+    portalTouchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handlePortalTouchEnd = (e: React.TouchEvent) => {
+    if (portalTouchStartXRef.current === null || portalTouchStartYRef.current === null) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - portalTouchStartXRef.current;
+    const deltaY = touch.clientY - portalTouchStartYRef.current;
+
+    portalTouchStartXRef.current = null;
+    portalTouchStartYRef.current = null;
+
+    // Must be predominantly horizontal and at least 65px travel
+    if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      if (deltaX < 0 && activeTab === "dashboard") {
+        // Swiping left: slide to Past Exams
+        handleTabSwitch("exams", true);
+      } else if (deltaX > 0 && activeTab === "exams") {
+        // Swiping right: slide to Dashboard
+        handleTabSwitch("dashboard", true);
+      }
+    }
   };
 
   // Derived current active exam and window status
@@ -1519,13 +1567,19 @@ export default function StudentPortalPage() {
         </button>
       </div>
 
-      {activeTab === "dashboard" ? (
-        <div
-          key="dashboard-tab-view"
-          className={`space-y-6 overflow-hidden ${
-            tabDirection === "left" ? "animate-tab-slide-left" : "animate-tab-slide-right"
-          }`}
-        >
+      {/* Tab Views with Mobile Touch Swipe Navigation */}
+      <div
+        className="w-full"
+        onTouchStart={handlePortalTouchStart}
+        onTouchEnd={handlePortalTouchEnd}
+      >
+        {activeTab === "dashboard" ? (
+          <div
+            key="dashboard-tab-view"
+            className={`space-y-6 overflow-hidden ${
+              tabDirection === "left" ? "animate-tab-slide-left" : "animate-tab-slide-right"
+            }`}
+          >
 
       {/* Push Notification Permission Opt-in Prompt */}
       {isSupported && permission === "default" && !hideNotifBanner && (
@@ -2551,8 +2605,8 @@ export default function StudentPortalPage() {
               <div className="pt-1">
                 <button
                   type="button"
-                  onClick={() => handleTabSwitch("exams")}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-ink hover:text-primary transition-colors group shadow-2xs text-center cursor-pointer"
+                  onClick={() => handleTabSwitch("exams", true)}
+                  className="w-full flex items-center justify-center gap-2 h-11 px-4 rounded-xl btn-glass-utility text-xs font-semibold text-ink hover:text-primary transition-all group shadow-2xs text-center cursor-pointer active:scale-[0.99]"
                 >
                   <BookOpen className="h-4 w-4 text-primary" />
                   <span>
@@ -3256,6 +3310,7 @@ export default function StudentPortalPage() {
       </div>
     </div>
   )}
+</div>
 
       {/* DETAILED QUESTION BREAKDOWN MODAL */}
       <ModalCard
@@ -3364,7 +3419,8 @@ export default function StudentPortalPage() {
                   return (
                     <div
                       key={qKey}
-                      className="p-3 rounded-lg border border-hairline bg-surface space-y-2.5 transition-all shadow-2xs"
+                      className="p-3 rounded-lg border border-hairline bg-surface space-y-2.5 transition-all shadow-2xs animate-cascade-row will-change-transform"
+                      style={{ animationDelay: `${Math.min(idx * 25, 300)}ms` }}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
@@ -3387,12 +3443,12 @@ export default function StudentPortalPage() {
 
                       {/* Question Text / Prompt if available or skeleton placeholder while loading */}
                       {ans.question_text ? (
-                        <div className="text-[11.5px] text-ink-secondary leading-relaxed bg-canvas-soft/40 p-2 rounded border border-hairline/50">
+                        <div className="text-[11.5px] text-ink-secondary leading-relaxed bg-canvas-soft/40 p-2 rounded border border-hairline/50 animate-cross-fade">
                           <span className="font-semibold text-ink">Prompt: </span>
                           <MathText text={ans.question_text} />
                         </div>
                       ) : isBreakdownLoadingDetails ? (
-                        <div className="bg-canvas-soft/40 p-2 rounded border border-hairline/50 space-y-1.5 animate-pulse">
+                        <div className="bg-canvas-soft/40 p-2 rounded border border-hairline/50 space-y-1.5 animate-pulse min-h-[38px] flex flex-col justify-center">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[11px] font-semibold text-ink-muted">Prompt:</span>
                             <div className="h-2.5 w-3/4 bg-ink-faint/25 rounded" />
@@ -3438,7 +3494,7 @@ export default function StudentPortalPage() {
 
                         <div className="flex items-center gap-1.5 shrink-0 ml-1">
                           {hasCriteria ? (
-                            <span className="text-[10px] bg-primary/15 text-primary border border-primary/25 px-2 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0">
+                            <span className="text-[10px] bg-primary/15 text-primary border border-primary/25 px-2 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 animate-cross-fade">
                               {criterionScores.length} {criterionScores.length === 1 ? "criterion" : "criteria"}
                             </span>
                           ) : isBreakdownLoadingDetails ? (

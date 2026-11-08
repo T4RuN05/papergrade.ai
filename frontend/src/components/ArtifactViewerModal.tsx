@@ -635,7 +635,7 @@ export function ArtifactViewerModal({
                 }
               }}
               disabled={page <= 1 || loadingMeta || !hasDoc || isPurged}
-              className="hidden sm:inline-flex p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
+              className="inline-flex p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
               title="Previous Page (Left Arrow)"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -654,7 +654,7 @@ export function ArtifactViewerModal({
                 }
               }}
               disabled={page >= totalPages || loadingMeta || !hasDoc || isPurged}
-              className="hidden sm:inline-flex p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
+              className="inline-flex p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-hairline"
               title="Next Page (Right Arrow)"
             >
               <ChevronRight className="h-3.5 w-3.5" />
@@ -811,46 +811,6 @@ export function ArtifactViewerModal({
                   })}
                 </div>
               </div>
-
-              {/* STABLE FLOATING NAVIGATOR: ANCHORED AT BOTTOM - NEVER SNAPS UP */}
-              {totalPages > 1 && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-30 text-xs select-none pointer-events-auto">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (page > 1) {
-                        setPage((prev) => prev - 1);
-                      }
-                    }}
-                    disabled={page <= 1}
-                    className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-                    title="Previous Page"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-
-                  <div className="flex items-center gap-1.5 px-1 font-mono font-bold text-xs text-ink">
-                    <span>Page</span>
-                    <span className="text-primary">{page}</span>
-                    <span className="text-ink-muted font-normal">/</span>
-                    <span className="text-ink-muted font-normal">{totalPages}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (page < totalPages) {
-                        setPage((prev) => prev + 1);
-                      }
-                    }}
-                    disabled={page >= totalPages}
-                    className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-                    title="Next Page"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>

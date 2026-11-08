@@ -170,7 +170,7 @@ export default function StudentSubmissionViewerPage() {
             <button
               type="button"
               onClick={() => setArtifactModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-surface border border-hairline hover:bg-canvas-soft text-ink px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all w-full sm:w-auto text-center cursor-pointer"
+              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-all w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
               title="View Question Paper and Official Answer Key"
             >
               <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -183,7 +183,7 @@ export default function StudentSubmissionViewerPage() {
             <button
               type="button"
               disabled
-              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
+              className="h-9 px-3.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted text-xs font-medium shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto inline-flex items-center justify-center gap-2 text-center"
               title="Graded PDF copy with annotations will become available once results are officially published by faculty."
             >
               <Clock className="h-3.5 w-3.5 text-ink-faint shrink-0" />
@@ -193,7 +193,7 @@ export default function StudentSubmissionViewerPage() {
             <button
               type="button"
               disabled
-              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-canvas-soft border border-hairline text-ink-muted px-3.5 py-2 text-xs font-semibold shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto text-center"
+              className="h-9 px-3.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted text-xs font-medium shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto inline-flex items-center justify-center gap-2 text-center"
               title="Scanned PDF was permanently deleted after retention period."
             >
               <AlertCircle className="h-3.5 w-3.5 text-slate-500 shrink-0" />
@@ -207,9 +207,9 @@ export default function StudentSubmissionViewerPage() {
               onClick={() =>
                 toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
               }
-              className="inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-full bg-surface border border-hairline hover:bg-canvas-soft text-ink px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all w-full sm:w-auto text-center"
+              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-all w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
             >
-              <Download className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+              <Download className="h-3.5 w-3.5 text-primary shrink-0" />
               <span>Download Graded Answer Sheet</span>
               {submission.days_remaining !== undefined && submission.days_remaining !== null && (
                 <span className="text-[10px] text-primary font-mono font-bold">

@@ -1002,4 +1002,58 @@ input[type="number"] {
   will-change: transform, opacity;
 }
 
+/* Staggered Row Mounting with -Z Axis Depth Cascade */
+@keyframes rankRowPopulate {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96) translateZ(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) translateZ(0);
+  }
+}
+
+/* Smooth Non-Displacing Cross Fade (Skeleton to Loaded Content) */
+@keyframes crossFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-cross-fade {
+  animation: crossFadeIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity;
+}
+
+/* Subtle Cascade Row Pop In for Question Breakdown */
+@keyframes cascadeRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-cascade-row {
+  animation: cascadeRowIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+/* Horizontal Scroll Bar Hider */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
 
