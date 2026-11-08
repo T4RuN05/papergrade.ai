@@ -4,6 +4,9 @@
 .env.*.local
 *.pem
 *.key
+backend/credentials/
+*service_account*.json
+*.sa.json
 
 # Python
 __pycache__/

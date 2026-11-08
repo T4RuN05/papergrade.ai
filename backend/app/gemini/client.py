@@ -79,6 +79,115 @@ class GeminiGradingClient:
             except Exception as e:
                 print(f"[GeminiClient] Error initializing client for key {k[:6]}...: {e}")
 
+        # Google Cloud Paid Vertex AI Client
+        self._gcp_client: Optional[genai.Client] = None
+        self._init_gcp_paid_client()
+
+    def _init_gcp_paid_client(self):
+        try:
+            from google.oauth2 import service_account
+            sa_data = None
+            if settings.GCP_SERVICE_ACCOUNT_JSON:
+                sa_data = json.loads(settings.GCP_SERVICE_ACCOUNT_JSON)
+            elif settings.GCP_SERVICE_ACCOUNT_PATH.exists():
+                with open(settings.GCP_SERVICE_ACCOUNT_PATH, "r", encoding="utf-8") as f:
+                    sa_data = json.load(f)
+
+            if sa_data:
+                creds = service_account.Credentials.from_service_account_info(
+                    sa_data,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                )
+                self._gcp_client = genai.Client(
+                    vertexai=True,
+                    project=settings.GCP_PROJECT_ID or sa_data.get("project_id"),
+                    location=settings.GCP_LOCATION or "us-central1",
+                    credentials=creds
+                )
+                print(f"[GeminiClient] GCP Paid Vertex AI client initialized for project: {sa_data.get('project_id')}")
+        except Exception as e:
+            print(f"[GeminiClient] Note: GCP Vertex AI paid client init deferred/pending: {e}")
+
+    @property
+    def is_gcp_paid_live(self) -> bool:
+        return self._gcp_client is not None
+
+    def test_gcp_paid_connection(self) -> Dict[str, Any]:
+        """
+        Executes an immediate live test ping through the Google Cloud Paid Vertex AI engine.
+        Every request, duration, token count, and exact error code is logged to the DB ledger.
+        """
+        if not self._gcp_client:
+            return {
+                "success": False,
+                "error_code": "NOT_CONFIGURED",
+                "http_status": 500,
+                "message": "GCP Paid Service Account is not configured or failed to initialize.",
+                "duration_ms": 0,
+                "event_id": ""
+            }
+
+        start_time = time.time()
+        model_name = "gemini-1.5-flash"
+        try:
+            response = self._gcp_client.models.generate_content(
+                model=model_name,
+                contents="PaperGrade AI diagnostic ping. Respond with 'GCP Vertex AI Online'."
+            )
+            duration_ms = int((time.time() - start_time) * 1000)
+            in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
+            out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+            tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
+
+            event_id = self._record_usage_event(
+                exam_id=None,
+                batch_id=None,
+                submission_id=None,
+                request_purpose="GCP_PAID_DIAGNOSTIC_PING",
+                duration_ms=duration_ms,
+                success=True,
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+                total_tokens=tot_tok,
+                http_status=200,
+                model_name=model_name,
+                api_key="GCP_PAID"
+            )
+            return {
+                "success": True,
+                "message": response.text or "GCP Vertex AI Online",
+                "duration_ms": duration_ms,
+                "input_tokens": in_tok,
+                "output_tokens": out_tok,
+                "event_id": event_id
+            }
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            err_code = type(e).__name__
+            http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
+            err_msg = str(e)
+
+            event_id = self._record_usage_event(
+                exam_id=None,
+                batch_id=None,
+                submission_id=None,
+                request_purpose="GCP_PAID_DIAGNOSTIC_PING",
+                duration_ms=duration_ms,
+                success=False,
+                http_status=http_status,
+                error_code=f"{err_code}: {err_msg[:120]}",
+                model_name=model_name,
+                api_key="GCP_PAID"
+            )
+            return {
+                "success": False,
+                "error_code": err_code,
+                "http_status": http_status,
+                "message": err_msg,
+                "duration_ms": duration_ms,
+                "event_id": event_id
+            }
+
     def get_active_models(self) -> List[str]:
         now = time.time()
         with self._key_lock:
@@ -148,6 +257,10 @@ class GeminiGradingClient:
     def mask_key(self, api_key: Optional[str]) -> str:
         if not api_key:
             return "default"
+        if api_key.startswith("GCP_PAID") or api_key == "GCP_PAID":
+            proj = settings.GCP_PROJECT_ID
+            short_proj = f"{proj[:15]}..." if len(proj) > 15 else proj
+            return f"GCP Paid ({short_proj})"
         try:
             key_idx = self._keys.index(api_key) + 1
         except ValueError:

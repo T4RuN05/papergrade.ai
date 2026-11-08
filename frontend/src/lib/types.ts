@@ -303,6 +303,40 @@ export interface UsageMetrics {
     estimated_cost_usd?: number;
     is_mock: number;
   }[];
+  gcp_paid?: {
+    is_configured: boolean;
+    project_id: string;
+    location: string;
+    service_account_email: string;
+    total_requests: number;
+    successful_requests: number;
+    failed_requests: number;
+    success_rate_pct: number;
+    total_spent_usd: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_thinking_tokens: number;
+    total_cached_tokens: number;
+    avg_latency_ms: number;
+    error_breakdown: Record<string, number>;
+    recent_events: {
+      id: string;
+      timestamp: string;
+      request_purpose: string;
+      model_name: string;
+      api_key_masked?: string;
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      duration_ms: number;
+      success: number;
+      http_status?: number;
+      error_code?: string;
+      retry_attempt: number;
+      estimated_cost_usd?: number;
+      is_mock: number;
+    }[];
+  };
 }
 
 export interface BenchmarkSummary {

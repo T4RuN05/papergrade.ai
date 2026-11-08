@@ -27,6 +27,13 @@ class Settings:
     GRADING_BATCH_SIZE: int = 1
     MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "2"))
 
+    # Google Cloud Vertex AI Paid Account Settings
+    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "project-fe04c36f-bda1-4c99-86b").strip()
+    GCP_LOCATION: str = os.getenv("GCP_LOCATION", "us-central1").strip()
+    GCP_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL", "1040007059825-compute@developer.gserviceaccount.com").strip()
+    GCP_SERVICE_ACCOUNT_PATH: Path = Path(os.getenv("GCP_SERVICE_ACCOUNT_PATH", str(Path(__file__).resolve().parent.parent / "credentials" / "gcp_service_account.json")))
+    GCP_SERVICE_ACCOUNT_JSON: str = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "").strip()
+
     # Data & Storage
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
     DATA_DIR: Path = BASE_DIR / "data"
@@ -117,6 +124,15 @@ class Settings:
     @property
     def is_gemini_configured(self) -> bool:
         return len(self.configured_api_keys) > 0
+
+    @property
+    def is_gcp_paid_configured(self) -> bool:
+        if bool(self.GCP_SERVICE_ACCOUNT_JSON):
+            return True
+        try:
+            return self.GCP_SERVICE_ACCOUNT_PATH.exists()
+        except Exception:
+            return False
 
 settings = Settings()
 settings.ensure_directories()

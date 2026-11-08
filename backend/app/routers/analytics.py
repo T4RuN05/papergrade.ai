@@ -33,6 +33,18 @@ def update_quota_settings(
     return usage_service.update_quota_settings(req)
 
 
+@router.post("/test-gcp-paid")
+def test_gcp_paid(
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    """
+    Executes a test ping through the Google Cloud Paid Vertex AI engine,
+    logging the response, token count, duration, or exact error code to telemetry.
+    """
+    from backend.app.gemini.client import gemini_client
+    return gemini_client.test_gcp_paid_connection()
+
+
 @router.post("/benchmark")
 def record_benchmark(
     req: BenchmarkRecordRequest,

@@ -1365,6 +1365,27 @@ export const api = {
     return res.json();
   },
 
+  async testGcpPaidConnection(): Promise<{
+    success: boolean;
+    error_code?: string;
+    http_status?: number;
+    message: string;
+    duration_ms: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    event_id: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/analytics/test-gcp-paid`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "GCP connection test failed" }));
+      throw new Error(err.detail || "GCP connection test failed");
+    }
+    return res.json();
+  },
+
   async recordBenchmark(data: {
     submission_id: string;
     exam_id: string;

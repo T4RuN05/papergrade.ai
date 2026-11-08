@@ -173,6 +173,41 @@ class UsageService:
             rpd=rpd
         )
 
+        # Partition events into GCP Paid vs AI Studio Pool
+        gcp_paid_events = [e for e in events if e.get("api_key_masked") and "GCP Paid" in e["api_key_masked"]]
+        pool_events = [e for e in events if not (e.get("api_key_masked") and "GCP Paid" in e["api_key_masked"])]
+
+        # Compile GCP Paid Account Metrics
+        gcp_paid_success = [e for e in gcp_paid_events if e["success"] == 1]
+        gcp_paid_fail = [e for e in gcp_paid_events if e["success"] == 0]
+        gcp_paid_durations = [e["duration_ms"] for e in gcp_paid_events if e["duration_ms"] is not None]
+        gcp_paid_spent = sum(e["estimated_cost_usd"] or 0.0 for e in gcp_paid_events)
+
+        err_counts: Dict[str, int] = {}
+        for e in gcp_paid_fail:
+            code = e.get("error_code") or f"HTTP {e.get('http_status', 500)}"
+            short_code = code.split(":")[0].strip() if ":" in code else code
+            err_counts[short_code] = err_counts.get(short_code, 0) + 1
+
+        gcp_metrics = {
+            "is_configured": settings.is_gcp_paid_configured,
+            "project_id": settings.GCP_PROJECT_ID,
+            "location": settings.GCP_LOCATION,
+            "service_account_email": settings.GCP_SERVICE_ACCOUNT_EMAIL,
+            "total_requests": len(gcp_paid_events),
+            "successful_requests": len(gcp_paid_success),
+            "failed_requests": len(gcp_paid_fail),
+            "success_rate_pct": round((len(gcp_paid_success) / len(gcp_paid_events)) * 100, 1) if gcp_paid_events else 0.0,
+            "total_spent_usd": round(gcp_paid_spent, 6),
+            "total_input_tokens": sum(e["input_tokens"] or 0 for e in gcp_paid_events),
+            "total_output_tokens": sum(e["output_tokens"] or 0 for e in gcp_paid_events),
+            "total_thinking_tokens": sum(e["thinking_tokens"] or 0 for e in gcp_paid_events),
+            "total_cached_tokens": sum(e["cached_tokens"] or 0 for e in gcp_paid_events),
+            "avg_latency_ms": round(sum(gcp_paid_durations) / len(gcp_paid_durations), 1) if gcp_paid_durations else 0,
+            "error_breakdown": err_counts,
+            "recent_events": gcp_paid_events[:50]
+        }
+
         return {
             "summary": {
                 "total_requests": total_requests,
@@ -205,7 +240,8 @@ class UsageService:
                 "batch_40": projections_40,
                 "batch_50": projections_50
             },
-            "recent_events": events[:30]
+            "recent_events": events[:30],
+            "gcp_paid": gcp_metrics
         }
 
     @staticmethod
@@ -318,7 +354,25 @@ class UsageService:
             },
             "quota_settings": quotas,
             "projections": {"batch_40": proj_40, "batch_50": proj_50},
-            "recent_events": []
+            "recent_events": [],
+            "gcp_paid": {
+                "is_configured": settings.is_gcp_paid_configured,
+                "project_id": settings.GCP_PROJECT_ID,
+                "location": settings.GCP_LOCATION,
+                "service_account_email": settings.GCP_SERVICE_ACCOUNT_EMAIL,
+                "total_requests": 0,
+                "successful_requests": 0,
+                "failed_requests": 0,
+                "success_rate_pct": 0.0,
+                "total_spent_usd": 0.0,
+                "total_input_tokens": 0,
+                "total_output_tokens": 0,
+                "total_thinking_tokens": 0,
+                "total_cached_tokens": 0,
+                "avg_latency_ms": 0,
+                "error_breakdown": {},
+                "recent_events": []
+            }
         }
 
 usage_service = UsageService()
