@@ -58,6 +58,7 @@ import {
   exportRankedStandingsCSV,
   exportRosterCSV,
 } from "@/components/ExamRankedTable";
+import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -1891,216 +1892,17 @@ export default function ExamDetailPage() {
 
       {/* MODAL: View Exam Artifact (Question Paper / Answer Key) */}
       {viewerModalOpen && exam && (
-        <ModalCard
-          title={
-            viewerArtifactType === "QUESTION_PAPER"
-              ? `Question Paper — ${exam.title}`
-              : `Official Answer Key — ${exam.title}`
-          }
-          maxWidth="max-w-5xl"
+        <ArtifactViewerModal
+          isOpen={viewerModalOpen}
           onClose={() => setViewerModalOpen(false)}
-        >
-          <div className="space-y-3">
-            {/* Top Responsive Control Bar */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-3 border-b border-hairline text-xs">
-              {/* Left: Badge & Info */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <BadgePill
-                  label={viewerArtifactType === "QUESTION_PAPER" ? "Question Paper" : "Official Answer Key"}
-                  color={viewerArtifactType === "QUESTION_PAPER" ? "sky" : "green"}
-                />
-                <span className="text-ink-muted text-[11px] font-medium">
-                  {exam.title} • {exam.subject}
-                </span>
-              </div>
-
-              {/* Center: Pagination & Zoom Controls */}
-              <div className="flex items-center gap-2 justify-between md:justify-center flex-wrap">
-                {/* Pagination Controls */}
-                <div className="flex items-center gap-1 bg-surface border border-hairline rounded-lg p-0.5 shadow-xs">
-                  <button
-                    onClick={() => {
-                      if (viewerPage > 1) {
-                        setViewerPageImgLoading(true);
-                        setViewerPage((p) => p - 1);
-                      }
-                    }}
-                    disabled={viewerPage <= 1 || viewerLoading}
-                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                    title="Previous Page"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="px-2 text-[11px] font-semibold text-ink select-none min-w-[70px] text-center">
-                    {viewerLoading ? "Loading..." : `Page ${viewerPage} of ${viewerTotalPages}`}
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (viewerPage < viewerTotalPages) {
-                        setViewerPageImgLoading(true);
-                        setViewerPage((p) => p + 1);
-                      }
-                    }}
-                    disabled={viewerPage >= viewerTotalPages || viewerLoading}
-                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                    title="Next Page"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1 bg-surface border border-hairline rounded-lg p-0.5 shadow-xs">
-                  <button
-                    onClick={() => setViewerZoom((z) => Math.max(0.6, Number((z - 0.2).toFixed(1))))}
-                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="px-1 text-[11px] font-medium text-ink-muted min-w-[36px] text-center select-none">
-                    {Math.round(viewerZoom * 100)}%
-                  </span>
-                  <button
-                    onClick={() => setViewerZoom((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))}
-                    className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="h-3.5 w-3.5" />
-                  </button>
-                  {viewerZoom !== 1.0 && (
-                    <button
-                      onClick={() => setViewerZoom(1.0)}
-                      className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors"
-                      title="Reset Zoom"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Right: Actions */}
-              <div className="flex items-center gap-1.5 shrink-0 justify-end">
-                <a
-                  href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-lg hover:bg-canvas-soft transition-colors shadow-xs"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  <span>Open in Tab</span>
-                </a>
-                <a
-                  href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
-                  download={`${viewerArtifactType === "QUESTION_PAPER" ? "question_paper" : "answer_key"}_${exam.id}.pdf`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-lg hover:bg-canvas-soft transition-colors shadow-xs"
-                >
-                  <Download className="h-3 w-3" />
-                  <span>Download</span>
-                </a>
-                <ButtonUtility size="sm" onClick={() => setViewerModalOpen(false)}>
-                  Close
-                </ButtonUtility>
-              </div>
-            </div>
-
-            {/* Document Render Canvas */}
-            <div className="w-full h-[68vh] md:h-[72vh] rounded-xl border border-hairline bg-canvas-soft overflow-auto relative p-3 sm:p-5 flex flex-col items-center justify-start shadow-inner">
-              {viewerLoading ? (
-                <div className="flex flex-col items-center justify-center m-auto py-16 gap-3">
-                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                  <p className="text-xs font-medium text-ink-secondary">
-                    Rendering high-resolution document pages...
-                  </p>
-                </div>
-              ) : !viewerHasDoc || viewerError ? (
-                <div className="flex flex-col items-center justify-center m-auto py-16 gap-3 max-w-sm text-center">
-                  <AlertCircle className="h-8 w-8 text-amber-500" />
-                  <p className="text-sm font-semibold text-ink">
-                    {viewerError || "Document not available for inline preview."}
-                  </p>
-                  <p className="text-xs text-ink-muted">
-                    You can still download or open the original document directly.
-                  </p>
-                  <a
-                    href={`${API_BASE}/api/v1/exams/${exam.id}/${viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}?token=${getAuthToken() || ""}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg shadow-sm hover:bg-primary-hover transition-colors"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>Download Original PDF</span>
-                  </a>
-                </div>
-              ) : (
-                <div className="w-full flex flex-col items-center justify-start transition-all duration-200">
-                  <div
-                    className="bg-white rounded-lg shadow-md border border-hairline overflow-hidden relative transition-transform duration-150 origin-top"
-                    style={{
-                      width: `${Math.round(viewerZoom * 100)}%`,
-                      maxWidth: viewerZoom <= 1 ? "100%" : "none",
-                    }}
-                  >
-                    {viewerPageImgLoading && (
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center z-10">
-                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
-                      </div>
-                    )}
-                    <img
-                      key={`${exam.id}_${viewerArtifactType}_${viewerPage}`}
-                      src={api.getExamArtifactPageUrl(
-                        exam.id,
-                        viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key",
-                        viewerPage
-                      )}
-                      alt={`Page ${viewerPage}`}
-                      className="w-full h-auto block select-none pointer-events-auto"
-                      onLoad={() => setViewerPageImgLoading(false)}
-                      onError={() => {
-                        setViewerPageImgLoading(false);
-                        setViewerError("Failed to load page image. Please try downloading the PDF.");
-                      }}
-                    />
-                  </div>
-
-                  {/* Floating Mobile Page Pill */}
-                  {viewerTotalPages > 1 && (
-                    <div className="sticky bottom-3 mt-4 flex md:hidden items-center gap-3 bg-surface/90 backdrop-blur-md border border-hairline px-3 py-1.5 rounded-full shadow-lg z-20 text-xs">
-                      <button
-                        onClick={() => {
-                          if (viewerPage > 1) {
-                            setViewerPageImgLoading(true);
-                            setViewerPage((p) => p - 1);
-                          }
-                        }}
-                        disabled={viewerPage <= 1}
-                        className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <span className="font-semibold text-ink text-[11px]">
-                        {viewerPage} / {viewerTotalPages}
-                      </span>
-                      <button
-                        onClick={() => {
-                          if (viewerPage < viewerTotalPages) {
-                            setViewerPageImgLoading(true);
-                            setViewerPage((p) => p + 1);
-                          }
-                        }}
-                        disabled={viewerPage >= viewerTotalPages}
-                        className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </ModalCard>
+          examId={exam.id}
+          examTitle={exam.title}
+          examSubject={exam.subject}
+          initialArtifact={viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}
+          hasQuestionPaper={Boolean(exam.question_paper_path)}
+          hasAnswerKey={Boolean(exam.answer_key_path)}
+          isExamDocumentPurged={Boolean((exam as any).is_document_purged)}
+        />
       )}
 
       {/* MODAL: Open / Reopen Submission Window */}

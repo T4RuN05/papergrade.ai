@@ -113,6 +113,10 @@ export function DocumentViewer({
   const [hoveredAnswerId, setHoveredAnswerId] = useState<string | null>(null);
   const [imageError, setImageError] = useState<boolean>(false);
   const [isPageImageLoading, setIsPageImageLoading] = useState<boolean>(true);
+  const [isSnapping, setIsSnapping] = useState<boolean>(false);
+
+  const totalPages = Math.max(1, pageCount || 1);
+  const PAGE_GAP = 28;
 
   // Client-Side PDF.js canvas state
   const [pdfDoc, setPdfDoc] = useState<any>(null);
@@ -186,87 +190,9 @@ export function DocumentViewer({
     };
   }, [submissionId, propPdfUrl]);
 
-  // Render currentPage directly to client-side HTML5 canvas
-  useEffect(() => {
-    if (!pdfDoc || !canvasRef.current) return;
-    let isCancelled = false;
-
-    async function renderPage() {
-      try {
-        if (renderTaskRef.current) {
-          try {
-            renderTaskRef.current.cancel();
-          } catch (_) {}
-        }
-        setIsPageImageLoading(true);
-        const page = await pdfDoc.getPage(currentPage);
-        if (isCancelled) return;
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        // Viewport scale 1.5 provides crisp, tack-sharp retina handwriting on both mobile and desktop
-        const viewport = page.getViewport({ scale: 1.5 });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        if (viewport.width > 0 && viewport.height > 0) {
-          setPageAspect(viewport.width / viewport.height);
-        }
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const renderContext = {
-          canvasContext: ctx,
-          viewport: viewport,
-        };
-
-        const task = page.render(renderContext);
-        renderTaskRef.current = task;
-        await task.promise;
-        renderTaskRef.current = null;
-
-        if (!isCancelled) {
-          loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
-          setIsPageImageLoading(false);
-        }
-      } catch (err: any) {
-        if (err?.name !== "RenderingCancelledException") {
-          console.error("PDF page render error:", err);
-          setIsPageImageLoading(false);
-        }
-      }
-    }
-
-    renderPage();
-    return () => {
-      isCancelled = true;
-      if (renderTaskRef.current) {
-        try {
-          renderTaskRef.current.cancel();
-        } catch (_) {}
-      }
-    };
-  }, [pdfDoc, currentPage, submissionId]);
-
-  // Fallback image handling when PDF.js is unavailable
-  useEffect(() => {
-    if (!pdfError) return;
-    setImageError(false);
-    const key = `${submissionId}_p_${currentPage}`;
-    if (loadedPagesRef.current.has(key)) {
-      setIsPageImageLoading(false);
-    } else if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
-      loadedPagesRef.current.add(key);
-      setIsPageImageLoading(false);
-    } else {
-      setIsPageImageLoading(true);
-    }
-  }, [currentPage, submissionId, pdfError]);
-
   const setCurrentPage = (p: number | ((prev: number) => number)) => {
     const next = typeof p === "function" ? p(currentPage) : p;
-    const clamped = Math.max(1, Math.min(Math.max(1, pageCount), next));
+    const clamped = Math.max(1, Math.min(totalPages, next));
     if (onPageChange) {
       onPageChange(clamped);
     } else {
@@ -277,8 +203,8 @@ export function DocumentViewer({
   const currentPageRef = useRef(currentPage);
   currentPageRef.current = currentPage;
 
-  const pageCountRef = useRef(pageCount);
-  pageCountRef.current = pageCount;
+  const totalPagesRef = useRef(totalPages);
+  totalPagesRef.current = totalPages;
 
   const setCurrentPageRef = useRef(setCurrentPage);
   setCurrentPageRef.current = setCurrentPage;
@@ -403,40 +329,57 @@ export function DocumentViewer({
     };
   }, [containerDims.width, containerDims.height, pageAspect]);
 
-  // Keep pan bounded so the document can be slid freely in all directions without getting lost
+  // Keep pan bounded so the document ribbon can be slid freely without getting lost
   const clampPan = useCallback((targetX: number, targetY: number, scale: number) => {
     const cW = baseDimensions.containerW;
     const cH = baseDimensions.containerH;
-    const curW = baseDimensions.width * scale;
     const curH = baseDimensions.height * scale;
+    const totalW = (totalPages * baseDimensions.width + (totalPages - 1) * PAGE_GAP) * scale;
 
     let minX: number;
     let maxX: number;
-    if (curW > cW) {
-      minX = cW - curW - 16;
-      maxX = 16;
+
+    if (scale <= 1.15) {
+      const page1X = (cW - baseDimensions.width * scale) / 2;
+      const pageNX = page1X - (totalPages - 1) * (baseDimensions.width + PAGE_GAP) * scale;
+      maxX = page1X + 80;
+      minX = pageNX - 80;
     } else {
-      const cx = (cW - curW) / 2;
-      minX = cx - 20;
-      maxX = cx + 20;
+      if (totalW > cW) {
+        minX = cW - totalW - 24;
+        maxX = 24;
+      } else {
+        const cx = (cW - totalW) / 2;
+        minX = cx - 24;
+        maxX = cx + 24;
+      }
     }
 
     let minY: number;
     let maxY: number;
     if (curH > cH) {
-      minY = cH - curH - 16;
-      maxY = 16;
+      minY = cH - curH - 24;
+      maxY = 24;
     } else {
       const cy = (cH - curH) / 2;
-      minY = cy - 20;
-      maxY = cy + 20;
+      minY = cy - 24;
+      maxY = cy + 24;
     }
 
     return {
       x: Math.round(Math.max(minX, Math.min(maxX, targetX))),
       y: Math.round(Math.max(minY, Math.min(maxY, targetY))),
     };
-  }, [baseDimensions]);
+  }, [baseDimensions, totalPages]);
+
+  // Center any specific page sheet within the viewport
+  const getCenteredPanForPage = useCallback((targetPage: number, scale = 1.0) => {
+    const p = Math.max(1, Math.min(totalPages, targetPage));
+    const pageOffset = (p - 1) * (baseDimensions.width + PAGE_GAP);
+    const defX = Math.round((baseDimensions.containerW - baseDimensions.width * scale) / 2 - pageOffset * scale);
+    const defY = Math.round((baseDimensions.containerH - baseDimensions.height * scale) / 2);
+    return { x: defX, y: defY };
+  }, [baseDimensions, totalPages]);
 
   // Zoom centered on a specific focal client point (e.g. pinch midpoint, cursor, or viewport center)
   const updateZoomAtPoint = useCallback((targetScale: number, focalClientX: number, focalClientY: number) => {
@@ -473,19 +416,24 @@ export function DocumentViewer({
 
   const handleResetZoom = useCallback(() => {
     setZoomScale(1.0);
-    const defX = Math.round((baseDimensions.containerW - baseDimensions.width) / 2);
-    const defY = Math.round((baseDimensions.containerH - baseDimensions.height) / 2);
-    setPan({ x: defX, y: defY });
-  }, [baseDimensions]);
+    setIsSnapping(true);
+    setPan(getCenteredPanForPage(currentPage, 1.0));
+    const timer = setTimeout(() => setIsSnapping(false), 330);
+    return () => clearTimeout(timer);
+  }, [currentPage, getCenteredPanForPage]);
 
-  // Auto-fit to viewport on page navigation or initial dimension measurement
+  // Auto-fit or pan smoothly to active page when currentPage changes or dimensions update
   useEffect(() => {
     if (baseDimensions.containerW > 0 && baseDimensions.containerH > 0) {
-      handleResetZoom();
+      const targetPan = getCenteredPanForPage(currentPage, zoomScaleRef.current);
+      setIsSnapping(true);
+      setPan(targetPan);
+      const timer = setTimeout(() => setIsSnapping(false), 330);
+      return () => clearTimeout(timer);
     }
-  }, [currentPage, baseDimensions.containerW, baseDimensions.containerH, handleResetZoom]);
+  }, [currentPage, baseDimensions.containerW, baseDimensions.containerH, getCenteredPanForPage]);
 
-  // Touch pinch-to-zoom, touch-to-slide, and desktop mouse drag handling
+  // Touch pinch-to-zoom, connected ribbon sliding, and desktop mouse drag handling
   useEffect(() => {
     const container = viewportRef.current;
     if (!container) return;
@@ -506,6 +454,7 @@ export function DocumentViewer({
 
     const onTouchStart = (e: TouchEvent) => {
       didPanRef.current = false;
+      setIsSnapping(false);
       if (e.touches.length === 2) {
         e.preventDefault();
         isPinching = true;
@@ -546,9 +495,23 @@ export function DocumentViewer({
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
           e.preventDefault();
           didPanRef.current = true;
-          const rawX = panStart.x + dx;
-          const rawY = panStart.y + dy;
-          setPan(clampPan(rawX, rawY, zoomScaleRef.current));
+          if (zoomScaleRef.current <= 1.15) {
+            // Connected Ribbon 1:1 Sliding with elastic bounds
+            const page1X = (baseDimensions.containerW - baseDimensions.width) / 2;
+            const pageNX = page1X - (totalPages - 1) * (baseDimensions.width + PAGE_GAP);
+            let rawX = panStart.x + dx;
+            if (rawX > page1X) {
+              rawX = page1X + (rawX - page1X) * 0.35;
+            } else if (rawX < pageNX) {
+              rawX = pageNX + (rawX - pageNX) * 0.35;
+            }
+            const rawY = Math.round((baseDimensions.containerH - baseDimensions.height) / 2 + dy * 0.15);
+            setPan({ x: Math.round(rawX), y: rawY });
+          } else {
+            const rawX = panStart.x + dx;
+            const rawY = panStart.y + dy;
+            setPan(clampPan(rawX, rawY, zoomScaleRef.current));
+          }
         }
       }
     };
@@ -575,29 +538,40 @@ export function DocumentViewer({
               updateZoomAtPoint(2.0, touch.clientX, touch.clientY);
             }
             lastTapTime = 0;
+            return;
           } else {
             lastTapTime = now;
           }
 
-          // Slide/Swipe Gesture Detection for Mobile PWA
-          const deltaX = touch.clientX - touchStartClient.x;
-          const deltaY = touch.clientY - touchStartClient.y;
-          const elapsed = now - touchStartTime;
+          // Slide/Swipe Snap for Connected Page Ribbon
+          if (zoomScaleRef.current <= 1.15 && didPanRef.current) {
+            const deltaX = touch.clientX - touchStartClient.x;
+            const elapsed = now - touchStartTime;
+            const curP = currentPageRef.current;
+            let targetP = curP;
 
-          // When fit to screen (<= 1.15) and swipe was quick (< 600ms) with dominant horizontal delta:
-          if (
-            zoomScaleRef.current <= 1.15 &&
-            elapsed < 600 &&
-            Math.abs(deltaX) > 40 &&
-            Math.abs(deltaX) > Math.abs(deltaY) * 1.3
-          ) {
-            if (deltaX < 0 && currentPageRef.current < pageCountRef.current) {
-              // Swipe Left -> Slide to Next Page
-              setCurrentPageRef.current((p: number) => Math.min(pageCountRef.current, p + 1));
-            } else if (deltaX > 0 && currentPageRef.current > 1) {
-              // Swipe Right -> Slide to Previous Page
-              setCurrentPageRef.current((p: number) => Math.max(1, p - 1));
+            if (elapsed < 380 && Math.abs(deltaX) > 35) {
+              // Quick flick / swipe gesture
+              if (deltaX < 0 && curP < totalPages) {
+                targetP = curP + 1;
+              } else if (deltaX > 0 && curP > 1) {
+                targetP = curP - 1;
+              }
+            } else {
+              // Drag release: calculate closest page center to viewport center
+              const centerDiff = (baseDimensions.containerW - baseDimensions.width) / 2 - panRef.current.x;
+              const step = baseDimensions.width + PAGE_GAP;
+              const est = Math.round(centerDiff / step) + 1;
+              targetP = Math.max(1, Math.min(totalPages, est));
             }
+
+            const targetPan = getCenteredPanForPage(targetP, 1.0);
+            setIsSnapping(true);
+            setPan(targetPan);
+            if (targetP !== curP) {
+              setCurrentPageRef.current(targetP);
+            }
+            setTimeout(() => setIsSnapping(false), 330);
           }
         }
       }
@@ -610,6 +584,7 @@ export function DocumentViewer({
         return;
       }
       didPanRef.current = false;
+      setIsSnapping(false);
       isMousePanning = true;
       mouseStartClient = { x: e.clientX, y: e.clientY };
       mousePanStart = { ...panRef.current };
@@ -622,13 +597,49 @@ export function DocumentViewer({
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         didPanRef.current = true;
       }
-      const rawX = mousePanStart.x + dx;
-      const rawY = mousePanStart.y + dy;
-      setPan(clampPan(rawX, rawY, zoomScaleRef.current));
+      if (zoomScaleRef.current <= 1.15) {
+        const page1X = (baseDimensions.containerW - baseDimensions.width) / 2;
+        const pageNX = page1X - (totalPages - 1) * (baseDimensions.width + PAGE_GAP);
+        let rawX = mousePanStart.x + dx;
+        if (rawX > page1X) {
+          rawX = page1X + (rawX - page1X) * 0.35;
+        } else if (rawX < pageNX) {
+          rawX = pageNX + (rawX - pageNX) * 0.35;
+        }
+        setPan({ x: Math.round(rawX), y: Math.round(mousePanStart.y + dy * 0.15) });
+      } else {
+        const rawX = mousePanStart.x + dx;
+        const rawY = mousePanStart.y + dy;
+        setPan(clampPan(rawX, rawY, zoomScaleRef.current));
+      }
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (e: MouseEvent) => {
+      if (!isMousePanning) return;
       isMousePanning = false;
+      if (zoomScaleRef.current <= 1.15 && didPanRef.current) {
+        const deltaX = e.clientX - mouseStartClient.x;
+        const curP = currentPageRef.current;
+        let targetP = curP;
+
+        if (Math.abs(deltaX) > 40) {
+          if (deltaX < 0 && curP < totalPages) targetP = curP + 1;
+          else if (deltaX > 0 && curP > 1) targetP = curP - 1;
+        } else {
+          const centerDiff = (baseDimensions.containerW - baseDimensions.width) / 2 - panRef.current.x;
+          const step = baseDimensions.width + PAGE_GAP;
+          const est = Math.round(centerDiff / step) + 1;
+          targetP = Math.max(1, Math.min(totalPages, est));
+        }
+
+        const targetPan = getCenteredPanForPage(targetP, 1.0);
+        setIsSnapping(true);
+        setPan(targetPan);
+        if (targetP !== curP) {
+          setCurrentPageRef.current(targetP);
+        }
+        setTimeout(() => setIsSnapping(false), 330);
+      }
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -665,7 +676,7 @@ export function DocumentViewer({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [baseDimensions, clampPan, handleResetZoom, updateZoomAtPoint]);
+  }, [baseDimensions, clampPan, getCenteredPanForPage, handleResetZoom, totalPages, updateZoomAtPoint]);
 
   // Ref tracking active mouse drag session
   const dragStateRef = useRef<{
@@ -821,9 +832,8 @@ export function DocumentViewer({
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
     // Use container dimensions divided by zoomScale to get unscaled base resolution
-    const containerRect = imageContainerRef.current.getBoundingClientRect();
-    const containerW = Math.max(1, containerRect.width / (zoomScale || 1));
-    const containerH = Math.max(1, containerRect.height / (zoomScale || 1));
+    const containerW = baseDimensions.width;
+    const containerH = baseDimensions.height;
 
     const regId = region.id || answer.id;
     const current = draftCoords[regId] || {
@@ -943,47 +953,49 @@ export function DocumentViewer({
       : answers.filter((a) => !a.is_extra_attempt).reduce((s, a) => s + (a.max_marks || 0), 0) || 25;
   const scorePct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
 
-  // Group all regions for the current page
-  const pageRegions: { region: AnswerRegion; answer: GradedAnswer }[] = [];
-  answers.forEach((ans) => {
-    (ans.regions || []).forEach((reg) => {
-      if (reg.page_number === currentPage) {
-        pageRegions.push({ region: reg, answer: ans });
-      }
-    });
-  });
-
-  // If we are actively editing a draft region for an unallocated answer or multi-page continuation on this page, include it in pageRegions
-  if (editingRegionId && (editingRegionId.startsWith("draft-new-") || editingRegionId.startsWith("draft-add-"))) {
-    const ansId = (() => {
-      if (editingRegionId.startsWith("draft-add-")) {
-        const m = editingRegionId.match(/^draft-add-(.+)-(\d+)$/);
-        return m ? m[1] : editingRegionId.replace("draft-add-", "");
-      }
-      return editingRegionId.replace("draft-new-", "");
-    })();
-    const match = answers.find((a) => a.id === ansId || a.question_id === ansId);
-    if (match && !pageRegions.some((pr) => pr.region.id === editingRegionId)) {
-      const draft = draftCoords[editingRegionId] || {
-        x: 0.15,
-        y: 0.20,
-        width: 0.70,
-        height: 0.15,
-        page_number: currentPage,
-      };
-      pageRegions.push({
-        region: {
-          id: editingRegionId,
-          page_number: currentPage,
-          x: draft.x,
-          y: draft.y,
-          width: draft.width,
-          height: draft.height,
-        },
-        answer: match,
+  // Helper to retrieve all regions for any specific page sheet (including active drafts)
+  const getPageRegions = useCallback(
+    (pageNum: number) => {
+      const list: { region: AnswerRegion; answer: GradedAnswer }[] = [];
+      answers.forEach((ans) => {
+        (ans.regions || []).forEach((reg) => {
+          if (reg.page_number === pageNum) {
+            list.push({ region: reg, answer: ans });
+          }
+        });
       });
-    }
-  }
+
+      // If we are actively editing a draft region for an unallocated answer or multi-page continuation on this page, include it
+      if (editingRegionId && (editingRegionId.startsWith("draft-new-") || editingRegionId.startsWith("draft-add-"))) {
+        const draft = draftCoords[editingRegionId];
+        if (draft && draft.page_number === pageNum) {
+          const ansId = (() => {
+            if (editingRegionId.startsWith("draft-add-")) {
+              const m = editingRegionId.match(/^draft-add-(.+)-(\d+)$/);
+              return m ? m[1] : editingRegionId.replace("draft-add-", "");
+            }
+            return editingRegionId.replace("draft-new-", "");
+          })();
+          const match = answers.find((a) => a.id === ansId || a.question_id === ansId);
+          if (match && !list.some((pr) => pr.region.id === editingRegionId)) {
+            list.push({
+              region: {
+                id: editingRegionId,
+                page_number: pageNum,
+                x: draft.x,
+                y: draft.y,
+                width: draft.width,
+                height: draft.height,
+              },
+              answer: match,
+            });
+          }
+        }
+      }
+      return list;
+    },
+    [answers, editingRegionId, draftCoords]
+  );
 
 
   const getStatusColor = (ans: GradedAnswer) => {
@@ -1036,32 +1048,35 @@ export function DocumentViewer({
         {/* Page selector */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           <button
+            type="button"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="hidden sm:inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
+            className="inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
             title="Previous Page"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="text-xs font-semibold text-ink px-1.5">
             Page <span className="text-primary font-bold font-mono">{currentPage}</span> of{" "}
-            <span className="text-ink font-mono">{Math.max(1, pageCount)}</span>
+            <span className="text-ink font-mono">{totalPages}</span>
           </span>
           <button
-            onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))}
-            disabled={currentPage >= pageCount}
-            className="hidden sm:inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            className="inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
             title="Next Page"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
 
           {/* Quick page pills */}
-          {pageCount > 1 && (
+          {totalPages > 1 && (
             <div className="hidden sm:flex items-center gap-1 ml-1.5">
-              {Array.from({ length: pageCount }).map((_, i) => (
+              {Array.from({ length: totalPages }).map((_, i) => (
                 <button
                   key={i}
+                  type="button"
                   onClick={() => setCurrentPage(i + 1)}
                   className={`h-6 w-6 rounded-md text-[11px] font-semibold transition-all cursor-pointer font-mono ${
                     currentPage === i + 1
@@ -1263,102 +1278,107 @@ export function DocumentViewer({
         ref={viewportRef}
         className="relative flex-1 overflow-hidden bg-[#f6f6f4] select-none cursor-grab active:cursor-grabbing touch-none overscroll-none"
       >
+        {/* Connected Page Ribbon Track */}
         <div
           ref={imageContainerRef}
-          className="absolute top-0 left-0 shadow-md rounded-sm border border-hairline/80 bg-white"
+          className="absolute top-0 left-0"
           style={{
-            width: `${baseDimensions.width}px`,
+            width: `${totalPages * baseDimensions.width + (totalPages - 1) * PAGE_GAP}px`,
             height: `${baseDimensions.height}px`,
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoomScale})`,
             transformOrigin: "top left",
             willChange: "transform",
+            transition: isSnapping ? "transform 320ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
           }}
         >
-          {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
-          {imageError ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-sm">
-              <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
-                <Archive className="h-6 w-6" />
-              </div>
-              <h3 className="text-sm font-bold text-ink">
-                {isDocumentPurged ? "Page Image Unavailable" : "Page Loading Error"}
-              </h3>
-              <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
-                {isDocumentPurged
-                  ? "Scanned answer sheet pages and crop previews for this paper have been purged in accordance with the 15-day storage retention policy. Question marks and evaluator rationales remain permanently archived."
-                  : "Unable to render this page image or document stream. Please verify your connection or click retry below."}
-              </p>
-              {!isDocumentPurged && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImageError(false);
-                    setPdfError(false);
-                  }}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary-hover transition-colors"
-                >
-                  Retry Loading
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              {/* Paper Fetching Loading Screen */}
-              {isPageImageLoading && (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-white/95 rounded-sm shadow-2xs">
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-xs animate-pulse">
-                    <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin text-primary" />
-                  </div>
-                  <div className="space-y-1 max-w-xs">
-                    <h3 className="text-xs sm:text-sm font-bold text-ink">
-                      Fetching Examination Sheet...
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+            const isNearby = Math.abs(p - currentPage) <= 1;
+            const pageRegions = getPageRegions(p);
+
+            return (
+              <div
+                key={p}
+                className="absolute top-0 bg-white rounded-sm shadow-md border border-hairline/80 overflow-hidden"
+                style={{
+                  left: `${(p - 1) * (baseDimensions.width + PAGE_GAP)}px`,
+                  width: `${baseDimensions.width}px`,
+                  height: `${baseDimensions.height}px`,
+                }}
+              >
+                {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
+                {imageError ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-sm">
+                    <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
+                      <Archive className="h-6 w-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-ink">
+                      {isDocumentPurged ? "Page Image Unavailable" : "Page Loading Error"}
                     </h3>
-                    <p className="text-[11px] text-ink-muted leading-relaxed">
-                      Rendering Page {currentPage} of {Math.max(1, pageCount)}.
+                    <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
+                      {isDocumentPurged
+                        ? "Scanned answer sheet pages and crop previews for this paper have been purged in accordance with the 15-day storage retention policy. Question marks and evaluator rationales remain permanently archived."
+                        : "Unable to render this page image or document stream. Please verify your connection or click retry below."}
                     </p>
+                    {!isDocumentPurged && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageError(false);
+                          setPdfError(false);
+                        }}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary-hover transition-colors"
+                      >
+                        Retry Loading
+                      </button>
+                    )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <>
+                    {/* Paper Fetching Loading Screen */}
+                    {p === currentPage && isPageImageLoading && !loadedPagesRef.current.has(`${submissionId}_p_${p}`) && (
+                      <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-white/95 rounded-sm shadow-2xs">
+                        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-xs animate-pulse">
+                          <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin text-primary" />
+                        </div>
+                        <div className="space-y-1 max-w-xs">
+                          <h3 className="text-xs sm:text-sm font-bold text-ink">
+                            Fetching Examination Sheet...
+                          </h3>
+                          <p className="text-[11px] text-ink-muted leading-relaxed">
+                            Rendering Page {currentPage} of {totalPages}.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-              {!pdfError ? (
-                <canvas
-                  ref={canvasRef}
-                  className={`w-full h-full block rounded-sm select-none pointer-events-none transition-opacity duration-150 ${
-                    isPageImageLoading ? "opacity-0" : "opacity-100"
-                  }`}
-                />
-              ) : (
-                <img
-                  ref={imgRef}
-                  src={pageImageUrl}
-                  alt={`Student Page ${currentPage}`}
-                  className={`w-full h-full block rounded-sm select-none pointer-events-none transition-opacity duration-150 ${
-                    isPageImageLoading ? "opacity-0" : "opacity-100"
-                  }`}
-                  loading="eager"
-                  decoding="async"
-                  onLoad={() => {
-                    if (imgRef.current && imgRef.current.naturalWidth > 0 && imgRef.current.naturalHeight > 0) {
-                      setPageAspect(imgRef.current.naturalWidth / imgRef.current.naturalHeight);
-                    }
-                    loadedPagesRef.current.add(`${submissionId}_p_${currentPage}`);
-                    setIsPageImageLoading(false);
-                  }}
-                  onError={() => {
-                    setIsPageImageLoading(false);
-                    setImageError(true);
-                  }}
-                />
-              )}
-            </>
-          )}
+                    <img
+                      src={api.getPageImageUrl(submissionId, p)}
+                      alt={`Student Page ${p}`}
+                      className="w-full h-full block rounded-sm select-none pointer-events-none"
+                      loading={isNearby ? "eager" : "lazy"}
+                      decoding="async"
+                      onLoad={(e) => {
+                        const img = e.currentTarget;
+                        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                          setPageAspect(img.naturalWidth / img.naturalHeight);
+                        }
+                        loadedPagesRef.current.add(`${submissionId}_p_${p}`);
+                        if (p === currentPage) {
+                          setIsPageImageLoading(false);
+                        }
+                      }}
+                      onError={() => {
+                        if (p === currentPage) {
+                          setIsPageImageLoading(false);
+                          setImageError(true);
+                        }
+                      }}
+                    />
+                  </>
+                )}
 
-          {/* Only render teacher score stamp and annotation overlays once the image has completely loaded */}
-          {!isPageImageLoading && !imageError && (
-            <>
-
-          {/* Page 1 Teacher Score Stamp (Clean Red Ink Stamp Aesthetic) */}
-          {showAnnotations && !hideScoreStamp && currentPage === 1 && totalMax > 0 && totalAwardedMarks !== undefined && totalAwardedMarks !== null && (
+                {/* Page 1 Teacher Score Stamp (Clean Red Ink Stamp Aesthetic) */}
+                {showAnnotations && !hideScoreStamp && p === 1 && totalMax > 0 && totalAwardedMarks !== undefined && totalAwardedMarks !== null && (
             <div
               className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 pointer-events-none select-none rounded-md sm:rounded-lg border sm:border-2 border-red-600/90 bg-white/95 backdrop-blur-xs px-2 py-1 sm:px-4 sm:py-2 shadow-sm text-left border-dashed"
               style={{
@@ -1857,10 +1877,43 @@ export function DocumentViewer({
               </div>
             );
           })}
-            </>
-          )}
-          </div>
+              </div>
+            );
+          })}
         </div>
+
+        {/* STABLE FLOATING NAVIGATOR: ANCHORED AT BOTTOM OF VIEWPORT */}
+        {totalPages > 1 && (
+          <div className="sm:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-30 text-xs select-none pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((cur) => Math.max(1, cur - 1))}
+              disabled={currentPage <= 1}
+              className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+              title="Previous Page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-1 font-mono font-bold text-xs text-ink">
+              <span>Page</span>
+              <span className="text-primary">{currentPage}</span>
+              <span className="text-ink-muted font-normal">/</span>
+              <span className="text-ink-muted font-normal">{totalPages}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((cur) => Math.min(totalPages, cur + 1))}
+              disabled={currentPage >= totalPages}
+              className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+              title="Next Page"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
+    </div>
   );
 }

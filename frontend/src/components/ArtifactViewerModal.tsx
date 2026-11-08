@@ -454,7 +454,7 @@ export function ArtifactViewerModal({
         </div>
 
         {/* Document Rendering Body */}
-        <div className="flex-1 w-full overflow-auto bg-canvas-soft p-3 sm:p-5 flex flex-col items-center justify-start relative select-none">
+        <div className="relative flex-1 w-full overflow-hidden bg-canvas-soft flex flex-col items-center justify-center select-none">
           {loadingMeta ? (
             <div className="flex flex-col items-center justify-center m-auto py-16 gap-3">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
@@ -486,62 +486,94 @@ export function ArtifactViewerModal({
               </p>
             </div>
           ) : (
-            <div className="w-full flex flex-col items-center justify-start transition-all duration-200">
+            <>
+              {/* Connected Pages Carousel Track */}
               <div
-                className={`bg-white rounded-lg shadow-md border border-hairline overflow-hidden relative origin-top touch-pan-y ${
-                  slideDirection === "left"
-                    ? "animate-in slide-in-from-right-6 duration-200"
-                    : slideDirection === "right"
-                    ? "animate-in slide-in-from-left-6 duration-200"
-                    : ""
-                }`}
-                style={{
-                  width: `${Math.round(zoom * 100)}%`,
-                  maxWidth: zoom <= 1 ? "100%" : "none",
-                  transform: isSwiping ? `translateX(${touchOffset}px)` : undefined,
-                  transition: isSwiping ? "none" : "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
-                }}
+                className="w-full h-full flex-1 overflow-hidden relative touch-pan-y"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchEnd}
               >
-                {pageImgLoading && (
-                  <div className="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center z-10 min-h-[300px]">
-                    <Loader2 className="h-7 w-7 text-primary animate-spin" />
-                  </div>
-                )}
-                <img
-                  key={`${examId}_${activeArtifact}_${page}`}
-                  src={api.getExamArtifactPageUrl(examId, activeArtifact, page)}
-                  alt={`${activeArtifact} page ${page}`}
-                  className="w-full h-auto block select-none pointer-events-auto"
-                  onLoad={() => {
-                    setPageImgLoading(false);
-                    setSlideDirection(null);
+                <div
+                  className="flex items-center h-full will-change-transform"
+                  style={{
+                    width: `${totalPages * 100}%`,
+                    transform: `translateX(calc(-${((page - 1) / totalPages) * 100}% + ${touchOffset}px))`,
+                    transition: isSwiping ? "none" : "transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1)",
                   }}
-                  onError={() => {
-                    setPageImgLoading(false);
-                    setErrorNotice("Failed to load page image. Please use 'Open in Tab' or 'Download PDF'.");
-                  }}
-                />
+                >
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                    const isNearby = Math.abs(p - page) <= 1;
+                    return (
+                      <div
+                        key={p}
+                        className="h-full flex items-center justify-center p-2 sm:p-5 flex-shrink-0"
+                        style={{ width: `${100 / totalPages}%` }}
+                      >
+                        <div
+                          className="relative bg-white rounded-lg sm:rounded-xl shadow-lg border border-hairline overflow-hidden flex items-center justify-center"
+                          style={{
+                            height: zoom > 1 ? "auto" : "100%",
+                            maxHeight: "100%",
+                            maxWidth: "100%",
+                            aspectRatio: "1 / 1.414",
+                            width: zoom > 1 ? `${Math.round(zoom * 100)}%` : "auto",
+                          }}
+                        >
+                          <img
+                            src={api.getExamArtifactPageUrl(examId, activeArtifact, p)}
+                            alt={`${activeArtifact} page ${p}`}
+                            className="w-full h-full object-contain pointer-events-none select-none block"
+                            loading={isNearby ? "eager" : "lazy"}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Floating Mobile Page Slide Gesture Indicator (Replaces manual button pill in mobile PWA) */}
+              {/* STABLE FLOATING NAVIGATOR: ANCHORED AT BOTTOM - NEVER SNAPS UP */}
               {totalPages > 1 && (
-                <div className="sticky bottom-3 mt-4 flex sm:hidden items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-20 text-xs select-none">
-                  <span className="text-[11px] font-semibold text-ink-muted flex items-center gap-1">
-                    <span className="text-primary font-bold">‹</span>
-                    <span>Slide to turn pages</span>
-                    <span className="text-primary font-bold">›</span>
-                  </span>
-                  <span className="h-3 w-px bg-hairline" />
-                  <span className="font-mono font-bold text-ink text-[11px]">
-                    {page} of {totalPages}
-                  </span>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-30 text-xs select-none pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (page > 1) {
+                        setPage((prev) => prev - 1);
+                      }
+                    }}
+                    disabled={page <= 1}
+                    className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+
+                  <div className="flex items-center gap-1.5 px-1 font-mono font-bold text-xs text-ink">
+                    <span>Page</span>
+                    <span className="text-primary">{page}</span>
+                    <span className="text-ink-muted font-normal">/</span>
+                    <span className="text-ink-muted font-normal">{totalPages}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (page < totalPages) {
+                        setPage((prev) => prev + 1);
+                      }
+                    }}
+                    disabled={page >= totalPages}
+                    className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
