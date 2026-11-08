@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from backend.app.config import settings
 from backend.app.db.session import get_db
-from backend.app.db.models import Submission, AnswerRegion, Exam
+from backend.app.db.models import Submission, AnswerRegion, Exam, Student
 from backend.app.schemas import ManualEditAnswerRequest, ManualEditRegionRequest
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service
@@ -124,17 +124,28 @@ def get_page_image(
             detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage. Question marks and scores remain archived."
         )
 
-    # Student ownership & publication isolation
+    # Student ownership check: students are permitted to view raw pages of their own uploaded answer sheet at any time
     if current_user.get("role") == "STUDENT":
         user_roll = (current_user.get("roll_number") or "").strip().upper()
         user_stu_id = current_user.get("student_id")
-        owns_sub = (user_roll and sub and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub and sub.student_id == user_stu_id)
+        user_sub_id = current_user.get("sub")
+
+        allowed_rolls = [user_roll] if user_roll else []
+        allowed_ids = [user_stu_id] if user_stu_id else []
+        if user_sub_id:
+            stu_rows = db.scalars(select(Student).where(Student.user_id == user_sub_id)).all()
+            for r in stu_rows:
+                if r.roll_number:
+                    allowed_rolls.append(r.roll_number.strip().upper())
+                if r.id:
+                    allowed_ids.append(r.id)
+
+        sub_roll = (sub.roll_number or "").strip().upper() if sub else ""
+        sub_stu_id = sub.student_id if sub else ""
+
+        owns_sub = (sub_roll and sub_roll in allowed_rolls) or (sub_stu_id and sub_stu_id in allowed_ids)
         if not owns_sub:
             raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's page image.")
-        if sub and sub.publication_status != "PUBLISHED":
-            exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
-            if not exam or exam.is_published != 1:
-                raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
     img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
     if not img_path.exists() and sub:

@@ -458,11 +458,24 @@ def get_submission_pdf_stream(
     if user_role == "STUDENT":
         user_roll = (current_user.get("roll_number") or "").strip().upper()
         user_stu_id = current_user.get("student_id")
-        owns_sub = (user_roll and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub.student_id == user_stu_id)
+        user_sub_id = current_user.get("sub")
+
+        allowed_rolls = [user_roll] if user_roll else []
+        allowed_ids = [user_stu_id] if user_stu_id else []
+        if user_sub_id:
+            stu_rows = db.scalars(select(Student).where(Student.user_id == user_sub_id)).all()
+            for r in stu_rows:
+                if r.roll_number:
+                    allowed_rolls.append(r.roll_number.strip().upper())
+                if r.id:
+                    allowed_ids.append(r.id)
+
+        sub_roll = (sub.roll_number or "").strip().upper() if sub else ""
+        sub_stu_id = sub.student_id if sub else ""
+
+        owns_sub = (sub_roll and sub_roll in allowed_rolls) or (sub_stu_id and sub_stu_id in allowed_ids)
         if not owns_sub:
             raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's submission.")
-        if not is_pub:
-            raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
     key = sub.canonical_pdf_path or sub.original_file_path
     if not key:
@@ -1180,6 +1193,7 @@ def get_submission_details(
                 "submission_status": sub["submission_status"],
                 "student_status": student_status,
                 "is_published": False,
+                "pdf_url": f"/api/v1/submissions/{sub['id']}/pdf",
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
         else:
