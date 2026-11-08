@@ -922,4 +922,49 @@ body {
   color: #7cd1cd !important;
 }
 
+/* Eradicate ugly native browser number spin buttons */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Apple-style rolling number animations */
+@keyframes appleNumberUp {
+  0% {
+    transform: translateY(60%);
+    opacity: 0;
+    filter: blur(0.5px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes appleNumberDown {
+  0% {
+    transform: translateY(-60%);
+    opacity: 0;
+    filter: blur(0.5px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.animate-number-up {
+  animation: appleNumberUp 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-number-down {
+  animation: appleNumberDown 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 

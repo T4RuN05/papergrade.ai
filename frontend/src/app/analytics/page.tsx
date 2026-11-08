@@ -18,7 +18,7 @@ import {
 import { api } from "@/lib/api";
 import { UsageMetrics, BenchmarkSummary, Exam } from "@/lib/types";
 import { UsageCards } from "@/components/UsageCards";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton } from "@/components/ui";
+import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 
@@ -183,10 +183,10 @@ export default function AnalyticsPage() {
               <select
                 value={selectedExamId}
                 onChange={(e) => handleExamChange(e.target.value)}
-                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-ink font-medium focus:outline-none focus:border-primary"
+                className="rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-1.5 text-xs text-ink font-medium focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
               >
                 {exams.map((e) => (
-                  <option key={e.id} value={e.id}>
+                  <option key={e.id} value={e.id} className="dark:bg-[#202020] dark:text-ink">
                     {e.title}
                   </option>
                 ))}
@@ -207,35 +207,35 @@ export default function AnalyticsPage() {
 
             <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Transcription</span>
-              <span className="font-mono text-lg font-bold text-[#1aae39] mt-1 block">
+              <span className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
                 {benchmarks.transcription_accuracy_pct}%
               </span>
             </div>
 
             <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Question Map</span>
-              <span className="font-mono text-lg font-bold text-primary mt-1 block">
+              <span className="font-mono text-lg font-bold text-primary dark:text-sky-400 mt-1 block">
                 {benchmarks.question_mapping_accuracy_pct}%
               </span>
             </div>
 
             <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Boxes Accepted</span>
-              <span className="font-mono text-lg font-bold text-[#dd5b00] mt-1 block">
+              <span className="font-mono text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 block">
                 {benchmarks.localization_acceptance_pct}%
               </span>
             </div>
 
             <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Mark Agreement</span>
-              <span className="font-mono text-lg font-bold text-[#793caf] mt-1 block">
+              <span className="font-mono text-lg font-bold text-purple-600 dark:text-purple-400 mt-1 block">
                 {benchmarks.exact_score_agreement_pct}%
               </span>
             </div>
 
             <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
               <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Intervention</span>
-              <span className="font-mono text-lg font-bold text-[#c92a95] mt-1 block">
+              <span className="font-mono text-lg font-bold text-pink-600 dark:text-pink-400 mt-1 block">
                 {benchmarks.manual_intervention_rate_pct}%
               </span>
             </div>
@@ -243,32 +243,35 @@ export default function AnalyticsPage() {
         )}
 
         {/* Record Benchmark Form */}
-        <form onSubmit={handleRecordBenchmark} className="rounded-lg border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4">
+        <form onSubmit={handleRecordBenchmark} className="rounded-xl border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4">
           <h4 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
             Record Teacher Verification for a Paper
           </h4>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-ink-secondary block mb-1">Submission ID</label>
+              <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Submission ID</label>
               <input
                 type="text"
                 required
                 placeholder="Paste submission ID (e.g. sub_...)"
                 value={benchSubId}
                 onChange={(e) => setBenchSubId(e.target.value)}
-                className="w-full rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary"
+                className="w-full h-8.5 sm:h-9 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-ink-secondary block mb-1">Teacher Reference Total Marks</label>
-              <input
-                type="number"
-                step="0.5"
+              <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Teacher Reference Total Marks</label>
+              <AppleNumberStepper
                 value={benchMarks}
-                onChange={(e) => setBenchMarks(parseFloat(e.target.value) || 0)}
-                className="w-full rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary"
+                onChange={(val) => setBenchMarks(val)}
+                min={0}
+                max={500}
+                step={0.5}
+                allowDecimal
+                suffix="marks"
+                className="w-full"
               />
             </div>
           </div>
@@ -341,7 +344,7 @@ export default function AnalyticsPage() {
               placeholder="Notes on model reasoning or bounding box alignment..."
               value={benchNotes}
               onChange={(e) => setBenchNotes(e.target.value)}
-              className="flex-1 rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary"
+              className="flex-1 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-2 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
             />
             <ButtonPrimary
               type="submit"

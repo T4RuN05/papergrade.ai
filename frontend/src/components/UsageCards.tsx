@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { UsageMetrics } from "@/lib/types";
 import { api } from "@/lib/api";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill } from "./ui";
+import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AppleNumberStepper } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface UsageCardsProps {
@@ -169,7 +169,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Total Free Pool Requests</span>
-                <div className="rounded-md bg-[#edf5fd] p-1.5 text-primary">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 dark:bg-primary/20 border border-primary/20 text-primary dark:text-sky-400 shadow-2xs">
                   <Activity className="h-4 w-4" />
                 </div>
               </div>
@@ -193,7 +193,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Latency Duration</span>
-                <div className="rounded-md bg-[#eaf7ed] p-1.5 text-[#1aae39]">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs">
                   <Clock className="h-4 w-4" />
                 </div>
               </div>
@@ -216,7 +216,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Avg Tokens / Paper</span>
-                <div className="rounded-md bg-[#fef4ea] p-1.5 text-[#dd5b00]">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs">
                   <Cpu className="h-4 w-4" />
                 </div>
               </div>
@@ -246,7 +246,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Est Equivalent Value</span>
-                <div className="rounded-md bg-[#f5eefc] p-1.5 text-[#793caf]">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 text-purple-600 dark:text-purple-400 shadow-2xs">
                   <DollarSign className="h-4 w-4" />
                 </div>
               </div>
@@ -283,41 +283,45 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
 
             <form onSubmit={handleSaveQuotas} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
               <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">
+                <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
                   Requests Per Minute (RPM)
                 </label>
-                <input
-                  type="number"
-                  min="1"
+                <AppleNumberStepper
                   value={rpm}
-                  onChange={(e) => setRpm(Number(e.target.value))}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs font-mono font-bold text-ink focus:border-primary focus:outline-none"
+                  onChange={(val) => setRpm(val)}
+                  min={1}
+                  max={2000}
+                  step={1}
+                  suffix="RPM"
+                  className="w-full"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">
+                <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
                   Input Tokens Per Minute (TPM)
                 </label>
-                <input
-                  type="number"
-                  min="1000"
+                <AppleNumberStepper
                   value={tpm}
-                  onChange={(e) => setTpm(Number(e.target.value))}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs font-mono font-bold text-ink focus:border-primary focus:outline-none"
+                  onChange={(val) => setTpm(val)}
+                  min={1000}
+                  step={50000}
+                  suffix="TPM"
+                  className="w-full"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-ink-secondary block mb-1">
+                <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
                   Requests Per Day (RPD)
                 </label>
-                <input
-                  type="number"
-                  min="10"
+                <AppleNumberStepper
                   value={rpd}
-                  onChange={(e) => setRpd(Number(e.target.value))}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs font-mono font-bold text-ink focus:border-primary focus:outline-none"
+                  onChange={(val) => setRpd(val)}
+                  min={10}
+                  step={50}
+                  suffix="RPD"
+                  className="w-full"
                 />
               </div>
 
@@ -325,7 +329,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                 <ButtonPrimary
                   type="submit"
                   disabled={isSavingQuota}
-                  className="w-full py-2 text-xs font-semibold"
+                  className="w-full h-8.5 sm:h-9 text-xs font-semibold"
                 >
                   <Save className="h-3.5 w-3.5 mr-1.5" />
                   {quotaSaved ? "Saved!" : isSavingQuota ? "Saving..." : "Save Limits"}
@@ -364,7 +368,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <div className="font-mono font-bold text-ink text-xs">
                       {Math.round(projections.batch_40.average_case.total_tokens).toLocaleString()} tokens
                     </div>
-                    <div className="text-[11px] text-[#1aae39] mt-0.5 font-mono">
+                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
                       ${projections.batch_40.average_case.cost_usd.toFixed(4)} USD
                     </div>
                   </div>
@@ -374,7 +378,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <div className="font-mono font-bold text-ink text-xs">
                       {Math.round(projections.batch_40.conservative_case.total_tokens).toLocaleString()} tokens
                     </div>
-                    <div className="text-[11px] text-[#dd5b00] mt-0.5 font-mono">
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 font-mono">
                       ${projections.batch_40.conservative_case.cost_usd.toFixed(4)} USD
                     </div>
                   </div>
@@ -399,9 +403,9 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                 {projections.batch_40.feasibility.bottlenecks.map((b, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 text-[11px] text-[#dd5b00] bg-[#fef4ea] border border-[#fed8b8] rounded-md p-2"
+                    className="flex items-center gap-2 text-[11px] rounded-lg p-2.5 border border-amber-300/60 bg-amber-50/80 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/25 dark:text-amber-200 shadow-2xs"
                   >
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>{b}</span>
                   </div>
                 ))}
@@ -423,7 +427,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <div className="font-mono font-bold text-ink text-xs">
                       {Math.round(projections.batch_50.average_case.total_tokens).toLocaleString()} tokens
                     </div>
-                    <div className="text-[11px] text-[#1aae39] mt-0.5 font-mono">
+                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
                       ${projections.batch_50.average_case.cost_usd.toFixed(4)} USD
                     </div>
                   </div>
@@ -433,7 +437,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <div className="font-mono font-bold text-ink text-xs">
                       {Math.round(projections.batch_50.conservative_case.total_tokens).toLocaleString()} tokens
                     </div>
-                    <div className="text-[11px] text-[#dd5b00] mt-0.5 font-mono">
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 font-mono">
                       ${projections.batch_50.conservative_case.cost_usd.toFixed(4)} USD
                     </div>
                   </div>
@@ -458,9 +462,9 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                 {projections.batch_50.feasibility.bottlenecks.map((b, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 text-[11px] text-[#dd5b00] bg-[#fef4ea] border border-[#fed8b8] rounded-md p-2"
+                    className="flex items-center gap-2 text-[11px] rounded-lg p-2.5 border border-amber-300/60 bg-amber-50/80 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/25 dark:text-amber-200 shadow-2xs"
                   >
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>{b}</span>
                   </div>
                 ))}
@@ -472,7 +476,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
           <FeatureCard className="p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-hairline">
               <h3 className="text-sm font-bold text-ink flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[#1aae39]" />
+                <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 Captured AI Studio API Log ({recent_events.length} attempts)
               </h3>
               <span className="text-xs text-ink-muted">Round-Robin Multi-Key Pool</span>
@@ -517,7 +521,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                               {ev.api_key_masked}
                             </div>
                           )}
-                          {ev.is_mock === 1 && <span className="ml-1 text-[9px] text-[#dd5b00]">(mock)</span>}
+                          {ev.is_mock === 1 && <span className="ml-1 text-[9px] text-amber-600 dark:text-amber-400 font-semibold">(mock)</span>}
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-ink">
                           {ev.input_tokens ? ev.input_tokens.toLocaleString() : "-"}
@@ -534,7 +538,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                             color={ev.success === 1 ? "green" : "pink"}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-[#1aae39] font-semibold">
+                        <td className="px-3 py-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
                           ${(ev.estimated_cost_usd || 0).toFixed(5)}
                         </td>
                       </tr>
@@ -556,8 +560,8 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
           <FeatureCard className="p-6 border-amber-200/60 bg-gradient-to-r from-amber-500/5 via-surface to-surface">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-md bg-amber-500/10 p-1.5 text-amber-600 dark:text-amber-400">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs shrink-0">
                     <Cloud className="h-5 w-5" />
                   </div>
                   <div>
@@ -662,7 +666,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3 border-amber-300/40">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Total Money Billed (USD)</span>
-                <div className="rounded-md bg-amber-500/10 p-1.5 text-amber-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs">
                   <DollarSign className="h-4 w-4" />
                 </div>
               </div>
@@ -674,7 +678,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
               </div>
               <div className="flex items-center justify-between text-[11px] text-ink-muted border-t border-hairline pt-2">
                 <span>Account Billing: <span className="font-semibold text-ink">Active</span></span>
-                <span className="text-[10px] text-amber-600 font-semibold">Real Incurred Cost</span>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Real Incurred Cost</span>
               </div>
             </FeatureCard>
 
@@ -682,7 +686,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Paid API Calls</span>
-                <div className="rounded-md bg-blue-500/10 p-1.5 text-blue-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 shadow-2xs">
                   <Server className="h-4 w-4" />
                 </div>
               </div>
@@ -704,7 +708,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Total Tokens Incurred</span>
-                <div className="rounded-md bg-purple-500/10 p-1.5 text-purple-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 text-purple-600 dark:text-purple-400 shadow-2xs">
                   <Cpu className="h-4 w-4" />
                 </div>
               </div>
@@ -724,7 +728,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-muted">Average Latency</span>
-                <div className="rounded-md bg-emerald-500/10 p-1.5 text-emerald-600">
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs">
                   <Clock className="h-4 w-4" />
                 </div>
               </div>
