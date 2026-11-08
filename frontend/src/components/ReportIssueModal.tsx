@@ -383,7 +383,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="h-10 px-5 min-w-[100px] text-xs sm:text-sm font-semibold justify-center"
+                className="h-10 px-5 min-w-[100px] text-xs sm:text-sm font-semibold justify-center rounded-lg"
               >
                 Cancel
               </ButtonUtility>
@@ -392,7 +392,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                 type="submit"
                 isLoading={isSubmitting}
                 disabled={!subject.trim() || !description.trim() || isOverLimit}
-                className="h-10 px-5 gap-2 text-xs sm:text-sm font-semibold justify-center"
+                className="h-10 px-5 gap-2 text-xs sm:text-sm font-semibold justify-center rounded-lg"
               >
                 <Send className="h-3.5 w-3.5" />
                 <span>Submit Technical Report</span>

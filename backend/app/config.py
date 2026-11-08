@@ -15,9 +15,11 @@ class Settings:
     PORT: int = 8000
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://papergrade-ai.vercel.app").strip()
 
-    # Gemini API settings (Single-Pass Flash-Only Architecture)
+    # Gemini API settings (Single-Pass Flash-Only Architecture: 3.8 -> 3.6 -> 3.5)
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
-    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash").strip()
+    GEMINI_FALLBACK_MODEL_1: str = os.getenv("GEMINI_FALLBACK_MODEL_1", "gemini-3.6-flash").strip()
+    GEMINI_FALLBACK_MODEL_2: str = os.getenv("GEMINI_FALLBACK_MODEL_2", "gemini-3.5-flash").strip()
+    GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.6-flash").strip()
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "4096"))
     ENABLE_TWO_STAGE_PIPELINE: bool = False
     GRADING_BATCH_SIZE: int = 1

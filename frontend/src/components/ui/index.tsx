@@ -164,11 +164,11 @@ export function StatusWell({
   ...props
 }: StatusWellProps) {
   const accentBorder = {
-    amber: "border-amber-500/30 bg-amber-500/[0.04] dark:bg-amber-500/[0.06] dark:border-amber-500/20",
-    blue: "border-blue-500/30 bg-blue-500/[0.04] dark:bg-blue-500/[0.06] dark:border-blue-500/20",
-    green: "border-emerald-500/30 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.06] dark:border-emerald-500/20",
-    rose: "border-rose-500/30 bg-rose-500/[0.04] dark:bg-rose-500/[0.06] dark:border-rose-500/20",
-    purple: "border-purple-500/30 bg-purple-500/[0.04] dark:bg-purple-500/[0.06] dark:border-purple-500/20",
+    amber: "border-amber-200/80 bg-amber-50/40 dark:bg-[#1d160e]/80 dark:border-[#382613] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+    blue: "border-sky-200/80 bg-sky-50/40 dark:bg-[#0e1724]/80 dark:border-[#1a2d46] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+    green: "border-emerald-200/80 bg-emerald-50/40 dark:bg-[#101d15]/80 dark:border-[#1a3324] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+    rose: "border-rose-200/80 bg-rose-50/40 dark:bg-[#221014]/80 dark:border-[#3f1922] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+    purple: "border-purple-200/80 bg-purple-50/40 dark:bg-[#1a1024]/80 dark:border-[#311c46] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
     neutral: "border-hairline bg-surface",
   }[variant];
 
@@ -242,15 +242,15 @@ export interface BadgePillProps {
 
 export function BadgePill({ label, color = "gray", className = "" }: BadgePillProps) {
   const colorMap: Record<StickerColor, string> = {
-    green: "bg-emerald-50 text-emerald-800 border-emerald-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    teal: "bg-teal-50 text-teal-800 border-teal-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    sky: "bg-sky-50 text-sky-800 border-sky-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    purple: "bg-purple-50 text-purple-800 border-purple-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    pink: "bg-pink-50 text-pink-800 border-pink-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-pink-500/10 dark:text-pink-300 dark:border-pink-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    orange: "bg-amber-50 text-amber-800 border-amber-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-stone-500/10 dark:text-stone-300 dark:border-stone-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    teal: "bg-[#eaf4f3] text-[#165651] border-[#c4e2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    sky: "bg-[#ebf4fa] text-[#1b5380] border-[#c2def1] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#102030] dark:text-[#90caf9] dark:border-[#1d3550] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    purple: "bg-[#f3eff8] text-[#552e80] border-[#d8c8ed] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#20152e] dark:text-[#c4b5fd] dark:border-[#35204c] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    pink: "bg-[#fcf0f3] text-[#7f263f] border-[#f4c6d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#281318] dark:text-[#f4a7b5] dark:border-[#461e27] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    orange: "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#221c17] dark:text-[#d7ba9d] dark:border-[#3a2f26] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     gray: "bg-zinc-100 text-zinc-700 border-zinc-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-white/[0.05] dark:text-zinc-300 dark:border-white/[0.08] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    red: "bg-rose-50 text-rose-800 border-rose-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+    red: "bg-[#faeeee] text-[#7c2626] border-[#f0c4c4] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#2a1313] dark:text-[#f28b82] dark:border-[#4a1f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
   };
 
   return (

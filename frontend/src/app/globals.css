@@ -102,7 +102,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
-  overflow-x: clip;
 }
 
 /* Custom Sleek Floating Scrollbar (Cross-browser: Chrome, Edge, Safari, Firefox, Mobile PWA) */

@@ -72,9 +72,18 @@ def _enforce_evidence_grounding_and_verdict(
             norm_quote.startswith("[diagram")
             or norm_quote.startswith("visual:")
             or norm_quote.startswith("[visual")
-            or "[diagram" in norm_transcript
         )
-        if not is_visual_or_diagram:
+
+        if is_visual_or_diagram:
+            # Deterministic Diagram Audit: enforce quality and labelling invariants
+            if 'labels_present: "none"' in norm_quote or 'labels_present: none' in norm_quote or 'labels_present: []' in norm_quote:
+                # If evidence or student transcript explicitly states no labels were drawn
+                if "label" in ev_upper:
+                    return 0.0
+            if 'sketch_quality: "crude_outline"' in norm_quote or 'sketch_quality: "bare_minimal"' in norm_quote or 'sketch_quality: "illegible"' in norm_quote:
+                if "neat" in ev_upper or "detailed" in ev_upper or "correct sketch" in ev_upper:
+                    return 0.0
+        else:
             # If quote is > 6 chars and not a literal substring of the transcript, check alphanumeric & segment matches
             if len(norm_quote) > 6 and norm_quote not in norm_transcript:
                 clean_t = re.sub(r'[^a-z0-9]', '', norm_transcript)

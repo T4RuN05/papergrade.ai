@@ -50,18 +50,20 @@ def is_rate_or_quota_error(e: Exception) -> bool:
 
 class GeminiGradingClient:
     def __init__(self):
-        ALLOWED_FLASH_MODELS = [
-            settings.GEMINI_MODEL,           # "gemini-3.8-flash"
-            settings.GEMINI_FALLBACK_MODEL,  # "gemini-3.5-flash"
-        ]
+        # Canonical Flash Cascade: 3.8 Flash -> 3.6 Flash -> 3.5 Flash
+        primary = settings.GEMINI_MODEL if ("lite" not in settings.GEMINI_MODEL.lower() and "1.5" not in settings.GEMINI_MODEL) else "gemini-3.8-flash"
+        fallback_1 = getattr(settings, "GEMINI_FALLBACK_MODEL_1", "gemini-3.6-flash")
+        fallback_2 = getattr(settings, "GEMINI_FALLBACK_MODEL_2", "gemini-3.5-flash")
+        raw_cascade = [primary, fallback_1, fallback_2, "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
         # Strictly ban any -lite or 1.5 models
         self.candidate_models: List[str] = list(
-            dict.fromkeys(m for m in ALLOWED_FLASH_MODELS if m and "lite" not in m.lower() and "1.5" not in m)
+            dict.fromkeys(m for m in raw_cascade if m and "lite" not in m.lower() and "1.5" not in m)
         )
         if not self.candidate_models:
-            self.candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash"]
+            self.candidate_models = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
         self.model_name = self.candidate_models[0]
         self._model_cooldown_until: Dict[str, float] = {}
+        self._key_cooldown_until: Dict[Tuple[str, str], float] = {}
 
         self._keys = settings.configured_api_keys
         self._current_key_idx = 0
@@ -76,8 +78,24 @@ class GeminiGradingClient:
 
     def get_active_models(self) -> List[str]:
         now = time.time()
-        active = [m for m in self.candidate_models if self._model_cooldown_until.get(m, 0) <= now]
-        return active if active else self.candidate_models
+        with self._key_lock:
+            active = [m for m in self.candidate_models if self._model_cooldown_until.get(m, 0) <= now]
+            return active if active else self.candidate_models
+
+    def mark_key_exhausted_for_model(self, api_key: str, model_name: str, cooldown_seconds: float = 120.0):
+        with self._key_lock:
+            self._key_cooldown_until[(api_key, model_name)] = time.time() + cooldown_seconds
+
+    def mark_model_cooldown(self, model_name: str, cooldown_seconds: float = 180.0):
+        with self._key_lock:
+            self._model_cooldown_until[model_name] = time.time() + cooldown_seconds
+            print(f"[GeminiClient] Model '{model_name}' placed on cooldown for {int(cooldown_seconds)}s across all keys.")
+
+    def clear_model_cooldown(self, model_name: str, api_key: Optional[str] = None):
+        with self._key_lock:
+            self._model_cooldown_until.pop(model_name, None)
+            if api_key:
+                self._key_cooldown_until.pop((api_key, model_name), None)
 
     @property
     def is_live(self) -> bool:
@@ -87,13 +105,24 @@ class GeminiGradingClient:
     def active_key_count(self) -> int:
         return len(self._keys)
 
-    def get_current_client(self, worker_id: int = 0) -> Tuple[str, genai.Client]:
+    def get_current_client(self, worker_id: int = 0, model_name: Optional[str] = None) -> Tuple[str, genai.Client]:
         if not self._keys:
             raise RuntimeError("No Gemini API keys configured.")
         with self._key_lock:
             offset = self._key_offsets.get(worker_id, 0)
-            active_idx = (worker_id + offset) % len(self._keys)
-            active_key = self._keys[active_idx]
+            now = time.time()
+            chosen_idx = (worker_id + offset) % len(self._keys)
+
+            if model_name:
+                for step in range(len(self._keys)):
+                    idx = (worker_id + offset + step) % len(self._keys)
+                    k = self._keys[idx]
+                    if self._key_cooldown_until.get((k, model_name), 0) <= now:
+                        chosen_idx = idx
+                        self._key_offsets[worker_id] = (idx - worker_id) % len(self._keys)
+                        break
+
+            active_key = self._keys[chosen_idx]
             if active_key not in self._clients:
                 self._clients[active_key] = genai.Client(api_key=active_key)
             return active_key, self._clients[active_key]
@@ -291,7 +320,7 @@ class GeminiGradingClient:
 
         # Live Gemini execution with multi-key failover and model fallback
         num_keys = max(1, len(self._keys))
-        max_retries = max(4, num_keys * 2)
+        max_attempts = max(2, num_keys)
         backoff_sec = 2.0
         prompt_text = build_rubric_extraction_prompt(extra_notes)
         models_to_try = self.get_active_models()
@@ -299,9 +328,13 @@ class GeminiGradingClient:
 
         for model_to_use in models_to_try:
             exhausted_keys = set()
-            for attempt in range(max_retries):
+            for attempt in range(max_attempts):
                 start_time = time.time()
-                active_key, client = self.get_current_client()
+                active_key, client = self.get_current_client(worker_id=0, model_name=model_to_use)
+                if active_key in exhausted_keys:
+                    self.rotate_to_next_key(worker_id=0, reason=f"Key already tried for {model_to_use}")
+                    active_key, client = self.get_current_client(worker_id=0, model_name=model_to_use)
+
                 try:
                     contents = [
                         types.Part.from_bytes(data=qp_bytes, mime_type="application/pdf"),
@@ -345,6 +378,7 @@ class GeminiGradingClient:
                         cached_tokens=cached_tok, page_count=None, file_size_bytes=file_size,
                         retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
                     )
+                    self.clear_model_cooldown(model_to_use, active_key)
                     return parsed, event_id
 
                 except Exception as e:
@@ -363,16 +397,20 @@ class GeminiGradingClient:
 
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)
+                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
                         if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] All {len(self._keys)} keys hit rate limits for '{model_to_use}'. Pausing 5s for RPM window reset.")
-                            time.sleep(5.0)
-                            exhausted_keys.clear()
-                        self.rotate_to_next_key(reason=f"Rate limit / unavailability: {e}")
-                        time.sleep(1.0)
+                            print(
+                                f"[GeminiClient] All {len(self._keys)} keys hit quota limits for '{model_to_use}'. "
+                                f"Placing '{model_to_use}' on 180s cooldown and falling back to next candidate model."
+                            )
+                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
+                            break
+                        self.rotate_to_next_key(worker_id=0, reason=f"Rate limit / unavailability: {e}")
+                        time.sleep(0.5)
                         continue
 
-                    if attempt == max_retries - 1:
-                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_retries} attempts: {e}. Trying fallback model.")
+                    if attempt == max_attempts - 1:
+                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_attempts} attempts: {e}. Trying fallback model.")
                         break
 
                     sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)
@@ -507,16 +545,19 @@ class GeminiGradingClient:
         prompt_text = build_student_grading_prompt(rubric_str)
 
         num_keys = max(1, len(self._keys))
-        max_retries = max(4, num_keys * 2)
+        max_attempts = max(2, num_keys)
         backoff_sec = 2.0
         models_to_try = self.get_active_models()
         last_error = None
 
         for model_to_use in models_to_try:
             exhausted_keys = set()
-            for attempt in range(max_retries):
+            for attempt in range(max_attempts):
                 start_time = time.time()
-                active_key, client = self.get_current_client(worker_id=worker_id)
+                active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
+                if active_key in exhausted_keys:
+                    self.rotate_to_next_key(worker_id=worker_id, reason=f"Key already tried for {model_to_use}")
+                    active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
                 try:
                     contents = [
                         types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
@@ -565,6 +606,7 @@ class GeminiGradingClient:
                         file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
                         model_name=model_to_use, api_key=active_key
                     )
+                    self.clear_model_cooldown(model_to_use, active_key)
                     return parsed, event_id
 
                 except Exception as e:
@@ -583,16 +625,20 @@ class GeminiGradingClient:
 
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)
+                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
                         if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] All {len(self._keys)} keys hit rate limits for '{model_to_use}'. Pausing 5s for RPM window reset.")
-                            time.sleep(5.0)
-                            exhausted_keys.clear()
+                            print(
+                                f"[GeminiClient] All {len(self._keys)} keys hit quota limits for '{model_to_use}'. "
+                                f"Placing '{model_to_use}' on 180s cooldown and falling back to next candidate model."
+                            )
+                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
+                            break
                         self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
-                        time.sleep(1.0)
+                        time.sleep(0.5)
                         continue
 
-                    if attempt == max_retries - 1:
-                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_retries} attempts: {e}. Trying fallback model.")
+                    if attempt == max_attempts - 1:
+                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_attempts} attempts: {e}. Trying fallback model.")
                         break
 
                     sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)

@@ -297,7 +297,7 @@ export default function ExamsPage() {
           </div>
         </FeatureCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 cascade-fast">
           {exams.map((exam) => {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;

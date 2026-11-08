@@ -303,9 +303,9 @@ function StudentMarksTrajectory({
             <div
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${
                 trendDiff > 0
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20"
+                  ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                   : trendDiff < 0
-                  ? "bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20"
+                  ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                   : "bg-surface text-ink-secondary border-hairline"
               } shadow-2xs font-mono`}
             >
@@ -2250,8 +2250,8 @@ export default function StudentPortalPage() {
                           )}
                         </>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 shadow-2xs whitespace-nowrap">
-                          <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] shadow-2xs whitespace-nowrap">
+                          <Clock className="h-3.5 w-3.5 text-[#7a4e18] dark:text-[#e5ad68]" />
                           Grading in Progress
                         </span>
                       )}
@@ -2890,8 +2890,8 @@ export default function StudentPortalPage() {
                         )}
                       </>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 whitespace-nowrap shadow-2xs">
-                        <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap shadow-2xs">
+                        <Clock className="h-3 w-3 text-[#7a4e18] dark:text-[#e5ad68]" />
                         Grading in Progress
                       </span>
                     )}
