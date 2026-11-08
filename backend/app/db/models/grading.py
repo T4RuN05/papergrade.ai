@@ -66,7 +66,7 @@ class Answer(Base, UpdatedTimestampMixin):
     subquestion_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     section_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_extra_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    page_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     max_marks: Mapped[float] = mapped_column(REAL, nullable=False, default=0.0)
     awarded_marks: Mapped[float] = mapped_column(REAL, nullable=False, default=0.0)

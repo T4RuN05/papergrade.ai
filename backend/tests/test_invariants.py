@@ -208,3 +208,51 @@ def test_section_attempt_limits_and_best_of_n():
     assert answers_by_q["Q2"]["is_extra_attempt"] == 0
     assert answers_by_q["Q4"]["is_extra_attempt"] == 0
     assert answers_by_q["Q3"]["is_extra_attempt"] == 1
+
+def test_delete_region_when_only_region_leaves_valid_page_number(monkeypatch):
+    """
+    Validates that deleting the only bounding box of an answer:
+    1. Does NOT set page_number to None (violating NOT NULL database constraints).
+    2. Flags answer as is_missing = 1.
+    3. Categorizes answer in missing_answers list.
+    """
+    # Prevent background PDF generation call during unit test
+    monkeypatch.setattr(grading_service, "trigger_background_export_pdf", lambda sub_id: None)
+
+    exam_id = str(uuid.uuid4())
+    sub_id = str(uuid.uuid4())
+    now = get_iso_now()
+
+    with get_db() as conn:
+        conn.execute("INSERT INTO exams (id, title, subject, total_marks, status, created_at, updated_at) VALUES (?, 'Region Delete Test', 'Physics', 5.0, 'RUBRIC_APPROVED', ?, ?)", (exam_id, now, now))
+        conn.execute("INSERT INTO submissions (id, exam_id, student_name, roll_number, original_file_path, canonical_pdf_path, max_marks, status, created_at, updated_at) VALUES (?, ?, 'Student Delete', 'R20', 'dummy.pdf', 'dummy.pdf', 5.0, 'PROCESSING', ?, ?)", (sub_id, exam_id, now, now))
+
+    rubric_data = {"questions": [{"question_id": "Q1", "max_marks": 5.0}]}
+    initial_res = StudentGradingExtractionResult(
+        answers=[
+            GradedAnswerItem(
+                question_id="Q1",
+                page_number=2,
+                extracted_student_answer="To be deleted",
+                regions=[AnswerRegionItem(page_number=2, x=0.1, y=0.1, width=0.5, height=0.2)],
+                max_marks=5.0,
+                awarded_marks=2.5,
+                grading_rationale="Initial"
+            )
+        ]
+    )
+
+    details = grading_service.enforce_invariants_and_save(sub_id, exam_id, initial_res, rubric_data)
+    reg_id = details["answers"][0]["regions"][0]["id"]
+
+    # Delete the only region
+    updated = grading_service.delete_region(sub_id, reg_id)
+
+    ans = updated["answers"][0]
+    assert ans["page_number"] is not None
+    assert ans["page_number"] == 2
+    assert ans["is_missing"] is True
+    assert len(ans["regions"]) == 0
+    assert len(updated["missing_answers"]) == 1
+    assert updated["missing_answers"][0]["id"] == ans["id"]
+

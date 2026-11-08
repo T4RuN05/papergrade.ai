@@ -1159,6 +1159,19 @@ class GradingService:
 
             sub = session.scalar(select(Submission).where(Submission.id == submission_id))
             if sub:
+                rub_r = session.scalar(
+                    select(RubricVersion)
+                    .where(RubricVersion.exam_id == sub.exam_id, RubricVersion.is_approved == 1)
+                    .order_by(RubricVersion.version_num.desc())
+                    .limit(1)
+                )
+                rubric_data = json.loads(rub_r.rubric_data) if rub_r and rub_r.rubric_data else {}
+                tot_awarded, tot_max, pct, overall_needs_review = GradingService.apply_best_of_n_and_compute_totals(
+                    session, submission_id, rubric_data, now
+                )
+                sub.total_awarded_marks = tot_awarded
+                sub.max_marks = tot_max
+                sub.percentage = pct
                 sub.updated_at = now
 
             session.commit()
@@ -1252,12 +1265,25 @@ class GradingService:
                 ans.page_number = remaining_regions[0].page_number
                 ans.is_missing = 0
             else:
-                ans.page_number = None
+                ans.page_number = ans.page_number or reg.page_number or 1
                 ans.is_missing = 1
 
             ans.updated_at = now
             sub = session.scalar(select(Submission).where(Submission.id == submission_id))
             if sub:
+                rub_r = session.scalar(
+                    select(RubricVersion)
+                    .where(RubricVersion.exam_id == sub.exam_id, RubricVersion.is_approved == 1)
+                    .order_by(RubricVersion.version_num.desc())
+                    .limit(1)
+                )
+                rubric_data = json.loads(rub_r.rubric_data) if rub_r and rub_r.rubric_data else {}
+                tot_awarded, tot_max, pct, overall_needs_review = GradingService.apply_best_of_n_and_compute_totals(
+                    session, submission_id, rubric_data, now
+                )
+                sub.total_awarded_marks = tot_awarded
+                sub.max_marks = tot_max
+                sub.percentage = pct
                 sub.updated_at = now
 
             session.commit()
