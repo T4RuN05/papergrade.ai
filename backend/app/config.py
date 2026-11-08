@@ -94,10 +94,10 @@ class Settings:
         if csv_keys:
             raw_candidates.extend(csv_keys.split(","))
 
-        # 2. Support GEMINI_API_KEY and GEMINI_API_KEY_1 .. GEMINI_API_KEY_20
+        # 2. Support GEMINI_API_KEY and GEMINI_API_KEY_1 .. GEMINI_API_KEY_100
         if os.getenv("GEMINI_API_KEY"):
             raw_candidates.append(os.getenv("GEMINI_API_KEY", ""))
-        for i in range(1, 21):
+        for i in range(1, 101):
             val = os.getenv(f"GEMINI_API_KEY_{i}", "")
             if val:
                 raw_candidates.append(val)
