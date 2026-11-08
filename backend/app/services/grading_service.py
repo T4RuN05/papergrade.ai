@@ -1477,4 +1477,188 @@ class GradingService:
             "total_flagged": len(flagged_subs)
         }
 
+    def reevaluate_answer(
+        self,
+        submission_id: str,
+        answer_id: str,
+        teacher_prompt: str = "",
+        region_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Targeted secondary evaluation of a single answer crop using Gemini 3.5 Flash Lite across the 22-key pool.
+        """
+        with get_session() as session:
+            old_ans = session.scalar(
+                select(Answer).where(Answer.id == answer_id, Answer.submission_id == submission_id)
+            )
+            if not old_ans:
+                raise ValueError("Answer record not found.")
+
+            sub = session.scalar(select(Submission).where(Submission.id == submission_id))
+            if not sub:
+                raise ValueError("Submission not found.")
+
+            # Load approved rubric for exam
+            rub_r = session.scalar(
+                select(RubricVersion)
+                .where(RubricVersion.exam_id == sub.exam_id, RubricVersion.is_approved == 1)
+                .order_by(RubricVersion.version_num.desc())
+                .limit(1)
+            )
+            rubric_data = json.loads(rub_r.rubric_data) if rub_r and rub_r.rubric_data else {}
+            questions = rubric_data.get("questions", [])
+
+            # Match question in rubric
+            matched_q = None
+            for q in questions:
+                if q.get("question_id") == old_ans.question_id:
+                    matched_q = q
+                    break
+            if not matched_q:
+                for q in questions:
+                    if str(q.get("question_id", "")).strip().lower() == str(old_ans.question_id).strip().lower():
+                        matched_q = q
+                        break
+
+            q_text = matched_q.get("question_text", "") if matched_q else ""
+            official_sol = matched_q.get("official_solution", "") if matched_q else ""
+
+            # Load criteria from DB or rubric
+            existing_crit_scores = session.scalars(
+                select(CriterionScore).where(CriterionScore.answer_id == answer_id)
+            ).all()
+
+            criteria_payload = []
+            if existing_crit_scores:
+                for cs in existing_crit_scores:
+                    criteria_payload.append({
+                        "criterion_id": cs.criterion_id,
+                        "description": cs.description or "",
+                        "max_marks": cs.max_marks or 1.0,
+                        "awarded_marks": cs.awarded_marks or 0.0,
+                        "evidence": cs.evidence or ""
+                    })
+            elif matched_q and matched_q.get("criteria"):
+                for c in matched_q.get("criteria", []):
+                    criteria_payload.append({
+                        "criterion_id": c.get("criterion_id", ""),
+                        "description": c.get("description", ""),
+                        "max_marks": c.get("marks", c.get("max_marks", 1.0)),
+                        "awarded_marks": 0.0,
+                        "evidence": ""
+                    })
+
+            # Resolve crop image bytes
+            crops_dir = settings.RENDERS_DIR / submission_id / "crops"
+            crops_dir.mkdir(parents=True, exist_ok=True)
+
+            target_crop_path = None
+            if region_id:
+                reg_crop = crops_dir / f"crop_{answer_id}_{region_id}.png"
+                if reg_crop.exists():
+                    target_crop_path = reg_crop
+
+            if not target_crop_path or not target_crop_path.exists():
+                primary_crop = crops_dir / f"crop_{answer_id}.png"
+                if primary_crop.exists():
+                    target_crop_path = primary_crop
+
+            # If crop missing from disk, generate dynamically
+            if not target_crop_path or not target_crop_path.exists():
+                target_reg = None
+                if region_id:
+                    target_reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+                if not target_reg:
+                    target_reg = session.scalar(
+                        select(AnswerRegion)
+                        .where(AnswerRegion.answer_id == answer_id)
+                        .order_by(AnswerRegion.id.asc())
+                        .limit(1)
+                    )
+
+                if target_reg:
+                    page_num = target_reg.page_number
+                    page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+                    if not page_img.exists():
+                        storage = get_storage_service()
+                        candidate_keys = [
+                            sub.canonical_pdf_path,
+                            sub.original_file_path,
+                            f"submissions/{sub.exam_id}/{sub.roll_number}/original_{submission_id}.pdf",
+                            f"submissions/{submission_id}/canonical.pdf"
+                        ]
+                        for k in candidate_keys:
+                            if k and storage.file_exists(k):
+                                local_pdf = storage.get_local_path_or_download(k)
+                                if local_pdf and local_pdf.exists():
+                                    pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                                    if page_img.exists():
+                                        break
+                    if page_img.exists():
+                        out_path = crops_dir / f"crop_{answer_id}.png"
+                        try:
+                            pdf_service.crop_answer_region(
+                                page_img,
+                                float(target_reg.x),
+                                float(target_reg.y),
+                                float(target_reg.width),
+                                float(target_reg.height),
+                                out_path
+                            )
+                            target_crop_path = out_path
+                        except Exception:
+                            pass
+
+            if not target_crop_path or not target_crop_path.exists():
+                page_img = settings.RENDERS_DIR / submission_id / f"page_{old_ans.page_number or 1}.png"
+                if page_img.exists():
+                    target_crop_path = page_img
+
+            if not target_crop_path or not target_crop_path.exists():
+                raise ValueError("Could not locate or generate crop image for this answer region.")
+
+            with open(target_crop_path, "rb") as f:
+                crop_bytes = f.read()
+
+            from backend.app.gemini.client import gemini_client
+            result, event_id = gemini_client.reevaluate_single_answer(
+                crop_image_bytes=crop_bytes,
+                crop_mime_type="image/png",
+                question_id=old_ans.question_id,
+                question_text=q_text,
+                official_solution=official_sol,
+                max_marks=float(old_ans.max_marks),
+                criteria=criteria_payload,
+                previous_extracted_text=old_ans.extracted_text or "",
+                previous_awarded_marks=float(old_ans.awarded_marks or 0.0),
+                previous_rationale=old_ans.grading_rationale or "",
+                teacher_prompt=teacher_prompt or "",
+                exam_id=sub.exam_id,
+                submission_id=submission_id,
+                answer_id=answer_id,
+                file_size=len(crop_bytes)
+            )
+
+            return {
+                "answer_id": answer_id,
+                "question_id": old_ans.question_id,
+                "previous_awarded_marks": old_ans.awarded_marks,
+                "proposed_awarded_marks": result.total_awarded_marks,
+                "max_marks": old_ans.max_marks,
+                "previous_extracted_text": old_ans.extracted_text,
+                "proposed_extracted_text": result.refined_student_text,
+                "previous_rationale": old_ans.grading_rationale,
+                "proposed_rationale": result.updated_rationale,
+                "adjustment_summary": result.adjustment_summary,
+                "proposed_criteria_scores": [
+                    {
+                        "criterion_id": c.criterion_id,
+                        "awarded_marks": c.awarded_marks,
+                        "evidence": c.evidence,
+                    }
+                    for c in result.criteria_scores
+                ],
+                "telemetry_event_id": event_id
+            }
+
 grading_service = GradingService()

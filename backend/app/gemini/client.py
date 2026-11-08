@@ -21,13 +21,16 @@ from backend.app.schemas import (
     GradedAnswerItem,
     AnswerRegionItem,
     CriterionScoreItem,
+    SingleAnswerReevaluationResult,
 )
 from backend.app.gemini.pricing import calculate_paid_equivalent_cost
 from backend.app.gemini.prompts import (
     RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION,
     STUDENT_GRADING_SYSTEM_INSTRUCTION,
+    SECONDARY_REEVALUATION_SYSTEM_INSTRUCTION,
     build_rubric_extraction_prompt,
     build_student_grading_prompt,
+    build_secondary_reevaluation_prompt,
 )
 
 
@@ -645,6 +648,179 @@ class GeminiGradingClient:
                         break
 
                     sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)
+                    time.sleep(sleep_time)
+
+        if last_error and not is_rate_or_quota_error(last_error):
+            raise last_error
+
+        raise AllGeminiKeysExhaustedError(
+            f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
+        )
+
+    def reevaluate_single_answer(
+        self,
+        crop_image_bytes: bytes,
+        crop_mime_type: str,
+        question_id: str,
+        question_text: str,
+        official_solution: str,
+        max_marks: float,
+        criteria: List[Dict[str, Any]],
+        previous_extracted_text: str,
+        previous_awarded_marks: float,
+        previous_rationale: str,
+        teacher_prompt: str = "",
+        exam_id: Optional[str] = None,
+        submission_id: Optional[str] = None,
+        answer_id: Optional[str] = None,
+        file_size: Optional[int] = None,
+        worker_id: int = 0
+    ) -> Tuple[SingleAnswerReevaluationResult, str]:
+        """
+        Targeted secondary evaluation of a single cropped answer region using Gemini 3.5 Flash Lite.
+        Rotates through the 22-key pool with automatic 429 cooldowns and fallback.
+        """
+        if not self.is_live:
+            # Fallback mock for offline dev mode
+            mock_crit = []
+            total_m = 0.0
+            for c in criteria:
+                cid = c.get("criterion_id", "C1")
+                mm = float(c.get("max_marks", 1.0))
+                mock_crit.append({
+                    "criterion_id": cid,
+                    "evidence": f'PASS | QUOTE: "{previous_extracted_text[:40]}"' if previous_extracted_text else "PASS",
+                    "awarded_marks": mm,
+                })
+                total_m += mm
+            total_m = min(total_m, max_marks)
+            mock_res = SingleAnswerReevaluationResult(
+                refined_student_text=previous_extracted_text or "Sample student response",
+                criteria_scores=mock_crit,
+                total_awarded_marks=total_m,
+                updated_rationale=f"Offline mock re-evaluation with teacher guidance: {teacher_prompt or 'None'}",
+                adjustment_summary=f"Re-evaluated via mock: awarded {total_m}/{max_marks} marks."
+            )
+            event_id = self._record_usage_event(
+                exam_id=exam_id, batch_id=None, submission_id=submission_id,
+                request_purpose="SECONDARY_REEVALUATION", duration_ms=250, success=True,
+                input_tokens=450, output_tokens=180, total_tokens=630,
+                page_count=1, file_size_bytes=file_size, is_mock=True
+            )
+            return mock_res, event_id
+
+        prompt_text = build_secondary_reevaluation_prompt(
+            question_id=question_id,
+            question_text=question_text,
+            official_solution=official_solution,
+            max_marks=max_marks,
+            criteria=criteria,
+            previous_extracted_text=previous_extracted_text,
+            previous_awarded_marks=previous_awarded_marks,
+            previous_rationale=previous_rationale,
+            teacher_prompt=teacher_prompt
+        )
+
+        primary_model = getattr(settings, "GEMINI_REEVAL_MODEL", "gemini-3.5-flash-lite")
+        fallback_model = getattr(settings, "GEMINI_REEVAL_FALLBACK", "gemini-3.5-flash")
+        candidate_models = list(dict.fromkeys([primary_model, fallback_model, "gemini-3.5-flash", "gemini-3.6-flash"]))
+
+        now = time.time()
+        active_models = [m for m in candidate_models if self._model_cooldown_until.get(m, 0) <= now]
+        models_to_try = active_models if active_models else candidate_models
+
+        num_keys = max(1, len(self._keys))
+        max_attempts = max(2, num_keys)
+        backoff_sec = 1.0
+        last_error = None
+
+        for model_to_use in models_to_try:
+            exhausted_keys = set()
+            for attempt in range(max_attempts):
+                start_time = time.time()
+                active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
+                if active_key in exhausted_keys:
+                    self.rotate_to_next_key(worker_id=worker_id, reason=f"Key already tried for {model_to_use}")
+                    active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
+
+                try:
+                    contents = [
+                        types.Part.from_bytes(data=crop_image_bytes, mime_type=crop_mime_type),
+                        prompt_text
+                    ]
+                    config = types.GenerateContentConfig(
+                        system_instruction=SECONDARY_REEVALUATION_SYSTEM_INSTRUCTION,
+                        temperature=0.1,
+                        max_output_tokens=8192,
+                        response_mime_type="application/json",
+                        response_schema=SingleAnswerReevaluationResult,
+                    )
+                    response = client.models.generate_content(
+                        model=model_to_use,
+                        contents=contents,
+                        config=config
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    raw_text = response.text or ""
+                    try:
+                        parsed = SingleAnswerReevaluationResult.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = SingleAnswerReevaluationResult.model_validate_json(repaired)
+                        else:
+                            raise parse_err
+
+                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
+                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
+                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
+
+                    event_id = self._record_usage_event(
+                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
+                        request_purpose="SECONDARY_REEVALUATION", duration_ms=duration_ms, success=True,
+                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
+                        cached_tokens=cached_tok, page_count=1, file_size_bytes=file_size,
+                        retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
+                    )
+                    self.clear_model_cooldown(model_to_use, active_key)
+                    self.rotate_to_next_key(worker_id=worker_id, reason="Round-robin post-success")
+                    return parsed, event_id
+
+                except Exception as e:
+                    last_error = e
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    err_code = type(e).__name__
+                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
+
+                    self._record_usage_event(
+                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
+                        request_purpose="SECONDARY_REEVALUATION", duration_ms=duration_ms, success=False,
+                        page_count=1, file_size_bytes=file_size, http_status=http_status,
+                        error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
+                        is_mock=False, model_name=model_to_use, api_key=active_key
+                    )
+
+                    if is_rate_or_quota_error(e):
+                        exhausted_keys.add(active_key)
+                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
+                        if len(exhausted_keys) >= len(self._keys):
+                            print(
+                                f"[GeminiClient] All {len(self._keys)} keys hit quota limits for '{model_to_use}'. "
+                                f"Placing '{model_to_use}' on 180s cooldown and falling back to next candidate model."
+                            )
+                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
+                        time.sleep(0.5)
+                        continue
+
+                    if attempt == max_attempts - 1:
+                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_attempts} attempts: {e}. Trying fallback model.")
+                        break
+
+                    sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.4)
                     time.sleep(sleep_time)
 
         if last_error and not is_rate_or_quota_error(last_error):

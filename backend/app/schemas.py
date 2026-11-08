@@ -138,6 +138,25 @@ class BatchCreateRequest(BaseModel):
     exam_id: str
     name: str
 
+class SingleAnswerReevaluateRequest(BaseModel):
+    teacher_prompt: Optional[str] = Field(default="", description="Teacher guidance or correction instructions")
+    region_id: Optional[str] = Field(default=None, description="Specific bounding box region ID if multiple exist")
+
+class ReevaluatedCriterionScore(BaseModel):
+    criterion_id: str
+    evidence: str = Field(
+        default="",
+        description="Evidence quote or reason: PASS | QUOTE: \"...\", PARTIAL: ... | QUOTE: \"...\", FAIL: ... | QUOTE: \"...\", or MISSING"
+    )
+    awarded_marks: float = Field(ge=0.0, description="Awarded marks in 0.5 increments for this criterion")
+
+class SingleAnswerReevaluationResult(BaseModel):
+    refined_student_text: str = Field(description="Corrected/clarified transcription of student handwriting in the cropped region")
+    criteria_scores: List[ReevaluatedCriterionScore] = Field(description="Updated criteria scores and evidence for this question")
+    total_awarded_marks: float = Field(ge=0.0, description="Total awarded marks for this question")
+    updated_rationale: str = Field(description="Clear explanation of how the teacher guidance was applied and why marks were awarded")
+    adjustment_summary: str = Field(description="One-sentence concise summary of the re-evaluation adjustment")
+
 class ManualEditAnswerRequest(BaseModel):
     awarded_marks: Optional[float] = None
     extracted_text: Optional[str] = None

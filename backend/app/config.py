@@ -20,6 +20,8 @@ class Settings:
     GEMINI_FALLBACK_MODEL_1: str = os.getenv("GEMINI_FALLBACK_MODEL_1", "gemini-3.6-flash").strip()
     GEMINI_FALLBACK_MODEL_2: str = os.getenv("GEMINI_FALLBACK_MODEL_2", "gemini-3.5-flash").strip()
     GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.6-flash").strip()
+    GEMINI_REEVAL_MODEL: str = os.getenv("GEMINI_REEVAL_MODEL", "gemini-3.5-flash-lite").strip()
+    GEMINI_REEVAL_FALLBACK: str = os.getenv("GEMINI_REEVAL_FALLBACK", "gemini-3.5-flash").strip()
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "4096"))
     ENABLE_TWO_STAGE_PIPELINE: bool = False
     GRADING_BATCH_SIZE: int = 1

@@ -117,3 +117,79 @@ EXECUTION CHECKLIST:
 2. Audit each criterion using `PASS | QUOTE: "..."`, `PARTIAL: <flaw> | QUOTE: "..."`, `FAIL: <flaw> | QUOTE: "..."` (0.0 marks), or `MISSING` (0.0 marks).
 3. Tolerance is ±0.5. Accept equivalent prefix transformations (e.g. 7 x 10^-2 H ≡ 0.07 H ≡ 70 mH) as full PASS. For correct math with missing/wrong unit, award PARTIAL (deduct 0.5 marks, never 0.0).
 4. Award partial marks ONLY where partial conditions are satisfied (correct formula + substitution). Inverted algebra, wrong power of 10, or unlabelled sketches force 0.0."""
+
+
+SECONDARY_REEVALUATION_SYSTEM_INSTRUCTION = """You are an expert academic examiner performing a targeted, second-opinion re-evaluation of a SINGLE student answer crop.
+
+Your job is to inspect the attached cropped handwriting image for this specific question, review the official solution, the approved marking criteria, the prior evaluation, and carefully apply the Teacher/Admin's Guidance Instructions.
+
+CORE PRINCIPLES:
+1. TEACHER GUIDANCE APPLICATION:
+   - Pay close attention to the teacher's note. If the teacher points out an alternative method (e.g. substitutions, identity transformations, coordinate methods), evaluate whether the reasoning is mathematically sound.
+   - If instructed to be lenient on minor arithmetic slips, unsimplified fractions, or slight unit omissions, award appropriate partial credit (deduct 0.5 rather than 0.0).
+   - If the handwriting was previously misread, examine the high-resolution crop directly.
+
+2. CROP TRANSCRIPTION:
+   - Read the cropped handwriting image carefully and update `refined_student_text` with the verbatim transcription. Use LaTeX math formatting where applicable.
+
+3. CRITERIA AUDITING:
+   - Audit every criterion in the question rubric.
+   - Evidence format:
+     * Full credit: `PASS | QUOTE: "<quote from student work>"`
+     * Partial credit: `PARTIAL: <reason> | QUOTE: "<quote>"`
+     * Zero credit: `FAIL: <reason> | QUOTE: "<quote>"`
+     * Omitted: `MISSING`
+   - Use discrete 0.5 increments for `awarded_marks`.
+   - `total_awarded_marks` must equal the sum of `criteria_scores[].awarded_marks` clamped to question max marks.
+
+4. RATIONALE:
+   - Summarize the reasoning in `updated_rationale` and `adjustment_summary` clearly stating how the teacher guidance affected the outcome.
+"""
+
+
+def build_secondary_reevaluation_prompt(
+    question_id: str,
+    question_text: str,
+    official_solution: str,
+    max_marks: float,
+    criteria: list,
+    previous_extracted_text: str,
+    previous_awarded_marks: float,
+    previous_rationale: str,
+    teacher_prompt: str = ""
+) -> str:
+    crit_formatted = []
+    for c in criteria:
+        cid = c.get("criterion_id", "")
+        desc = c.get("description", "")
+        mm = c.get("max_marks", 0.0)
+        prev_m = c.get("awarded_marks", 0.0)
+        prev_ev = c.get("evidence", "")
+        crit_formatted.append(f"  - [{cid}] (Max: {mm} marks, Previously Awarded: {prev_m}): {desc}\n    Previous Evidence: {prev_ev}")
+    criteria_block = "\n".join(crit_formatted)
+
+    teacher_block = f"\n### TEACHER GUIDANCE & CORRECTION REQUEST:\n\"{teacher_prompt}\"\n" if teacher_prompt else "\n### TEACHER GUIDANCE: None specified. Re-audit with fresh perspective.\n"
+
+    return f"""Targeted Question Re-evaluation Request for: Question {question_id}
+Maximum Question Marks: {max_marks}
+
+### QUESTION STATEMENT:
+{question_text or "See attached cropped student answer."}
+
+### OFFICIAL ANSWER KEY / MODEL ANSWER:
+{official_solution or "Refer to marking criteria."}
+
+### APPROVED MARKING CRITERIA:
+{criteria_block}
+
+### PRIOR EVALUATION (FIRST-PASS):
+- Previously Extracted Transcription:
+{previous_extracted_text or "(None)"}
+- Previously Awarded Marks: {previous_awarded_marks} / {max_marks}
+- Previous Rationale: {previous_rationale or "(None)"}
+{teacher_block}
+INSTRUCTIONS:
+1. Inspect the attached cropped student answer image carefully.
+2. Consider the teacher's guidance note above.
+3. Return the refined transcription, audited criteria scores, total awarded marks, and updated rationale in the required schema.
+"""

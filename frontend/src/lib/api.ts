@@ -1229,6 +1229,26 @@ export const api = {
     return this.manualEditAnswer(submissionId, answerId, data);
   },
 
+  async reevaluateAnswer(
+    submissionId: string,
+    answerId: string,
+    payload: { teacher_prompt?: string; region_id?: string }
+  ): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/grading/${submissionId}/answers/${answerId}/reevaluate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to re-evaluate answer" }));
+      throw new Error(err.detail || "Failed to re-evaluate answer");
+    }
+    return await res.json();
+  },
+
   async clearSubmissionReview(submissionId: string): Promise<any> {
     const res = await fetch(`${API_BASE}/api/grading/${submissionId}/clear-review`, {
       method: "POST",

@@ -17,6 +17,10 @@ import {
   CheckCircle2,
   Move,
   Plus,
+  Loader2,
+  ArrowRight,
+  RotateCcw,
+  Wand2,
 } from "lucide-react";
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -49,9 +53,15 @@ export function GradingModal({
   const [needsReview, setNeedsReview] = useState<boolean>(answer?.needs_review || false);
   const [editReason, setEditReason] = useState<string>("");
   const [showTranscriptionMath, setShowTranscriptionMath] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"verification" | "rubric" | "audit">("verification");
+  const [activeTab, setActiveTab] = useState<"verification" | "rubric" | "reeval" | "audit">("verification");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Secondary Evaluator / AI Second Opinion State (Gemini 3.5 Flash Lite)
+  const [teacherGuidancePrompt, setTeacherGuidancePrompt] = useState<string>("");
+  const [isReevaluating, setIsReevaluating] = useState(false);
+  const [reevalElapsedSec, setReevalElapsedSec] = useState(0);
+  const [reevalResult, setReevalResult] = useState<any | null>(null);
 
   // Criteria score state
   const [criterionScores, setCriterionScores] = useState<CriterionScore[]>(
@@ -121,8 +131,23 @@ export function GradingModal({
       setEditReason("");
       setSaveSuccess(false);
       setSelectedRegionIndex(0);
+      setReevalResult(null);
     }
   }, [answer]);
+
+  // Secondary Evaluator Timer
+  useEffect(() => {
+    let interval: any;
+    if (isReevaluating) {
+      const startTime = Date.now();
+      interval = setInterval(() => {
+        setReevalElapsedSec((Date.now() - startTime) / 1000);
+      }, 100);
+    } else {
+      setReevalElapsedSec(0);
+    }
+    return () => clearInterval(interval);
+  }, [isReevaluating]);
 
   if (!isOpen || !answer) return null;
 
@@ -162,6 +187,61 @@ export function GradingModal({
     }
   };
 
+  const handleRunReevaluation = async () => {
+    if (!answer) return;
+    setIsReevaluating(true);
+    setReevalResult(null);
+    try {
+      const allRegions = answer.regions || [];
+      const activeRegion = allRegions[selectedRegionIndex] || allRegions[0];
+      const result = await api.reevaluateAnswer(submission.id, answer.id, {
+        teacher_prompt: teacherGuidancePrompt,
+        region_id: activeRegion?.id,
+      });
+      setReevalResult(result);
+      toast.success(
+        `AI Second Opinion completed! Proposed marks: ${result.proposed_awarded_marks}/${result.max_marks}`,
+        { title: "Targeted Re-evaluation Complete" }
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to re-evaluate with AI", { title: "Re-evaluation Failed" });
+    } finally {
+      setIsReevaluating(false);
+    }
+  };
+
+  const handleApplyReevaluation = () => {
+    if (!reevalResult || !answer) return;
+    setAwardedMarks(Number(reevalResult.proposed_awarded_marks));
+    setExtractedText(reevalResult.proposed_extracted_text || extractedText);
+    setRationale(reevalResult.proposed_rationale || rationale);
+    setEditReason(
+      `AI Second Opinion (Gemini 3.5 Flash Lite): ${reevalResult.adjustment_summary || "Adjusted with teacher guidance"}`
+    );
+
+    if (reevalResult.proposed_criteria_scores && reevalResult.proposed_criteria_scores.length > 0) {
+      const updatedCriteria = criterionScores.map((cs) => {
+        const found = reevalResult.proposed_criteria_scores.find(
+          (p: any) => p.criterion_id === cs.criterion_id
+        );
+        if (found) {
+          return {
+            ...cs,
+            awarded_marks: Number(found.awarded_marks),
+            evidence: found.evidence || cs.evidence,
+          };
+        }
+        return cs;
+      });
+      setCriterionScores(updatedCriteria);
+    }
+
+    toast.success("Applied AI proposal to modal! Review and click 'Save & Update Marks' to save.", {
+      title: "Proposal Applied",
+    });
+    setActiveTab("rubric");
+  };
+
   const relevantAuditLogs = (submission.audit_logs || []).filter(
     (log) => log.answer_id === answer.id
   );
@@ -169,6 +249,15 @@ export function GradingModal({
   const cropUrl = api.getCropImageUrl(submission.id, answer.id);
 
   if (!isRendered || !answer || !mounted) return null;
+
+  const allRegions = answer.regions || [];
+  const activeRegion = allRegions[selectedRegionIndex] || allRegions[0];
+  const activeCropUrl = activeRegion
+    ? api.getAnswerCropUrl(submission.id, answer, activeRegion.id)
+    : api.getAnswerCropUrl(submission.id, answer);
+  const activePage =
+    activeRegion?.page_number ||
+    (allRegions.length > 0 ? answer.page_number : undefined);
 
   return createPortal(
     <div
@@ -254,6 +343,21 @@ export function GradingModal({
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Rubric</span>
             <span className="hidden sm:inline">Rubric & Grading Criteria</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("reeval")}
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 ${
+              activeTab === "reeval"
+                ? "border-amber-500 text-amber-500 dark:text-amber-400"
+                : "border-transparent text-ink-muted hover:text-ink"
+            }`}
+          >
+            <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+            <span className="sm:hidden">AI Second Opinion</span>
+            <span className="hidden sm:inline">AI Second Opinion</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              3.5 Flash Lite
+            </span>
           </button>
           <button
             onClick={() => setActiveTab("audit")}
@@ -508,6 +612,20 @@ export function GradingModal({
                   Approved Marking Criteria Breakdown
                 </h4>
 
+                <div className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/25 bg-amber-500/5 text-xs">
+                  <span className="flex items-center gap-2 text-ink-muted">
+                    <Wand2 className="h-4 w-4 text-amber-500 shrink-0" />
+                    <span>Grading too strict or student used an alternate derivation?</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("reeval")}
+                    className="text-amber-600 dark:text-amber-400 font-bold hover:underline shrink-0 ml-2 cursor-pointer"
+                  >
+                    AI Second Opinion &rarr;
+                  </button>
+                </div>
+
                 {criterionScores.length === 0 ? (
                   <p className="text-xs text-ink-muted py-4 text-center">
                     No granular sub-criteria defined for this question. Overall question mark applies.
@@ -629,6 +747,242 @@ export function GradingModal({
             </div>
           )}
 
+          {activeTab === "reeval" && (
+            <div className="space-y-5">
+              {/* Context & Description Banner */}
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="p-2 rounded-lg bg-amber-500/15 text-amber-500 shrink-0">
+                      <Wand2 className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-bold text-ink flex items-center gap-2">
+                        Targeted AI Re-evaluation &amp; Second Opinion
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          3.5 Flash Lite
+                        </span>
+                      </h4>
+                      <p className="text-xs text-ink-muted">
+                        Evaluates only this question&apos;s cropped handwriting region across your 22 API keys with low latency.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-surface border border-hairline text-ink">
+                      Current: {awardedMarks} / {answer.max_marks} marks
+                    </span>
+                  </div>
+                </div>
+
+                {/* Question Statement preview */}
+                {answer.question_text && (
+                  <div className="p-3 rounded-md bg-surface border border-hairline text-xs text-ink leading-relaxed">
+                    <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider block mb-1">
+                      Question Statement
+                    </span>
+                    <MathText text={answer.question_text} />
+                  </div>
+                )}
+              </div>
+
+              {/* Teacher Guidance Input Section */}
+              <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-3.5 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <label className="text-xs font-bold text-ink flex items-center gap-1.5">
+                    <Edit3 className="h-4 w-4 text-primary" />
+                    Teacher Guidance &amp; Correction Instructions
+                  </label>
+                  <span className="text-[11px] text-ink-muted">Optional: Direct the AI model on what to consider</span>
+                </div>
+
+                {/* Quick Suggestion Chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-ink-muted mr-1 font-medium">Suggestions:</span>
+                  {[
+                    { label: "💡 Alternate Method", text: "Student used an alternative mathematical derivation not in official key. Evaluate if the method is mathematically sound and award full/partial marks." },
+                    { label: "⚖️ Lenient on Minor Slip", text: "Be lenient on minor arithmetic slip or unsimplified fraction; award partial credit if conceptual steps and formulas are correct." },
+                    { label: "🔍 Re-read Handwriting", text: "Handwriting in the crop was ambiguous. Carefully re-examine handwritten mathematical symbols and indices." },
+                    { label: "🎯 Verify Final Answer", text: "Verify whether the student's final boxed expression is mathematically equivalent to the required solution." },
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setTeacherGuidancePrompt((prev) => (prev ? `${prev}\n${chip.text}` : chip.text));
+                      }}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-canvas-soft hover:bg-canvas-soft/80 border border-hairline text-ink transition-colors cursor-pointer"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                  {teacherGuidancePrompt && (
+                    <button
+                      type="button"
+                      onClick={() => setTeacherGuidancePrompt("")}
+                      className="text-[11px] text-red-500 hover:underline ml-1 font-medium"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Textarea */}
+                <textarea
+                  rows={3}
+                  value={teacherGuidancePrompt}
+                  onChange={(e) => setTeacherGuidancePrompt(e.target.value)}
+                  placeholder="E.g., Student substituted u = tan(x/2); check if step 2 is valid... or be lenient on minor arithmetic slip in C2..."
+                  className="w-full rounded-md border border-hairline bg-canvas-soft p-3 font-mono text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                />
+
+                {/* Execution Button */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+                  <span className="text-[11px] text-ink-muted font-sans">
+                    Cropped region from Page {activePage || answer.page_number}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRunReevaluation}
+                    disabled={isReevaluating}
+                    className="inline-flex items-center justify-center gap-2 rounded-full font-semibold text-white text-xs px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 transition-all shadow-sm cursor-pointer"
+                  >
+                    {isReevaluating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Evaluating with 3.5 Flash Lite... ({reevalElapsedSec.toFixed(1)}s)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4" />
+                        <span>Run AI Second Opinion</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Proposal Result View (if available) */}
+              {reevalResult && (
+                <div className="rounded-xl border border-emerald-500/40 bg-surface p-4 sm:p-5 space-y-4 shadow-sm animate-in fade-in duration-200">
+                  {/* Proposal Header Banner */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-ink">
+                          AI Second Opinion Ready
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                        {reevalResult.adjustment_summary}
+                      </p>
+                    </div>
+
+                    {/* Marks Comparison Diff */}
+                    <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-lg border border-hairline font-mono text-xs self-start sm:self-auto">
+                      <span className="text-ink-muted line-through">
+                        {reevalResult.previous_awarded_marks} / {reevalResult.max_marks}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 text-ink-muted" />
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {reevalResult.proposed_awarded_marks} / {reevalResult.max_marks}
+                      </span>
+                      {(() => {
+                        const diff = Number(reevalResult.proposed_awarded_marks) - Number(reevalResult.previous_awarded_marks);
+                        if (diff > 0) {
+                          return <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">+{diff}</span>;
+                        } else if (diff < 0) {
+                          return <span className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">{diff}</span>;
+                        }
+                        return <span className="text-[10px] font-bold text-ink-muted bg-surface px-1.5 py-0.5 rounded">0.0</span>;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Proposed Criteria Breakdown */}
+                  {reevalResult.proposed_criteria_scores && reevalResult.proposed_criteria_scores.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                        Proposed Marking Criteria Breakdown
+                      </span>
+                      <div className="divide-y divide-hairline rounded-lg border border-hairline bg-canvas-soft/40 overflow-hidden">
+                        {reevalResult.proposed_criteria_scores.map((cs: any, idx: number) => {
+                          const origCrit = criterionScores.find((c) => c.criterion_id === cs.criterion_id);
+                          const maxM = origCrit?.max_marks || 1;
+                          return (
+                            <div key={idx} className="p-3 text-xs space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold text-ink">
+                                  Criterion {cs.criterion_id}
+                                </span>
+                                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-surface border border-hairline text-ink">
+                                  Awarded: {cs.awarded_marks} / {maxM}
+                                </span>
+                              </div>
+                              {cs.evidence && (
+                                <div className="text-[11px] text-ink-muted leading-relaxed font-mono">
+                                  <span className="font-bold text-primary mr-1">Evidence:</span>
+                                  <MathText text={cs.evidence} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Refined Student Transcription */}
+                  {reevalResult.proposed_extracted_text && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                        Refined Student Transcription (KaTeX)
+                      </span>
+                      <div className="p-3 rounded-lg border border-hairline bg-canvas-soft text-xs text-ink font-mono whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                        <MathText text={reevalResult.proposed_extracted_text} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Proposed Rationale */}
+                  {reevalResult.proposed_rationale && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                        <HelpCircle className="h-3.5 w-3.5 text-amber-500" />
+                        Updated Explanation &amp; Rationale
+                      </span>
+                      <div className="p-3 rounded-lg border border-hairline bg-canvas-soft text-xs text-ink leading-relaxed">
+                        <MathText text={reevalResult.proposed_rationale} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Apply / Discard Actions */}
+                  <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-hairline">
+                    <button
+                      type="button"
+                      onClick={() => setReevalResult(null)}
+                      className="px-4 py-2 rounded-lg text-xs font-medium text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors w-full sm:w-auto text-center cursor-pointer"
+                    >
+                      Discard Proposal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplyReevaluation}
+                      className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-full text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm w-full sm:w-auto cursor-pointer"
+                    >
+                      <Check className="h-4 w-4" />
+                      Apply Proposal to Modal &amp; Review
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === "audit" && (
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-ink">
@@ -697,6 +1051,21 @@ export function GradingModal({
                 Needs Review
               </span>
             </label>
+
+            {/* AI Second Opinion Shortcut */}
+            <button
+              type="button"
+              onClick={() => setActiveTab("reeval")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                activeTab === "reeval"
+                  ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+              }`}
+              title="Open targeted AI Second Opinion re-evaluator"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              <span>AI Second Opinion</span>
+            </button>
           </div>
 
           {/* Reason Input & Save Button */}

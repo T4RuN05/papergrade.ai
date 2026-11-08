@@ -9,7 +9,11 @@ from sqlalchemy import select
 from backend.app.config import settings
 from backend.app.db.session import get_db
 from backend.app.db.models import Submission, AnswerRegion, Exam, Student
-from backend.app.schemas import ManualEditAnswerRequest, ManualEditRegionRequest
+from backend.app.schemas import (
+    ManualEditAnswerRequest,
+    ManualEditRegionRequest,
+    SingleAnswerReevaluateRequest,
+)
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
@@ -72,6 +76,28 @@ def edit_answer(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to edit answer: {str(e)}")
+
+
+@router.post("/answers/{submission_id}/{answer_id}/reevaluate")
+@router.post("/{submission_id}/answers/{answer_id}/reevaluate")
+def reevaluate_answer_crop(
+    submission_id: str,
+    answer_id: str,
+    req: SingleAnswerReevaluateRequest,
+    current_user: Dict[str, Any] = Depends(require_branch_manager)
+):
+    try:
+        result = grading_service.reevaluate_answer(
+            submission_id=submission_id,
+            answer_id=answer_id,
+            teacher_prompt=req.teacher_prompt or "",
+            region_id=req.region_id
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to re-evaluate answer: {str(e)}")
 
 
 @router.post("/regions/{submission_id}/{region_id}/edit")
