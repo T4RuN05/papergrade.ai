@@ -19,6 +19,9 @@ STRICT EXTRACTION & CALIBRATION RULES:
 
 3. MULTIPLE CHOICE QUESTIONS (MCQs):
    - Generate EXACTLY ONE criterion worth the question's full `max_marks` ("Correct option letter or value selection"). Never create derivation or step criteria for MCQs.
+
+4. KATEX MATHEMATICAL NOTATION:
+   - Format all mathematical expressions, equations, formulas, fractions, square roots, and Greek symbols using standard LaTeX / KaTeX notation (e.g. `\cos x = \frac{\sqrt{3}}{2}`, `\frac{\pi}{6}`, `\sqrt{5}`, `\theta`).
 """
 
 

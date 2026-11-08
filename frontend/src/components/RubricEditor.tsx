@@ -13,7 +13,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { ExamRubric, RubricQuestion, RubricCriterion } from "@/lib/types";
-import { FeatureCard, ButtonPrimary, ButtonUtility, BadgePill } from "./ui";
+import { FeatureCard, ButtonPrimary, ButtonUtility, BadgePill, MathText, hasLatexMath } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface RubricEditorProps {
@@ -341,31 +341,59 @@ export function RubricEditor({
 
                 {/* Question Statement */}
                 <div>
-                  <label className="text-xs font-semibold text-ink-secondary mb-1 block">
-                    Question Statement:
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={q.question_text || (q as any).title || ""}
-                    disabled={isReadOnly}
-                    onChange={(e) => handleQuestionChange(qIdx, "question_text", e.target.value)}
-                    className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none disabled:bg-canvas-soft/40 transition-colors"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-ink-secondary">
+                      Question Statement:
+                    </label>
+                    {hasLatexMath(q.question_text || (q as any).title) && (
+                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                        KaTeX Math
+                      </span>
+                    )}
+                  </div>
+                  {!isReadOnly && (
+                    <textarea
+                      rows={2}
+                      value={q.question_text || (q as any).title || ""}
+                      onChange={(e) => handleQuestionChange(qIdx, "question_text", e.target.value)}
+                      placeholder="Enter question statement (KaTeX supported)..."
+                      className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+                    />
+                  )}
+                  {(isReadOnly || hasLatexMath(q.question_text || (q as any).title)) && (
+                    <div className={`${!isReadOnly ? "mt-1.5" : ""} rounded-md border border-hairline bg-canvas-soft/60 p-2.5 text-xs text-ink leading-relaxed`}>
+                      <MathText text={q.question_text || (q as any).title || ""} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Official Answer */}
                 <div>
-                  <label className="text-xs font-semibold text-ink-secondary mb-1 flex items-center gap-1">
-                    <span className="text-[#1aae39] font-bold">✓</span>
-                    <span>Official Expected Solution / Model Answer:</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={q.official_answer || ""}
-                    disabled={isReadOnly}
-                    onChange={(e) => handleQuestionChange(qIdx, "official_answer", e.target.value)}
-                    className="w-full rounded-md border border-hairline bg-canvas-soft/30 p-2.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none disabled:bg-canvas-soft/40 transition-colors"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-ink-secondary flex items-center gap-1">
+                      <span className="text-[#1aae39] font-bold">✓</span>
+                      <span>Official Expected Solution / Model Answer:</span>
+                    </label>
+                    {hasLatexMath(q.official_answer) && (
+                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-[#86d4a4]">
+                        KaTeX Math
+                      </span>
+                    )}
+                  </div>
+                  {!isReadOnly && (
+                    <textarea
+                      rows={2}
+                      value={q.official_answer || ""}
+                      onChange={(e) => handleQuestionChange(qIdx, "official_answer", e.target.value)}
+                      placeholder="Enter official expected answer..."
+                      className="w-full rounded-md border border-hairline bg-canvas-soft/30 p-2.5 text-xs font-mono text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+                    />
+                  )}
+                  {(isReadOnly || hasLatexMath(q.official_answer)) && (
+                    <div className={`${!isReadOnly ? "mt-1.5" : ""} rounded-md border border-emerald-200/60 dark:border-[#1a3324] bg-emerald-50/50 dark:bg-[#101d15] p-2.5 text-xs text-emerald-950 dark:text-[#86d4a4] leading-relaxed`}>
+                      <MathText text={q.official_answer || ""} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Criteria */}
@@ -415,32 +443,52 @@ export function RubricEditor({
                               onChange={(e) =>
                                 handleCriterionFieldChange(qIdx, cIdx, "criterion_id", e.target.value)
                               }
-                              className="w-14 rounded-md border border-hairline bg-surface px-1.5 py-1 text-xs font-mono text-center font-bold text-primary focus:border-primary focus:outline-none disabled:opacity-75"
+                              className="w-14 rounded-md border border-hairline bg-surface px-1.5 py-1 text-xs font-mono text-center font-bold text-primary focus:border-primary focus:outline-none disabled:opacity-75 shrink-0"
                             />
                             <div className="flex-1 sm:hidden">
+                              {!isReadOnly ? (
+                                <input
+                                  type="text"
+                                  value={c.description || ""}
+                                  onChange={(e) =>
+                                    handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
+                                  }
+                                  placeholder="Criterion description..."
+                                  className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none"
+                                />
+                              ) : (
+                                <div className="px-2 py-1 text-xs font-medium text-ink">
+                                  <MathText text={c.description || ""} />
+                                </div>
+                              )}
+                              {!isReadOnly && hasLatexMath(c.description) && (
+                                <div className="mt-1 px-2 py-1 rounded bg-surface/80 border border-hairline text-xs text-ink">
+                                  <MathText text={c.description || ""} />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="hidden sm:block flex-1 min-w-0">
+                            {!isReadOnly ? (
                               <input
                                 type="text"
                                 value={c.description || ""}
-                                disabled={isReadOnly}
                                 onChange={(e) =>
                                   handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
                                 }
-                                placeholder="Criterion description..."
-                                className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none disabled:opacity-75"
+                                placeholder="Criterion step description..."
+                                className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none"
                               />
-                            </div>
-                          </div>
-                          <div className="hidden sm:block flex-1">
-                            <input
-                              type="text"
-                              value={c.description || ""}
-                              disabled={isReadOnly}
-                              onChange={(e) =>
-                                handleCriterionFieldChange(qIdx, cIdx, "description", e.target.value)
-                              }
-                              placeholder="Criterion step description..."
-                              className="w-full rounded-md border border-hairline bg-surface px-2.5 py-1 text-xs text-ink focus:border-primary focus:outline-none disabled:opacity-75"
-                            />
+                            ) : (
+                              <div className="px-2 py-1 text-xs font-medium text-ink">
+                                <MathText text={c.description || ""} />
+                              </div>
+                            )}
+                            {!isReadOnly && hasLatexMath(c.description) && (
+                              <div className="mt-1 px-2 py-1 rounded bg-surface/80 border border-hairline text-xs text-ink">
+                                <MathText text={c.description || ""} />
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-0 border-hairline">
                             <div className="flex items-center gap-1.5">

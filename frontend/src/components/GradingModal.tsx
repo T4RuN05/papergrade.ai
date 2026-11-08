@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill } from "./ui";
+import { BadgePill, MathText } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface GradingModalProps {
@@ -278,9 +278,9 @@ export function GradingModal({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
                     Question Statement
                   </span>
-                  <p className="mt-1 text-xs font-semibold text-ink leading-relaxed">
-                    {answer.question_text}
-                  </p>
+                  <div className="mt-1 text-xs font-semibold text-ink leading-relaxed">
+                    <MathText text={answer.question_text} />
+                  </div>
                 </div>
               )}
 
@@ -459,7 +459,7 @@ export function GradingModal({
                     Official Solution / Model Answer
                   </div>
                   <div className="text-emerald-950 dark:text-[#86d4a4]/90 font-mono leading-relaxed whitespace-pre-wrap bg-white/60 dark:bg-[#0b140e] p-2.5 rounded-md border border-emerald-200/60 dark:border-[#1a3324]/80">
-                    {answer.official_answer}
+                    <MathText text={answer.official_answer} />
                   </div>
                 </div>
               )}
@@ -492,7 +492,7 @@ export function GradingModal({
                               {c.criterion_id}
                             </span>
                             <span className="text-xs font-semibold text-ink">
-                              {c.description}
+                              <MathText text={c.description} />
                             </span>
                           </div>
                           {c.evidence && (

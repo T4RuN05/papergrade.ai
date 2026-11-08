@@ -63,6 +63,7 @@ import {
   FormInput,
   StudentPortalSkeleton,
   StatusWell,
+  MathText,
 } from "@/components/ui";
 
 interface TrajectoryPoint {
@@ -3386,10 +3387,10 @@ export default function StudentPortalPage() {
 
                       {/* Question Text / Prompt if available or skeleton placeholder while loading */}
                       {ans.question_text ? (
-                        <p className="text-[11.5px] text-ink-secondary leading-relaxed bg-canvas-soft/40 p-2 rounded border border-hairline/50">
+                        <div className="text-[11.5px] text-ink-secondary leading-relaxed bg-canvas-soft/40 p-2 rounded border border-hairline/50">
                           <span className="font-semibold text-ink">Prompt: </span>
-                          {ans.question_text}
-                        </p>
+                          <MathText text={ans.question_text} />
+                        </div>
                       ) : isBreakdownLoadingDetails ? (
                         <div className="bg-canvas-soft/40 p-2 rounded border border-hairline/50 space-y-1.5 animate-pulse">
                           <div className="flex items-center gap-1.5">
@@ -3485,7 +3486,7 @@ export default function StudentPortalPage() {
                                           <span className="font-semibold text-ink-secondary mr-1">
                                             {crit.criterion_id ? `[${crit.criterion_id}]` : `Criterion ${cIdx + 1}:`}
                                           </span>
-                                          {crit.description}
+                                          <MathText text={crit.description} />
                                         </div>
                                         <span
                                           className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold shrink-0 border ${
@@ -3547,9 +3548,11 @@ export default function StudentPortalPage() {
                                 <span>Official Model Solution</span>
                               </div>
                               <div className="text-[11px] text-ink-secondary dark:text-ink leading-relaxed whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-emerald-100 dark:border-emerald-900/40 max-h-36 overflow-y-auto">
-                                {hasOfficialAnswer
-                                  ? ans.official_answer
-                                  : "Model solution not published or withheld by institute policy."}
+                                {hasOfficialAnswer ? (
+                                  <MathText text={ans.official_answer} />
+                                ) : (
+                                  "Model solution not published or withheld by institute policy."
+                                )}
                               </div>
                             </div>
                           </div>

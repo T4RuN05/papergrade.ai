@@ -598,3 +598,7 @@ export function ConfirmModal({
   );
 }
 
+export { MathText, hasLatexMath, parseLatexTokens } from "./MathText";
+export type { MathTextProps } from "./MathText";
+
+

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { GradedAnswer } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill, ButtonPrimary, ButtonUtility, ModalCard, StickerColor } from "./ui";
+import { BadgePill, ButtonPrimary, ButtonUtility, ModalCard, StickerColor, MathText } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface StudentQuestionModalProps {
@@ -270,7 +270,7 @@ export function StudentQuestionModal({
                         <span className="font-semibold text-ink-secondary mr-1">
                           {crit.criterion_id ? `[${crit.criterion_id}]` : `Step ${idx + 1}:`}
                         </span>
-                        {crit.description}
+                        <MathText text={crit.description} />
                       </div>
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 border whitespace-nowrap ${
@@ -322,7 +322,7 @@ export function StudentQuestionModal({
                   <span>Official Model Solution</span>
                 </div>
                 <div className="text-[10.5px] text-ink font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
-                  {answer.official_answer}
+                  <MathText text={answer.official_answer} />
                 </div>
               </div>
             )}
