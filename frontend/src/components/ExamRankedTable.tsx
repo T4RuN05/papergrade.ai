@@ -259,7 +259,7 @@ export function ExamRankedTable({
     if (rank === 1) {
       return (
         <span
-          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_1px_3px_rgba(0,0,0,0.3)] shrink-0"
+          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_1px_3px_rgba(0,0,0,0.3)] shrink-0"
           title="Rank 1 • Gold"
         >
           <Trophy className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#b07b30] dark:text-[#e5ad68] shrink-0" />
@@ -270,7 +270,7 @@ export function ExamRankedTable({
     if (rank === 2) {
       return (
         <span
-          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#f1f0ee] text-[#4d4a46] border border-[#dedcd8] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_1px_3px_rgba(0,0,0,0.3)] shrink-0"
+          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#f1f0ee] text-[#4d4a46] border border-[#dedcd8] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_1px_3px_rgba(0,0,0,0.3)] shrink-0"
           title="Rank 2 • Silver"
         >
           <Medal className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#6c6964] dark:text-[#a8a6a2] shrink-0" />
@@ -281,7 +281,7 @@ export function ExamRankedTable({
     if (rank === 3) {
       return (
         <span
-          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#f4f1ec] text-[#594532] border border-[#ded5c7] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#221b14] dark:text-[#c4ae97] dark:border-[#382b20] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_1px_3px_rgba(0,0,0,0.3)] shrink-0"
+          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#f4f1ec] text-[#594532] border border-[#ded5c7] shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#221b14] dark:text-[#c4ae97] dark:border-[#382b20] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_1px_3px_rgba(0,0,0,0.3)] shrink-0"
           title="Rank 3 • Bronze"
         >
           <Award className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-[#8b6542] dark:text-[#c4ae97] shrink-0" />
@@ -452,7 +452,7 @@ export function ExamRankedTable({
             <button
               type="button"
               onClick={() => setInternalBracketFilter("ALL")}
-              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
                 effectiveBracketFilter === "ALL"
                   ? "bg-primary text-white font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
@@ -463,7 +463,7 @@ export function ExamRankedTable({
             <button
               type="button"
               onClick={() => setInternalBracketFilter("TOP10")}
-              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
                 effectiveBracketFilter === "TOP10"
                   ? "bg-primary text-white font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
@@ -474,7 +474,7 @@ export function ExamRankedTable({
             <button
               type="button"
               onClick={() => setInternalBracketFilter("DISTINCTION")}
-              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer ${
                 effectiveBracketFilter === "DISTINCTION"
                   ? "bg-emerald-600 text-white font-semibold shadow-2xs"
                   : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
@@ -661,10 +661,9 @@ export function ExamRankedTable({
 
                     {/* Percentage */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <BadgePill
-                        label={`${item.effectivePercentage.toFixed(1)}%`}
-                        color={scoreColor}
-                      />
+                      <span className="font-mono font-bold text-ink text-xs">
+                        {item.effectivePercentage.toFixed(1)}%
+                      </span>
                     </td>
 
                     {/* Percentile */}
@@ -675,12 +674,12 @@ export function ExamRankedTable({
                     {/* Status */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       {item.status === "NEEDS_REVIEW" ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800/40">
                           Needs Review
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                           Finalized
                         </span>
                       )}

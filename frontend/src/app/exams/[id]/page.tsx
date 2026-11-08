@@ -817,24 +817,24 @@ export default function ExamDetailPage() {
     const s = (status || "UPLOADED").toUpperCase();
     if (s === "COMPLETED" || s === "GRADED") {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-800/40">
+          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
           COMPLETED
         </span>
       );
     }
     if (s === "PROCESSING") {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-          <RefreshCw className="h-3 w-3 animate-spin text-blue-600" />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-400 px-2.5 py-1 rounded-md border border-blue-200 dark:border-blue-800/40">
+          <RefreshCw className="h-3 w-3 animate-spin text-blue-600 dark:text-blue-400" />
           PROCESSING
         </span>
       );
     }
     if (s === "QUEUED") {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-          <Clock className="h-3 w-3 text-amber-600" />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 px-2.5 py-1 rounded-md border border-amber-200 dark:border-amber-800/40">
+          <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
           QUEUED
         </span>
       );
@@ -842,24 +842,24 @@ export default function ExamDetailPage() {
     if (s === "FAILED") {
       return (
         <span
-          className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200"
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-700 bg-red-50 dark:bg-red-950/30 dark:text-red-400 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800/40"
           title={errorDetails || "Evaluation failed. Click Retry Evaluation to re-enqueue."}
         >
-          <AlertCircle className="h-3 w-3 text-red-600" />
+          <AlertCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
           FAILED
         </span>
       );
     }
     if (s === "NEEDS_REVIEW") {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-          <Eye className="h-3 w-3 text-purple-600" />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700 bg-purple-50 dark:bg-purple-950/30 dark:text-purple-400 px-2.5 py-1 rounded-md border border-purple-200 dark:border-purple-800/40">
+          <Eye className="h-3 w-3 text-purple-600 dark:text-purple-400" />
           NEEDS REVIEW
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 bg-slate-50 dark:bg-white/5 dark:text-slate-300 px-2.5 py-1 rounded-md border border-slate-200 dark:border-white/10">
         <FileText className="h-3 w-3 text-slate-500" />
         {s}
       </span>
@@ -892,10 +892,10 @@ export default function ExamDetailPage() {
           </span>
         </div>
 
-        {/* Title, Badges, Artifact Links, and Standardized Buttons */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pt-3 border-t border-hairline">
-          {/* Title & Metadata */}
-          <div className="space-y-2 max-w-2xl">
+        {/* Title, Badges, and Action Buttons Toolbar */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-3 border-t border-hairline">
+          {/* Title & Context */}
+          <div className="space-y-1.5 max-w-xl">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
                 {exam.title}
@@ -918,80 +918,16 @@ export default function ExamDetailPage() {
               />
             </div>
 
-            {/* Quick Context Line with Artifact Links */}
-            <div className="flex items-center gap-2.5 flex-wrap text-xs text-ink-muted">
-              <span>Max Marks: <strong className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</strong></span>
-              <span className="text-ink-faint">•</span>
-              <span>{submissions.length} Total Scripts</span>
-              <span className="text-ink-faint">•</span>
-
-              {/* Question Paper Quick Trigger */}
-              {isUploadingQp ? (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded shadow-2xs">
-                  <RefreshCw className="h-3 w-3 animate-spin text-amber-600 shrink-0" />
-                  <span>Processing QP...</span>
-                </span>
-              ) : exam.question_paper_path ? (
-                <button
-                  type="button"
-                  onClick={() => handleViewArtifact("QUESTION_PAPER")}
-                  className="btn-glass-utility h-7 px-2 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer text-primary shadow-2xs"
-                  title="View Question Paper"
-                >
-                  <FileText className="h-3 w-3 text-primary" />
-                  <span>Question Paper</span>
-                  <Eye className="h-2.5 w-2.5 text-ink-muted" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setUploadQpOpen(true)}
-                  className="btn-glass-amber h-7 px-2 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Attach Question Paper"
-                >
-                  <Plus className="h-3 w-3" />
-                  <span>Question Paper</span>
-                </button>
-              )}
-
-              {/* Answer Key Quick Trigger */}
-              {isUploadingAk ? (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded shadow-2xs">
-                  <RefreshCw className="h-3 w-3 animate-spin text-emerald-600 shrink-0" />
-                  <span>Processing Key...</span>
-                </span>
-              ) : exam.answer_key_path ? (
-                <button
-                  type="button"
-                  onClick={() => handleViewArtifact("ANSWER_KEY")}
-                  className="btn-glass-utility h-7 px-2 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer text-emerald-700 dark:text-emerald-400 shadow-2xs"
-                  title="View Answer Key"
-                >
-                  <KeyRound className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                  <span>Answer Key</span>
-                  <Eye className="h-2.5 w-2.5 text-ink-muted" />
-                </button>
-              ) : currentUser?.role === "ROOT_ADMIN" ? (
-                <button
-                  type="button"
-                  onClick={() => setUploadAkOpen(true)}
-                  className="btn-glass-amber h-7 px-2 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Attach Answer Key"
-                >
-                  <Plus className="h-3 w-3" />
-                  <span>Answer Key</span>
-                </button>
-              ) : (
-                <span className="text-ink-faint text-[11px]">Key: Pending Root Admin</span>
-              )}
-            </div>
+            <p className="text-xs text-ink-muted leading-relaxed">
+              Assessment ledger for {exam.subject}. Max achievable score: <strong className="font-mono font-bold text-ink">{exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"} marks</strong> • <strong className="font-mono font-bold text-ink">{submissions.length}</strong> total scripts enrolled.
+            </p>
           </div>
 
-          {/* Harmonized, Standardized Action Buttons Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 sm:self-start lg:self-center">
-            {/* Primary CTA (if evaluation ready or results ready to publish) */}
+          {/* Proper Rectangular Action Buttons Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Primary Action Button */}
             {isEvaluating ? (
-              <div className="inline-flex items-center gap-2 h-8.5 px-3 rounded-lg text-xs font-semibold bg-[#edf5fd] text-primary border border-primary/20 shadow-2xs">
+              <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-2xs">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
                 <span>Evaluating ({stats.completed}/{stats.total})</span>
               </div>
@@ -1010,7 +946,7 @@ export default function ExamDetailPage() {
                     ? "Review & approve Rubric first."
                     : "Enqueue accepted papers for automated evaluation"
                 }
-                className="h-8.5 px-3.5 rounded-lg text-xs font-semibold shadow-xs"
+                className="h-9 px-3.5 rounded-md text-xs font-semibold shadow-xs"
               >
                 <Play className="h-3.5 w-3.5 mr-1.5" />
                 {hasFailedPapers ? `Retry Evaluation (${unprocessedCount})` : `Start Evaluation (${unprocessedCount})`}
@@ -1020,133 +956,193 @@ export default function ExamDetailPage() {
                 size="sm"
                 onClick={handlePublishResults}
                 isLoading={isPublishing}
-                className="btn-glass-emerald h-8.5 px-3.5 rounded-lg text-xs font-semibold shadow-xs text-white"
+                className="btn-glass-emerald h-9 px-3.5 rounded-md text-xs font-semibold shadow-xs text-white"
               >
                 <Check className="h-3.5 w-3.5 mr-1.5" />
                 Publish Results
               </ButtonPrimary>
+            ) : isPublished ? (
+              <div className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                Published
+              </div>
             ) : null}
 
-            {/* Standard Navigation Links (All strictly h-8.5 px-3 text-xs) */}
-            <Link
+            {/* Standard Navigation Utility Buttons */}
+            <ButtonUtility
+              size="sm"
               href={`/exams/${exam.id}/rubric`}
-              className="btn-glass-utility h-8.5 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+              className="h-9 px-3.5 rounded-md text-xs font-semibold"
             >
-              <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span>Rubric</span>
-            </Link>
+              <BookOpen className="h-3.5 w-3.5 mr-1.5 text-primary shrink-0" />
+              <span>Rubric & Criteria</span>
+            </ButtonUtility>
 
-            <Link
+            <ButtonUtility
+              size="sm"
               href={`/analytics?exam_id=${exam.id}`}
-              className="btn-glass-utility h-8.5 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+              className="h-9 px-3.5 rounded-md text-xs font-semibold"
             >
-              <BarChart3 className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-teal-600 shrink-0" />
               <span>Analytics</span>
-            </Link>
+            </ButtonUtility>
 
-            <Link
+            <ButtonUtility
+              size="sm"
               href={`/marks?exam_id=${exam.id}`}
-              className="btn-glass-utility h-8.5 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+              className="h-9 px-3.5 rounded-md text-xs font-semibold"
             >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-purple-600 shrink-0" />
               <span>Marks Ledger</span>
-            </Link>
+            </ButtonUtility>
 
-            {/* More Options Dropdown Menu */}
-            <div className="relative" ref={moreMenuRef}>
-              <button
-                type="button"
-                onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-                className="btn-glass-utility h-8.5 w-8.5 rounded-lg text-xs font-semibold inline-flex items-center justify-center shadow-2xs transition-colors cursor-pointer"
-                title="More exam actions"
-                aria-label="More exam options"
+            {/* Window Toggle Action */}
+            {isWindowOpen ? (
+              <ButtonUtility
+                variant="danger"
+                size="sm"
+                onClick={handleHardCloseWindow}
+                disabled={isClosingWindow}
+                className="h-9 px-3 rounded-md text-xs font-semibold"
+                title="Immediately terminate student upload window"
               >
-                <MoreHorizontal className="h-4 w-4 text-ink-muted" />
-              </button>
+                <Square className="h-3.5 w-3.5 mr-1.5 text-red-600 fill-red-600" />
+                <span>{isClosingWindow ? "Closing..." : "Close Window"}</span>
+              </ButtonUtility>
+            ) : !isPublished && (
+              <ButtonUtility
+                size="sm"
+                onClick={() => {
+                  setWindowReason(windowStatus?.has_window ? "Reopened by administrator" : "Scheduled examination upload session");
+                  setWindowDuration("30");
+                  setWindowScope("ALL_STUDENTS");
+                  setOpenWindowModalOpen(true);
+                }}
+                className="h-9 px-3 rounded-md text-xs font-semibold text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800"
+              >
+                <Clock className="h-3.5 w-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Open Window</span>
+              </ButtonUtility>
+            )}
 
-              {moreMenuOpen && (
-                <div className="absolute right-0 mt-1.5 w-56 rounded-xl border border-hairline bg-surface shadow-lg z-50 py-1.5 animate-in fade-in zoom-in-95 duration-100">
-                  {/* Window Actions */}
-                  {isWindowOpen ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        handleHardCloseWindow();
-                      }}
-                      disabled={isClosingWindow}
-                      className="w-full text-left px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Square className="h-3.5 w-3.5 text-red-600 fill-red-600" />
-                      <span>{isClosingWindow ? "Closing Window..." : "Close Upload Window"}</span>
-                    </button>
-                  ) : !isPublished && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        setWindowReason(windowStatus?.has_window ? "Reopened by administrator" : "Scheduled examination upload session");
-                        setWindowDuration("30");
-                        setWindowScope("ALL_STUDENTS");
-                        setOpenWindowModalOpen(true);
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs font-medium text-ink hover:bg-canvas-soft flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Clock className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>Open Upload Window</span>
-                    </button>
-                  )}
+            {/* Delete Exam Action */}
+            {canDeleteExam && (
+              <ButtonUtility
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  setDeleteConfirmText("");
+                  setDeleteExamModalOpen(true);
+                }}
+                className="h-9 px-3 rounded-md text-xs font-semibold"
+                title="Permanently delete this exam"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5 text-red-600" />
+                <span>Delete Exam</span>
+              </ButtonUtility>
+            )}
+          </div>
+        </div>
 
-                  {/* Question Paper Replacement */}
-                  {exam.question_paper_path && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        setUploadQpOpen(true);
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs font-medium text-ink hover:bg-canvas-soft flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Upload className="h-3.5 w-3.5 text-ink-muted" />
-                      <span>Replace Question Paper</span>
-                    </button>
-                  )}
+        {/* Academic Details & Materials Section: Organized 3-Column Information Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs bg-canvas-soft rounded-lg p-3.5 sm:p-4 border border-hairline">
+          <div className="flex items-start gap-2.5">
+            <Building2 className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
+            <div>
+              <span className="text-ink-muted block text-[11px] font-medium">Academic Institute & Branch</span>
+              <span className="font-semibold text-ink text-xs sm:text-[13px]">{examInstitute?.name || "Academic Institute"}</span>
+              <span className="text-ink-secondary block text-[11px] mt-0.5">
+                {examBranch ? `${examBranch.name} (${examBranch.city || "Mumbai"})` : "Branch Campus"}
+              </span>
+            </div>
+          </div>
 
-                  {/* Answer Key Replacement (Root Admin only) */}
-                  {exam.answer_key_path && currentUser?.role === "ROOT_ADMIN" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        setUploadAkOpen(true);
-                      }}
-                      className="w-full text-left px-3.5 py-2 text-xs font-medium text-ink hover:bg-canvas-soft flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <KeyRound className="h-3.5 w-3.5 text-ink-muted" />
-                      <span>Replace Answer Key</span>
-                    </button>
-                  )}
-
-                  {/* Destructive Delete Action */}
-                  {canDeleteExam && (
-                    <>
-                      <div className="my-1 border-t border-hairline" />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMoreMenuOpen(false);
-                          setDeleteConfirmText("");
-                          setDeleteExamModalOpen(true);
-                        }}
-                        className="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2 cursor-pointer transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                        <span>Delete Examination</span>
-                      </button>
-                    </>
-                  )}
-                </div>
+          <div className="flex items-start gap-2.5">
+            <Layers className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
+            <div>
+              <span className="text-ink-muted block text-[11px] font-medium">Linked Batch</span>
+              {batchInfo ? (
+                <Link
+                  href="/branch/batches"
+                  className="font-semibold text-primary hover:underline inline-flex items-center gap-1 text-xs sm:text-[13px]"
+                >
+                  {batchInfo.name} {batchInfo.code ? `(${batchInfo.code})` : ""}
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              ) : (
+                <span className="text-ink-secondary font-medium text-xs sm:text-[13px]">Branch-wide Assessment</span>
               )}
+              <span className="text-ink-muted block text-[11px] mt-0.5">
+                {batchInfo?.academic_year ? `Academic Year ${batchInfo.academic_year}` : "All Branch Batches"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <FileText className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-ink-muted block text-[11px] font-medium">Exam Documents & Key</span>
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                {/* Question Paper Button */}
+                {isUploadingQp ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-md">
+                    <RefreshCw className="h-3 w-3 animate-spin text-amber-600 shrink-0" />
+                    <span>Processing QP...</span>
+                  </span>
+                ) : exam.question_paper_path ? (
+                  <button
+                    type="button"
+                    onClick={() => handleViewArtifact("QUESTION_PAPER")}
+                    className="btn-glass-utility h-8 px-2.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 text-primary hover:border-primary transition-colors cursor-pointer shadow-2xs"
+                    title="View Question Paper"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    <span>Question Paper</span>
+                    <Eye className="h-3 w-3 text-ink-muted" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setUploadQpOpen(true)}
+                    className="btn-glass-utility h-8 px-2.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 hover:border-amber-400 transition-colors cursor-pointer shadow-2xs"
+                    title="Upload Question Paper"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Upload Question Paper</span>
+                  </button>
+                )}
+
+                {/* Answer Key Button */}
+                {isUploadingAk ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-md">
+                    <RefreshCw className="h-3 w-3 animate-spin text-emerald-600 shrink-0" />
+                    <span>Processing Key...</span>
+                  </span>
+                ) : exam.answer_key_path ? (
+                  <button
+                    type="button"
+                    onClick={() => handleViewArtifact("ANSWER_KEY")}
+                    className="btn-glass-utility h-8 px-2.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 hover:border-emerald-400 transition-colors cursor-pointer shadow-2xs"
+                    title="View Answer Key"
+                  >
+                    <KeyRound className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Answer Key</span>
+                    <Eye className="h-3 w-3 text-ink-muted" />
+                  </button>
+                ) : currentUser?.role === "ROOT_ADMIN" ? (
+                  <button
+                    type="button"
+                    onClick={() => setUploadAkOpen(true)}
+                    className="btn-glass-utility h-8 px-2.5 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 hover:border-amber-400 transition-colors cursor-pointer shadow-2xs"
+                    title="Upload Official Answer Key"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Upload Answer Key</span>
+                  </button>
+                ) : (
+                  <span className="text-ink-faint text-xs py-1">Key: Pending Admin</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1351,13 +1347,13 @@ export default function ExamDetailPage() {
       <FeatureCard className="p-0 overflow-hidden border-hairline bg-surface">
         {/* TOP UNIFIED HEADER TOOLBAR - LOCKED POSITION ACROSS BOTH TABS */}
         <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-hairline bg-surface">
-          {/* Left: View Switcher Pill Toggle */}
+          {/* Left: View Switcher Segmented Tabs */}
           <div className="flex items-center gap-3">
-            <div className="inline-flex items-center p-1 rounded-xl bg-canvas-soft border border-hairline shadow-inner">
+            <div className="inline-flex items-center p-0.5 rounded-md bg-canvas-soft border border-hairline">
               <button
                 type="button"
                 onClick={() => setSubmissionViewMode("roster")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold transition-all cursor-pointer ${
                   submissionViewMode === "roster"
                     ? "bg-surface text-ink shadow-2xs border border-hairline/80"
                     : "text-ink-muted hover:text-ink border border-transparent"
@@ -1369,7 +1365,7 @@ export default function ExamDetailPage() {
               <button
                 type="button"
                 onClick={() => setSubmissionViewMode("ranked")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold transition-all cursor-pointer ${
                   submissionViewMode === "ranked"
                     ? "bg-surface text-ink shadow-2xs border border-hairline/80"
                     : "text-ink-muted hover:text-ink border border-transparent"
@@ -1391,7 +1387,7 @@ export default function ExamDetailPage() {
                 placeholder="Search student or roll #..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-7 h-8.5 text-xs rounded-lg border border-hairline bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-ink placeholder:text-ink-muted w-44 sm:w-52 transition-all shadow-2xs"
+                className="pl-8 pr-7 h-9 text-xs rounded-md border border-hairline bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-ink placeholder:text-ink-muted w-44 sm:w-52 transition-all shadow-2xs"
               />
               {searchTerm && (
                 <button
@@ -1410,7 +1406,7 @@ export default function ExamDetailPage() {
               <select
                 value={scoreFilter}
                 onChange={(e: any) => setScoreFilter(e.target.value)}
-                className="h-8.5 text-xs rounded-lg border border-hairline bg-surface px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
+                className="h-9 text-xs rounded-md border border-hairline bg-surface dark:bg-[#202020] px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
               >
                 <option value="ALL">All Scores</option>
                 <option value="TOP">Distinction (≥75%)</option>
@@ -1421,7 +1417,7 @@ export default function ExamDetailPage() {
               <select
                 value={rankedBracket}
                 onChange={(e: any) => setRankedBracket(e.target.value)}
-                className="h-8.5 text-xs rounded-lg border border-hairline bg-surface px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
+                className="h-9 text-xs rounded-md border border-hairline bg-surface dark:bg-[#202020] px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
               >
                 <option value="ALL">All Ranked ({stats.completed})</option>
                 <option value="TOP10">Top 10</option>
@@ -1435,7 +1431,7 @@ export default function ExamDetailPage() {
               <select
                 value={sortBy}
                 onChange={(e: any) => setSortBy(e.target.value)}
-                className="h-8.5 text-xs rounded-lg border border-hairline bg-surface px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
+                className="h-9 text-xs rounded-md border border-hairline bg-surface dark:bg-[#202020] px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
               >
                 <option value="roll">Sort: Roll Number</option>
                 <option value="marks_desc">Sort: Highest Marks</option>
@@ -1448,7 +1444,7 @@ export default function ExamDetailPage() {
             <button
               type="button"
               onClick={submissionViewMode === "roster" ? handleExportRosterCSV : handleExportRankedCSV}
-              className="btn-glass-utility h-8.5 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="btn-glass-utility h-9 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
               title={submissionViewMode === "roster" ? "Export roster list as CSV" : "Export ranked leaderboard as CSV"}
             >
               <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
@@ -1464,7 +1460,7 @@ export default function ExamDetailPage() {
                 loadExamData(false, true);
               }}
               disabled={isRefreshing}
-              className="btn-glass-utility h-8.5 px-2.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="btn-glass-utility h-9 px-2.5 rounded-md text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
               title="Refresh ledger in real time"
             >
               <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin text-primary" : "text-ink-muted"}`} />
@@ -1477,7 +1473,7 @@ export default function ExamDetailPage() {
                 type="button"
                 onClick={handleClearAllExamReviews}
                 disabled={isBulkClearing}
-                className="h-8.5 px-2.5 rounded-lg text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 inline-flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                className="h-9 px-2.5 rounded-md text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 inline-flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
                 title="Unflag all flagged papers in this exam at once and mark them Completed"
               >
                 {isBulkClearing ? (

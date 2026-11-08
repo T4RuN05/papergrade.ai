@@ -238,9 +238,10 @@ export interface BadgePillProps {
   label: string;
   color?: StickerColor;
   className?: string;
+  rounded?: "md" | "sm" | "full";
 }
 
-export function BadgePill({ label, color = "gray", className = "" }: BadgePillProps) {
+export function BadgePill({ label, color = "gray", rounded = "md", className = "" }: BadgePillProps) {
   const colorMap: Record<StickerColor, string> = {
     green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     teal: "bg-[#eaf4f3] text-[#165651] border-[#c4e2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
@@ -253,9 +254,11 @@ export function BadgePill({ label, color = "gray", className = "" }: BadgePillPr
     red: "bg-[#faeeee] text-[#7c2626] border-[#f0c4c4] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#2a1313] dark:text-[#f28b82] dark:border-[#4a1f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
   };
 
+  const roundedClass = rounded === "full" ? "rounded-full" : rounded === "sm" ? "rounded-sm" : "rounded-md";
+
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${colorMap[color]} ${className}`}
+      className={`inline-flex items-center px-2 py-0.5 ${roundedClass} text-xs font-semibold border whitespace-nowrap ${colorMap[color]} ${className}`}
     >
       {label}
     </span>
