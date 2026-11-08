@@ -531,7 +531,8 @@ class GeminiGradingClient:
                             self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
                             break
                         self.rotate_to_next_key(worker_id=0, reason=f"Rate limit / unavailability: {e}")
-                        time.sleep(0.5)
+                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
+                        time.sleep(failover_delay)
                         continue
 
                     if attempt == max_attempts - 1:
@@ -760,7 +761,8 @@ class GeminiGradingClient:
                             self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
                             break
                         self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
-                        time.sleep(0.5)
+                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
+                        time.sleep(failover_delay)
                         continue
 
                     if attempt == max_attempts - 1:
@@ -933,7 +935,8 @@ class GeminiGradingClient:
                             self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
                             break
                         self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
-                        time.sleep(0.5)
+                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
+                        time.sleep(failover_delay)
                         continue
 
                     if attempt == max_attempts - 1:
