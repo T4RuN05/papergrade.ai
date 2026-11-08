@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill, MathText, hasLatexMath } from "./ui";
+import { BadgePill, MathText, hasLatexMath, ButtonPrimary, ButtonUtility, StatusWell } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface GradingModalProps {
@@ -426,20 +426,20 @@ export function GradingModal({
                                       onAdjustOnCanvas(answer, activePage || undefined);
                                     }
                                   }}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active hover:underline cursor-pointer transition-colors"
+                                  className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-all"
                                   title="Close modal and adjust box handles directly on canvas"
                                 >
-                                  <Move className="h-3 w-3" />
+                                  <Move className="h-3 w-3 text-primary" />
                                   {allRegions.length === 0 ? "Place Box" : "Adjust Box"}
                                 </button>
                                 <div className="relative">
                                   <button
                                     type="button"
                                     onClick={() => setShowAddPageDropdown((prev) => !prev)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#165651] bg-[#eaf4f3] border border-[#c4e2df] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a] px-2 py-0.5 rounded-md hover:opacity-90 transition-all cursor-pointer shadow-2xs"
+                                    className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-all"
                                     title="Add an additional bounding box continuation on another sheet"
                                   >
-                                    <Plus className="h-3 w-3" />
+                                    <Plus className="h-3 w-3 text-[#165651] dark:text-[#80cbc4]" />
                                     <span>Add Sheet</span>
                                   </button>
                                   {showAddPageDropdown && (
@@ -492,10 +492,10 @@ export function GradingModal({
                                 key={reg.id || rIdx}
                                 type="button"
                                 onClick={() => setSelectedRegionIndex(rIdx)}
-                                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all whitespace-nowrap ${
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer ${
                                   selectedRegionIndex === rIdx
-                                    ? "bg-primary text-white shadow-xs font-bold"
-                                    : "bg-canvas-soft border border-hairline text-ink-secondary hover:bg-surface hover:text-ink"
+                                    ? "btn-glass-primary font-bold"
+                                    : "btn-glass-utility"
                                 }`}
                               >
                                 Part {rIdx + 1} (Page {reg.page_number})
@@ -612,19 +612,22 @@ export function GradingModal({
                   Approved Marking Criteria Breakdown
                 </h4>
 
-                <div className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/25 bg-amber-500/5 text-xs">
-                  <span className="flex items-center gap-2 text-ink-muted">
-                    <Wand2 className="h-4 w-4 text-amber-500 shrink-0" />
-                    <span>Grading too strict or student used an alternate derivation?</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("reeval")}
-                    className="text-amber-600 dark:text-amber-400 font-bold hover:underline shrink-0 ml-2 cursor-pointer"
-                  >
-                    AI Second Opinion &rarr;
-                  </button>
-                </div>
+                <StatusWell
+                  variant="amber"
+                  icon={<Wand2 className="h-3.5 w-3.5 text-amber-500" />}
+                  title="Alternate derivation or strict evaluation?"
+                  description="Request targeted second opinion on handwriting crop with custom teacher hints."
+                  badge={
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("reeval")}
+                      className="btn-glass-amber px-2.5 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>AI Second Opinion</span>
+                      <span>&rarr;</span>
+                    </button>
+                  }
+                />
 
                 {criterionScores.length === 0 ? (
                   <p className="text-xs text-ink-muted py-4 text-center">
@@ -709,14 +712,14 @@ export function GradingModal({
                       {Math.round((answer.transcription_uncertainty || 0) * 100)}%
                     </span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-[#f1f1ef] overflow-hidden">
+                  <div className="h-1.5 w-full rounded-full bg-canvas-soft border border-hairline overflow-hidden">
                     <div
-                      className={`h-full ${
+                      className={`h-full transition-all duration-300 ${
                         (answer.transcription_uncertainty || 0) > 0.4
-                          ? "bg-rose-500"
+                          ? "bg-[#872323] dark:bg-[#e87878]"
                           : (answer.transcription_uncertainty || 0) > 0.15
-                          ? "bg-amber-500"
-                          : "bg-emerald-500"
+                          ? "bg-[#7a4e18] dark:bg-[#e5ad68]"
+                          : "bg-[#1e613b] dark:bg-[#86d4a4]"
                       }`}
                       style={{ width: `${Math.round((answer.transcription_uncertainty || 0) * 100)}%` }}
                     />
@@ -730,14 +733,14 @@ export function GradingModal({
                       {Math.round((answer.grading_uncertainty || 0) * 100)}%
                     </span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-[#f1f1ef] overflow-hidden">
+                  <div className="h-1.5 w-full rounded-full bg-canvas-soft border border-hairline overflow-hidden">
                     <div
-                      className={`h-full ${
+                      className={`h-full transition-all duration-300 ${
                         (answer.grading_uncertainty || 0) > 0.4
-                          ? "bg-rose-500"
+                          ? "bg-[#872323] dark:bg-[#e87878]"
                           : (answer.grading_uncertainty || 0) > 0.15
-                          ? "bg-amber-500"
-                          : "bg-emerald-500"
+                          ? "bg-[#7a4e18] dark:bg-[#e5ad68]"
+                          : "bg-[#1e613b] dark:bg-[#86d4a4]"
                       }`}
                       style={{ width: `${Math.round((answer.grading_uncertainty || 0) * 100)}%` }}
                     />
@@ -750,26 +753,27 @@ export function GradingModal({
           {activeTab === "reeval" && (
             <div className="space-y-5">
               {/* Context & Description Banner */}
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-3.5 shadow-2xs relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500/80 dark:bg-amber-400/70" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pl-1">
                   <div className="flex items-center gap-2.5">
-                    <span className="p-2 rounded-lg bg-amber-500/15 text-amber-500 shrink-0">
-                      <Wand2 className="h-5 w-5" />
-                    </span>
+                    <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-amber-500 shrink-0">
+                      <Wand2 className="h-4 w-4" />
+                    </div>
                     <div>
                       <h4 className="text-sm font-bold text-ink flex items-center gap-2">
                         Targeted AI Re-evaluation &amp; Second Opinion
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-canvas-soft border border-hairline text-ink-muted">
                           3.5 Flash Lite
                         </span>
                       </h4>
-                      <p className="text-xs text-ink-muted">
-                        Evaluates only this question&apos;s cropped handwriting region across your 22 API keys with low latency.
+                      <p className="text-xs text-ink-muted leading-relaxed">
+                        Evaluates only this question&apos;s cropped handwriting region across your active API key pool with low latency.
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-surface border border-hairline text-ink">
+                  <div className="flex items-center gap-2 self-start sm:self-auto pl-1 sm:pl-0">
+                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-canvas-soft border border-hairline text-ink shadow-2xs">
                       Current: {awardedMarks} / {answer.max_marks} marks
                     </span>
                   </div>
@@ -777,7 +781,7 @@ export function GradingModal({
 
                 {/* Question Statement preview */}
                 {answer.question_text && (
-                  <div className="p-3 rounded-md bg-surface border border-hairline text-xs text-ink leading-relaxed">
+                  <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs text-ink leading-relaxed">
                     <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider block mb-1">
                       Question Statement
                     </span>
@@ -811,7 +815,7 @@ export function GradingModal({
                       onClick={() => {
                         setTeacherGuidancePrompt((prev) => (prev ? `${prev}\n${chip.text}` : chip.text));
                       }}
-                      className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-canvas-soft hover:bg-canvas-soft/80 border border-hairline text-ink transition-colors cursor-pointer"
+                      className="btn-glass-utility px-2.5 py-1 rounded-full text-[11px] font-medium text-ink transition-all cursor-pointer"
                     >
                       {chip.label}
                     </button>
@@ -845,7 +849,7 @@ export function GradingModal({
                     type="button"
                     onClick={handleRunReevaluation}
                     disabled={isReevaluating}
-                    className="inline-flex items-center justify-center gap-2 rounded-full font-semibold text-white text-xs px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 transition-all shadow-sm cursor-pointer"
+                    className="btn-glass-amber inline-flex items-center justify-center gap-2 rounded-md font-semibold text-xs px-5 py-2.5 disabled:opacity-50 cursor-pointer"
                   >
                     {isReevaluating ? (
                       <>
@@ -864,41 +868,34 @@ export function GradingModal({
 
               {/* Proposal Result View (if available) */}
               {reevalResult && (
-                <div className="rounded-xl border border-emerald-500/40 bg-surface p-4 sm:p-5 space-y-4 shadow-sm animate-in fade-in duration-200">
-                  {/* Proposal Header Banner */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                        <span className="text-xs font-bold text-ink">
-                          AI Second Opinion Ready
+                <div className="rounded-xl border border-emerald-500/30 bg-surface p-4 sm:p-5 space-y-4 shadow-sm animate-in fade-in duration-200">
+                  {/* Proposal Header Status Well */}
+                  <StatusWell
+                    variant="green"
+                    icon={<CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                    title="AI Second Opinion Ready"
+                    description={reevalResult.adjustment_summary}
+                    badge={
+                      <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-lg border border-hairline font-mono text-xs self-start sm:self-auto">
+                        <span className="text-ink-muted line-through">
+                          {reevalResult.previous_awarded_marks} / {reevalResult.max_marks}
                         </span>
+                        <ArrowRight className="h-3.5 w-3.5 text-ink-muted" />
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {reevalResult.proposed_awarded_marks} / {reevalResult.max_marks}
+                        </span>
+                        {(() => {
+                          const diff = Number(reevalResult.proposed_awarded_marks) - Number(reevalResult.previous_awarded_marks);
+                          if (diff > 0) {
+                            return <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">+{diff}</span>;
+                          } else if (diff < 0) {
+                            return <span className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">{diff}</span>;
+                          }
+                          return <span className="text-[10px] font-bold text-ink-muted bg-surface px-1.5 py-0.5 rounded">0.0</span>;
+                        })()}
                       </div>
-                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
-                        {reevalResult.adjustment_summary}
-                      </p>
-                    </div>
-
-                    {/* Marks Comparison Diff */}
-                    <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-lg border border-hairline font-mono text-xs self-start sm:self-auto">
-                      <span className="text-ink-muted line-through">
-                        {reevalResult.previous_awarded_marks} / {reevalResult.max_marks}
-                      </span>
-                      <ArrowRight className="h-3.5 w-3.5 text-ink-muted" />
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                        {reevalResult.proposed_awarded_marks} / {reevalResult.max_marks}
-                      </span>
-                      {(() => {
-                        const diff = Number(reevalResult.proposed_awarded_marks) - Number(reevalResult.previous_awarded_marks);
-                        if (diff > 0) {
-                          return <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">+{diff}</span>;
-                        } else if (diff < 0) {
-                          return <span className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">{diff}</span>;
-                        }
-                        return <span className="text-[10px] font-bold text-ink-muted bg-surface px-1.5 py-0.5 rounded">0.0</span>;
-                      })()}
-                    </div>
-                  </div>
+                    }
+                  />
 
                   {/* Proposed Criteria Breakdown */}
                   {reevalResult.proposed_criteria_scores && reevalResult.proposed_criteria_scores.length > 0 && (
@@ -962,17 +959,19 @@ export function GradingModal({
 
                   {/* Apply / Discard Actions */}
                   <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-hairline">
-                    <button
+                    <ButtonUtility
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setReevalResult(null)}
-                      className="px-4 py-2 rounded-lg text-xs font-medium text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors w-full sm:w-auto text-center cursor-pointer"
+                      className="w-full sm:w-auto text-center"
                     >
                       Discard Proposal
-                    </button>
+                    </ButtonUtility>
                     <button
                       type="button"
                       onClick={handleApplyReevaluation}
-                      className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-full text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm w-full sm:w-auto cursor-pointer"
+                      className="btn-glass-emerald inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white w-full sm:w-auto cursor-pointer"
                     >
                       <Check className="h-4 w-4" />
                       Apply Proposal to Modal &amp; Review
@@ -1056,14 +1055,14 @@ export function GradingModal({
             <button
               type="button"
               onClick={() => setActiveTab("reeval")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "reeval"
-                  ? "bg-amber-500 text-white border-amber-600 shadow-xs"
-                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                  ? "btn-glass-amber"
+                  : "btn-glass-utility text-ink hover:text-ink"
               }`}
               title="Open targeted AI Second Opinion re-evaluator"
             >
-              <Wand2 className="h-3.5 w-3.5" />
+              <Wand2 className="h-3.5 w-3.5 text-amber-500" />
               <span>AI Second Opinion</span>
             </button>
           </div>
@@ -1078,30 +1077,26 @@ export function GradingModal({
               className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none w-full sm:w-56 shadow-2xs"
             />
 
-            <button
+            <ButtonPrimary
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className={`inline-flex items-center justify-center font-medium rounded-full text-white text-xs px-4 py-2 transition-all shadow-sm w-full sm:w-auto shrink-0 cursor-pointer ${
-                saveSuccess
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : "bg-primary hover:bg-primary-active disabled:opacity-50"
-              }`}
+              isLoading={isSaving}
+              size="sm"
+              className={`w-full sm:w-auto shrink-0 ${saveSuccess ? "btn-glass-emerald" : ""}`}
             >
               {saveSuccess ? (
                 <>
                   <Check className="h-4 w-4 mr-1.5" />
                   Saved!
                 </>
-              ) : isSaving ? (
-                <span>Saving...</span>
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-1.5" />
                   Save & Update Marks
                 </>
               )}
-            </button>
+            </ButtonPrimary>
           </div>
         </div>
       </div>

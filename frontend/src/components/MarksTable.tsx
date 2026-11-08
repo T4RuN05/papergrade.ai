@@ -105,9 +105,9 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
           href={api.getMarksCsvUrl(examId, "Examination_Marks_Summary.csv")}
           download="Examination_Marks_Summary.csv"
           onClick={() => toast.info("Exporting class marks matrix CSV...", { title: "CSV Export" })}
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-hairline bg-surface text-xs font-semibold text-ink hover:bg-canvas-soft hover:border-[#d0d0d0] transition-colors shadow-2xs self-stretch sm:self-auto"
+          className="btn-glass-utility inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-ink transition-all self-stretch sm:self-auto cursor-pointer"
         >
-          <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+          <FileSpreadsheet className="h-3.5 w-3.5 text-[#1e613b] dark:text-[#86d4a4]" />
           <span>Export Marks (CSV)</span>
         </a>
       </div>
@@ -190,7 +190,7 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                     <td className="px-4 py-3 font-medium text-ink whitespace-nowrap">
                       {sub.student_name}
                       {Boolean(sub.is_manual_override) && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17]">
                           Edited
                         </span>
                       )}
@@ -212,19 +212,19 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                           className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap"
                         >
                           {ans.needs_review ? (
-                            <span className="inline-flex px-1.5 py-0.5 rounded font-bold text-purple-700 bg-purple-50 border border-purple-200">
+                            <span className="inline-flex px-1.5 py-0.5 rounded font-bold text-[#553578] dark:text-[#bf9fe3] bg-[#f4f0f8] dark:bg-[#1f162a] border border-[#dcd0ea] dark:border-[#38264e]">
                               {ans.awarded_marks}
                             </span>
                           ) : ans.awarded_marks >= ans.max_marks ? (
-                            <span className="font-bold text-emerald-600">
+                            <span className="font-bold text-[#1e613b] dark:text-[#86d4a4]">
                               {ans.awarded_marks}
                             </span>
                           ) : ans.awarded_marks > 0 ? (
-                            <span className="font-semibold text-amber-700">
+                            <span className="font-semibold text-[#7a4e18] dark:text-[#e5ad68]">
                               {ans.awarded_marks}
                             </span>
                           ) : (
-                            <span className="text-ink-muted">
+                            <span className="text-[#872323] dark:text-[#e87878] font-medium">
                               {ans.awarded_marks}
                             </span>
                           )}
@@ -252,7 +252,7 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {sub.status === "ABSENT" || (sub as any).is_absent ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-[#872323] bg-[#fbf0f0] border border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f]">
                           No Submission
                         </span>
                       ) : Boolean(
@@ -263,7 +263,7 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                       ) ? (
                         <Link
                           href={`/grading/${sub.id}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-primary hover:bg-primary/10 border border-primary/20 transition-colors"
+                          className="btn-glass-utility inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-primary transition-all"
                         >
                           <span>Inspect Paper</span>
                           <ExternalLink className="h-3 w-3" />

@@ -989,39 +989,39 @@ export function DocumentViewer({
   const getStatusColor = (ans: GradedAnswer) => {
     if (ans.needs_review) {
       return {
-        border: "border-purple-500",
-        bg: "bg-purple-500/10 hover:bg-purple-500/20",
-        badge: "bg-purple-600 text-white",
-        text: "text-purple-700",
+        border: "border-[#553578] dark:border-[#bf9fe3]",
+        bg: "bg-[#f4f0f8]/40 hover:bg-[#f4f0f8]/70 dark:bg-[#1f162a]/30 dark:hover:bg-[#1f162a]/50",
+        badge: "bg-[#553578] text-white dark:bg-[#1f162a] dark:text-[#bf9fe3] dark:border dark:border-[#38264e] shadow-2xs",
+        text: "text-[#553578] dark:text-[#bf9fe3]",
         icon: Flag,
         statusLabel: "Needs Review",
       };
     }
     if (ans.awarded_marks >= ans.max_marks && ans.max_marks > 0) {
       return {
-        border: "border-emerald-600",
-        bg: "bg-emerald-500/10 hover:bg-emerald-500/20",
-        badge: "bg-emerald-600 text-white",
-        text: "text-emerald-700",
+        border: "border-[#1e613b] dark:border-[#86d4a4]",
+        bg: "bg-[#edf5f0]/40 hover:bg-[#edf5f0]/70 dark:bg-[#13231a]/30 dark:hover:bg-[#13231a]/50",
+        badge: "bg-[#1e613b] text-white dark:bg-[#13231a] dark:text-[#86d4a4] dark:border dark:border-[#1d3d2a] shadow-2xs",
+        text: "text-[#1e613b] dark:text-[#86d4a4]",
         icon: CheckCircle2,
         statusLabel: "Full Marks",
       };
     }
     if (ans.awarded_marks > 0) {
       return {
-        border: "border-amber-600",
-        bg: "bg-amber-500/10 hover:bg-amber-500/20",
-        badge: "bg-amber-600 text-white",
-        text: "text-amber-800",
+        border: "border-[#7a4e18] dark:border-[#e5ad68]",
+        bg: "bg-[#faf4ec]/40 hover:bg-[#faf4ec]/70 dark:bg-[#241a10]/30 dark:hover:bg-[#241a10]/50",
+        badge: "bg-[#7a4e18] text-white dark:bg-[#241a10] dark:text-[#e5ad68] dark:border dark:border-[#422c17] shadow-2xs",
+        text: "text-[#7a4e18] dark:text-[#e5ad68]",
         icon: AlertTriangle,
         statusLabel: "Partial Marks",
       };
     }
     return {
-      border: "border-rose-600",
-      bg: "bg-rose-500/10 hover:bg-rose-500/20",
-      badge: "bg-rose-600 text-white",
-      text: "text-rose-700",
+      border: "border-[#872323] dark:border-[#e87878]",
+      bg: "bg-[#fbf0f0]/40 hover:bg-[#fbf0f0]/70 dark:bg-[#261212]/30 dark:hover:bg-[#261212]/50",
+      badge: "bg-[#872323] text-white dark:bg-[#261212] dark:text-[#e87878] dark:border dark:border-[#491f1f] shadow-2xs",
+      text: "text-[#872323] dark:text-[#e87878]",
       icon: XCircle,
       statusLabel: "Incorrect",
     };
@@ -1038,19 +1038,19 @@ export function DocumentViewer({
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="hidden sm:inline-flex rounded p-1 sm:p-1.5 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40 transition-colors cursor-pointer"
+            className="hidden sm:inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
             title="Previous Page"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-xs font-semibold text-ink">
-            Page <span className="text-primary font-bold">{currentPage}</span> of{" "}
-            <span className="text-ink">{Math.max(1, pageCount)}</span>
+          <span className="text-xs font-semibold text-ink px-1.5">
+            Page <span className="text-primary font-bold font-mono">{currentPage}</span> of{" "}
+            <span className="text-ink font-mono">{Math.max(1, pageCount)}</span>
           </span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))}
             disabled={currentPage >= pageCount}
-            className="hidden sm:inline-flex rounded p-1 sm:p-1.5 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-40 transition-colors cursor-pointer"
+            className="hidden sm:inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
             title="Next Page"
           >
             <ChevronRight className="h-4 w-4" />
@@ -1058,15 +1058,15 @@ export function DocumentViewer({
 
           {/* Quick page pills */}
           {pageCount > 1 && (
-            <div className="hidden sm:flex items-center gap-1 ml-2">
+            <div className="hidden sm:flex items-center gap-1 ml-1.5">
               {Array.from({ length: pageCount }).map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setCurrentPage(i + 1)}
-                  className={`h-6 w-6 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                  className={`h-6 w-6 rounded-md text-[11px] font-semibold transition-all cursor-pointer font-mono ${
                     currentPage === i + 1
-                      ? "bg-primary text-white shadow-xs font-bold"
-                      : "bg-surface border border-hairline text-ink-secondary hover:bg-canvas-soft hover:text-ink"
+                      ? "btn-glass-primary font-bold"
+                      : "btn-glass-utility text-ink-secondary"
                   }`}
                 >
                   {i + 1}
@@ -1082,7 +1082,7 @@ export function DocumentViewer({
             <button
               type="button"
               onClick={() => setShowAddBoxDropdown((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-hairline hover:border-primary text-xs font-semibold text-ink hover:text-primary transition-all shadow-2xs cursor-pointer"
+              className="btn-glass-utility inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-ink transition-all cursor-pointer"
               title={`Add bounding box for any question on Page ${currentPage}`}
             >
               <Plus className="h-3.5 w-3.5 text-primary" />
@@ -1202,10 +1202,10 @@ export function DocumentViewer({
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500"></span> Partial
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500"></span> Incorrect
+            <span className="h-2 w-2 rounded-full bg-[#872323]"></span> Incorrect
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-purple-600"></span> Review
+            <span className="h-2 w-2 rounded-full bg-[#553578]"></span> Review
           </span>
         </div>
 
@@ -1213,10 +1213,10 @@ export function DocumentViewer({
         <button
           type="button"
           onClick={() => setShowAnnotations((prev) => !prev)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer shadow-2xs ${
+          className={`btn-glass-utility flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
             showAnnotations
-              ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
-              : "bg-surface border-hairline text-ink-muted hover:text-ink hover:bg-canvas-soft"
+              ? "text-primary"
+              : "text-ink-muted opacity-80"
           }`}
           title={showAnnotations ? "Hide bounding boxes & annotations" : "Show bounding boxes & annotations"}
           aria-label={showAnnotations ? "Hide annotations" : "Show annotations"}
@@ -1230,7 +1230,7 @@ export function DocumentViewer({
         </button>
 
         {/* Zoom Controls */}
-        <div className="flex items-center gap-1 bg-surface rounded-md p-0.5 sm:p-1 border border-hairline shadow-2xs">
+        <div className="flex items-center gap-0.5 bg-surface rounded-md p-0.5 border border-hairline shadow-2xs">
           <button
             onClick={handleZoomOut}
             className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink transition-colors cursor-pointer"
@@ -1238,7 +1238,7 @@ export function DocumentViewer({
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
-          <span className="px-1.5 sm:px-2 font-mono text-[11px] sm:text-xs font-medium text-ink min-w-[2.5rem] sm:min-w-[3rem] text-center">
+          <span className="px-1.5 font-mono text-[11px] font-semibold text-ink min-w-[2.75rem] text-center select-none">
             {Math.round(zoomScale * 100)}%
           </span>
           <button
@@ -1800,7 +1800,7 @@ export function DocumentViewer({
                           type="button"
                           onClick={() => handleSaveRegion(region.id || answer.id, coords, answer.id)}
                           disabled={savingRegionId === (region.id || answer.id)}
-                          className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-primary text-white text-[11px] font-semibold hover:bg-primary-active transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                          className="btn-glass-primary flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all disabled:opacity-50 cursor-pointer"
                         >
                           {savingRegionId === (region.id || answer.id) ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1812,7 +1812,7 @@ export function DocumentViewer({
                         <button
                           type="button"
                           onClick={() => handleRevertRegion(regId)}
-                          className="flex items-center gap-1 p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors text-[11px] cursor-pointer"
+                          className="btn-glass-utility flex items-center gap-1 px-2 py-0.5 rounded text-ink-secondary text-[11px] cursor-pointer"
                           title="Revert to original AI position"
                         >
                           <RotateCcw className="h-3 w-3" />
@@ -1836,7 +1836,7 @@ export function DocumentViewer({
                             handleExitEditMode();
                           }
                         }}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors text-[11px] font-medium cursor-pointer ml-1"
+                        className="btn-glass-utility flex items-center gap-1 px-2 py-0.5 rounded text-rose-600 hover:text-rose-700 transition-colors text-[11px] font-medium cursor-pointer ml-1"
                         title="Delete this bounding box region"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -1846,7 +1846,7 @@ export function DocumentViewer({
                     <button
                       type="button"
                       onClick={(e) => handleExitEditMode(e, regId)}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors text-[11px] font-medium cursor-pointer ml-1"
+                      className="btn-glass-utility flex items-center gap-1 px-2 py-0.5 rounded text-ink-muted hover:text-ink transition-colors text-[11px] font-medium cursor-pointer ml-1"
                       title="Exit edit mode"
                     >
                       <X className="h-3 w-3" />

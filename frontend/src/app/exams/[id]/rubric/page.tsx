@@ -8,7 +8,7 @@ import { api, clearApiCache, getCached } from "@/lib/api";
 import { Exam, ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { RubricEditor } from "@/components/RubricEditor";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, RubricSkeleton } from "@/components/ui";
+import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, StatusWell, RubricSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 
@@ -172,20 +172,21 @@ export default function ExamRubricPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {showNoKeyBanner && (
-        <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>
-              <strong>Answer Key not yet uploaded:</strong>{" "}
-              {currentUser?.role === "ROOT_ADMIN"
-                ? "You can edit criteria manually below, or upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI."
-                : "A Root Admin must upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI. You can review or manually edit criteria below."}
-            </span>
-          </div>
-          <ButtonUtility href={`/exams/${examId}`} className="shrink-0 self-start sm:self-auto bg-surface">
-            {currentUser?.role === "ROOT_ADMIN" ? "Upload Key on Exam Page →" : "View Exam Page →"}
-          </ButtonUtility>
-        </div>
+        <StatusWell
+          variant="amber"
+          icon={<AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
+          title="Answer Key not yet uploaded"
+          description={
+            currentUser?.role === "ROOT_ADMIN"
+              ? "You can edit criteria manually below, or upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI."
+              : "A Root Admin must upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI. You can review or manually edit criteria below."
+          }
+          badge={
+            <ButtonUtility href={`/exams/${examId}`} size="sm" className="shrink-0 self-start sm:self-auto">
+              {currentUser?.role === "ROOT_ADMIN" ? "Upload Key on Exam Page →" : "View Exam Page →"}
+            </ButtonUtility>
+          }
+        />
       )}
 
       {isApproved && (

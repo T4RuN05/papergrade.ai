@@ -55,6 +55,7 @@ import {
   ButtonUtility,
   FeatureCard,
   BadgePill,
+  StatusWell,
   ExamDetailSkeleton,
   ModalCard,
   FormInput,
@@ -994,37 +995,33 @@ export default function ExamDetailPage() {
 
         {/* Active Submission Window Live Countdown & Hard Close Banner */}
         {isWindowOpen && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-amber-50/80 border border-amber-200/90 text-amber-950">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-md bg-white/90 border border-amber-200 flex items-center justify-center shrink-0">
-                <Clock className="h-5 w-5 text-amber-600 animate-pulse" />
+          <StatusWell
+            variant="amber"
+            icon={<Clock className="h-4 w-4 text-amber-600 animate-pulse" />}
+            title={
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#7a4e18] dark:text-[#e5ad68]">
+                  Submission Window Active
+                </span>
+                <span className="text-[11px] font-mono font-semibold bg-surface px-2 py-0.5 rounded border border-hairline text-ink">
+                  ⏱ {formatTimer(windowStatus?.seconds_remaining || 0)} remaining
+                </span>
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                    Submission Window Active
-                  </span>
-                  <span className="text-[11px] font-mono font-semibold bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-900">
-                    ⏱ {formatTimer(windowStatus?.seconds_remaining || 0)} remaining
-                  </span>
-                </div>
-                <p className="text-xs text-amber-800 mt-0.5">
-                  Students can submit or replace papers until the timer expires. {submissions.length} submission(s) currently received.
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 flex items-center gap-2 sm:self-center">
-              <button
-                type="button"
+            }
+            description={`Students can submit or replace papers until the timer expires. ${submissions.length} submission(s) currently received.`}
+            badge={
+              <ButtonUtility
+                variant="danger"
+                size="sm"
                 onClick={handleHardCloseWindow}
                 disabled={isClosingWindow}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-white hover:bg-red-50 text-red-700 border border-red-200 hover:border-red-300 shadow-2xs transition-colors cursor-pointer"
+                className="cursor-pointer shadow-2xs"
               >
-                <Square className="h-3.5 w-3.5 text-red-600 fill-red-600" />
+                <Square className="h-3.5 w-3.5 text-red-600 fill-red-600 mr-1" />
                 {isClosingWindow ? "Closing..." : "Close Window"}
-              </button>
-            </div>
-          </div>
+              </ButtonUtility>
+            }
+          />
         )}
 
         {/* Academic Details & Materials Banner */}
@@ -1222,30 +1219,31 @@ export default function ExamDetailPage() {
 
       {/* Evaluation Invariant Checklist Banner when requirements are pending */}
       {!isPublished && !isEvaluating && !canStartEvaluation && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-xs space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-amber-900 flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-amber-700" />
+        <div className="rounded-lg border border-hairline bg-surface p-4 text-xs space-y-3 shadow-2xs relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500/80 dark:bg-amber-400/70" />
+          <div className="flex items-center justify-between pl-1">
+            <span className="font-bold text-ink flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               Evaluation Queue Prerequisites Checklist {unprocessedCount > 0 ? `(${unprocessedCount} papers stored)` : "(Awaiting Submissions & Key)"}
             </span>
-            <span className="text-[11px] text-amber-800 font-medium">Evaluation Invariants</span>
+            <span className="text-[11px] font-mono text-ink-muted">Evaluation Invariants</span>
           </div>
-          <p className="text-[11px] text-amber-800/90 leading-relaxed">
+          <p className="text-[11px] text-ink-muted leading-relaxed pl-1">
             Per examination guidelines, automated evaluation cannot begin while students are still uploading or until the official answer key and locked rubric are verified.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px]">
-            <div className={`p-2.5 rounded-lg border flex items-center justify-between ${!isWindowOpen ? "bg-surface border-emerald-300 text-emerald-800" : "bg-surface border-amber-200 text-amber-900"}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px] pl-1">
+            <div className="p-2.5 rounded-lg border border-hairline bg-canvas-soft flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${!isWindowOpen ? "text-emerald-600" : "text-amber-500"}`} />
-                <span>1. Submission Window</span>
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${!isWindowOpen ? "text-[#1e613b] dark:text-[#86d4a4]" : "text-[#7a4e18] dark:text-[#e5ad68]"}`} />
+                <span className="font-medium text-ink">1. Submission Window</span>
               </div>
               <BadgePill label={!isWindowOpen ? "Closed" : "Active"} color={!isWindowOpen ? "green" : "orange"} />
             </div>
 
-            <div className={`p-2.5 rounded-lg border flex items-center justify-between ${hasAnswerKey ? "bg-surface border-emerald-300 text-emerald-800" : "bg-surface border-amber-200 text-amber-900"}`}>
+            <div className="p-2.5 rounded-lg border border-hairline bg-canvas-soft flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${hasAnswerKey ? "text-emerald-600" : "text-amber-500"}`} />
-                <span>2. Official Answer Key</span>
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${hasAnswerKey ? "text-[#1e613b] dark:text-[#86d4a4]" : "text-[#7a4e18] dark:text-[#e5ad68]"}`} />
+                <span className="font-medium text-ink">2. Official Answer Key</span>
               </div>
               {hasAnswerKey ? (
                 <div className="flex items-center gap-1.5">

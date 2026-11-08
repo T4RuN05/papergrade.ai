@@ -341,16 +341,21 @@ export default function AdminReportsPage() {
             return (
               <div
                 key={report.id}
-                className={`p-4 sm:p-5 rounded-lg border transition-all shadow-2xs space-y-3.5 ${
-                  isOpen
-                    ? "bg-surface border-amber-300 ring-1 ring-amber-100"
-                    : isInProgress
-                    ? "bg-surface border-blue-300 ring-1 ring-blue-100"
-                    : "bg-surface border-hairline"
-                }`}
+                className="p-4 sm:p-5 rounded-lg border border-hairline bg-surface transition-all shadow-2xs space-y-3.5 relative overflow-hidden"
               >
+                {/* Micro Left Accent Indicator */}
+                <div
+                  className={`absolute left-0 top-0 bottom-0 w-1 ${
+                    isOpen
+                      ? "bg-amber-500/80 dark:bg-amber-400/70"
+                      : isInProgress
+                      ? "bg-sky-500/80 dark:bg-sky-400/70"
+                      : "bg-emerald-500/80 dark:bg-emerald-400/70"
+                  }`}
+                />
+
                 {/* Header row: Reporter info + Status */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pl-1">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold text-ink text-sm sm:text-base">
@@ -392,20 +397,15 @@ export default function AdminReportsPage() {
                   </div>
 
                   {/* Status Badge */}
-                  <span
-                    className={`self-start sm:self-auto inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${
-                      isResolved
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                        : isInProgress
-                        ? "bg-blue-50 text-blue-800 border-blue-300"
-                        : "bg-amber-50 text-amber-800 border-amber-300"
-                    }`}
-                  >
-                    {isResolved && <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-600" />}
-                    {isInProgress && <RotateCcw className="h-3.5 w-3.5 mr-1 text-blue-600 animate-spin" />}
-                    {isOpen && <AlertTriangle className="h-3.5 w-3.5 mr-1 text-amber-600" />}
-                    <span>{report.status?.replace("_", " ")}</span>
-                  </span>
+                  <div className="self-start sm:self-auto shrink-0">
+                    {isResolved ? (
+                      <BadgePill label="Resolved" color="green" />
+                    ) : isInProgress ? (
+                      <BadgePill label="In Progress" color="sky" />
+                    ) : (
+                      <BadgePill label="Open" color="orange" />
+                    )}
+                  </div>
                 </div>
 
                 {/* Full Description Box (1000 max chars) */}
@@ -492,10 +492,10 @@ export default function AdminReportsPage() {
                         type="button"
                         onClick={() => handleUpdateStatus(report.id, "OPEN")}
                         disabled={isUpdating || isOpen}
-                        className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer border ${
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                           isOpen
-                            ? "bg-amber-100 text-amber-900 border-amber-300"
-                            : "bg-surface hover:bg-canvas-soft text-ink-secondary border-hairline"
+                            ? "btn-glass-amber"
+                            : "btn-glass-utility text-ink-secondary"
                         }`}
                       >
                         Open
@@ -505,10 +505,10 @@ export default function AdminReportsPage() {
                         type="button"
                         onClick={() => handleUpdateStatus(report.id, "IN_PROGRESS")}
                         disabled={isUpdating || isInProgress}
-                        className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer border ${
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                           isInProgress
-                            ? "bg-blue-100 text-blue-900 border-blue-300"
-                            : "bg-surface hover:bg-canvas-soft text-ink-secondary border-hairline"
+                            ? "btn-glass-primary"
+                            : "btn-glass-utility text-ink-secondary"
                         }`}
                       >
                         In Progress
@@ -519,14 +519,14 @@ export default function AdminReportsPage() {
                       type="button"
                       onClick={() => handleUpdateStatus(report.id, "RESOLVED")}
                       disabled={isUpdating}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                      className="btn-glass-emerald inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
                     >
                       {isUpdating ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
                         <CheckCircle2 className="h-3.5 w-3.5" />
                       )}
-                      <span>Resolve & Notify Reporter</span>
+                      <span>Resolve &amp; Notify Reporter</span>
                     </button>
                   </div>
                 </div>

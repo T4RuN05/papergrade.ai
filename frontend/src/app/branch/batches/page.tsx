@@ -29,6 +29,7 @@ import {
   ButtonUtility,
   FeatureCard,
   BadgePill,
+  StatusWell,
   ModalCard,
   FormInput,
   BatchesRosterSkeleton,
@@ -408,27 +409,28 @@ export default function BranchBatchesPage() {
         </div>
       </div>
 
-      {/* Pending Reset Requests Warning Banner */}
+      {/* Pending Reset Requests Status Well */}
       {pendingResets.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-amber-50/90 border border-amber-300 text-amber-900 shadow-2xs animate-in fade-in">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5 sm:mt-0">
-              <KeyRound className="h-5 w-5" />
+        <StatusWell
+          variant="amber"
+          icon={<KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
+          title={
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>{pendingResets.length} Student Password Reset Request{pendingResets.length > 1 ? "s" : ""} Pending Approval</span>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
             </div>
-            <div className="min-w-0">
-              <div className="font-bold text-xs sm:text-sm text-ink flex items-center gap-2 flex-wrap">
-                <span>{pendingResets.length} Student Password Reset Request{pendingResets.length > 1 ? "s" : ""} Pending Approval</span>
-                <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-              </div>
-              <p className="text-[11px] text-ink-muted break-words">
-                Students are currently waiting live on their login screens for your approval.
-              </p>
-            </div>
-          </div>
-          <ButtonPrimary size="sm" onClick={() => setResetModalOpen(true)} className="shrink-0 w-full sm:w-auto justify-center">
-            Review & Approve
-          </ButtonPrimary>
-        </div>
+          }
+          description="Students are currently waiting live on their login screens for verification."
+          badge={
+            <button
+              type="button"
+              onClick={() => setResetModalOpen(true)}
+              className="btn-glass-amber px-3.5 py-1.5 rounded-md text-xs font-semibold shrink-0 cursor-pointer"
+            >
+              Review &amp; Approve
+            </button>
+          }
+        />
       )}
 
 
