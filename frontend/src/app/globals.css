@@ -765,6 +765,115 @@ body {
   transform: translateY(-0.5px);
 }
 
+/* Crimson/Danger Curved-Glass Utility Button (e.g. Delete, Wipe, Revoke) */
+.btn-glass-danger-utility {
+  position: relative;
+  background: linear-gradient(180deg, #ffffff 0%, #fff7f7 100%);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px 0 rgba(239, 68, 68, 0.08),
+    0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  color: #dc2626;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-glass-danger-utility:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff 0%, #fee2e2 100%);
+  border-color: rgba(220, 38, 38, 0.55);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
+    0 2px 6px -1px rgba(220, 38, 38, 0.18);
+  color: #b91c1c;
+  transform: translateY(-0.5px);
+}
+
+.btn-glass-danger-utility:active:not(:disabled) {
+  background: #fecaca;
+  box-shadow:
+    inset 0 1px 2px 0 rgba(185, 28, 28, 0.15);
+  transform: translateY(0.5px) scale(0.98);
+}
+
+.dark .btn-glass-danger-utility {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.09) 0%, rgba(239, 68, 68, 0.02) 100%), #1c1818;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(239, 68, 68, 0.08),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 3px 0 rgba(0, 0, 0, 0.35);
+  color: #f87171;
+}
+
+.dark .btn-glass-danger-utility:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.06) 100%), #261a1b;
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.24),
+    inset 0 0 0 1px rgba(239, 68, 68, 0.12),
+    0 2px 8px 0 rgba(220, 38, 38, 0.3);
+  color: #fca5a5;
+  transform: translateY(-0.5px);
+}
+
+.dark .btn-glass-danger-utility:active:not(:disabled) {
+  background: #191213;
+  box-shadow:
+    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.5);
+  transform: translateY(0.5px) scale(0.98);
+}
+
+/* Crimson Curved-Glass Solid Button (e.g. Confirm Delete Modal) */
+.btn-glass-danger {
+  position: relative;
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  border: 1px solid rgba(185, 28, 28, 0.55);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
+    0 2px 5px -1px rgba(220, 38, 38, 0.35),
+    0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  color: #ffffff !important;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.25);
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-glass-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
+    0 3px 8px -1px rgba(220, 38, 38, 0.45),
+    0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  transform: translateY(-0.5px);
+}
+
+.btn-glass-danger:active:not(:disabled) {
+  background: linear-gradient(180deg, #b91c1c 0%, #991b1b 100%);
+  box-shadow:
+    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
+    0 1px 2px 0 rgba(0, 0, 0, 0.12);
+  transform: translateY(0.5px) scale(0.98);
+}
+
+.dark .btn-glass-danger {
+  background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
+    0 3px 10px -2px rgba(220, 38, 38, 0.45);
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .btn-glass-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ef4444 0%, #c81e1e 100%);
+  transform: translateY(-0.5px);
+}
+
 /* ==========================================================================
    Notion Dark Mode Systematic Badge & Banner Tone Engine
    Converts all pastel/light badge fills and borders across the platform into

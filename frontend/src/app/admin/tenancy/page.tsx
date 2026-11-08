@@ -321,12 +321,12 @@ export default function TenancyManagementPage() {
 
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                     <ButtonUtility
+                      size="sm"
                       onClick={() => {
                         setActionError(null);
                         setTargetInstId(inst.id);
                         setIsBranchModalOpen(true);
                       }}
-                      className="font-semibold py-1.5 px-3 text-xs"
                     >
                       <Plus className="h-3.5 w-3.5 mr-1 text-primary" />
                       Add Physical Branch
@@ -889,7 +889,7 @@ export default function TenancyManagementPage() {
               </ButtonUtility>
 
               <ButtonUtility
-                variant="danger"
+                variant="danger-solid"
                 size="md"
                 onClick={handleDeleteInstitute}
                 disabled={

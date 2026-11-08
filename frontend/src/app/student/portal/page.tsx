@@ -2369,25 +2369,7 @@ export default function StudentPortalPage() {
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <StatusWell
-                      variant="amber"
-                      icon={<Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
-                      title={
-                        <>
-                          <span>Evaluation in Progress</span>
-                          <span className="font-mono text-[10px] text-ink-muted font-normal">• MARKS_PENDING</span>
-                        </>
-                      }
-                      badge={
-                        <span className="font-mono text-[10px] sm:text-[10.5px] font-medium text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-md border border-hairline shrink-0">
-                          PENDING PUBLICATION
-                        </span>
-                      }
-                    >
-                      Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty.
-                    </StatusWell>
-                  )}
+                  ) : null}
 
                   {/* Actions Row */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
@@ -3036,24 +3018,7 @@ export default function StudentPortalPage() {
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <StatusWell
-                        variant="amber"
-                        icon={<Clock className="h-3.5 w-3.5 text-[#e5ad68]" />}
-                        title={
-                          <div className="flex items-center gap-1.5">
-                            <span>Evaluation in Progress</span>
-                            <span className="font-mono text-[10px] text-ink-muted font-normal">• Marks Hidden</span>
-                          </div>
-                        }
-                        description="Your answer sheet has been recorded and is undergoing academic evaluation. Marks will be visible once published by faculty."
-                        badge={
-                          <span className="font-mono text-[10px] sm:text-[10.5px] font-medium text-ink-muted bg-canvas-soft px-2.5 py-1 rounded-md border border-hairline shrink-0">
-                            Pending Publication
-                          </span>
-                        }
-                      />
-                    )}
+                    ) : null}
 
                     {/* Actions Row */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">

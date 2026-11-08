@@ -73,7 +73,7 @@ export function ButtonPrimary({
 
 export interface ButtonUtilityProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: "default" | "danger" | "ghost";
+  variant?: "default" | "danger" | "danger-solid" | "ghost";
   size?: "sm" | "md" | "lg";
   href?: string;
 }
@@ -89,12 +89,13 @@ export function ButtonUtility({
 }: ButtonUtilityProps) {
   const variantClasses = {
     default: "btn-glass-utility",
-    danger: "bg-surface border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 active:bg-red-100",
+    danger: "btn-glass-danger-utility",
+    "danger-solid": "btn-glass-danger",
     ghost: "bg-transparent text-ink-secondary hover:bg-canvas-soft",
   }[variant];
 
   const sizeClasses = {
-    sm: "h-8 px-3.5 text-xs font-medium rounded-md",
+    sm: "h-8 px-3.5 text-xs font-semibold rounded-md",
     md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-semibold rounded-md",
     lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-semibold rounded-lg",
   }[size];

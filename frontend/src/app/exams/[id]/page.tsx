@@ -2039,7 +2039,7 @@ export default function ExamDetailPage() {
                 type="button"
                 onClick={handleDeleteExam}
                 disabled={isDeletingExam || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
-                className="inline-flex items-center justify-center px-4 py-2 rounded-md text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs cursor-pointer"
+                className="btn-glass-danger inline-flex items-center justify-center px-4 py-2 rounded-md text-xs font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
               >
                 {isDeletingExam ? (
                   <>
