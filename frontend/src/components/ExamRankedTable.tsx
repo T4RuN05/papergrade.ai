@@ -35,6 +35,123 @@ export interface ExamRankedItem {
   is_current_student?: boolean;
 }
 
+export function computeRankedSubmissions(
+  submissions: ExamRankedItem[],
+  maxMarks: number = 25,
+  currentStudentRoll: string = "",
+  currentStudentId: string = ""
+) {
+  const evaluatedSubmissions = submissions.filter((s) => {
+    const mark = s.total_awarded_marks ?? s.score;
+    return mark !== null && mark !== undefined && s.status?.toUpperCase() !== "FAILED";
+  });
+
+  const sorted = [...evaluatedSubmissions].sort((a, b) => {
+    const marksA = Number(a.total_awarded_marks ?? a.score ?? 0);
+    const marksB = Number(b.total_awarded_marks ?? b.score ?? 0);
+    if (Math.abs(marksB - marksA) > 0.001) return marksB - marksA;
+
+    const pctA = Number(a.percentage ?? 0);
+    const pctB = Number(b.percentage ?? 0);
+    if (Math.abs(pctB - pctA) > 0.001) return pctB - pctA;
+
+    if (a.roll_number && b.roll_number) {
+      return a.roll_number.localeCompare(b.roll_number, undefined, { numeric: true });
+    }
+    return (a.student_name || "").localeCompare(b.student_name || "");
+  });
+
+  let currentDenseRank = 1;
+  return sorted.map((sub, idx, arr) => {
+    const currentScore = Number(sub.total_awarded_marks ?? sub.score ?? 0);
+    if (idx > 0) {
+      const prevScore = Number(arr[idx - 1].total_awarded_marks ?? arr[idx - 1].score ?? 0);
+      if (Math.abs(currentScore - prevScore) > 0.001) {
+        currentDenseRank += 1;
+      }
+    }
+
+    const totalStudents = arr.length;
+    const percentile =
+      totalStudents > 1
+        ? Math.max(0, Math.min(100, Math.round(((totalStudents - idx) / totalStudents) * 100)))
+        : 100;
+
+    const isCurrentStudent =
+      Boolean(sub.is_current_student) ||
+      Boolean(currentStudentRoll && sub.roll_number && sub.roll_number.toLowerCase() === currentStudentRoll.toLowerCase()) ||
+      Boolean(currentStudentId && sub.student_id && String(sub.student_id) === String(currentStudentId));
+
+    return {
+      ...sub,
+      rank: sub.rank || currentDenseRank,
+      percentile,
+      isCurrentStudent,
+      effectiveMaxMarks: sub.max_marks || maxMarks || 25,
+      effectiveScore: currentScore,
+      effectivePercentage: Number(sub.percentage ?? (currentScore / (sub.max_marks || maxMarks || 25)) * 100),
+    };
+  });
+}
+
+export function exportRankedStandingsCSV(
+  examTitle: string,
+  rankedAll: ReturnType<typeof computeRankedSubmissions>
+): boolean {
+  if (rankedAll.length === 0) return false;
+
+  const headers = ["Rank", "Roll Number", "Student Name", "Marks Awarded", "Max Marks", "Percentage", "Percentile", "Status"];
+  const rows = rankedAll.map((r) => [
+    r.rank,
+    `"${r.roll_number || ""}"`,
+    `"${r.student_name}"`,
+    r.effectiveScore.toFixed(1),
+    r.effectiveMaxMarks,
+    `${r.effectivePercentage.toFixed(1)}%`,
+    `${r.percentile}th`,
+    `"${r.status || "COMPLETED"}"`,
+  ]);
+
+  const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${examTitle.replace(/[^a-z0-9]/gi, "_")}_Ranked_Leaderboard.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+export function exportRosterCSV(
+  examTitle: string,
+  submissions: any[],
+  maxMarks: number = 25
+): boolean {
+  if (submissions.length === 0) return false;
+
+  const headers = ["Roll Number", "Student Name", "Pages", "Marks Awarded", "Max Marks", "Percentage", "Status"];
+  const rows = submissions.map((s) => [
+    `"${s.roll_number || ""}"`,
+    `"${s.student_name || ""}"`,
+    s.page_count || 1,
+    s.total_awarded_marks != null ? Number(s.total_awarded_marks).toFixed(1) : "—",
+    maxMarks,
+    s.percentage != null ? `${Number(s.percentage).toFixed(1)}%` : "—",
+    `"${s.status || "PENDING"}"`,
+  ]);
+
+  const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${examTitle.replace(/[^a-z0-9]/gi, "_")}_Roster_Ledger.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
 interface ExamRankedTableProps {
   examId: string;
   examTitle: string;
@@ -44,6 +161,10 @@ interface ExamRankedTableProps {
   currentStudentRoll?: string;
   currentStudentId?: string;
   onInspectSubmission?: (submissionId: string) => void;
+  hideSummaryCards?: boolean;
+  hideToolbar?: boolean;
+  searchTerm?: string;
+  bracketFilter?: "ALL" | "TOP10" | "DISTINCTION" | "PASS";
 }
 
 export function ExamRankedTable({
@@ -54,72 +175,24 @@ export function ExamRankedTable({
   isStudentView = false,
   currentStudentRoll = "",
   currentStudentId = "",
+  hideSummaryCards = false,
+  hideToolbar = false,
+  searchTerm: propSearchTerm,
+  bracketFilter: propBracketFilter,
 }: ExamRankedTableProps) {
   const { toast } = useToast();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [bracketFilter, setBracketFilter] = useState<"ALL" | "TOP10" | "DISTINCTION" | "PASS">("ALL");
+  const [internalSearchTerm, setInternalSearchTerm] = useState("");
+  const [internalBracketFilter, setInternalBracketFilter] = useState<"ALL" | "TOP10" | "DISTINCTION" | "PASS">("ALL");
 
-  // 1. Filter evaluated submissions with valid marks
-  const evaluatedSubmissions = useMemo(() => {
-    return submissions.filter((s) => {
-      const mark = s.total_awarded_marks ?? s.score;
-      return mark !== null && mark !== undefined && s.status?.toUpperCase() !== "FAILED";
-    });
-  }, [submissions]);
+  const effectiveSearchTerm = propSearchTerm !== undefined ? propSearchTerm : internalSearchTerm;
+  const effectiveBracketFilter = propBracketFilter !== undefined ? propBracketFilter : internalBracketFilter;
 
-  // 2. Compute rankings with DENSE RANKING logic (1, 1, 2, 3...) - never skips ranks on ties!
+  // 1. Compute rankings with DENSE RANKING logic (1, 1, 2, 3...) - never skips ranks on ties!
   const rankedAll = useMemo(() => {
-    // Sort descending by marks, then percentage, then student name
-    const sorted = [...evaluatedSubmissions].sort((a, b) => {
-      const marksA = Number(a.total_awarded_marks ?? a.score ?? 0);
-      const marksB = Number(b.total_awarded_marks ?? b.score ?? 0);
-      if (Math.abs(marksB - marksA) > 0.001) return marksB - marksA;
+    return computeRankedSubmissions(submissions, maxMarks, currentStudentRoll, currentStudentId);
+  }, [submissions, maxMarks, currentStudentRoll, currentStudentId]);
 
-      const pctA = Number(a.percentage ?? 0);
-      const pctB = Number(b.percentage ?? 0);
-      if (Math.abs(pctB - pctA) > 0.001) return pctB - pctA;
-
-      if (a.roll_number && b.roll_number) {
-        return a.roll_number.localeCompare(b.roll_number, undefined, { numeric: true });
-      }
-      return (a.student_name || "").localeCompare(b.student_name || "");
-    });
-
-    let currentDenseRank = 1;
-    return sorted.map((sub, idx, arr) => {
-      const currentScore = Number(sub.total_awarded_marks ?? sub.score ?? 0);
-      if (idx > 0) {
-        const prevScore = Number(arr[idx - 1].total_awarded_marks ?? arr[idx - 1].score ?? 0);
-        if (Math.abs(currentScore - prevScore) > 0.001) {
-          // Dense rank increment: consecutive integers without skipping!
-          currentDenseRank += 1;
-        }
-      }
-
-      const totalStudents = arr.length;
-      const percentile =
-        totalStudents > 1
-          ? Math.max(0, Math.min(100, Math.round(((totalStudents - idx) / totalStudents) * 100)))
-          : 100;
-
-      const isCurrentStudent =
-        Boolean(sub.is_current_student) ||
-        Boolean(currentStudentRoll && sub.roll_number && sub.roll_number.toLowerCase() === currentStudentRoll.toLowerCase()) ||
-        Boolean(currentStudentId && sub.student_id && String(sub.student_id) === String(currentStudentId));
-
-      return {
-        ...sub,
-        rank: sub.rank || currentDenseRank,
-        percentile,
-        isCurrentStudent,
-        effectiveMaxMarks: sub.max_marks || maxMarks || 25,
-        effectiveScore: currentScore,
-        effectivePercentage: Number(sub.percentage ?? (currentScore / (sub.max_marks || maxMarks || 25)) * 100),
-      };
-    });
-  }, [evaluatedSubmissions, maxMarks, currentStudentRoll, currentStudentId]);
-
-  // 3. Compute High-Level Summary Statistics
+  // 2. Compute High-Level Summary Statistics
   const stats = useMemo(() => {
     if (rankedAll.length === 0) {
       return { topper: null, average: 0, median: 0, distinctionCount: 0, total: 0 };
@@ -151,11 +224,11 @@ export function ExamRankedTable({
     return rankedAll.find((r) => r.isCurrentStudent);
   }, [rankedAll]);
 
-  // 4. Apply search & bracket filtering
+  // 3. Apply search & bracket filtering
   const filteredRanked = useMemo(() => {
     return rankedAll.filter((item) => {
       // Search
-      const query = searchTerm.trim().toLowerCase();
+      const query = effectiveSearchTerm.trim().toLowerCase();
       const matchSearch =
         !query ||
         item.student_name.toLowerCase().includes(query) ||
@@ -164,41 +237,20 @@ export function ExamRankedTable({
       if (!matchSearch) return false;
 
       // Bracket
-      if (bracketFilter === "TOP10") return item.rank <= 10;
-      if (bracketFilter === "DISTINCTION") return item.effectivePercentage >= 75;
-      if (bracketFilter === "PASS") return item.effectivePercentage >= 40 && item.effectivePercentage < 75;
+      if (effectiveBracketFilter === "TOP10") return item.rank <= 10;
+      if (effectiveBracketFilter === "DISTINCTION") return item.effectivePercentage >= 75;
+      if (effectiveBracketFilter === "PASS") return item.effectivePercentage >= 40 && item.effectivePercentage < 75;
       return true;
     });
-  }, [rankedAll, searchTerm, bracketFilter, isStudentView]);
+  }, [rankedAll, effectiveSearchTerm, effectiveBracketFilter, isStudentView]);
 
-  // 5. Export Ranked List as CSV (Faculty only)
+  // 4. Export Ranked List as CSV (Faculty only)
   const handleExportCSV = () => {
-    if (rankedAll.length === 0) {
+    const success = exportRankedStandingsCSV(examTitle, rankedAll);
+    if (!success) {
       toast.warning("No ranked student data available to export.", { title: "Export CSV" });
       return;
     }
-
-    const headers = ["Rank", "Roll Number", "Student Name", "Marks Awarded", "Max Marks", "Percentage", "Percentile", "Status"];
-    const rows = rankedAll.map((r) => [
-      r.rank,
-      `"${r.roll_number || ""}"`,
-      `"${r.student_name}"`,
-      r.effectiveScore.toFixed(1),
-      r.effectiveMaxMarks,
-      `${r.effectivePercentage.toFixed(1)}%`,
-      `${r.percentile}th`,
-      `"${r.status || "COMPLETED"}"`,
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${examTitle.replace(/[^a-z0-9]/gi, "_")}_Ranked_Leaderboard.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-
     toast.success("Ranked exam standings exported successfully.", { title: "CSV Download" });
   };
 
@@ -245,9 +297,9 @@ export function ExamRankedTable({
   };
 
   return (
-    <div className="space-y-3.5 w-full">
+    <div className={hideSummaryCards && hideToolbar ? "w-full" : "space-y-3.5 w-full"}>
       {/* SUMMARY DISTRIBUTION METRICS BANNER */}
-      {stats.total > 0 && (
+      {!hideSummaryCards && stats.total > 0 && (
         <div
           className={`grid gap-2 sm:gap-3.5 ${
             isStudentView ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
@@ -353,97 +405,99 @@ export function ExamRankedTable({
       )}
 
       {/* SEARCH, BRACKET FILTERS, & TOOLBAR */}
-      <div className="p-2.5 sm:p-3 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={isStudentView ? "Search student name..." : "Search student by name or roll number..."}
-              className="w-full pl-8 pr-7 py-1.5 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
-            />
-            {searchTerm && (
+      {!hideToolbar && (
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
+              <input
+                type="text"
+                value={effectiveSearchTerm}
+                onChange={(e) => setInternalSearchTerm(e.target.value)}
+                placeholder={isStudentView ? "Search student name..." : "Search student by name or roll number..."}
+                className="w-full pl-8 pr-7 py-1.5 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+              />
+              {effectiveSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setInternalSearchTerm("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded transition-colors cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Export CSV Button (Faculty Only) */}
+            {!isStudentView && (
               <button
                 type="button"
-                onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded transition-colors cursor-pointer"
-                title="Clear search"
+                onClick={handleExportCSV}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink transition-colors cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
+                title="Download complete ranked list as CSV"
               >
-                <X className="h-3 w-3" />
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>Export CSV</span>
               </button>
             )}
           </div>
 
-          {/* Export CSV Button (Faculty Only) */}
-          {!isStudentView && (
+          {/* Quick Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5">
+              Filter:
+            </span>
             <button
               type="button"
-              onClick={handleExportCSV}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink transition-colors cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
-              title="Download complete ranked list as CSV"
+              onClick={() => setInternalBracketFilter("ALL")}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
+                effectiveBracketFilter === "ALL"
+                  ? "bg-primary text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
             >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-              <span>Export CSV</span>
+              All Ranked ({rankedAll.length})
             </button>
-          )}
-        </div>
-
-        {/* Quick Filter Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5">
-            Filter:
-          </span>
-          <button
-            type="button"
-            onClick={() => setBracketFilter("ALL")}
-            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
-              bracketFilter === "ALL"
-                ? "bg-primary text-white font-semibold shadow-2xs"
-                : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
-            }`}
-          >
-            All Ranked ({rankedAll.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setBracketFilter("TOP10")}
-            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
-              bracketFilter === "TOP10"
-                ? "bg-primary text-white font-semibold shadow-2xs"
-                : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
-            }`}
-          >
-            Top 10
-          </button>
-          <button
-            type="button"
-            onClick={() => setBracketFilter("DISTINCTION")}
-            className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
-              bracketFilter === "DISTINCTION"
-                ? "bg-emerald-600 text-white font-semibold shadow-2xs"
-                : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
-            }`}
-          >
-            Distinction (≥75%)
-          </button>
-
-          {(searchTerm || bracketFilter !== "ALL") && (
             <button
               type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setBracketFilter("ALL");
-              }}
-              className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer"
+              onClick={() => setInternalBracketFilter("TOP10")}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
+                effectiveBracketFilter === "TOP10"
+                  ? "bg-primary text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
             >
-              Reset
+              Top 10
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => setInternalBracketFilter("DISTINCTION")}
+              className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10.5px] sm:text-[11px] transition-all cursor-pointer ${
+                effectiveBracketFilter === "DISTINCTION"
+                  ? "bg-emerald-600 text-white font-semibold shadow-2xs"
+                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+              }`}
+            >
+              Distinction (≥75%)
+            </button>
+
+            {(effectiveSearchTerm || effectiveBracketFilter !== "ALL") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInternalSearchTerm("");
+                  setInternalBracketFilter("ALL");
+                }}
+                className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* RANKED TABLE VIEW */}
       {filteredRanked.length === 0 ? (
@@ -457,7 +511,7 @@ export function ExamRankedTable({
           <p className="text-xs text-ink-muted max-w-sm mx-auto">
             {rankedAll.length === 0
               ? "Once answer sheets are graded and marks are recorded, the ranked leaderboard will compute automatically."
-              : `Try clearing "${searchTerm || bracketFilter}" to view all student standings.`}
+              : `Try clearing "${effectiveSearchTerm || effectiveBracketFilter}" to view all student standings.`}
           </p>
         </div>
       ) : isStudentView ? (
@@ -531,7 +585,7 @@ export function ExamRankedTable({
         /* =========================================================================
            FACULTY / ROSTER VIEW: Comprehensive 7 columns with inspection links
            ========================================================================= */
-        <div className="overflow-x-auto rounded-xl border border-hairline bg-surface shadow-2xs sleek-scrollbar w-full">
+        <div className={`overflow-x-auto ${hideToolbar ? "rounded-none border-0 shadow-none" : "rounded-xl border border-hairline shadow-2xs"} bg-surface sleek-scrollbar w-full`}>
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium text-[11px] uppercase tracking-wider">
