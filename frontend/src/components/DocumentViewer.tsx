@@ -281,8 +281,8 @@ export function DocumentViewer({
     }
   };
 
-  // Ref to the zoomable image container and viewport
-  const imageContainerRef = useRef<HTMLDivElement>(null);
+  // Ref to the active page sheet and viewport
+  const activeSheetRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   // Measure viewport container dimensions dynamically
@@ -303,351 +303,348 @@ export function DocumentViewer({
     return () => ro.disconnect();
   }, []);
 
-  // Compute base display dimensions that fit BOTH width and height by default
-  const baseDimensions = useMemo(() => {
-    const cW = containerDims.width > 0 ? containerDims.width : 800;
-    const cH = containerDims.height > 0 ? containerDims.height : 600;
-    const isMobile = cW < 640;
-    const pad = isMobile ? 8 : 20;
+  // Mobile / Desktop carousel sliding state
+  const [touchOffset, setTouchOffset] = useState<number>(0);
+  const [isSwiping, setIsSwiping] = useState<boolean>(false);
 
-    const availW = Math.max(100, cW - pad * 2);
-    const availH = Math.max(100, cH - pad * 2);
+  // Keep pan bounded when zoomed in on the active sheet so it can be explored freely without getting lost
+  const clampPan = useCallback(
+    (targetX: number, targetY: number, scale: number) => {
+      const cW = containerDims.width > 0 ? containerDims.width : 800;
+      const cH = containerDims.height > 0 ? containerDims.height : 600;
 
-    let w = availW;
-    let h = availW / pageAspect;
+      const sW = activeSheetRef.current?.clientWidth || cW * 0.8;
+      const sH = activeSheetRef.current?.clientHeight || cH * 0.9;
 
-    if (h > availH) {
-      h = availH;
-      w = availH * pageAspect;
-    }
+      const renderW = sW * scale;
+      const renderH = sH * scale;
 
-    return {
-      width: Math.round(w),
-      height: Math.round(h),
-      containerW: cW,
-      containerH: cH,
-    };
-  }, [containerDims.width, containerDims.height, pageAspect]);
+      const maxPanX = Math.max(30, (renderW - cW) / 2 + 40);
+      const maxPanY = Math.max(30, (renderH - cH) / 2 + 40);
 
-  // Keep pan bounded so the document ribbon can be slid freely without getting lost
-  const clampPan = useCallback((targetX: number, targetY: number, scale: number) => {
-    const cW = baseDimensions.containerW;
-    const cH = baseDimensions.containerH;
-    const curH = baseDimensions.height * scale;
-    const totalW = (totalPages * baseDimensions.width + (totalPages - 1) * PAGE_GAP) * scale;
+      return {
+        x: Math.round(Math.max(-maxPanX, Math.min(maxPanX, targetX))),
+        y: Math.round(Math.max(-maxPanY, Math.min(maxPanY, targetY))),
+      };
+    },
+    [containerDims.width, containerDims.height]
+  );
 
-    let minX: number;
-    let maxX: number;
-
-    if (scale <= 1.15) {
-      const page1X = (cW - baseDimensions.width * scale) / 2;
-      const pageNX = page1X - (totalPages - 1) * (baseDimensions.width + PAGE_GAP) * scale;
-      maxX = page1X + 80;
-      minX = pageNX - 80;
-    } else {
-      if (totalW > cW) {
-        minX = cW - totalW - 24;
-        maxX = 24;
-      } else {
-        const cx = (cW - totalW) / 2;
-        minX = cx - 24;
-        maxX = cx + 24;
-      }
-    }
-
-    let minY: number;
-    let maxY: number;
-    if (curH > cH) {
-      minY = cH - curH - 24;
-      maxY = 24;
-    } else {
-      const cy = (cH - curH) / 2;
-      minY = cy - 24;
-      maxY = cy + 24;
-    }
-
-    return {
-      x: Math.round(Math.max(minX, Math.min(maxX, targetX))),
-      y: Math.round(Math.max(minY, Math.min(maxY, targetY))),
-    };
-  }, [baseDimensions, totalPages]);
-
-  // Center any specific page sheet within the viewport
-  const getCenteredPanForPage = useCallback((targetPage: number, scale = 1.0) => {
-    const p = Math.max(1, Math.min(totalPages, targetPage));
-    const pageOffset = (p - 1) * (baseDimensions.width + PAGE_GAP);
-    const defX = Math.round((baseDimensions.containerW - baseDimensions.width * scale) / 2 - pageOffset * scale);
-    const defY = Math.round((baseDimensions.containerH - baseDimensions.height * scale) / 2);
-    return { x: defX, y: defY };
-  }, [baseDimensions, totalPages]);
-
-  // Zoom centered on a specific focal client point (e.g. pinch midpoint, cursor, or viewport center)
-  const updateZoomAtPoint = useCallback((targetScale: number, focalClientX: number, focalClientY: number) => {
-    const container = viewportRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const focusX = focalClientX - rect.left;
-    const focusY = focalClientY - rect.top;
-
-    const currentScale = zoomScaleRef.current;
-    const clampedScale = Math.min(3.5, Math.max(0.75, Number(targetScale.toFixed(2))));
-    const scaleRatio = clampedScale / currentScale;
-
-    const currentPan = panRef.current;
-    const newX = focusX - (focusX - currentPan.x) * scaleRatio;
-    const newY = focusY - (focusY - currentPan.y) * scaleRatio;
-
-    const clampedPan = clampPan(newX, newY, clampedScale);
-    setZoomScale(clampedScale);
-    setPan(clampedPan);
-  }, [clampPan]);
+  // Reset zoom & pan on page change so newly selected page is cleanly framed
+  useEffect(() => {
+    setPan({ x: 0, y: 0 });
+    setZoomScale(1.0);
+    setTouchOffset(0);
+    setIsSwiping(false);
+  }, [currentPage]);
 
   const handleZoomIn = () => {
-    if (!viewportRef.current) return;
-    const rect = viewportRef.current.getBoundingClientRect();
-    updateZoomAtPoint(zoomScaleRef.current * 1.25, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    setZoomScale((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))));
   };
 
   const handleZoomOut = () => {
-    if (!viewportRef.current) return;
-    const rect = viewportRef.current.getBoundingClientRect();
-    updateZoomAtPoint(zoomScaleRef.current * 0.8, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    setZoomScale((z) => {
+      const next = Math.max(1.0, Number((z - 0.25).toFixed(2)));
+      if (next <= 1.05) {
+        setPan({ x: 0, y: 0 });
+      }
+      return next;
+    });
   };
 
   const handleResetZoom = useCallback(() => {
     setZoomScale(1.0);
+    setPan({ x: 0, y: 0 });
     setIsSnapping(true);
-    setPan(getCenteredPanForPage(currentPage, 1.0));
-    const timer = setTimeout(() => setIsSnapping(false), 330);
+    const timer = setTimeout(() => setIsSnapping(false), 300);
     return () => clearTimeout(timer);
-  }, [currentPage, getCenteredPanForPage]);
+  }, []);
 
-  // Auto-fit or pan smoothly to active page when currentPage changes or dimensions update
-  useEffect(() => {
-    if (baseDimensions.containerW > 0 && baseDimensions.containerH > 0) {
-      const targetPan = getCenteredPanForPage(currentPage, zoomScaleRef.current);
-      setIsSnapping(true);
-      setPan(targetPan);
-      const timer = setTimeout(() => setIsSnapping(false), 330);
-      return () => clearTimeout(timer);
+  // Touch gesture handling: 1:1 carousel swiping when scale <= 1.05, 2D pan when zoomed, pinch-to-zoom & double-tap
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number>(0);
+  const lastTapTimeRef = useRef<number>(0);
+  const isPinchingRef = useRef<boolean>(false);
+  const initialPinchDistRef = useRef<number>(0);
+  const initialZoomRef = useRef<number>(1);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("[data-handle]") ||
+      target.closest("button") ||
+      target.closest("input") ||
+      target.closest("[data-prevent-swipe]")
+    ) {
+      return;
     }
-  }, [currentPage, baseDimensions.containerW, baseDimensions.containerH, getCenteredPanForPage]);
 
-  // Touch pinch-to-zoom, connected ribbon sliding, and desktop mouse drag handling
+    didPanRef.current = false;
+    setIsSnapping(false);
+
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      isPinchingRef.current = true;
+      setIsSwiping(false);
+      setTouchOffset(0);
+      initialPinchDistRef.current = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      initialZoomRef.current = zoomScaleRef.current;
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+      touchStartTimeRef.current = Date.now();
+      panStartRef.current = { ...panRef.current };
+      setIsSwiping(false);
+      setTouchOffset(0);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isPinchingRef.current && e.touches.length === 2 && initialPinchDistRef.current > 0) {
+      e.preventDefault();
+      didPanRef.current = true;
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = currentDist / initialPinchDistRef.current;
+      const targetScale = Math.min(3.5, Math.max(1.0, Number((initialZoomRef.current * factor).toFixed(2))));
+      setZoomScale(targetScale);
+      if (targetScale <= 1.05) {
+        setPan({ x: 0, y: 0 });
+      }
+      return;
+    }
+
+    if (touchStartXRef.current === null || touchStartYRef.current === null || e.touches.length !== 1) {
+      return;
+    }
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartXRef.current;
+    const deltaY = currentY - touchStartYRef.current;
+
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+      didPanRef.current = true;
+    }
+
+    if (zoomScaleRef.current > 1.05) {
+      // Zoomed in: pan within active sheet
+      e.preventDefault();
+      const newX = panStartRef.current.x + deltaX;
+      const newY = panStartRef.current.y + deltaY;
+      setPan(clampPan(newX, newY, zoomScaleRef.current));
+    } else {
+      // Fit mode: slide between pages
+      if (!isSwiping && Math.abs(deltaX) > 8) {
+        if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+          setIsSwiping(true);
+        }
+      }
+
+      if (isSwiping) {
+        const isAtStart = currentPageRef.current <= 1 && deltaX > 0;
+        const isAtEnd = currentPageRef.current >= totalPagesRef.current && deltaX < 0;
+        const damped = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
+        setTouchOffset(damped);
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isPinchingRef.current) {
+      if (e.touches.length < 2) {
+        isPinchingRef.current = false;
+        initialPinchDistRef.current = 0;
+        if (zoomScaleRef.current <= 1.05) {
+          setZoomScale(1.0);
+          setPan({ x: 0, y: 0 });
+        }
+      }
+      return;
+    }
+
+    if (e.touches.length === 0) {
+      const now = Date.now();
+      const elapsed = now - touchStartTimeRef.current;
+
+      // Double tap toggle: 1.0x <-> 2.0x
+      if (e.changedTouches.length === 1 && touchStartXRef.current !== null && touchStartYRef.current !== null) {
+        const movedDist = Math.hypot(
+          e.changedTouches[0].clientX - touchStartXRef.current,
+          e.changedTouches[0].clientY - touchStartYRef.current
+        );
+
+        if (movedDist < 10 && elapsed < 300) {
+          if (now - lastTapTimeRef.current < 300) {
+            if (zoomScaleRef.current > 1.05) {
+              handleResetZoom();
+            } else {
+              setZoomScale(2.0);
+            }
+            lastTapTimeRef.current = 0;
+            touchStartXRef.current = null;
+            touchStartYRef.current = null;
+            return;
+          } else {
+            lastTapTimeRef.current = now;
+          }
+        }
+      }
+
+      // Swipe release
+      if (isSwiping) {
+        const threshold = 45;
+        if (touchOffset < -threshold && currentPageRef.current < totalPagesRef.current) {
+          setIsPageImageLoading(true);
+          setCurrentPageRef.current((p) => p + 1);
+        } else if (touchOffset > threshold && currentPageRef.current > 1) {
+          setIsPageImageLoading(true);
+          setCurrentPageRef.current((p) => p - 1);
+        }
+        setTouchOffset(0);
+        setIsSwiping(false);
+      }
+
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+    }
+  };
+
+  // Desktop mouse dragging & wheel handlers
+  const isMouseDownRef = useRef<boolean>(false);
+  const mouseStartXRef = useRef<number | null>(null);
+  const mouseStartYRef = useRef<number | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (
+      target.closest("[data-handle]") ||
+      target.closest("button") ||
+      target.closest("input") ||
+      target.closest("[data-prevent-swipe]")
+    ) {
+      return;
+    }
+
+    didPanRef.current = false;
+    setIsSnapping(false);
+    isMouseDownRef.current = true;
+    mouseStartXRef.current = e.clientX;
+    mouseStartYRef.current = e.clientY;
+    panStartRef.current = { ...panRef.current };
+    setIsSwiping(false);
+    setTouchOffset(0);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isMouseDownRef.current || mouseStartXRef.current === null || mouseStartYRef.current === null) {
+        return;
+      }
+
+      const deltaX = e.clientX - mouseStartXRef.current;
+      const deltaY = e.clientY - mouseStartYRef.current;
+
+      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+        didPanRef.current = true;
+      }
+
+      if (zoomScaleRef.current > 1.05) {
+        const newX = panStartRef.current.x + deltaX;
+        const newY = panStartRef.current.y + deltaY;
+        setPan(clampPan(newX, newY, zoomScaleRef.current));
+      } else {
+        if (!isSwiping && Math.abs(deltaX) > 8) {
+          if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+            setIsSwiping(true);
+          }
+        }
+
+        if (isSwiping) {
+          const isAtStart = currentPageRef.current <= 1 && deltaX > 0;
+          const isAtEnd = currentPageRef.current >= totalPagesRef.current && deltaX < 0;
+          const damped = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
+          setTouchOffset(damped);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!isMouseDownRef.current) return;
+      isMouseDownRef.current = false;
+
+      if (isSwiping) {
+        const threshold = 45;
+        if (touchOffset < -threshold && currentPageRef.current < totalPagesRef.current) {
+          setIsPageImageLoading(true);
+          setCurrentPageRef.current((p) => p + 1);
+        } else if (touchOffset > threshold && currentPageRef.current > 1) {
+          setIsPageImageLoading(true);
+          setCurrentPageRef.current((p) => p - 1);
+        }
+        setTouchOffset(0);
+        setIsSwiping(false);
+      }
+
+      mouseStartXRef.current = null;
+      mouseStartYRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [clampPan, isSwiping, touchOffset]);
+
+  // Keyboard navigation: Left/Right arrows for page switching when in fit mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+      if (e.key === "ArrowLeft" && currentPageRef.current > 1 && zoomScaleRef.current <= 1.05) {
+        setIsPageImageLoading(true);
+        setCurrentPageRef.current((p) => p - 1);
+      } else if (e.key === "ArrowRight" && currentPageRef.current < totalPagesRef.current && zoomScaleRef.current <= 1.05) {
+        setIsPageImageLoading(true);
+        setCurrentPageRef.current((p) => p + 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Wheel zoom with Ctrl, or pan when zoomed in
   useEffect(() => {
     const container = viewportRef.current;
     if (!container) return;
-
-    let isPinching = false;
-    let initialPinchDist = 0;
-    let initialZoom = 1;
-
-    let isTouchPanning = false;
-    let touchStartClient = { x: 0, y: 0 };
-    let panStart = { x: 0, y: 0 };
-    let lastTapTime = 0;
-    let touchStartTime = 0;
-
-    let isMousePanning = false;
-    let mouseStartClient = { x: 0, y: 0 };
-    let mousePanStart = { x: 0, y: 0 };
-
-    const onTouchStart = (e: TouchEvent) => {
-      didPanRef.current = false;
-      setIsSnapping(false);
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        isPinching = true;
-        isTouchPanning = false;
-        initialPinchDist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        initialZoom = zoomScaleRef.current;
-      } else if (e.touches.length === 1) {
-        const target = e.target as HTMLElement;
-        if (target.closest("[data-handle]") || target.closest("button") || target.closest("input")) {
-          isTouchPanning = false;
-          return;
-        }
-        isTouchPanning = true;
-        touchStartTime = Date.now();
-        touchStartClient = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        panStart = { ...panRef.current };
-      }
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (isPinching && e.touches.length === 2 && initialPinchDist > 0) {
-        e.preventDefault();
-        didPanRef.current = true;
-        const currentDist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const targetScale = initialZoom * (currentDist / initialPinchDist);
-        updateZoomAtPoint(targetScale, midX, midY);
-      } else if (isTouchPanning && e.touches.length === 1) {
-        const dx = e.touches[0].clientX - touchStartClient.x;
-        const dy = e.touches[0].clientY - touchStartClient.y;
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-          e.preventDefault();
-          didPanRef.current = true;
-          if (zoomScaleRef.current <= 1.15) {
-            // Connected Ribbon 1:1 Sliding with elastic bounds
-            const page1X = (baseDimensions.containerW - baseDimensions.width) / 2;
-            const pageNX = page1X - (totalPages - 1) * (baseDimensions.width + PAGE_GAP);
-            let rawX = panStart.x + dx;
-            if (rawX > page1X) {
-              rawX = page1X + (rawX - page1X) * 0.35;
-            } else if (rawX < pageNX) {
-              rawX = pageNX + (rawX - pageNX) * 0.35;
-            }
-            const rawY = Math.round((baseDimensions.containerH - baseDimensions.height) / 2 + dy * 0.15);
-            setPan({ x: Math.round(rawX), y: rawY });
-          } else {
-            const rawX = panStart.x + dx;
-            const rawY = panStart.y + dy;
-            setPan(clampPan(rawX, rawY, zoomScaleRef.current));
-          }
-        }
-      }
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) {
-        isPinching = false;
-        initialPinchDist = 0;
-      }
-      if (e.touches.length === 0) {
-        isTouchPanning = false;
-        if (e.changedTouches.length === 1) {
-          const touch = e.changedTouches[0];
-          const distMoved = Math.hypot(
-            touch.clientX - touchStartClient.x,
-            touch.clientY - touchStartClient.y
-          );
-          const now = Date.now();
-          if (distMoved < 12 && now - lastTapTime < 300) {
-            // Double-tap toggle: If zoomed, reset to fit; if fit, zoom to 2.0x
-            if (zoomScaleRef.current > 1.2) {
-              handleResetZoom();
-            } else {
-              updateZoomAtPoint(2.0, touch.clientX, touch.clientY);
-            }
-            lastTapTime = 0;
-            return;
-          } else {
-            lastTapTime = now;
-          }
-
-          // Slide/Swipe Snap for Connected Page Ribbon
-          if (zoomScaleRef.current <= 1.15 && didPanRef.current) {
-            const deltaX = touch.clientX - touchStartClient.x;
-            const elapsed = now - touchStartTime;
-            const curP = currentPageRef.current;
-            let targetP = curP;
-
-            if (elapsed < 380 && Math.abs(deltaX) > 35) {
-              // Quick flick / swipe gesture
-              if (deltaX < 0 && curP < totalPages) {
-                targetP = curP + 1;
-              } else if (deltaX > 0 && curP > 1) {
-                targetP = curP - 1;
-              }
-            } else {
-              // Drag release: calculate closest page center to viewport center
-              const centerDiff = (baseDimensions.containerW - baseDimensions.width) / 2 - panRef.current.x;
-              const step = baseDimensions.width + PAGE_GAP;
-              const est = Math.round(centerDiff / step) + 1;
-              targetP = Math.max(1, Math.min(totalPages, est));
-            }
-
-            const targetPan = getCenteredPanForPage(targetP, 1.0);
-            setIsSnapping(true);
-            setPan(targetPan);
-            if (targetP !== curP) {
-              setCurrentPageRef.current(targetP);
-            }
-            setTimeout(() => setIsSnapping(false), 330);
-          }
-        }
-      }
-    };
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      const target = e.target as HTMLElement;
-      if (target.closest("[data-handle]") || target.closest("button") || target.closest("input")) {
-        return;
-      }
-      didPanRef.current = false;
-      setIsSnapping(false);
-      isMousePanning = true;
-      mouseStartClient = { x: e.clientX, y: e.clientY };
-      mousePanStart = { ...panRef.current };
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isMousePanning) return;
-      const dx = e.clientX - mouseStartClient.x;
-      const dy = e.clientY - mouseStartClient.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        didPanRef.current = true;
-      }
-      if (zoomScaleRef.current <= 1.15) {
-        const page1X = (baseDimensions.containerW - baseDimensions.width) / 2;
-        const pageNX = page1X - (totalPages - 1) * (baseDimensions.width + PAGE_GAP);
-        let rawX = mousePanStart.x + dx;
-        if (rawX > page1X) {
-          rawX = page1X + (rawX - page1X) * 0.35;
-        } else if (rawX < pageNX) {
-          rawX = pageNX + (rawX - pageNX) * 0.35;
-        }
-        setPan({ x: Math.round(rawX), y: Math.round(mousePanStart.y + dy * 0.15) });
-      } else {
-        const rawX = mousePanStart.x + dx;
-        const rawY = mousePanStart.y + dy;
-        setPan(clampPan(rawX, rawY, zoomScaleRef.current));
-      }
-    };
-
-    const onMouseUp = (e: MouseEvent) => {
-      if (!isMousePanning) return;
-      isMousePanning = false;
-      if (zoomScaleRef.current <= 1.15 && didPanRef.current) {
-        const deltaX = e.clientX - mouseStartClient.x;
-        const curP = currentPageRef.current;
-        let targetP = curP;
-
-        if (Math.abs(deltaX) > 40) {
-          if (deltaX < 0 && curP < totalPages) targetP = curP + 1;
-          else if (deltaX > 0 && curP > 1) targetP = curP - 1;
-        } else {
-          const centerDiff = (baseDimensions.containerW - baseDimensions.width) / 2 - panRef.current.x;
-          const step = baseDimensions.width + PAGE_GAP;
-          const est = Math.round(centerDiff / step) + 1;
-          targetP = Math.max(1, Math.min(totalPages, est));
-        }
-
-        const targetPan = getCenteredPanForPage(targetP, 1.0);
-        setIsSnapping(true);
-        setPan(targetPan);
-        if (targetP !== curP) {
-          setCurrentPageRef.current(targetP);
-        }
-        setTimeout(() => setIsSnapping(false), 330);
-      }
-    };
 
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
         const factor = e.deltaY < 0 ? 1.15 : 0.85;
-        updateZoomAtPoint(zoomScaleRef.current * factor, e.clientX, e.clientY);
-      } else {
+        const newScale = Math.min(3.5, Math.max(1.0, Number((zoomScaleRef.current * factor).toFixed(2))));
+        setZoomScale(newScale);
+        if (newScale <= 1.05) {
+          setPan({ x: 0, y: 0 });
+        }
+      } else if (zoomScaleRef.current > 1.05) {
         e.preventDefault();
         const rawX = panRef.current.x - e.deltaX;
         const rawY = panRef.current.y - e.deltaY;
@@ -655,28 +652,9 @@ export function DocumentViewer({
       }
     };
 
-    container.addEventListener("touchstart", onTouchStart, { passive: false });
-    container.addEventListener("touchmove", onTouchMove, { passive: false });
-    container.addEventListener("touchend", onTouchEnd);
-    container.addEventListener("touchcancel", onTouchEnd);
     container.addEventListener("wheel", onWheel, { passive: false });
-
-    container.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-
-    return () => {
-      container.removeEventListener("touchstart", onTouchStart);
-      container.removeEventListener("touchmove", onTouchMove);
-      container.removeEventListener("touchend", onTouchEnd);
-      container.removeEventListener("touchcancel", onTouchEnd);
-      container.removeEventListener("wheel", onWheel);
-
-      container.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [baseDimensions, clampPan, getCenteredPanForPage, handleResetZoom, totalPages, updateZoomAtPoint]);
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [clampPan]);
 
   // Ref tracking active mouse drag session
   const dragStateRef = useRef<{
@@ -826,14 +804,12 @@ export function DocumentViewer({
     e.preventDefault();
     e.stopPropagation();
 
-    if (!imageContainerRef.current) return;
-
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
-    // Use container dimensions divided by zoomScale to get unscaled base resolution
-    const containerW = baseDimensions.width;
-    const containerH = baseDimensions.height;
+    // Use active sheet dimensions divided by zoomScale to get unscaled base resolution
+    const containerW = activeSheetRef.current?.clientWidth || 600;
+    const containerH = activeSheetRef.current?.clientHeight || 800;
 
     const regId = region.id || answer.id;
     const current = draftCoords[regId] || {
@@ -1248,7 +1224,8 @@ export function DocumentViewer({
         <div className="flex items-center gap-0.5 bg-surface rounded-md p-0.5 border border-hairline shadow-2xs">
           <button
             onClick={handleZoomOut}
-            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink transition-colors cursor-pointer"
+            disabled={zoomScale <= 1.0}
+            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
             title="Zoom Out"
           >
             <ZoomOut className="h-3.5 w-3.5" />
@@ -1258,37 +1235,41 @@ export function DocumentViewer({
           </span>
           <button
             onClick={handleZoomIn}
-            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink transition-colors cursor-pointer"
+            disabled={zoomScale >= 3.5}
+            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
             title="Zoom In"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
-          <button
-            onClick={handleResetZoom}
-            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink transition-colors cursor-pointer"
-            title="Reset Zoom"
-          >
-            <RotateCcw className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-          </button>
+          {zoomScale !== 1.0 && (
+            <button
+              onClick={handleResetZoom}
+              className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink transition-colors cursor-pointer"
+              title="Reset Zoom"
+            >
+              <RotateCcw className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Canvas Viewport - Paper-on-Desk Soothing Neutral Background with Touch/Mouse Pan & Zoom */}
+      {/* Canvas Viewport - Fixed Frame Viewer with Smooth Horizontal Carousel */}
       <div
         ref={viewportRef}
-        className="relative flex-1 overflow-hidden bg-[#f6f6f4] select-none cursor-grab active:cursor-grabbing touch-none overscroll-none"
+        className="relative flex-1 w-full overflow-hidden bg-[#f6f6f4] select-none touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleMouseDown}
       >
-        {/* Connected Page Ribbon Track */}
+        {/* Connected Pages Carousel Track */}
         <div
-          ref={imageContainerRef}
-          className="absolute top-0 left-0"
+          className="flex items-center h-full will-change-transform"
           style={{
-            width: `${totalPages * baseDimensions.width + (totalPages - 1) * PAGE_GAP}px`,
-            height: `${baseDimensions.height}px`,
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoomScale})`,
-            transformOrigin: "top left",
-            willChange: "transform",
-            transition: isSnapping ? "transform 320ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
+            width: `${totalPages * 100}%`,
+            transform: `translateX(calc(-${((currentPage - 1) / totalPages) * 100}% + ${touchOffset}px))`,
+            transition: isSwiping ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
@@ -1298,13 +1279,28 @@ export function DocumentViewer({
             return (
               <div
                 key={p}
-                className="absolute top-0 bg-white rounded-sm shadow-md border border-hairline/80 overflow-hidden"
-                style={{
-                  left: `${(p - 1) * (baseDimensions.width + PAGE_GAP)}px`,
-                  width: `${baseDimensions.width}px`,
-                  height: `${baseDimensions.height}px`,
-                }}
+                className="h-full flex items-center justify-center p-2 sm:p-4 flex-shrink-0 overflow-hidden"
+                style={{ width: `${100 / totalPages}%` }}
               >
+                {/* Fixed Frame Page Sheet with Dynamic Bounding Box Zoom */}
+                <div
+                  ref={p === currentPage ? activeSheetRef : undefined}
+                  className="relative bg-white rounded-lg sm:rounded-xl shadow-lg border border-hairline overflow-hidden flex items-center justify-center select-none"
+                  style={{
+                    height: "100%",
+                    maxHeight: "100%",
+                    maxWidth: "100%",
+                    aspectRatio: `${pageAspect}`,
+                    width: "auto",
+                    transform:
+                      p === currentPage && zoomScale > 1.05
+                        ? `translate(${pan.x}px, ${pan.y}px) scale(${zoomScale})`
+                        : "none",
+                    transformOrigin: "center center",
+                    willChange: "transform",
+                    transition: isSnapping ? "transform 300ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
+                  }}
+                >
                 {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
                 {imageError ? (
                   <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-sm">
@@ -1877,6 +1873,7 @@ export function DocumentViewer({
               </div>
             );
           })}
+                </div>
               </div>
             );
           })}
@@ -1884,10 +1881,15 @@ export function DocumentViewer({
 
         {/* STABLE FLOATING NAVIGATOR: ANCHORED AT BOTTOM OF VIEWPORT */}
         {totalPages > 1 && (
-          <div className="sm:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-30 text-xs select-none pointer-events-auto">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-hairline px-3.5 py-1.5 rounded-full shadow-lg z-30 text-xs select-none pointer-events-auto">
             <button
               type="button"
-              onClick={() => setCurrentPage((cur) => Math.max(1, cur - 1))}
+              onClick={() => {
+                if (currentPage > 1) {
+                  setIsPageImageLoading(true);
+                  setCurrentPage((cur) => cur - 1);
+                }
+              }}
               disabled={currentPage <= 1}
               className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
               title="Previous Page"
@@ -1904,7 +1906,12 @@ export function DocumentViewer({
 
             <button
               type="button"
-              onClick={() => setCurrentPage((cur) => Math.min(totalPages, cur + 1))}
+              onClick={() => {
+                if (currentPage < totalPages) {
+                  setIsPageImageLoading(true);
+                  setCurrentPage((cur) => cur + 1);
+                }
+              }}
               disabled={currentPage >= totalPages}
               className="p-1 rounded-full text-ink-muted hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
               title="Next Page"
