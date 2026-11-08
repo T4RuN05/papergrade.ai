@@ -517,73 +517,78 @@ export function ExamRankedTable({
       ) : isStudentView ? (
         /* =========================================================================
            STUDENT PWA VIEW: EXACTLY 3 COLUMNS (Rank, Student, Score)
-           Zero side-to-side overflow. Minimal and uncluttered layout.
+           Full-size dignified rows with smooth bottom-fade scrolling experience.
            ========================================================================= */
-        <div className="w-full rounded-xl border border-hairline bg-surface shadow-2xs overflow-hidden [perspective:800px]">
-          <table className="w-full text-left text-xs border-collapse table-fixed">
-            <thead>
-              <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium text-[10.5px] sm:text-[11px] uppercase tracking-wider">
-                <th className="py-2.5 px-2.5 sm:px-3 text-center w-14 sm:w-16">Rank</th>
-                <th className="py-2.5 px-2 sm:px-3">Student</th>
-                <th className="py-2.5 px-2.5 sm:px-3 text-right w-20 sm:w-24">Score (/{maxMarks}m)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-hairline">
-              {filteredRanked.map((item, idx) => {
-                const isYou = item.isCurrentStudent;
-                const isRank1 = item.rank === 1;
-                const isRank2 = item.rank === 2;
-                const isRank3 = item.rank === 3;
+        <div className="w-full rounded-xl border border-hairline bg-surface shadow-2xs overflow-hidden">
+          <div
+            className="max-h-[50vh] sm:max-h-[55vh] overflow-y-auto relative sleek-scrollbar overscroll-contain"
+            style={{
+              maskImage: "linear-gradient(to bottom, black calc(100% - 44px), transparent 100%)",
+              WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 44px), transparent 100%)",
+            }}
+          >
+            <table className="w-full text-left text-xs border-collapse table-fixed">
+              <thead className="sticky top-0 z-10 bg-canvas-soft border-b border-hairline shadow-2xs">
+                <tr className="text-ink-muted font-medium text-[10.5px] sm:text-[11px] uppercase tracking-wider">
+                  <th className="py-2.5 px-2.5 sm:px-3 text-center w-14 sm:w-16">Rank</th>
+                  <th className="py-2.5 px-2.5 sm:px-3">Student</th>
+                  <th className="py-2.5 px-2.5 sm:px-3 text-right w-20 sm:w-24">Score (/{maxMarks}m)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hairline">
+                {filteredRanked.map((item) => {
+                  const isYou = item.isCurrentStudent;
+                  const isRank1 = item.rank === 1;
+                  const isRank2 = item.rank === 2;
+                  const isRank3 = item.rank === 3;
 
-                // Subtle row-wise gold, silver, bronze tint from left fading to right
-                const rowTintClass = isYou
-                  ? "bg-gradient-to-r from-primary/20 via-primary/5 to-transparent border-l-4 border-l-primary font-medium"
-                  : isRank1
-                  ? "bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-400/20 dark:via-amber-400/5 dark:to-transparent hover:from-amber-500/20"
-                  : isRank2
-                  ? "bg-gradient-to-r from-slate-400/15 via-slate-400/5 to-transparent dark:from-slate-300/20 dark:via-slate-300/5 dark:to-transparent hover:from-slate-400/20"
-                  : isRank3
-                  ? "bg-gradient-to-r from-amber-700/15 via-amber-700/5 to-transparent dark:from-amber-600/20 dark:via-amber-600/5 dark:to-transparent hover:from-amber-700/20"
-                  : "bg-surface hover:bg-canvas-soft/50";
+                  // Subtle row-wise gold, silver, bronze tint from left fading to right
+                  const rowTintClass = isYou
+                    ? "bg-gradient-to-r from-primary/20 via-primary/5 to-transparent border-l-4 border-l-primary font-medium"
+                    : isRank1
+                    ? "bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent dark:from-amber-400/20 dark:via-amber-400/5 dark:to-transparent hover:from-amber-500/20"
+                    : isRank2
+                    ? "bg-gradient-to-r from-slate-400/15 via-slate-400/5 to-transparent dark:from-slate-300/20 dark:via-slate-300/5 dark:to-transparent hover:from-slate-400/20"
+                    : isRank3
+                    ? "bg-gradient-to-r from-amber-700/15 via-amber-700/5 to-transparent dark:from-amber-600/20 dark:via-amber-600/5 dark:to-transparent hover:from-amber-700/20"
+                    : "bg-surface hover:bg-canvas-soft/50";
 
-                return (
-                  <tr
-                    key={item.id}
-                    className={`transition-colors will-change-transform ${rowTintClass}`}
-                    style={{
-                      animation: `rankRowPopulate 340ms cubic-bezier(0.16, 1, 0.3, 1) ${Math.min(idx * 30, 450)}ms both`,
-                    }}
-                  >
-                    {/* Column 1: Rank */}
-                    <td className="py-2.5 px-2 sm:px-2.5 text-center whitespace-nowrap">
-                      {renderRankBadge(item.rank)}
-                    </td>
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`transition-colors h-12 ${rowTintClass}`}
+                    >
+                      {/* Column 1: Rank */}
+                      <td className="py-2.5 px-2.5 sm:px-3 text-center whitespace-nowrap">
+                        {renderRankBadge(item.rank)}
+                      </td>
 
-                    {/* Column 2: Student (NO Roll Number) */}
-                    <td className="py-2.5 px-2 sm:px-3 min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`truncate ${isYou ? "font-bold text-ink" : "font-medium text-ink"}`}>
-                          {item.student_name}
-                        </span>
-                        {isYou && (
-                          <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-primary text-white tracking-wide uppercase shrink-0">
-                            You
+                      {/* Column 2: Student (NO Roll Number) */}
+                      <td className="py-2.5 px-2.5 sm:px-3 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`truncate text-xs sm:text-sm ${isYou ? "font-bold text-ink" : "font-medium text-ink"}`}>
+                            {item.student_name}
                           </span>
-                        )}
-                      </div>
-                    </td>
+                          {isYou && (
+                            <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-primary text-white tracking-wide uppercase shrink-0">
+                              You
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
-                    {/* Column 3: Score (Minimal: only score number, total marks in header) */}
-                    <td className="py-2.5 px-2.5 sm:px-3 text-right whitespace-nowrap">
-                      <span className="font-mono font-bold text-ink text-xs sm:text-sm">
-                        {item.effectiveScore.toFixed(1)}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      {/* Column 3: Score (Minimal: only score number, total marks in header) */}
+                      <td className="py-2.5 px-2.5 sm:px-3 text-right whitespace-nowrap">
+                        <span className="font-mono font-bold text-ink text-xs sm:text-sm">
+                          {item.effectiveScore.toFixed(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         /* =========================================================================
