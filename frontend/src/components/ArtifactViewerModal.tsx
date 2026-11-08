@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   FileText,
   Key,
@@ -501,9 +502,9 @@ export function ArtifactViewerModal({
 
   const pdfUrl = api.getExamArtifactPdfUrl(examId, activeArtifact);
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs ${
+      className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs ${
         isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
       }`}
       role="dialog"
@@ -513,7 +514,7 @@ export function ArtifactViewerModal({
       <div className="fixed inset-0" onClick={handleRequestClose} aria-hidden="true" />
 
       {/* Main Container */}
-      <div className={`relative w-full max-w-5xl h-[92vh] sm:h-[90vh] flex flex-col bg-surface rounded-xl sm:rounded-2xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${
+      <div className={`relative w-full max-w-5xl h-[94vh] sm:h-[90vh] flex flex-col bg-surface rounded-t-2xl sm:rounded-2xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${
         isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
       }`}>
         {/* Top Header Bar */}
@@ -815,6 +816,7 @@ export function ArtifactViewerModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

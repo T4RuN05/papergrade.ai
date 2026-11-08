@@ -714,6 +714,38 @@ export const api = {
     return res.json();
   },
 
+  async getStudentPastSubmissions(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    subject?: string;
+    status?: string;
+  }): Promise<{
+    items: any[];
+    total: number;
+    page: number;
+    limit: number;
+    has_more: boolean;
+  }> {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.limit) sp.set("limit", String(params.limit));
+    if (params?.search && params.search.trim()) sp.set("search", params.search.trim());
+    if (params?.subject && params.subject !== "ALL") sp.set("subject", params.subject);
+    if (params?.status && params.status !== "ALL") sp.set("status", params.status);
+
+    const qs = sp.toString() ? `?${sp.toString()}` : "";
+    const res = await fetch(`${API_BASE}/api/v1/student/past-submissions${qs}`, {
+      headers: { ...getAuthHeaders() },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to fetch past exam submissions" }));
+      throw new Error(err.detail || "Failed to fetch past exam submissions");
+    }
+    return res.json();
+  },
+
   // -------------------------------------------------------------
   // Submissions & Uploads (Single PDF, Atomic Replacement)
   // -------------------------------------------------------------

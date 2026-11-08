@@ -14,7 +14,7 @@ import asyncio
 import threading
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_, func
 
@@ -474,3 +474,316 @@ async def get_student_portal_state(current_user: Dict[str, Any] = Depends(get_cu
     user_id = current_user.get("sub") or current_user.get("id")
     user_role = current_user.get("role", "STUDENT")
     return await asyncio.to_thread(_fetch_portal_state_sync, user_id, user_role)
+
+
+def _fetch_past_submissions_sync(
+    user_id: str,
+    user_role: str,
+    page: int = 1,
+    limit: int = 5,
+    search: Optional[str] = None,
+    subject: Optional[str] = None,
+    status: Optional[str] = None,
+) -> Dict[str, Any]:
+    with get_session() as session:
+        user_row = session.scalar(select(User).where(User.id == user_id))
+        if not user_row:
+            return {"items": [], "total": 0, "page": page, "limit": limit, "has_more": False}
+
+        student_row = session.scalar(select(Student).where(Student.user_id == user_id))
+        student_id = student_row.id if student_row else None
+        roll_number = student_row.roll_number if student_row else user_row.roll_number
+        batch_id = student_row.batch_id if student_row else getattr(user_row, "batch_id", None)
+
+        # 1. Fetch exams assigned to the student's batch
+        exam_rows: List[Dict[str, Any]] = []
+        if batch_id:
+            exams = session.scalars(
+                select(Exam)
+                .join(ExamBatch, ExamBatch.exam_id == Exam.id)
+                .where(ExamBatch.batch_id == batch_id)
+                .order_by(Exam.created_at.desc())
+            ).all()
+            for ex in exams:
+                exam_rows.append({
+                    "id": ex.id,
+                    "title": ex.title,
+                    "subject": ex.subject,
+                    "total_marks": ex.total_marks,
+                    "is_published": 1 if bool(ex.is_published == 1 or ex.status == "PUBLISHED" or ex.lifecycle_status == "PUBLISHED") else 0,
+                    "status": ex.status,
+                    "lifecycle_status": ex.lifecycle_status,
+                    "created_at": ex.created_at,
+                    "question_paper_path": ex.question_paper_path,
+                    "answer_key_path": ex.answer_key_path,
+                    "is_document_purged": bool(ex.is_document_purged)
+                })
+
+        # 2. Fetch submissions for this student
+        sub_filters = []
+        if student_id:
+            sub_filters.append(Submission.student_id == student_id)
+        if roll_number:
+            sub_filters.append(func.upper(Submission.roll_number) == roll_number.upper())
+        if not sub_filters:
+            sub_filters.append(Submission.student_id == user_id)
+
+        sub_exam_rows = session.execute(
+            select(Submission, Exam)
+            .join(Exam, Submission.exam_id == Exam.id)
+            .where(or_(*sub_filters), Submission.submission_status == 'SUBMITTED')
+            .order_by(Submission.created_at.desc())
+        ).all()
+
+        # Deduplicate submissions by exam_id (keep only newest active submission per exam)
+        seen_exam_ids = set()
+        deduped_sub_pairs = []
+        for s, ex in sub_exam_rows:
+            if s.exam_id not in seen_exam_ids:
+                seen_exam_ids.add(s.exam_id)
+                deduped_sub_pairs.append((s, ex))
+
+        all_candidate_subs = []
+        for s, ex in deduped_sub_pairs:
+            is_pub = bool(s.publication_status == "PUBLISHED" or ex.is_published == 1 or ex.status == "PUBLISHED" or ex.lifecycle_status == "PUBLISHED")
+            all_candidate_subs.append({
+                "raw_sub": s,
+                "raw_exam": ex,
+                "id": s.id,
+                "exam_id": s.exam_id,
+                "exam_title": ex.title,
+                "exam_subject": ex.subject,
+                "is_published": is_pub,
+                "status": s.status,
+                "created_at": s.created_at,
+                "is_absent": False,
+            })
+
+        # Reconcile absent exams
+        for ex in exam_rows:
+            if ex["id"] not in seen_exam_ids:
+                is_pub = bool(ex.get("is_published")) or ex.get("status") in ["RUBRIC_APPROVED", "COMPLETED", "PUBLISHED"]
+                if is_pub:
+                    all_candidate_subs.append({
+                        "raw_sub": None,
+                        "raw_exam": ex,
+                        "id": f"absent_{ex['id']}_{student_id or user_id}",
+                        "exam_id": ex["id"],
+                        "exam_title": ex["title"],
+                        "exam_subject": ex["subject"],
+                        "is_published": is_pub,
+                        "status": "ABSENT",
+                        "created_at": ex.get("created_at"),
+                        "is_absent": True,
+                    })
+
+        # Apply filtering (Search, Subject, Status)
+        filtered = []
+        for item in all_candidate_subs:
+            # Search filter
+            if search and search.strip():
+                q = search.strip().lower()
+                title_match = q in (item["exam_title"] or "").lower()
+                subject_match = q in (item["exam_subject"] or "").lower()
+                if not title_match and not subject_match:
+                    continue
+
+            # Subject filter
+            if subject and subject.strip().upper() != "ALL":
+                if (item["exam_subject"] or "").lower() != subject.strip().lower():
+                    continue
+
+            # Status filter
+            if status and status.strip().upper() != "ALL":
+                st_up = status.strip().upper()
+                if st_up == "PUBLISHED" and not item["is_published"]:
+                    continue
+                if st_up in ["IN_PROGRESS", "UNDER_EVALUATION"] and item["is_published"]:
+                    continue
+
+            filtered.append(item)
+
+        total = len(filtered)
+        offset = max(0, (page - 1) * limit)
+        page_slice = filtered[offset : offset + limit]
+
+        # For ONLY the paginated items, fully hydrate answers, revaluations, and retention
+        hydrated_items = []
+        for item in page_slice:
+            s = item["raw_sub"]
+            ex = item["raw_exam"]
+            if item["is_absent"] or s is None:
+                # Reconciled absent exam
+                hydrated_items.append({
+                    "id": item["id"],
+                    "exam_id": item["exam_id"],
+                    "batch_id": batch_id,
+                    "student_id": student_id,
+                    "roll_number": roll_number or "",
+                    "student_name": getattr(user_row, "full_name", "Student"),
+                    "submission_status": "ABSENT",
+                    "status": "ABSENT",
+                    "is_absent": True,
+                    "total_awarded_marks": 0.0,
+                    "max_marks": ex["total_marks"] if isinstance(ex, dict) else ex.total_marks,
+                    "percentage": 0.0,
+                    "total_pages": 0,
+                    "storage_path": "",
+                    "created_at": item["created_at"],
+                    "updated_at": item["created_at"],
+                    "publication_status": "PUBLISHED" if item["is_published"] else "UNPUBLISHED",
+                    "is_document_purged": False,
+                    "exam_title": item["exam_title"],
+                    "exam_subject": item["exam_subject"],
+                    "exam_total_marks": ex["total_marks"] if isinstance(ex, dict) else ex.total_marks,
+                    "exam_is_published": 1 if item["is_published"] else 0,
+                    "exam_question_paper_path": ex.get("question_paper_path") if isinstance(ex, dict) else ex.question_paper_path,
+                    "exam_answer_key_path": ex.get("answer_key_path") if isinstance(ex, dict) else ex.answer_key_path,
+                    "exam_is_document_purged": False,
+                    "is_published": item["is_published"],
+                    "student_status": "Absent",
+                    "has_question_paper": bool(item["is_published"] and (ex.get("question_paper_path") if isinstance(ex, dict) else ex.question_paper_path)),
+                    "has_answer_key": bool(item["is_published"] and (ex.get("answer_key_path") if isinstance(ex, dict) else ex.answer_key_path)),
+                    "answers": [],
+                    "revaluation": None,
+                    "days_remaining": None,
+                    "retention": {"days_remaining": None, "is_active": False}
+                })
+            else:
+                exam_is_pub = 1 if bool(ex.is_published == 1 or ex.status == "PUBLISHED" or ex.lifecycle_status == "PUBLISHED") else 0
+                is_pub = bool(s.publication_status == "PUBLISHED" or exam_is_pub == 1)
+                exam_purged = bool(ex.is_document_purged)
+
+                sub_dict = {
+                    "id": s.id,
+                    "exam_id": s.exam_id,
+                    "batch_id": s.batch_id,
+                    "student_id": s.student_id,
+                    "roll_number": s.roll_number,
+                    "student_name": s.student_name,
+                    "submission_status": s.submission_status,
+                    "status": s.status,
+                    "total_awarded_marks": s.total_awarded_marks if (user_role != "STUDENT" or is_pub) else None,
+                    "max_marks": s.max_marks,
+                    "percentage": s.percentage if (user_role != "STUDENT" or is_pub) else None,
+                    "total_pages": s.page_count,
+                    "storage_path": s.original_file_path,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                    "publication_status": s.publication_status if is_pub else "UNPUBLISHED",
+                    "is_document_purged": bool(s.is_document_purged),
+                    "exam_title": ex.title,
+                    "exam_subject": ex.subject,
+                    "exam_total_marks": ex.total_marks,
+                    "exam_is_published": exam_is_pub,
+                    "exam_status": ex.status,
+                    "exam_lifecycle_status": ex.lifecycle_status,
+                    "exam_question_paper_path": ex.question_paper_path,
+                    "exam_answer_key_path": ex.answer_key_path,
+                    "exam_is_document_purged": exam_purged,
+                    "is_published": is_pub,
+                    "has_question_paper": bool(is_pub and ex.question_paper_path and not exam_purged),
+                    "has_answer_key": bool(is_pub and ex.answer_key_path and not exam_purged),
+                    "student_status": "Results Published" if is_pub else ("Under Evaluation" if s.status in ["QUEUED", "PROCESSING", "GRADED", "COMPLETED", "NEEDS_REVIEW", "PAUSED_QUOTA"] else "Submitted"),
+                    "answers": [],
+                    "revaluation": None,
+                    "retention": {"days_remaining": None, "is_active": False},
+                    "days_remaining": None,
+                }
+
+                if user_role != "STUDENT" or is_pub:
+                    sub_dict["retention"] = RetentionService.get_retention_info(sub_dict)
+                    sub_dict["days_remaining"] = sub_dict["retention"].get("days_remaining")
+
+                    reval = session.scalar(
+                        select(RevaluationRequest)
+                        .where(RevaluationRequest.submission_id == s.id)
+                        .order_by(RevaluationRequest.requested_at.desc())
+                        .limit(1)
+                    )
+                    if reval:
+                        sub_dict["revaluation"] = {
+                            "id": reval.id,
+                            "submission_id": reval.submission_id,
+                            "student_id": reval.student_id,
+                            "exam_id": reval.exam_id,
+                            "status": reval.status,
+                            "question_ids_json": reval.question_ids_json,
+                            "student_reason": reval.student_reason,
+                            "student_remark": reval.student_reason,
+                            "decision": reval.decision,
+                            "reviewer_notes": reval.reviewer_notes,
+                            "teacher_feedback": reval.reviewer_notes,
+                            "resolved_by": reval.resolved_by,
+                            "requested_at": reval.requested_at,
+                            "resolved_at": reval.resolved_at,
+                            "expires_at": reval.expires_at,
+                        }
+
+                    ans_records = session.scalars(
+                        select(Answer)
+                        .where(Answer.submission_id == s.id)
+                        .order_by(Answer.question_id.asc())
+                    ).all()
+                    sub_dict["answers"] = [
+                        {
+                            "id": a.id,
+                            "submission_id": a.submission_id,
+                            "question_id": a.question_id,
+                            "subquestion_id": a.subquestion_id,
+                            "section_id": a.section_id,
+                            "awarded_marks": a.awarded_marks,
+                            "max_marks": a.max_marks,
+                            "extracted_text": a.extracted_text,
+                            "grading_rationale": a.grading_rationale,
+                            "feedback": a.grading_rationale,
+                            "needs_review": a.needs_review,
+                            "review_reason": a.review_reason,
+                            "page_number": a.page_number,
+                            "confidence_score": round(1.0 - (a.grading_uncertainty or 0.0), 2),
+                            "is_manually_edited": a.is_manual_override,
+                            "is_manual_override": a.is_manual_override,
+                            "override_reason": a.override_reason,
+                            "is_extra_attempt": a.is_extra_attempt,
+                            "is_missing": a.is_missing,
+                        }
+                        for a in ans_records
+                    ]
+
+                hydrated_items.append(sub_dict)
+
+        return {
+            "items": hydrated_items,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "has_more": (offset + len(hydrated_items)) < total
+        }
+
+
+@router.get("/past-submissions")
+async def get_student_past_submissions(
+    page: int = Query(1, ge=1),
+    limit: int = Query(5, ge=1, le=50),
+    search: Optional[str] = Query(None),
+    subject: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Paginated past exams endpoint for student portal infinite scrolling.
+    Fetches submissions in lightweight batches of 4-5 items, hydrating full
+    answers breakdown and revaluations only for the requested batch.
+    """
+    user_id = current_user.get("sub") or current_user.get("id")
+    user_role = current_user.get("role", "STUDENT")
+    return await asyncio.to_thread(
+        _fetch_past_submissions_sync,
+        user_id,
+        user_role,
+        page,
+        limit,
+        search,
+        subject,
+        status,
+    )

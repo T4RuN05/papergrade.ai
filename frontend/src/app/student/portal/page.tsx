@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -62,6 +62,7 @@ import {
   ModalCard,
   FormInput,
   StudentPortalSkeleton,
+  PastExamsTabSkeleton,
   StatusWell,
   MathText,
 } from "@/components/ui";
@@ -1281,12 +1282,126 @@ export default function StudentPortalPage() {
   const handleToggleAllCards = (expand: boolean) => {
     const updated: Record<string, boolean> = {};
     if (expand) {
-      filteredPastSubmissions.forEach((s) => {
+      paginatedPastExams.forEach((s) => {
         updated[s.id] = true;
       });
     }
     setExpandedCardIds(updated);
   };
+
+  // Dedicated Past Exams Infinite Scrolling & API State (4-5 exams per batch)
+  const PAST_EXAMS_BATCH_SIZE = 5;
+  const [paginatedPastExams, setPaginatedPastExams] = useState<any[]>([]);
+  const [pastExamsPage, setPastExamsPage] = useState<number>(1);
+  const [hasMorePastExams, setHasMorePastExams] = useState<boolean>(true);
+  const [isPastExamsInitialLoading, setIsPastExamsInitialLoading] = useState<boolean>(true);
+  const [isLoadingMorePastExams, setIsLoadingMorePastExams] = useState<boolean>(false);
+  const [pastExamsTotal, setPastExamsTotal] = useState<number>(0);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Fetch batches with API & fallback
+  const fetchPastExamsBatch = useCallback(
+    async (pageToFetch: number, isInitial = false) => {
+      if (isInitial) {
+        setIsPastExamsInitialLoading(true);
+      } else {
+        setIsLoadingMorePastExams(true);
+      }
+
+      try {
+        const res = await api.getStudentPastSubmissions({
+          page: pageToFetch,
+          limit: PAST_EXAMS_BATCH_SIZE,
+          search: searchQuery,
+          subject: examSubjectFilter,
+          status: examStatusFilter,
+        });
+
+        if (res && Array.isArray(res.items)) {
+          if (pageToFetch === 1) {
+            setPaginatedPastExams(res.items);
+          } else {
+            setPaginatedPastExams((prev) => {
+              const existingIds = new Set(prev.map((i) => i.id));
+              const fresh = res.items.filter((i: any) => !existingIds.has(i.id));
+              return [...prev, ...fresh];
+            });
+          }
+          setPastExamsTotal(typeof res.total === "number" ? res.total : res.items.length);
+          setHasMorePastExams(Boolean(res.has_more));
+          setPastExamsPage(pageToFetch);
+          return;
+        }
+      } catch (err) {
+        console.warn("API past submissions failed, falling back to local portal data", err);
+      }
+
+      // Fallback: slice from filteredPastSubmissions
+      const offset = (pageToFetch - 1) * PAST_EXAMS_BATCH_SIZE;
+      const slice = filteredPastSubmissions.slice(offset, offset + PAST_EXAMS_BATCH_SIZE);
+      if (pageToFetch === 1) {
+        setPaginatedPastExams(slice);
+      } else {
+        setPaginatedPastExams((prev) => [...prev, ...slice]);
+      }
+      setPastExamsTotal(filteredPastSubmissions.length);
+      setHasMorePastExams(offset + slice.length < filteredPastSubmissions.length);
+      setPastExamsPage(pageToFetch);
+    },
+    [searchQuery, examSubjectFilter, examStatusFilter, filteredPastSubmissions]
+  );
+
+  // Debounced fetch when Past Exams tab is active and filters/search change
+  useEffect(() => {
+    if (activeTab !== "exams") return;
+
+    let isMounted = true;
+    const timer = setTimeout(() => {
+      fetchPastExamsBatch(1, true).finally(() => {
+        if (isMounted) {
+          setIsPastExamsInitialLoading(false);
+        }
+      });
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [activeTab, searchQuery, examSubjectFilter, examStatusFilter, fetchPastExamsBatch]);
+
+  // Load next batch
+  const handleLoadMorePastExams = useCallback(() => {
+    if (isLoadingMorePastExams || !hasMorePastExams || isPastExamsInitialLoading) return;
+    fetchPastExamsBatch(pastExamsPage + 1, false).finally(() => {
+      setIsLoadingMorePastExams(false);
+    });
+  }, [
+    isLoadingMorePastExams,
+    hasMorePastExams,
+    isPastExamsInitialLoading,
+    pastExamsPage,
+    fetchPastExamsBatch,
+  ]);
+
+  // IntersectionObserver for infinite scrolling sentinel
+  useEffect(() => {
+    if (activeTab !== "exams" || !hasMorePastExams || isLoadingMorePastExams || isPastExamsInitialLoading) return;
+    const el = loadMoreSentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMorePastExams();
+        }
+      },
+      { root: null, rootMargin: "300px", threshold: 0.1 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeTab, hasMorePastExams, isLoadingMorePastExams, isPastExamsInitialLoading, handleLoadMorePastExams]);
 
   const toggleCard = (id: string) => {
     setExpandedCardIds((prev) => ({
@@ -2537,22 +2652,26 @@ export default function StudentPortalPage() {
         tabDirection === "right" ? "animate-tab-slide-right" : "animate-tab-slide-left"
       }`}
     >
-      {/* SECTION HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
-            {pastSubmissionsList.length > 0 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
-                {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
-              </span>
-            )}
+      {isPastExamsInitialLoading ? (
+        <PastExamsTabSkeleton />
+      ) : (
+        <>
+          {/* SECTION HEADER */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
+                {pastExamsTotal > 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                    {pastExamsTotal} {pastExamsTotal === 1 ? "Paper" : "Papers"}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
+                Search by title or subject. Click any exam card to expand detailed scores, verified PDF viewer, and answer keys.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
-            Search by title or subject. Click any exam card to expand detailed scores, verified PDF viewer, and answer keys.
-          </p>
-        </div>
-      </div>
 
       {/* SEARCH & FILTER CONTROLS TOOLBAR (Collapsible, default compact) */}
       <div className="p-2 sm:p-2.5 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
@@ -2614,10 +2733,10 @@ export default function StudentPortalPage() {
         >
           <div className="overflow-hidden space-y-2.5">
             {/* Quick Expand / Collapse All Controls & Paper Count */}
-            {filteredPastSubmissions.length > 0 && (
+            {paginatedPastExams.length > 0 && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[11px] font-medium text-ink-muted">
-                  Showing {filteredPastSubmissions.length} of {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "paper" : "papers"}
+                  Showing {paginatedPastExams.length} of {pastExamsTotal} {pastExamsTotal === 1 ? "paper" : "papers"}
                 </span>
                 <div className="inline-flex items-center rounded-lg border border-hairline bg-canvas-soft/80 p-0.5 shadow-2xs">
                   <button
@@ -2731,22 +2850,22 @@ export default function StudentPortalPage() {
       </div>
 
       {/* PAST EXAMS SUBMISSION CARDS */}
-      {filteredPastSubmissions.length === 0 ? (
+      {paginatedPastExams.length === 0 ? (
         <div className="rounded-xl border border-hairline bg-surface p-10 text-center space-y-3">
           <FileText className="h-10 w-10 text-ink-faint mx-auto" />
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-ink">
-              {pastSubmissionsList.length === 0
+              {pastExamsTotal === 0
                 ? "No exam submissions found"
                 : "No matching exams found"}
             </h3>
             <p className="text-xs text-ink-muted max-w-md mx-auto">
-              {pastSubmissionsList.length === 0
+              {pastExamsTotal === 0
                 ? "When you upload your answer sheets during an active examination window, your verified submissions, AI evaluations, and faculty remarks will appear here."
                 : `No past exams matched "${searchQuery || examSubjectFilter || examStatusFilter}". Try adjusting or clearing your filters.`}
             </p>
           </div>
-          {pastSubmissionsList.length > 0 && (
+          {pastExamsTotal > 0 && (
             <button
               type="button"
               onClick={() => {
@@ -2761,8 +2880,9 @@ export default function StudentPortalPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredPastSubmissions.map((sub) => {
+        <>
+          <div className="space-y-3">
+          {paginatedPastExams.map((sub, idx) => {
             const isAbsent = sub.status === "ABSENT" || Boolean(sub.is_absent);
             const isExamPublished =
               !isAbsent &&
@@ -2787,7 +2907,8 @@ export default function StudentPortalPage() {
             return (
               <FeatureCard
                 key={sub.id}
-                className={`transition-all duration-200 border ${
+                style={{ animationDelay: `${(idx % PAST_EXAMS_BATCH_SIZE) * 50}ms` }}
+                className={`animate-cascade transition-all duration-200 border ${
                   isExpanded
                     ? "p-4 sm:p-5 shadow-sm border-primary/30 ring-1 ring-primary/20"
                     : "p-3.5 sm:p-4 hover:border-hairline-strong hover:bg-canvas-soft/30 cursor-pointer"
@@ -3154,7 +3275,26 @@ export default function StudentPortalPage() {
             );
           })}
         </div>
-      )}
+
+        {/* Infinite Scroll Sentinel & Inline Loader */}
+        <div
+          ref={loadMoreSentinelRef}
+          className="py-4 flex flex-col items-center justify-center min-h-[44px]"
+        >
+          {isLoadingMorePastExams && (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-hairline text-xs font-medium text-ink-muted shadow-2xs animate-in fade-in duration-200">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>Loading next exams...</span>
+            </div>
+          )}
+          {!hasMorePastExams && paginatedPastExams.length > 0 && (
+            <span className="text-[11px] font-mono text-ink-faint select-none">
+              • All {pastExamsTotal} past exams loaded •
+            </span>
+          )}
+        </div>
+      </>
+    )}
 
       {/* Direct Technical Support & Report Issue Card */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline relative overflow-hidden shadow-2xs">
@@ -3179,8 +3319,10 @@ export default function StudentPortalPage() {
           <span>Report Technical Issue</span>
         </button>
       </div>
-    </div>
+    </>
   )}
+</div>
+)}
 </div>
 
       {/* DETAILED QUESTION BREAKDOWN MODAL */}

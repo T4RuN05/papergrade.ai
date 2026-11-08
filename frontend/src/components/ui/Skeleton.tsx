@@ -1006,6 +1006,80 @@ export function StudentPortalSkeleton() {
   );
 }
 
+export function PastExamsTabSkeleton() {
+  return (
+    <div className="space-y-4 animate-in fade-in duration-200">
+      {/* Section Header Skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-52 sm:w-60" />
+            <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+          </div>
+          <Skeleton className="h-3.5 w-72 sm:w-96 max-w-full" />
+        </div>
+      </div>
+
+      {/* Search & Filter Toolbar Skeleton (Collapsible compact default) */}
+      <div className="p-2 sm:p-2.5 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Skeleton className="h-9 w-full rounded-xl" />
+          </div>
+          <Skeleton className="h-9 w-20 sm:w-24 rounded-xl shrink-0" />
+        </div>
+      </div>
+
+      {/* 4 Exam Cards Skeletons with Staggered Cascading */}
+      <div className="space-y-3">
+        {[0, 1, 2, 3].map((idx) => (
+          <FeatureCard
+            key={idx}
+            className="p-3.5 sm:p-4 border border-hairline bg-surface space-y-3 animate-cascade"
+            style={{ animationDelay: `${idx * 60}ms` }}
+          >
+            {/* Header row: title, subject, status */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Skeleton className="h-4.5 sm:h-5 w-44 sm:w-64" />
+                  <Skeleton className="h-4 w-16 rounded-md shrink-0" />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                <Skeleton className="h-6 w-28 rounded-full" />
+                <Skeleton className="h-6 w-6 rounded-md" />
+              </div>
+            </div>
+
+            {/* Score / Action preview row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-hairline/60">
+              <div className="flex items-center gap-4">
+                <div className="space-y-1">
+                  <Skeleton className="h-2.5 w-12" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="h-6 w-px bg-hairline" />
+                <div className="space-y-1">
+                  <Skeleton className="h-2.5 w-14" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <Skeleton className="h-8 w-28 rounded-lg" />
+              </div>
+            </div>
+          </FeatureCard>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ==========================================
 // 12. Evaluation / Submission Viewer Skeleton
 //     (/grading/[id] & /student/submissions/[id])
