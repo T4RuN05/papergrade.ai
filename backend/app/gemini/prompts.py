@@ -59,25 +59,26 @@ STEP 1 — FORENSIC TRANSCRIPTION & LOCALIZATION (`extracted_student_answer` & `
 
 STEP 2 — ZERO-CHARITY RUBRIC AUDIT (`criterion_scores` & `awarded_marks`):
 1. MANDATORY EVIDENCE FORMAT (`criterion_scores[].evidence`):
-   Every criterion MUST use one of these three formats:
-   - IF 100% SATISFIED:
+   Every criterion MUST use one of these four formats:
+   - FULL CREDIT:
      `PASS | QUOTE: "<exact verbatim substring from extracted_student_answer>"` -> Award full criterion marks.
-   - IF ATTEMPTED WITH ANY FLAW:
-     `FAIL: <concise error reason> | QUOTE: "<exact verbatim substring>"` -> Award `0.0` marks.
-   - IF UNATTEMPTED OR STEP OMITTED:
+   - PARTIAL CREDIT (ONLY when partial conditions are satisfied):
+     `PARTIAL: <concise flaw> | QUOTE: "<exact verbatim substring>"` -> Award partial marks in 0.5 increments.
+   - ZERO CREDIT (FAILED):
+     `FAIL: <concise flaw> | QUOTE: "<exact verbatim substring>"` -> Award `0.0` marks.
+   - OMITTED:
      `MISSING` -> Award `0.0` marks.
 
-2. GROUNDING CONTRACT:
-   - `QUOTE: "..."` must be an exact substring of `extracted_student_answer` (including from `[DIAGRAM: ...]`). Never fabricate quotes or award marks for implied steps.
+2. NUMERICAL TOLERANCE & UNIT MISMATCH RULES:
+   - TOLERANCE (±0.5): If the student's numerical answer is within ±0.5 of the official key (or ±2% for large numbers), accept the calculation as correct.
+   - UNIT MISMATCH / OMISSION: If formula, substitution, and final numerical value are correct but the SI unit is missing or mismatched, DO NOT give 0.0. Award PARTIAL marks (deduct only 0.5 marks, e.g. 0.5/1.0 or 1.5/2.0).
+   - PARTIAL PROGRESSION: Award partial marks (0.5 increments) ONLY if the correct formula is written and valid values are substituted before an arithmetic error. Never award partial marks for unattempted or completely fabricated steps.
 
-3. STRICT NEGATIVE VERIFICATION (OUTPUT `FAIL` & `0.0` MARKS):
-   - ALGEBRA & TRANSPOSITION: Student inverted numerator/denominator during rearrangement, dropped a factor, or swapped signs.
-   - NUMERICAL & MAGNITUDE: Value differs from key beyond ±2% tolerance, has the wrong power of 10, or has wrong/missing SI units.
-   - INCOMPLETE MATH OR CHEMISTRY: Student stopped midway before computing the required final variable value, or wrote partial/unbalanced fragments when a complete balanced equation or overall cell reaction is required.
-   - TABLES & TERMINOLOGY: Student assigned a property to the wrong comparison column, used false scientific terms, or stated a conceptual contradiction.
-   - DIAGRAMS & LABELS:
-     * Sketch criteria: Award `0.0` (`FAIL: Crude/minimal outline lacking required structure`) if `SKETCH_QUALITY` is `CRUDE_OUTLINE`, `BARE_MINIMAL`, or `ILLEGIBLE`, or if structural bond positions/angles (e.g. cis 90° vs trans 180°) are wrong.
-     * Labeling criteria: Award `0.0` (`FAIL: Missing component pointer labels`) if `LABELS_PRESENT` is `"NONE"` or lacks required labels. A page/section title never counts as component labeling.
+3. STRICT ZERO CREDIT (OUTPUT `FAIL` & `0.0` MARKS):
+   - Inverted algebra, swapped signs, or false physics/chemistry concepts.
+   - Numerical value outside ±0.5 tolerance with wrong power of 10.
+   - Incomplete fragments when a complete balanced equation was required.
+   - Bare unlabelled diagrams (`LABELS_PRESENT: "NONE"` or `SKETCH_QUALITY: "CRUDE_OUTLINE"` / `"BARE_MINIMAL"`).
 
 4. MCQ & OBJECTIVE GRADING RULE:
    - Award full marks (`PASS`) if the student wrote: (a) the correct option letter, OR (b) the correct option text/numerical value, OR (c) both.
@@ -108,6 +109,7 @@ def build_student_grading_prompt(rubric_json_str: str) -> str:
 ```
 
 EXECUTION CHECKLIST:
-1. Transcribe physical ink verbatim into `extracted_student_answer` before scoring (stop immediately where ink ends, preserve all student blunders, serialize drawings using the 4-field `[DIAGRAM: TITLE | SKETCH_QUALITY | COMPONENTS_DRAWN | LABELS_PRESENT]` block, and output normalized `regions` for every attempted question).
-2. Audit each criterion strictly against `extracted_student_answer` using `PASS | QUOTE: "<verbatim substring>"`, `FAIL: <flaw> | QUOTE: "<verbatim substring>"` (`0.0` marks), or `MISSING` (`0.0` marks).
-3. Force `awarded_marks = 0.0` on any criterion with inverted algebra, wrong power of 10, incomplete derivation/reaction, `CRUDE_OUTLINE`/`BARE_MINIMAL` sketch, or `LABELS_PRESENT: "NONE"`."""
+1. Transcribe physical ink verbatim into `extracted_student_answer` before scoring (no autocorrect, no reaction completion, 4-field diagram block).
+2. Audit each criterion using `PASS | QUOTE: "..."`, `PARTIAL: <flaw> | QUOTE: "..."`, `FAIL: <flaw> | QUOTE: "..."` (0.0 marks), or `MISSING` (0.0 marks).
+3. Tolerance is ±0.5. For correct math with missing/wrong SI unit, award PARTIAL credit (deduct only 0.5 marks, never 0.0 binary fail).
+4. Award partial marks ONLY where partial conditions are satisfied (correct formula + substitution). Inverted algebra, wrong power of 10, or unlabelled sketches force 0.0."""

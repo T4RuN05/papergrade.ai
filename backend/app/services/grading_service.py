@@ -49,12 +49,14 @@ def _enforce_evidence_grounding_and_verdict(
 
     # Rule 1: Explicit FAIL / MISSING / NOT FOUND check
     if (
-        not ev_upper.startswith("PASS")
-        or ev_upper.startswith("FAIL")
+        ev_upper.startswith("FAIL")
         or ev_upper.startswith("MISSING")
         or "FAILED:" in ev_upper
         or "NOT FOUND" in ev_upper
     ):
+        return 0.0
+
+    if not (ev_upper.startswith("PASS") or ev_upper.startswith("PARTIAL")):
         return 0.0
 
     # Rule 2: Verify QUOTE substring exists in extracted_student_answer
@@ -132,6 +134,11 @@ def _enforce_evidence_grounding_and_verdict(
 
     # Rule 3: Clamp to [0.0, max_marks] and snap to discrete 0.5 increments
     clamped = max(0.0, min(float(awarded_marks), float(max_marks)))
+    if ev_upper.startswith("PARTIAL"):
+        if clamped >= float(max_marks) and float(max_marks) >= 1.0:
+            clamped = float(max_marks) - 0.5
+        elif clamped <= 0.0 and float(max_marks) >= 0.5:
+            clamped = 0.5
     return round(clamped * 2.0) / 2.0
 
 

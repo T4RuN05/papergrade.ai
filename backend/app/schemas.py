@@ -70,15 +70,16 @@ class CriterionScoreItem(BaseModel):
     evidence: str = Field(
         default="",
         description=(
-            "Strict 3-part format: "
-            "(1) If 100% satisfied: 'PASS | QUOTE: \"<exact verbatim substring from extracted_student_answer>\"' "
-            "(2) If flawed/inverted/wrong magnitude/crude sketch/unlabelled: 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' "
-            "(3) If omitted: 'MISSING'"
+            "Strict 4-part format: "
+            "(1) Full credit: 'PASS | QUOTE: \"<exact verbatim substring from extracted_student_answer>\"' "
+            "(2) Partial credit (units mismatch/minor flaw with correct formula): 'PARTIAL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' "
+            "(3) Zero credit: 'FAIL: <short flaw> | QUOTE: \"<exact verbatim substring>\"' "
+            "(4) Omitted: 'MISSING'"
         ),
     )
     awarded_marks: float = Field(
         ge=0.0,
-        description="MUST be 0.0 if evidence starts with 'FAIL:' or 'MISSING'. Discrete 0.5 increments only.",
+        description="Discrete 0.5 increments. MUST be 0.0 if evidence starts with 'FAIL:' or 'MISSING'.",
     )
 
 class GradedAnswerItem(BaseModel):
