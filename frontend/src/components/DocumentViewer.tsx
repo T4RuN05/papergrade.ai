@@ -683,19 +683,21 @@ export function DocumentViewer({
   // Global mousemove and mouseup listeners for dragging/resizing
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!dragStateRef.current) return;
-      const { handle, startClientX, startClientY, initialBox, containerW, containerH } =
-        dragStateRef.current;
+      const drag = dragStateRef.current;
+      if (!drag) return;
+      const { handle, startClientX, startClientY, initialBox, containerW, containerH, regionId } =
+        drag;
+      if (!regionId) return;
 
       const deltaX_px = (e.clientX - startClientX) / zoomScale;
       const deltaY_px = (e.clientY - startClientY) / zoomScale;
 
       if (Math.abs(deltaX_px) > 2 || Math.abs(deltaY_px) > 2) {
-        dragStateRef.current.hasMoved = true;
+        drag.hasMoved = true;
       }
 
-      const dx = deltaX_px / containerW;
-      const dy = deltaY_px / containerH;
+      const dx = deltaX_px / (containerW || 1);
+      const dy = deltaY_px / (containerH || 1);
 
       let newX = initialBox.x;
       let newY = initialBox.y;
@@ -760,16 +762,21 @@ export function DocumentViewer({
         }
       }
 
-      setDraftCoords((prev) => ({
-        ...prev,
-        [dragStateRef.current!.regionId]: {
-          x: Math.round(newX * 1000) / 1000,
-          y: Math.round(newY * 1000) / 1000,
-          width: Math.round(newW * 1000) / 1000,
-          height: Math.round(newH * 1000) / 1000,
-          isModified: true,
-        },
-      }));
+      const updatedCoords = {
+        x: Math.round(newX * 1000) / 1000,
+        y: Math.round(newY * 1000) / 1000,
+        width: Math.round(newW * 1000) / 1000,
+        height: Math.round(newH * 1000) / 1000,
+        isModified: true,
+      };
+
+      setDraftCoords((prev) => {
+        if (!regionId) return prev;
+        return {
+          ...prev,
+          [regionId]: updatedCoords,
+        };
+      });
     };
 
     const handleEnd = () => {
@@ -815,10 +822,10 @@ export function DocumentViewer({
 
     // Use container dimensions divided by zoomScale to get unscaled base resolution
     const containerRect = imageContainerRef.current.getBoundingClientRect();
-    const containerW = containerRect.width / zoomScale;
-    const containerH = containerRect.height / zoomScale;
+    const containerW = Math.max(1, containerRect.width / (zoomScale || 1));
+    const containerH = Math.max(1, containerRect.height / (zoomScale || 1));
 
-    const regId = region.id || `${answer.id}`;
+    const regId = region.id || answer.id;
     const current = draftCoords[regId] || {
       x: region.x,
       y: region.y,
@@ -907,6 +914,8 @@ export function DocumentViewer({
       if (onSetEditingAnswerId) {
         onSetEditingAnswerId(null);
       }
+    } catch (e) {
+      console.error("Failed to save region:", e);
     } finally {
       setSavingRegionId(null);
     }
@@ -1371,7 +1380,7 @@ export function DocumentViewer({
 
           {/* Bounding Box Overlays */}
           {pageRegions.map(({ region, answer }, idx) => {
-            const regId = region.id || `${answer.id}-${idx}`;
+            const regId = region.id || answer.id;
             const isSelected = selectedAnswerId === answer.id;
             const isHovered = hoveredAnswerId === answer.id;
             const style = getStatusColor(answer);
