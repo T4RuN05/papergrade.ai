@@ -1003,7 +1003,12 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to start evaluation" }));
       throw new Error(err.detail || "Failed to start evaluation");
     }
-    return res.json();
+    const data = await res.json();
+    clearApiCache(`exams:detail:${examId}`);
+    clearApiCache(`submissions:list:${examId}`);
+    clearApiCache(`submissions:list:all`);
+    clearApiCache(`exams:list:`);
+    return data;
   },
 
   async publishResults(examId: string): Promise<any> {
@@ -1015,7 +1020,12 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: "Failed to publish results" }));
       throw new Error(err.detail || "Failed to publish results");
     }
-    return res.json();
+    const data = await res.json();
+    clearApiCache(`exams:detail:${examId}`);
+    clearApiCache(`submissions:list:${examId}`);
+    clearApiCache(`submissions:list:all`);
+    clearApiCache(`exams:list:`);
+    return data;
   },
 
   // -------------------------------------------------------------

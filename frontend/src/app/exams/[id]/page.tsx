@@ -192,13 +192,13 @@ export default function ExamDetailPage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadExamData = async (showSkeleton = false) => {
+  const loadExamData = async (showSkeleton = false, forceRefresh = true) => {
     if (showSkeleton) setLoading(true);
     else setIsRefreshing(true);
     try {
       const [examData, subsData, batchesData] = await Promise.all([
-        api.getExam(examId, Boolean(showSkeleton)),
-        api.listSubmissions(examId, Boolean(showSkeleton)).catch(() => []),
+        api.getExam(examId, forceRefresh),
+        api.listSubmissions(examId, forceRefresh).catch(() => []),
         api.listBatches().catch(() => []),
       ]);
 
@@ -247,9 +247,9 @@ export default function ExamDetailPage() {
     if (cachedExam) {
       setExam(cachedExam);
       setLoading(false);
-      loadExamData(false);
+      loadExamData(false, true);
     } else {
-      loadExamData(true);
+      loadExamData(true, true);
     }
   }, [examId]);
 
@@ -291,7 +291,9 @@ export default function ExamDetailPage() {
 
       // If evaluation just finished (no more queued or processing), trigger a single full sync
       if (!statusData.is_active && statusData.summary?.total > 0) {
-        loadExamData(false);
+        clearApiCache(`exams:detail:${examId}`);
+        clearApiCache(`submissions:list:${examId}`);
+        loadExamData(false, true);
       }
     } catch (err) {
       console.error("Evaluation status poll failed:", err);
@@ -300,33 +302,40 @@ export default function ExamDetailPage() {
     }
   }, [examId]);
 
-  // Real-time polling while any submission is actively in queue (QUEUED / PROCESSING) or starting eval
+  // Derived states for evaluation activity
+  const isQueueActive = submissions.some(
+    (s) => s.status === "QUEUED" || s.status === "PROCESSING"
+  );
+  const isExamEvaluatingStatus = exam?.status === "EVALUATING" || exam?.lifecycle_status === "EVALUATING";
+  const isEvalActive = Boolean(isStartingEval || isExamEvaluatingStatus || isQueueActive);
+
+  // Real-time evaluation polling while active (fires immediately, then every 3.5s)
   useEffect(() => {
-    const hasActiveQueue = submissions.some(
-      (s) => s.status === "QUEUED" || s.status === "PROCESSING"
-    );
-    const isWindowActive = Boolean(windowStatus?.is_active);
+    if (!isEvalActive) return;
 
-    if (!hasActiveQueue && !isWindowActive && !isStartingEval) return;
+    // Immediately trigger status poll on activation so UI updates with zero delay
+    pollEvaluationStatus();
 
-    // If only window is active (upload phase), poll window status only (1 endpoint)
-    if (!hasActiveQueue && isWindowActive) {
-      const winTimer = setInterval(async () => {
-        try {
-          const win = await api.getWindowStatus(examId);
-          setWindowStatus(win);
-        } catch (_) {}
-      }, 5000);
-      return () => clearInterval(winTimer);
-    }
-
-    // Active evaluation polling: single status endpoint every 7 seconds
+    // Active evaluation polling: single lightweight status endpoint (<5ms)
     const evalTimer = setInterval(() => {
       pollEvaluationStatus();
-    }, 7000);
+    }, 3500);
 
     return () => clearInterval(evalTimer);
-  }, [submissions, windowStatus?.is_active, isStartingEval, pollEvaluationStatus, examId]);
+  }, [isEvalActive, pollEvaluationStatus]);
+
+  // Upload window status polling (5s interval while student upload window is open)
+  const isWindowActive = Boolean(windowStatus?.is_active);
+  useEffect(() => {
+    if (!isWindowActive) return;
+    const winTimer = setInterval(async () => {
+      try {
+        const win = await api.getWindowStatus(examId);
+        setWindowStatus(win);
+      } catch (_) {}
+    }, 5000);
+    return () => clearInterval(winTimer);
+  }, [isWindowActive, examId]);
 
   // Real-time smooth 1-second countdown ticker for active submission window
   useEffect(() => {
@@ -416,18 +425,32 @@ export default function ExamDetailPage() {
     // Optimistic UI state: immediately update non-completed submissions to QUEUED
     setSubmissions((prev) =>
       prev.map((s) =>
-        s.status !== "COMPLETED" && s.status !== "GRADED"
+        s.status !== "COMPLETED" && s.status !== "GRADED" && s.status !== "NEEDS_REVIEW"
           ? { ...s, status: "QUEUED" }
           : s
       )
     );
+    // Optimistically mark exam status as EVALUATING
+    setExam((prev) => (prev ? { ...prev, status: "EVALUATING", lifecycle_status: "EVALUATING" } : prev));
+
     try {
+      clearApiCache(`exams:detail:${examId}`);
+      clearApiCache(`submissions:list:${examId}`);
+      clearApiCache(`submissions:list:all`);
+      clearApiCache(`exams:list:`);
+
       const res = await api.startEvaluation(examId);
-      await loadExamData(false);
-      toast.success(`Evaluation started! ${res.enqueued_papers || "All"} submissions enqueued in roll number order.`, { title: "Evaluation Triggered" });
+
+      // Immediately poll evaluation status directly from backend to sync real-time queue states
+      await pollEvaluationStatus();
+
+      toast.success(
+        `Evaluation started! ${res.enqueued_papers || "All"} submissions enqueued in roll number order.`,
+        { title: "Evaluation Triggered" }
+      );
     } catch (err: any) {
       toast.error(err.message || "Failed to start evaluation", { title: "Evaluation Blocked" });
-      await loadExamData(false);
+      await loadExamData(false, true);
     } finally {
       setIsStartingEval(false);
     }
@@ -729,14 +752,10 @@ export default function ExamDetailPage() {
 
   const hasFailedPapers = submissions.some((s) => s.status === "FAILED");
 
-  const hasActiveQueue = submissions.some(
-    (s) => s.status === "QUEUED" || s.status === "PROCESSING"
-  );
-
   const isEvaluating =
     isStartingEval ||
-    hasActiveQueue ||
-    ((exam.lifecycle_status === "EVALUATING" || exam.status === "EVALUATING") && unprocessedCount > 0);
+    isQueueActive ||
+    ((exam.lifecycle_status === "EVALUATING" || exam.status === "EVALUATING") && (unprocessedCount > 0 || isQueueActive));
 
   const canStartEvaluation =
     !isEvaluating &&
@@ -1350,7 +1369,11 @@ export default function ExamDetailPage() {
             {/* Real-time Refresh Button */}
             <button
               type="button"
-              onClick={() => loadExamData(false)}
+              onClick={() => {
+                clearApiCache(`exams:detail:${examId}`);
+                clearApiCache(`submissions:list:${examId}`);
+                loadExamData(false, true);
+              }}
               disabled={isRefreshing}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-ink-secondary hover:text-ink bg-surface border border-hairline rounded-md hover:bg-canvas-soft transition-colors cursor-pointer"
               title="Refresh submissions ledger in real time"
