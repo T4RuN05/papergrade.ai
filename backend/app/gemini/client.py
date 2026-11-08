@@ -138,7 +138,8 @@ class GeminiGradingClient:
             new_key = self._keys[new_idx]
             masked_old = self._keys[old_idx][:6] + "..." + self._keys[old_idx][-4:]
             masked_new = new_key[:6] + "..." + new_key[-4:]
-            print(f"[GeminiClient] Worker #{worker_id} key failover: #{old_idx + 1} ({masked_old}) -> #{new_idx + 1} ({masked_new}). Reason: {reason}")
+            if "Round-robin" not in reason:
+                print(f"[GeminiClient] Worker #{worker_id} key failover: #{old_idx + 1} ({masked_old}) -> #{new_idx + 1} ({masked_new}). Reason: {reason}")
             return new_key
 
     def mask_key(self, api_key: Optional[str]) -> str:
@@ -379,6 +380,7 @@ class GeminiGradingClient:
                         retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
                     )
                     self.clear_model_cooldown(model_to_use, active_key)
+                    self.rotate_to_next_key(worker_id=0, reason="Round-robin post-success")
                     return parsed, event_id
 
                 except Exception as e:
@@ -607,6 +609,7 @@ class GeminiGradingClient:
                         model_name=model_to_use, api_key=active_key
                     )
                     self.clear_model_cooldown(model_to_use, active_key)
+                    self.rotate_to_next_key(worker_id=worker_id, reason="Round-robin post-success")
                     return parsed, event_id
 
                 except Exception as e:
