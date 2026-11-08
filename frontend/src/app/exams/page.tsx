@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   GraduationCap,
@@ -21,6 +21,9 @@ import {
   AlertTriangle,
   Loader2,
   Users,
+  Search,
+  X,
+  Filter,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -58,6 +61,67 @@ export default function ExamsPage() {
   const [targetExamForDelete, setTargetExamForDelete] = useState<Exam | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeletingExam, setIsDeletingExam] = useState(false);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState<string>("ALL");
+  const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+
+  const checkIsRubricApproved = useCallback((exam: Exam) => Boolean(
+    exam.is_rubric_approved ||
+    exam.has_approved_rubric ||
+    exam.status === "RUBRIC_APPROVED" ||
+    exam.lifecycle_status === "APPROVED" ||
+    ["RUBRIC_APPROVED", "SUBMISSION_OPEN", "EVALUATING", "EVALUATED", "COMPLETED", "PUBLISHED"].includes(exam.status) ||
+    ["RUBRIC_APPROVED", "SUBMISSION_OPEN", "EVALUATING", "EVALUATED", "COMPLETED", "PUBLISHED", "APPROVED"].includes(exam.lifecycle_status || "")
+  ), []);
+
+  const availableSubjects = useMemo(() => {
+    const subjects = new Set<string>();
+    exams.forEach((e) => {
+      if (e.subject) subjects.add(e.subject.trim());
+    });
+    return Array.from(subjects).sort((a, b) => a.localeCompare(b));
+  }, [exams]);
+
+  const filteredExams = useMemo(() => {
+    return exams.filter((exam) => {
+      // 1. Subject filter
+      if (
+        selectedSubject !== "ALL" &&
+        (exam.subject || "").trim().toLowerCase() !== selectedSubject.toLowerCase()
+      ) {
+        return false;
+      }
+
+      // 2. Status filter
+      if (selectedStatus !== "ALL") {
+        const win = windowsMap[exam.id];
+        const isRubricApproved = checkIsRubricApproved(exam);
+
+        if (selectedStatus === "PUBLISHED" && !exam.is_published) return false;
+        if (selectedStatus === "APPROVED_RUBRIC" && !isRubricApproved) return false;
+        if (selectedStatus === "DRAFT_RUBRIC" && (isRubricApproved || !exam.current_rubric_version_id)) return false;
+        if (selectedStatus === "NO_RUBRIC" && (isRubricApproved || exam.current_rubric_version_id)) return false;
+        if (selectedStatus === "WINDOW_OPEN" && !win?.is_active) return false;
+        if (selectedStatus === "WINDOW_CLOSED" && win?.is_active) return false;
+      }
+
+      // 3. Search query
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+
+      const titleMatch = (exam.title || "").toLowerCase().includes(q);
+      const subjectMatch = (exam.subject || "").toLowerCase().includes(q);
+      const idMatch = (exam.id || "").toLowerCase().includes(q);
+      const batchMatch =
+        exam.batch_scope === "SPECIFIC" && exam.scoped_batches
+          ? exam.scoped_batches.some((b) => b.name?.toLowerCase().includes(q))
+          : "whole branch".includes(q);
+
+      return titleMatch || subjectMatch || idMatch || batchMatch;
+    });
+  }, [exams, searchQuery, selectedSubject, selectedStatus, windowsMap, checkIsRubricApproved]);
 
   const canDeleteExam = (exam: Exam) => Boolean(
     isRootAdmin ||
@@ -274,6 +338,102 @@ export default function ExamsPage() {
 
 
 
+      {/* 2. Search & Filter Bar */}
+      {exams.length > 0 && (
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 bg-surface p-2.5 sm:p-3 rounded-lg border border-hairline shadow-2xs">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearchQuery("");
+              }}
+              placeholder="Search exams by title, subject, batch..."
+              className="w-full rounded-md border border-hairline bg-canvas-soft pl-9 pr-8 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:border-primary focus:bg-surface focus:outline-none transition-colors shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full flex items-center justify-center text-[10px] text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Filters Row */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* Subject Selector */}
+            {availableSubjects.length > 0 && (
+              <div className="relative min-w-[130px] flex-1 sm:flex-initial">
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  className="w-full appearance-none rounded-md border border-hairline bg-canvas-soft px-2.5 py-1.5 pr-7 text-xs text-ink font-medium focus:border-primary focus:bg-surface focus:outline-none transition-colors cursor-pointer shadow-2xs"
+                >
+                  <option value="ALL">All Subjects</option>
+                  {availableSubjects.map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted text-[10px]">
+                  ▼
+                </div>
+              </div>
+            )}
+
+            {/* Rubric / Window Status Filter */}
+            <div className="relative min-w-[140px] flex-1 sm:flex-initial">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full appearance-none rounded-md border border-hairline bg-canvas-soft px-2.5 py-1.5 pr-7 text-xs text-ink font-medium focus:border-primary focus:bg-surface focus:outline-none transition-colors cursor-pointer shadow-2xs"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="APPROVED_RUBRIC">Rubric Approved</option>
+                <option value="DRAFT_RUBRIC">Draft Rubric</option>
+                <option value="NO_RUBRIC">No Rubric</option>
+                <option value="WINDOW_OPEN">Window Open</option>
+                <option value="WINDOW_CLOSED">Window Closed</option>
+              </select>
+              <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted text-[10px]">
+                ▼
+              </div>
+            </div>
+
+            {/* Reset Filter Button if active */}
+            {(searchQuery || selectedSubject !== "ALL" || selectedStatus !== "ALL") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedSubject("ALL");
+                  setSelectedStatus("ALL");
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline transition-colors cursor-pointer shrink-0"
+                title="Reset all filters"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span className="hidden sm:inline">Reset</span>
+              </button>
+            )}
+
+            {/* Count Tag */}
+            <span className="text-[11px] font-mono text-ink-muted whitespace-nowrap pl-1">
+              {filteredExams.length} of {exams.length}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 3. Main Content Area */}
       {loading ? (
         <FeatureCard className="p-16 text-center text-xs text-ink-muted animate-pulse">
@@ -296,23 +456,43 @@ export default function ExamsPage() {
             </ButtonPrimary>
           </div>
         </FeatureCard>
+      ) : filteredExams.length === 0 ? (
+        <FeatureCard className="p-12 text-center space-y-3">
+          <div className="mx-auto h-12 w-12 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
+            <Search className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-semibold text-ink">
+            No examinations match your search or filter criteria.
+          </p>
+          <p className="text-xs text-ink-muted max-w-sm mx-auto">
+            {searchQuery
+              ? `No matches found for "${searchQuery}". Try searching by another keyword, subject, or batch.`
+              : "No examinations match the selected subject or status filter."}
+          </p>
+          <div className="pt-2">
+            <ButtonUtility
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedSubject("ALL");
+                setSelectedStatus("ALL");
+              }}
+              size="sm"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Clear Search & Filters
+            </ButtonUtility>
+          </div>
+        </FeatureCard>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast">
-          {exams.map((exam) => {
+          {filteredExams.map((exam) => {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;
             const isInGrace = win?.is_in_grace;
             const secondsRemaining = win?.seconds_remaining || 0;
             const minutesRemaining = Math.max(0, Math.floor(secondsRemaining / 60));
 
-            const isRubricApproved = Boolean(
-              exam.is_rubric_approved ||
-              exam.has_approved_rubric ||
-              exam.status === "RUBRIC_APPROVED" ||
-              exam.lifecycle_status === "APPROVED" ||
-              ["RUBRIC_APPROVED", "SUBMISSION_OPEN", "EVALUATING", "EVALUATED", "COMPLETED", "PUBLISHED"].includes(exam.status) ||
-              ["RUBRIC_APPROVED", "SUBMISSION_OPEN", "EVALUATING", "EVALUATED", "COMPLETED", "PUBLISHED", "APPROVED"].includes(exam.lifecycle_status || "")
-            );
+            const isRubricApproved = checkIsRubricApproved(exam);
 
             return (
               <FeatureCard
