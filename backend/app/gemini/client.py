@@ -128,65 +128,72 @@ class GeminiGradingClient:
             }
 
         start_time = time.time()
-        model_name = "gemini-1.5-flash"
-        try:
-            response = self._gcp_client.models.generate_content(
-                model=model_name,
-                contents="PaperGrade AI diagnostic ping. Respond with 'GCP Vertex AI Online'."
-            )
-            duration_ms = int((time.time() - start_time) * 1000)
-            in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-            out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
-            tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
+        candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
+        last_error = None
 
-            event_id = self._record_usage_event(
-                exam_id=None,
-                batch_id=None,
-                submission_id=None,
-                request_purpose="GCP_PAID_DIAGNOSTIC_PING",
-                duration_ms=duration_ms,
-                success=True,
-                input_tokens=in_tok,
-                output_tokens=out_tok,
-                total_tokens=tot_tok,
-                http_status=200,
-                model_name=model_name,
-                api_key="GCP_PAID"
-            )
-            return {
-                "success": True,
-                "message": response.text or "GCP Vertex AI Online",
-                "duration_ms": duration_ms,
-                "input_tokens": in_tok,
-                "output_tokens": out_tok,
-                "event_id": event_id
-            }
-        except Exception as e:
-            duration_ms = int((time.time() - start_time) * 1000)
-            err_code = type(e).__name__
-            http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
-            err_msg = str(e)
+        for model_name in candidate_models:
+            try:
+                response = self._gcp_client.models.generate_content(
+                    model=model_name,
+                    contents="PaperGrade AI diagnostic ping. Respond with 'GCP Vertex AI Online'."
+                )
+                duration_ms = int((time.time() - start_time) * 1000)
+                in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
+                out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+                tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
 
-            event_id = self._record_usage_event(
-                exam_id=None,
-                batch_id=None,
-                submission_id=None,
-                request_purpose="GCP_PAID_DIAGNOSTIC_PING",
-                duration_ms=duration_ms,
-                success=False,
-                http_status=http_status,
-                error_code=f"{err_code}: {err_msg[:120]}",
-                model_name=model_name,
-                api_key="GCP_PAID"
-            )
-            return {
-                "success": False,
-                "error_code": err_code,
-                "http_status": http_status,
-                "message": err_msg,
-                "duration_ms": duration_ms,
-                "event_id": event_id
-            }
+                event_id = self._record_usage_event(
+                    exam_id=None,
+                    batch_id=None,
+                    submission_id=None,
+                    request_purpose="GCP_PAID_DIAGNOSTIC_PING",
+                    duration_ms=duration_ms,
+                    success=True,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    total_tokens=tot_tok,
+                    http_status=200,
+                    model_name=model_name,
+                    api_key="GCP_PAID"
+                )
+                return {
+                    "success": True,
+                    "message": response.text or "GCP Vertex AI Online",
+                    "model_used": model_name,
+                    "duration_ms": duration_ms,
+                    "input_tokens": in_tok,
+                    "output_tokens": out_tok,
+                    "event_id": event_id
+                }
+            except Exception as e:
+                last_error = e
+                continue
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        err_code = type(last_error).__name__ if last_error else "UnknownError"
+        http_status = getattr(last_error, "code", 500) if hasattr(last_error, "code") else 500
+        err_msg = str(last_error) if last_error else "Failed to contact Vertex AI"
+
+        event_id = self._record_usage_event(
+            exam_id=None,
+            batch_id=None,
+            submission_id=None,
+            request_purpose="GCP_PAID_DIAGNOSTIC_PING",
+            duration_ms=duration_ms,
+            success=False,
+            http_status=http_status,
+            error_code=f"{err_code}: {err_msg[:120]}",
+            model_name=candidate_models[0],
+            api_key="GCP_PAID"
+        )
+        return {
+            "success": False,
+            "error_code": err_code,
+            "http_status": http_status,
+            "message": err_msg,
+            "duration_ms": duration_ms,
+            "event_id": event_id
+        }
 
     def get_active_models(self) -> List[str]:
         now = time.time()
