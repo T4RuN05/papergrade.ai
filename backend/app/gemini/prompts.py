@@ -69,9 +69,10 @@ STEP 2 — ZERO-CHARITY RUBRIC AUDIT (`criterion_scores` & `awarded_marks`):
    - OMITTED:
      `MISSING` -> Award `0.0` marks.
 
-2. NUMERICAL TOLERANCE & UNIT MISMATCH RULES:
+2. NUMERICAL TOLERANCE & UNIT EQUIVALENCE RULES:
    - TOLERANCE (±0.5): If the student's numerical answer is within ±0.5 of the official key (or ±2% for large numbers), accept the calculation as correct.
-   - UNIT MISMATCH / OMISSION: If formula, substitution, and final numerical value are correct but the SI unit is missing or mismatched, DO NOT give 0.0. Award PARTIAL marks (deduct only 0.5 marks, e.g. 0.5/1.0 or 1.5/2.0).
+   - EQUIVALENT UNITS & PREFIXES (FULL PASS): Accept physically equivalent SI/metric transformations as 100% correct (`PASS`). For example, `7 x 10^-2 H` ≡ `0.07 H` ≡ `70 mH`, or `5 x 10^-3 A` ≡ `5 mA`. Never penalize a student for stating the correct value in base SI units instead of requested submultiples, or vice versa. Both must be awarded full marks (`PASS`).
+   - UNIT MISMATCH / OMISSION: If formula, substitution, and final numerical value are correct but the SI unit is missing or wrong dimension, DO NOT give 0.0. Award PARTIAL marks (deduct only 0.5 marks, e.g. 0.5/1.0 or 1.5/2.0).
    - PARTIAL PROGRESSION: Award partial marks (0.5 increments) ONLY if the correct formula is written and valid values are substituted before an arithmetic error. Never award partial marks for unattempted or completely fabricated steps.
 
 3. STRICT ZERO CREDIT (OUTPUT `FAIL` & `0.0` MARKS):
@@ -111,5 +112,5 @@ def build_student_grading_prompt(rubric_json_str: str) -> str:
 EXECUTION CHECKLIST:
 1. Transcribe physical ink verbatim into `extracted_student_answer` before scoring (no autocorrect, no reaction completion, 4-field diagram block).
 2. Audit each criterion using `PASS | QUOTE: "..."`, `PARTIAL: <flaw> | QUOTE: "..."`, `FAIL: <flaw> | QUOTE: "..."` (0.0 marks), or `MISSING` (0.0 marks).
-3. Tolerance is ±0.5. For correct math with missing/wrong SI unit, award PARTIAL credit (deduct only 0.5 marks, never 0.0 binary fail).
+3. Tolerance is ±0.5. Accept equivalent prefix transformations (e.g. 7 x 10^-2 H ≡ 0.07 H ≡ 70 mH) as full PASS. For correct math with missing/wrong unit, award PARTIAL (deduct 0.5 marks, never 0.0).
 4. Award partial marks ONLY where partial conditions are satisfied (correct formula + substitution). Inverted algebra, wrong power of 10, or unlabelled sketches force 0.0."""
