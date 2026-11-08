@@ -84,6 +84,16 @@ function scanMathExpression(str: string, startIdx: number, initialPrefix: string
       break;
     }
 
+    // Stop at line breaks
+    if (char === "\n" || char === "\r") {
+      break;
+    }
+
+    // Stop at quotes
+    if (char === '"' || char === "'" || char === "`" || char === "“" || char === "”") {
+      break;
+    }
+
     if ((char === "." || char === "?" || char === "!" || char === ":") && (idx + 1 === str.length || /\s/.test(str[idx + 1]))) {
       break;
     }
@@ -109,6 +119,15 @@ function scanMathExpression(str: string, startIdx: number, initialPrefix: string
   while (closeCount > openCount && mathStr.endsWith(")")) {
     mathStr = mathStr.slice(0, -1).trimEnd();
     closeCount--;
+    idx--;
+  }
+
+  // Balance unmatched closing brackets
+  let openBrack = (mathStr.match(/\[/g) || []).length;
+  let closeBrack = (mathStr.match(/\]/g) || []).length;
+  while (closeBrack > openBrack && mathStr.endsWith("]")) {
+    mathStr = mathStr.slice(0, -1).trimEnd();
+    closeBrack--;
     idx--;
   }
 

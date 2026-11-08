@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill, MathText } from "./ui";
+import { BadgePill, MathText, hasLatexMath } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface GradingModalProps {
@@ -48,6 +48,7 @@ export function GradingModal({
   const [rationale, setRationale] = useState<string>(answer?.grading_rationale || "");
   const [needsReview, setNeedsReview] = useState<boolean>(answer?.needs_review || false);
   const [editReason, setEditReason] = useState<string>("");
+  const [showTranscriptionMath, setShowTranscriptionMath] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<"verification" | "rubric" | "audit">("verification");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -436,17 +437,49 @@ export function GradingModal({
                       <Edit3 className="h-4 w-4 text-emerald-600" />
                       Extracted Student Transcription
                     </span>
-                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-mono font-medium">Editable</span>
+                    <div className="flex items-center gap-1.5">
+                      {hasLatexMath(extractedText) && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTranscriptionMath((prev) => !prev)}
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer"
+                        >
+                          {showTranscriptionMath ? "Edit Raw" : "KaTeX View"}
+                        </button>
+                      )}
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-mono font-medium">Editable</span>
+                    </div>
                   </div>
-                  <textarea
-                    rows={8}
-                    value={extractedText}
-                    onChange={(e) => setExtractedText(e.target.value)}
-                    placeholder="Student's extracted response text..."
-                    className="w-full flex-1 rounded-md border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono leading-relaxed transition-colors"
-                  />
+
+                  {showTranscriptionMath && hasLatexMath(extractedText) ? (
+                    <div className="w-full flex-1 rounded-md border border-hairline bg-canvas-soft p-3 text-xs text-ink leading-relaxed whitespace-pre-wrap overflow-y-auto min-h-[160px] max-h-72">
+                      <MathText text={extractedText} />
+                    </div>
+                  ) : (
+                    <textarea
+                      rows={8}
+                      value={extractedText}
+                      onChange={(e) => setExtractedText(e.target.value)}
+                      placeholder="Student's extracted response text..."
+                      className="w-full flex-1 rounded-md border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono leading-relaxed transition-colors"
+                    />
+                  )}
+
+                  {!showTranscriptionMath && hasLatexMath(extractedText) && (
+                    <div className="mt-2 rounded-md border border-hairline bg-canvas-soft/70 p-2.5 text-xs text-ink leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
+                      <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">
+                        Live KaTeX Preview:
+                      </div>
+                      <MathText text={extractedText} />
+                    </div>
+                  )}
+
                   <div className="mt-2 flex items-center justify-between text-[11px] text-ink-muted">
-                    <span>Correct transcription errors here if handwriting was misread.</span>
+                    <span>
+                      {showTranscriptionMath && hasLatexMath(extractedText)
+                        ? "Displaying KaTeX formatted equations. Click 'Edit Raw' to edit text."
+                        : "Correct transcription errors here if handwriting was misread."}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -496,9 +529,12 @@ export function GradingModal({
                             </span>
                           </div>
                           {c.evidence && (
-                            <p className="mt-1 text-[11px] text-ink-secondary italic">
-                              Evidence: "{c.evidence}"
-                            </p>
+                            <div className="mt-1 text-[11px] text-ink-secondary leading-relaxed">
+                              <span className="font-semibold text-ink-muted">Evidence: </span>
+                              <span className="italic">
+                                <MathText text={c.evidence} />
+                              </span>
+                            </div>
                           )}
                         </div>
 
@@ -536,6 +572,14 @@ export function GradingModal({
                   placeholder="Grading explanation..."
                   className="w-full rounded-md border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink focus:border-primary focus:outline-none leading-relaxed transition-colors font-sans"
                 />
+                {hasLatexMath(rationale) && (
+                  <div className="mt-1.5 rounded-md border border-hairline bg-canvas-soft/70 p-2.5 text-xs text-ink leading-relaxed">
+                    <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1">
+                      Live KaTeX Preview:
+                    </div>
+                    <MathText text={rationale} />
+                  </div>
+                )}
               </div>
 
               {/* Uncertainty Gauges */}

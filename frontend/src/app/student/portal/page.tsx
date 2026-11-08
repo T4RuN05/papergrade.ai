@@ -3504,7 +3504,7 @@ export default function StudentPortalPage() {
                                       {crit.evidence && (
                                         <div className="text-[10.5px] text-ink-muted bg-surface dark:bg-[#1a1a1a] p-1.5 rounded border border-hairline leading-relaxed">
                                           <span className="font-semibold text-ink-secondary">AI Finding / Evidence: </span>
-                                          {crit.evidence}
+                                          <MathText text={crit.evidence} />
                                         </div>
                                       )}
                                     </div>
@@ -3535,9 +3535,10 @@ export default function StudentPortalPage() {
                                 <span>Student Answer (AI Transcribed)</span>
                               </div>
                               <div className="text-[11px] text-ink-secondary dark:text-ink leading-relaxed font-mono whitespace-pre-wrap bg-surface dark:bg-[#1a1a1a] p-2 rounded border border-blue-100 dark:border-blue-900/40 max-h-36 overflow-y-auto">
-                                {hasExtractedText
-                                  ? ans.extracted_text
-                                  : "No handwriting transcribed for this question."}
+                                {hasExtractedText ? (
+                                  <MathText text={ans.extracted_text} />
+                                ) : (
+                                  "No handwriting transcribed for this question.")}
                               </div>
                             </div>
 
@@ -3561,7 +3562,7 @@ export default function StudentPortalPage() {
                           {hasRationale && (
                             <div className="text-[11px] text-indigo-950 dark:text-[#c7d2fe] bg-indigo-50/50 dark:bg-[#13172e] p-2.5 rounded-md border border-indigo-200/60 dark:border-[#242b58] leading-relaxed">
                               <span className="font-semibold text-indigo-900 dark:text-[#e0e7ff]">AI Detailed Reasoning: </span>
-                              {ans.grading_rationale}
+                              <MathText text={ans.grading_rationale} />
                             </div>
                           )}
 

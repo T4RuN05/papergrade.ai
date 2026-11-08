@@ -235,7 +235,9 @@ export function StudentQuestionModal({
             Evaluation Feedback & Remarks:
           </div>
           <div className="rounded-md bg-canvas-soft border border-hairline p-2 text-ink-secondary leading-relaxed text-[10.5px] sm:text-[11px]">
-            {answer.grading_rationale || answer.feedback || (
+            {answer.grading_rationale || answer.feedback ? (
+              <MathText text={answer.grading_rationale || answer.feedback} />
+            ) : (
               <span className="italic text-ink-muted">
                 Official marks awarded according to institutional scheme. Full points allotted for correct derivation steps.
               </span>
@@ -288,7 +290,7 @@ export function StudentQuestionModal({
                     {crit.evidence && (
                       <div className="text-[10.5px] text-ink-muted bg-canvas-soft p-2 rounded border border-hairline leading-relaxed">
                         <span className="font-semibold text-ink mr-1">AI Finding / Evidence:</span>
-                        {crit.evidence}
+                        <MathText text={crit.evidence} />
                       </div>
                     )}
                   </div>
@@ -308,8 +310,8 @@ export function StudentQuestionModal({
                   <Cpu className="h-3 w-3 text-primary shrink-0" />
                   <span>Transcribed Student Answer (AI Vision)</span>
                 </div>
-                <div className="text-[10.5px] text-ink font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
-                  {answer.extracted_text}
+                <div className="text-[10.5px] text-ink leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
+                  <MathText text={answer.extracted_text} />
                 </div>
               </div>
             )}
