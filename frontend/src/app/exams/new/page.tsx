@@ -30,6 +30,7 @@ import {
   ButtonUtility,
   FeatureCard,
   BadgePill,
+  AppleSelect,
 } from "@/components/ui";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
@@ -573,35 +574,25 @@ export default function NewExamPage() {
                 </div>
 
                 {!isCustomSubject ? (
-                  <div className="relative">
-                    <select
-                      required
-                      disabled={isSubmitting || loadingSubjects}
-                      value={subject}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "__CUSTOM__") {
-                          setIsCustomSubject(true);
-                          setCustomSubjectText("");
-                          setSubject("");
-                        } else {
-                          setSubject(val);
-                        }
-                      }}
-                      className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink focus:border-primary focus:outline-none transition-colors appearance-none pr-8 cursor-pointer font-medium"
-                    >
-                      <option value="" disabled>Select Subject...</option>
-                      {availableSubjects.map((sub) => (
-                        <option key={sub} value={sub}>
-                          {sub}
-                        </option>
-                      ))}
-                      <option value="__CUSTOM__">+ Other / Custom Subject...</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-ink-muted">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </div>
-                  </div>
+                  <AppleSelect
+                    value={subject}
+                    onChange={(val) => {
+                      if (val === "__CUSTOM__") {
+                        setIsCustomSubject(true);
+                        setCustomSubjectText("");
+                        setSubject("");
+                      } else {
+                        setSubject(val);
+                      }
+                    }}
+                    placeholder="Select Subject..."
+                    disabled={isSubmitting || loadingSubjects}
+                    options={[
+                      ...availableSubjects.map((sub) => ({ value: sub, label: sub })),
+                      { value: "__CUSTOM__", label: "+ Other / Custom Subject..." },
+                    ]}
+                    className="w-full"
+                  />
                 ) : (
                   <div className="space-y-1.5">
                     <input

@@ -1220,8 +1220,8 @@ export function DocumentViewer({
           <span className="hidden sm:inline">{showAnnotations ? "Annotations On" : "Annotations Off"}</span>
         </button>
 
-        {/* Zoom Controls */}
-        <div className="flex items-center gap-0.5 bg-surface rounded-md p-0.5 border border-hairline shadow-2xs">
+        {/* Zoom Controls (hidden on mobile, visible on desktop) */}
+        <div className="hidden sm:flex items-center gap-0.5 bg-surface rounded-md p-0.5 border border-hairline shadow-2xs">
           <button
             onClick={handleZoomOut}
             disabled={zoomScale <= 1.0}

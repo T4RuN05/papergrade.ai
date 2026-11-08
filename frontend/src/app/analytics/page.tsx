@@ -18,7 +18,7 @@ import {
 import { api } from "@/lib/api";
 import { UsageMetrics, BenchmarkSummary, Exam } from "@/lib/types";
 import { UsageCards } from "@/components/UsageCards";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper } from "@/components/ui";
+import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 
@@ -180,17 +180,13 @@ export default function AnalyticsPage() {
           {exams.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-ink-muted">Active Exam:</span>
-              <select
+              <AppleSelect
+                size="sm"
                 value={selectedExamId}
-                onChange={(e) => handleExamChange(e.target.value)}
-                className="rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-1.5 text-xs text-ink font-medium focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
-              >
-                {exams.map((e) => (
-                  <option key={e.id} value={e.id} className="dark:bg-[#202020] dark:text-ink">
-                    {e.title}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleExamChange(val)}
+                options={exams.map((e) => ({ value: e.id, label: e.title }))}
+                className="max-w-[240px]"
+              />
             </div>
           )}
         </div>

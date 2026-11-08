@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Submission, ExamRubric } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill } from "./ui";
+import { BadgePill, AppleSelect } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface MarksTableProps {
@@ -87,17 +87,19 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
             />
           </div>
 
-          {/* Filter */}
-          <select
+          {/* Filter (Custom Apple-Grade Dropdown) */}
+          <AppleSelect
+            size="sm"
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full sm:w-auto rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink focus:border-primary focus:outline-none shadow-2xs"
-          >
-            <option value="ALL">All Candidates ({submissions.length})</option>
-            <option value="COMPLETED">Finalized / Completed</option>
-            <option value="REVIEW">Needs Review</option>
-            <option value="ABSENT">Absent ({submissions.filter((s) => s.status === "ABSENT" || (s as any).is_absent).length})</option>
-          </select>
+            onChange={(val: any) => setFilterStatus(val)}
+            options={[
+              { value: "ALL", label: `All Candidates (${submissions.length})` },
+              { value: "COMPLETED", label: "Finalized / Completed" },
+              { value: "REVIEW", label: "Needs Review" },
+              { value: "ABSENT", label: `Absent (${submissions.filter((s) => s.status === "ABSENT" || (s as any).is_absent).length})` },
+            ]}
+            className="w-full sm:w-auto"
+          />
         </div>
 
         {/* CSV Export */}

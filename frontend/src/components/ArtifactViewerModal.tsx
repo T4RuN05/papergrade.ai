@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText,
   Key,
@@ -50,72 +50,341 @@ export function ArtifactViewerModal({
   const [page, setPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [zoom, setZoom] = useState<number>(1.0);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const panRef = useRef(pan);
+  panRef.current = pan;
+
   const [loadingMeta, setLoadingMeta] = useState<boolean>(true);
   const [pageImgLoading, setPageImgLoading] = useState<boolean>(true);
   const [hasDoc, setHasDoc] = useState<boolean>(true);
   const [isPurged, setIsPurged] = useState<boolean>(isExamDocumentPurged);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
-  // Mobile PWA touch sliding gesture state
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  // Measure viewport container dimensions dynamically
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const activeSheetRef = useRef<HTMLDivElement>(null);
+  const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setContainerDims({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      }
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasDoc, loadingMeta]);
+
+  // Keep pan bounded when zoomed in on active sheet
+  const clampPan = useCallback(
+    (targetX: number, targetY: number, scale: number) => {
+      const cW = containerDims.width > 0 ? containerDims.width : 800;
+      const cH = containerDims.height > 0 ? containerDims.height : 600;
+
+      const sW = activeSheetRef.current?.clientWidth || cW * 0.8;
+      const sH = activeSheetRef.current?.clientHeight || cH * 0.9;
+
+      const renderW = sW * scale;
+      const renderH = sH * scale;
+
+      const maxPanX = Math.max(30, (renderW - cW) / 2 + 40);
+      const maxPanY = Math.max(30, (renderH - cH) / 2 + 40);
+
+      return {
+        x: Math.round(Math.max(-maxPanX, Math.min(maxPanX, targetX))),
+        y: Math.round(Math.max(-maxPanY, Math.min(maxPanY, targetY))),
+      };
+    },
+    [containerDims.width, containerDims.height]
+  );
+
+  // Reset zoom & pan on page or activeArtifact changes so sheet is cleanly framed
+  useEffect(() => {
+    setPan({ x: 0, y: 0 });
+    setZoom(1.0);
+    setTouchOffset(0);
+    setIsSwiping(false);
+  }, [page, activeArtifact]);
+
+  const handleZoomIn = () => {
+    setZoom((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((z) => {
+      const next = Math.max(1.0, Number((z - 0.25).toFixed(2)));
+      if (next <= 1.05) {
+        setPan({ x: 0, y: 0 });
+      }
+      return next;
+    });
+  };
+
+  const handleResetZoom = useCallback(() => {
+    setZoom(1.0);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // Mobile / Desktop sliding & touch panning state
   const [touchOffset, setTouchOffset] = useState<number>(0);
   const [isSwiping, setIsSwiping] = useState<boolean>(false);
   const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
 
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number>(0);
+  const lastTapTimeRef = useRef<number>(0);
+  const isPinchingRef = useRef<boolean>(false);
+  const initialPinchDistRef = useRef<number>(0);
+  const initialZoomRef = useRef<number>(1);
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1 || zoom > 1.05 || loadingMeta || !hasDoc || isPurged) return;
-    setTouchStartX(e.touches[0].clientX);
-    setTouchStartY(e.touches[0].clientY);
-    setTouchOffset(0);
-    setIsSwiping(false);
-  };
+    if (loadingMeta || !hasDoc || isPurged) return;
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null || touchStartY === null || zoom > 1.05) return;
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const deltaX = currentX - touchStartX;
-    const deltaY = currentY - touchStartY;
-
-    if (!isSwiping && Math.abs(deltaX) > 10) {
-      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-        setIsSwiping(true);
-      }
-    }
-
-    if (isSwiping) {
-      const isAtStart = page <= 1 && deltaX > 0;
-      const isAtEnd = page >= totalPages && deltaX < 0;
-      const dampedDelta = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
-      setTouchOffset(dampedDelta);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (!isSwiping) {
-      setTouchStartX(null);
-      setTouchStartY(null);
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      isPinchingRef.current = true;
+      setIsSwiping(false);
       setTouchOffset(0);
+      initialPinchDistRef.current = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      initialZoomRef.current = zoomRef.current;
       return;
     }
 
-    const threshold = 50;
-    if (touchOffset < -threshold && page < totalPages) {
-      setSlideDirection("left");
-      setPageImgLoading(true);
-      setPage((prev) => prev + 1);
-    } else if (touchOffset > threshold && page > 1) {
-      setSlideDirection("right");
-      setPageImgLoading(true);
-      setPage((prev) => prev - 1);
+    if (e.touches.length === 1) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+      touchStartTimeRef.current = Date.now();
+      panStartRef.current = { ...panRef.current };
+      setIsSwiping(false);
+      setTouchOffset(0);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isPinchingRef.current && e.touches.length === 2 && initialPinchDistRef.current > 0) {
+      e.preventDefault();
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = currentDist / initialPinchDistRef.current;
+      const targetScale = Math.min(3.5, Math.max(1.0, Number((initialZoomRef.current * factor).toFixed(2))));
+      setZoom(targetScale);
+      if (targetScale <= 1.05) {
+        setPan({ x: 0, y: 0 });
+      }
+      return;
     }
 
-    setTouchOffset(0);
-    setIsSwiping(false);
-    setTouchStartX(null);
-    setTouchStartY(null);
+    if (touchStartXRef.current === null || touchStartYRef.current === null || e.touches.length !== 1) {
+      return;
+    }
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartXRef.current;
+    const deltaY = currentY - touchStartYRef.current;
+
+    if (zoomRef.current > 1.05) {
+      // Zoomed in: pan sheet
+      e.preventDefault();
+      const newX = panStartRef.current.x + deltaX;
+      const newY = panStartRef.current.y + deltaY;
+      setPan(clampPan(newX, newY, zoomRef.current));
+    } else {
+      // Fit mode: slide carousel
+      if (!isSwiping && Math.abs(deltaX) > 8) {
+        if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+          setIsSwiping(true);
+        }
+      }
+
+      if (isSwiping) {
+        const isAtStart = page <= 1 && deltaX > 0;
+        const isAtEnd = page >= totalPages && deltaX < 0;
+        const damped = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
+        setTouchOffset(damped);
+      }
+    }
   };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isPinchingRef.current) {
+      if (e.touches.length < 2) {
+        isPinchingRef.current = false;
+        initialPinchDistRef.current = 0;
+        if (zoomRef.current <= 1.05) {
+          setZoom(1.0);
+          setPan({ x: 0, y: 0 });
+        }
+      }
+      return;
+    }
+
+    if (e.touches.length === 0) {
+      const now = Date.now();
+      const elapsed = now - touchStartTimeRef.current;
+
+      // Double tap toggle: 1.0x <-> 2.0x
+      if (e.changedTouches.length === 1 && touchStartXRef.current !== null && touchStartYRef.current !== null) {
+        const movedDist = Math.hypot(
+          e.changedTouches[0].clientX - touchStartXRef.current,
+          e.changedTouches[0].clientY - touchStartYRef.current
+        );
+
+        if (movedDist < 10 && elapsed < 300) {
+          if (now - lastTapTimeRef.current < 300) {
+            if (zoomRef.current > 1.05) {
+              handleResetZoom();
+            } else {
+              setZoom(2.0);
+            }
+            lastTapTimeRef.current = 0;
+            touchStartXRef.current = null;
+            touchStartYRef.current = null;
+            return;
+          } else {
+            lastTapTimeRef.current = now;
+          }
+        }
+      }
+
+      // Swipe release
+      if (isSwiping) {
+        const threshold = 45;
+        if (touchOffset < -threshold && page < totalPages) {
+          setSlideDirection("left");
+          setPageImgLoading(true);
+          setPage((prev) => prev + 1);
+        } else if (touchOffset > threshold && page > 1) {
+          setSlideDirection("right");
+          setPageImgLoading(true);
+          setPage((prev) => prev - 1);
+        }
+        setTouchOffset(0);
+        setIsSwiping(false);
+      }
+
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+    }
+  };
+
+  // Desktop mouse dragging & wheel handlers
+  const isMouseDownRef = useRef<boolean>(false);
+  const mouseStartXRef = useRef<number | null>(null);
+  const mouseStartYRef = useRef<number | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 || loadingMeta || !hasDoc || isPurged) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("a") || target.closest("input")) return;
+
+    isMouseDownRef.current = true;
+    mouseStartXRef.current = e.clientX;
+    mouseStartYRef.current = e.clientY;
+    panStartRef.current = { ...panRef.current };
+    setIsSwiping(false);
+    setTouchOffset(0);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isMouseDownRef.current || mouseStartXRef.current === null || mouseStartYRef.current === null) {
+        return;
+      }
+
+      const deltaX = e.clientX - mouseStartXRef.current;
+      const deltaY = e.clientY - mouseStartYRef.current;
+
+      if (zoomRef.current > 1.05) {
+        const newX = panStartRef.current.x + deltaX;
+        const newY = panStartRef.current.y + deltaY;
+        setPan(clampPan(newX, newY, zoomRef.current));
+      } else {
+        if (!isSwiping && Math.abs(deltaX) > 8) {
+          if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+            setIsSwiping(true);
+          }
+        }
+
+        if (isSwiping) {
+          const isAtStart = page <= 1 && deltaX > 0;
+          const isAtEnd = page >= totalPages && deltaX < 0;
+          const damped = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
+          setTouchOffset(damped);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!isMouseDownRef.current) return;
+      isMouseDownRef.current = false;
+
+      if (isSwiping) {
+        const threshold = 45;
+        if (touchOffset < -threshold && page < totalPages) {
+          setPageImgLoading(true);
+          setPage((prev) => prev + 1);
+        } else if (touchOffset > threshold && page > 1) {
+          setPageImgLoading(true);
+          setPage((prev) => prev - 1);
+        }
+        setTouchOffset(0);
+        setIsSwiping(false);
+      }
+
+      mouseStartXRef.current = null;
+      mouseStartYRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [clampPan, isSwiping, page, totalPages, touchOffset]);
+
+  // Wheel zoom with Ctrl, or pan when zoomed in
+  useEffect(() => {
+    const container = viewportRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.85;
+        const newScale = Math.min(3.5, Math.max(1.0, Number((zoomRef.current * factor).toFixed(2))));
+        setZoom(newScale);
+        if (newScale <= 1.05) {
+          setPan({ x: 0, y: 0 });
+        }
+      } else if (zoomRef.current > 1.05) {
+        e.preventDefault();
+        const rawX = panRef.current.x - e.deltaX;
+        const rawY = panRef.current.y - e.deltaY;
+        setPan(clampPan(rawX, rawY, zoomRef.current));
+      }
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [clampPan]);
 
   // Sync initial tab when modal opens or initialArtifact changes
   useEffect(() => {
@@ -394,11 +663,12 @@ export function ArtifactViewerModal({
 
           {/* Center: Zoom Controls */}
           {hasDoc && !isPurged && !loadingMeta && (
-            <div className="flex items-center gap-1 bg-surface border border-hairline rounded-lg p-0.5 shadow-2xs">
+            <div className="hidden sm:flex items-center gap-1 bg-surface border border-hairline rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.max(0.6, Number((z - 0.2).toFixed(1))))}
-                className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                onClick={handleZoomOut}
+                disabled={zoom <= 1.0}
+                className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
                 title="Zoom Out"
               >
                 <ZoomOut className="h-3.5 w-3.5" />
@@ -408,8 +678,9 @@ export function ArtifactViewerModal({
               </span>
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))}
-                className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                onClick={handleZoomIn}
+                disabled={zoom >= 3.5}
+                className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
                 title="Zoom In"
               >
                 <ZoomIn className="h-3.5 w-3.5" />
@@ -417,7 +688,7 @@ export function ArtifactViewerModal({
               {zoom !== 1.0 && (
                 <button
                   type="button"
-                  onClick={() => setZoom(1.0)}
+                  onClick={handleResetZoom}
                   className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
                   title="Reset Zoom"
                 >
@@ -489,7 +760,9 @@ export function ArtifactViewerModal({
             <>
               {/* Connected Pages Carousel Track */}
               <div
-                className="w-full h-full flex-1 overflow-hidden relative touch-pan-y"
+                ref={viewportRef}
+                onMouseDown={handleMouseDown}
+                className="w-full h-full flex-1 overflow-hidden relative touch-pan-y cursor-grab active:cursor-grabbing select-none"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -508,17 +781,22 @@ export function ArtifactViewerModal({
                     return (
                       <div
                         key={p}
-                        className="h-full flex items-center justify-center p-2 sm:p-5 flex-shrink-0"
+                        className="h-full flex items-center justify-center p-2 sm:p-5 flex-shrink-0 overflow-hidden"
                         style={{ width: `${100 / totalPages}%` }}
                       >
                         <div
+                          ref={p === page ? activeSheetRef : undefined}
                           className="relative bg-white rounded-lg sm:rounded-xl shadow-lg border border-hairline overflow-hidden flex items-center justify-center"
                           style={{
-                            height: zoom > 1 ? "auto" : "100%",
+                            height: "100%",
                             maxHeight: "100%",
                             maxWidth: "100%",
                             aspectRatio: "1 / 1.414",
-                            width: zoom > 1 ? `${Math.round(zoom * 100)}%` : "auto",
+                            width: "auto",
+                            transform: p === page && zoom > 1.05 ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` : "none",
+                            transformOrigin: "center center",
+                            willChange: "transform",
+                            transition: isSwiping ? "none" : "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)",
                           }}
                         >
                           <img

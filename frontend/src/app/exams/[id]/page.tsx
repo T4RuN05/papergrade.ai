@@ -69,6 +69,7 @@ import {
   ModalCard,
   FormInput,
   useConfirm,
+  AppleSelect,
 } from "@/components/ui";
 
 interface SubmissionRow {
@@ -1401,43 +1402,43 @@ export default function ExamDetailPage() {
               )}
             </div>
 
-            {/* Filter Dropdown */}
+            {/* Filter Dropdown (Custom Apple-Grade Dropdown) */}
             {submissionViewMode === "roster" ? (
-              <select
+              <AppleSelect
                 value={scoreFilter}
-                onChange={(e: any) => setScoreFilter(e.target.value)}
-                className="h-9 text-xs rounded-md border border-hairline bg-surface dark:bg-[#202020] px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
-              >
-                <option value="ALL">All Scores</option>
-                <option value="TOP">Distinction (≥75%)</option>
-                <option value="MID">Passing (40% - 74%)</option>
-                <option value="LOW">Needs Attention (&lt;40%)</option>
-              </select>
+                onChange={(val: any) => setScoreFilter(val)}
+                options={[
+                  { value: "ALL", label: "All Scores" },
+                  { value: "TOP", label: "Distinction (≥75%)" },
+                  { value: "MID", label: "Passing (40% - 74%)" },
+                  { value: "LOW", label: "Needs Attention (<40%)" },
+                ]}
+              />
             ) : (
-              <select
+              <AppleSelect
                 value={rankedBracket}
-                onChange={(e: any) => setRankedBracket(e.target.value)}
-                className="h-9 text-xs rounded-md border border-hairline bg-surface dark:bg-[#202020] px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
-              >
-                <option value="ALL">All Ranked ({stats.completed})</option>
-                <option value="TOP10">Top 10</option>
-                <option value="DISTINCTION">Distinction (≥75%)</option>
-                <option value="PASS">Passing (40% - 74%)</option>
-              </select>
+                onChange={(val: any) => setRankedBracket(val)}
+                options={[
+                  { value: "ALL", label: `All Ranked (${stats.completed})` },
+                  { value: "TOP10", label: "Top 10" },
+                  { value: "DISTINCTION", label: "Distinction (≥75%)" },
+                  { value: "PASS", label: "Passing (40% - 74%)" },
+                ]}
+              />
             )}
 
             {/* Sort Filter (Roster view only) */}
             {submissionViewMode === "roster" && (
-              <select
+              <AppleSelect
                 value={sortBy}
-                onChange={(e: any) => setSortBy(e.target.value)}
-                className="h-9 text-xs rounded-md border border-hairline bg-surface dark:bg-[#202020] px-2.5 text-ink focus:outline-none focus:border-primary shadow-2xs cursor-pointer"
-              >
-                <option value="roll">Sort: Roll Number</option>
-                <option value="marks_desc">Sort: Highest Marks</option>
-                <option value="marks_asc">Sort: Lowest Marks</option>
-                <option value="name">Sort: Student Name</option>
-              </select>
+                onChange={(val: any) => setSortBy(val)}
+                options={[
+                  { value: "roll", label: "Sort: Roll Number" },
+                  { value: "marks_desc", label: "Sort: Highest Marks" },
+                  { value: "marks_asc", label: "Sort: Lowest Marks" },
+                  { value: "name", label: "Sort: Student Name" },
+                ]}
+              />
             )}
 
             {/* Export CSV Button */}
@@ -1927,32 +1928,34 @@ export default function ExamDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-ink mb-1">Duration</label>
-                <select
+                <AppleSelect
                   value={windowDuration}
-                  onChange={(e) => setWindowDuration(e.target.value)}
+                  onChange={(val) => setWindowDuration(val)}
                   disabled={isOpeningWindow}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
-                >
-                  <option value="5">5 Minutes</option>
-                  <option value="10">10 Minutes</option>
-                  <option value="15">15 Minutes</option>
-                  <option value="30">30 Minutes</option>
-                  <option value="45">45 Minutes</option>
-                  <option value="60">60 Minutes</option>
-                </select>
+                  options={[
+                    { value: "5", label: "5 Minutes" },
+                    { value: "10", label: "10 Minutes" },
+                    { value: "15", label: "15 Minutes" },
+                    { value: "30", label: "30 Minutes" },
+                    { value: "45", label: "45 Minutes" },
+                    { value: "60", label: "60 Minutes" },
+                  ]}
+                  className="w-full"
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-ink mb-1">Target Scope</label>
-                <select
+                <AppleSelect
                   value={windowScope}
-                  onChange={(e) => setWindowScope(e.target.value)}
+                  onChange={(val) => setWindowScope(val)}
                   disabled={isOpeningWindow}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
-                >
-                  <option value="ALL_STUDENTS">All Students (Replacements Allowed)</option>
-                  <option value="UNSUBMITTED_ONLY">Unsubmitted Students Only</option>
-                </select>
+                  options={[
+                    { value: "ALL_STUDENTS", label: "All Students (Replacements Allowed)" },
+                    { value: "UNSUBMITTED_ONLY", label: "Unsubmitted Students Only" },
+                  ]}
+                  className="w-full"
+                />
               </div>
             </div>
 

@@ -15,7 +15,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { ModalCard, ButtonPrimary, ButtonUtility, BadgePill } from "./ui";
+import { ModalCard, ButtonPrimary, ButtonUtility, BadgePill, AppleSelect } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface ReportIssueModalProps {
@@ -244,17 +244,16 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                 <label className="font-semibold text-ink text-[11px] block">
                   Issue Category <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <AppleSelect
+                  size="sm"
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-md border border-hairline bg-surface text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-                >
-                  {ISSUE_CATEGORIES.map((cat) => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setCategory(val)}
+                  options={ISSUE_CATEGORIES.map((cat) => ({
+                    value: cat.value,
+                    label: cat.label,
+                  }))}
+                  className="w-full"
+                />
               </div>
 
               <div className="space-y-1">

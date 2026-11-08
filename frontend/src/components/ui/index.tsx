@@ -607,5 +607,9 @@ export type { MathTextProps } from "./MathText";
 export { AppleNumberStepper } from "./AppleNumberStepper";
 export type { AppleNumberStepperProps } from "./AppleNumberStepper";
 
+export { AppleSelect } from "./AppleSelect";
+export type { AppleSelectProps, AppleSelectOption } from "./AppleSelect";
+
+
 
 

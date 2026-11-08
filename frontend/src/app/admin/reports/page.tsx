@@ -29,6 +29,7 @@ import {
   ButtonUtility,
   BadgePill,
   Skeleton,
+  AppleSelect,
 } from "@/components/ui";
 
 export default function AdminReportsPage() {
@@ -260,30 +261,29 @@ export default function AdminReportsPage() {
             ))}
           </div>
 
-          {/* Role Filter */}
-          <select
+          {/* Role Filter (Custom Apple-Grade Dropdown) */}
+          <AppleSelect
+            size="sm"
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-md border border-hairline bg-surface text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-          >
-            <option value="ALL">All Roles</option>
-            <option value="STUDENT">Students Only</option>
-            <option value="BRANCH_MANAGER">Branch Managers Only</option>
-          </select>
+            onChange={(val) => setRoleFilter(val)}
+            options={[
+              { value: "ALL", label: "All Roles" },
+              { value: "STUDENT", label: "Students Only" },
+              { value: "BRANCH_MANAGER", label: "Branch Managers Only" },
+            ]}
+          />
 
-          {/* Branch Filter */}
-          <select
+          {/* Branch Filter (Custom Apple-Grade Dropdown) */}
+          <AppleSelect
+            size="sm"
             value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-md border border-hairline bg-surface text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary font-medium max-w-[160px] truncate"
-          >
-            <option value="ALL">All Branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setBranchFilter(val)}
+            options={[
+              { value: "ALL", label: "All Branches" },
+              ...branches.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+            className="max-w-[170px]"
+          />
         </div>
 
         {/* Search Input */}

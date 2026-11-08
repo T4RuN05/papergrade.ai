@@ -33,6 +33,7 @@ import {
   FeatureCard,
   BadgePill,
   ExamDetailSkeleton,
+  AppleSelect,
 } from "@/components/ui";
 
 export default function SingleBatchPage() {
@@ -346,16 +347,17 @@ export default function SingleBatchPage() {
               />
             </div>
 
-            <select
+            <AppleSelect
+              size="sm"
               value={scoreFilter}
-              onChange={(e: any) => setScoreFilter(e.target.value)}
-              className="text-xs rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-ink focus:outline-none focus:border-primary"
-            >
-              <option value="ALL">All Scores</option>
-              <option value="TOP">Distinction (≥75%)</option>
-              <option value="MID">Passing (40% - 74%)</option>
-              <option value="LOW">Needs Attention (&lt;40%)</option>
-            </select>
+              onChange={(val: any) => setScoreFilter(val)}
+              options={[
+                { value: "ALL", label: "All Scores" },
+                { value: "TOP", label: "Distinction (≥75%)" },
+                { value: "MID", label: "Passing (40% - 74%)" },
+                { value: "LOW", label: "Needs Attention (<40%)" },
+              ]}
+            />
           </div>
         </div>
 

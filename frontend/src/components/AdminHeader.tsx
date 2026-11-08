@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -25,6 +25,7 @@ import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { ReportIssueModal } from "./ReportIssueModal";
+import { AppleSelect } from "./ui/AppleSelect";
 
 interface AdminHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -39,25 +40,59 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const [isBranchDropdownExiting, setIsBranchDropdownExiting] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const branchCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const closeBranchDropdown = useCallback(() => {
+    if (!branchDropdownOpen || isBranchDropdownExiting) return;
+    setIsBranchDropdownExiting(true);
+    branchCloseTimerRef.current = setTimeout(() => {
+      setBranchDropdownOpen(false);
+      setIsBranchDropdownExiting(false);
+    }, 140);
+  }, [branchDropdownOpen, isBranchDropdownExiting]);
+
+  const toggleBranchDropdown = () => {
+    if (branchDropdownOpen) {
+      closeBranchDropdown();
+    } else {
+      if (branchCloseTimerRef.current) clearTimeout(branchCloseTimerRef.current);
+      setIsBranchDropdownExiting(false);
+      setBranchDropdownOpen(true);
+    }
+  };
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
-        setBranchDropdownOpen(false);
+        closeBranchDropdown();
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeBranchDropdown();
       }
     }
     if (branchDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("keydown", handleKeyDown);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [branchDropdownOpen]);
+  }, [branchDropdownOpen, closeBranchDropdown]);
+
+  useEffect(() => {
+    return () => {
+      if (branchCloseTimerRef.current) clearTimeout(branchCloseTimerRef.current);
+    };
+  }, []);
 
   const {
     currentUser,
@@ -190,11 +225,11 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           </div>
         </div>
 
-        {/* Center: Custom Responsive Multi-Tenant Scope Dropdown */}
+        {/* Center: Custom Responsive Multi-Tenant Scope Dropdown with Apple-style Fluid Popover */}
         <div ref={branchDropdownRef} className="relative shrink min-w-0">
           <button
             type="button"
-            onClick={() => setBranchDropdownOpen((prev) => !prev)}
+            onClick={toggleBranchDropdown}
             className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-md bg-canvas-soft hover:bg-surface border border-hairline hover:border-hairline/80 text-xs shadow-2xs transition-all cursor-pointer max-w-[170px] xs:max-w-[210px] sm:max-w-[280px]"
             title="Click to switch active branch context"
           >
@@ -205,16 +240,18 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                 : "PaperGrade"}
             </span>
             <ChevronDown
-              className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-150 ${
-                branchDropdownOpen ? "rotate-180 text-primary" : ""
+              className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-200 ease-out ${
+                branchDropdownOpen && !isBranchDropdownExiting ? "rotate-180 text-primary" : ""
               }`}
             />
           </button>
 
-          {/* Styled Notion Floating Dropdown Menu */}
+          {/* Styled Apple-grade Floating Popover Dropdown Menu */}
           {branchDropdownOpen && mounted && (
-            <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 w-64 sm:w-72 bg-surface rounded-lg border border-hairline shadow-notion-modal p-2 z-50 animate-in fade-in zoom-in-95">
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1">
+            <div className={`absolute top-full mt-1.5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 w-64 sm:w-72 bg-surface/98 dark:bg-[#1a1a1a]/98 backdrop-blur-md rounded-lg border border-hairline shadow-notion-modal p-2 z-50 overflow-hidden ${
+              isBranchDropdownExiting ? "animate-apple-out" : "animate-apple-in"
+            }`}>
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1.5">
                 <span>Operational Branch</span>
                 {isRootAdmin && <span className="text-[10px] text-primary font-semibold lowercase">root admin</span>}
               </div>
@@ -222,15 +259,13 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
               {isRootAdmin && institutes.length > 1 && (
                 <div className="mb-2 px-1">
                   <label className="text-[10px] font-semibold text-ink-muted block mb-1">Coaching Institute:</label>
-                  <select
+                  <AppleSelect
+                    size="sm"
                     value={selectedInstitute?.id || ""}
-                    onChange={(e) => handleInstituteChange(e.target.value)}
-                    className="w-full text-xs font-semibold text-ink bg-canvas-soft border border-hairline rounded p-1.5 focus:outline-none"
-                  >
-                    {institutes.map((inst) => (
-                      <option key={inst.id} value={inst.id}>{inst.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleInstituteChange(val)}
+                    options={institutes.map((inst) => ({ value: inst.id, label: inst.name }))}
+                    className="w-full"
+                  />
                 </div>
               )}
 
@@ -246,12 +281,12 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                         type="button"
                         onClick={() => {
                           handleBranchChange(b.id);
-                          setBranchDropdownOpen(false);
+                          closeBranchDropdown();
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left ${
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left select-none ${
                           isSelected
-                            ? "bg-primary/10 text-primary font-bold"
-                            : "text-ink hover:bg-canvas-soft font-medium"
+                            ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
+                            : "text-ink hover:bg-canvas-soft dark:hover:bg-white/5 font-medium"
                         }`}
                       >
                         <div className="min-w-0 pr-2">

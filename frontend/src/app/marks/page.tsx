@@ -9,7 +9,7 @@ import { Exam, Submission } from "@/lib/types";
 import { useTenant } from "@/lib/TenantContext";
 import { MarksTable } from "@/components/MarksTable";
 import { ExamRankedTable } from "@/components/ExamRankedTable";
-import { FeatureCard, BadgePill, ButtonPrimary, MarksMatrixSkeleton, Skeleton } from "@/components/ui";
+import { FeatureCard, BadgePill, ButtonPrimary, MarksMatrixSkeleton, Skeleton, AppleSelect } from "@/components/ui";
 
 function ClassMarksPageContent() {
   const router = useRouter();
@@ -174,17 +174,16 @@ function ClassMarksPageContent() {
 
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-ink-secondary">Exam:</span>
-              <select
+              <AppleSelect
+                size="sm"
                 value={selectedExamId}
-                onChange={(e) => handleExamChange(e.target.value)}
-                className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-bold text-ink focus:border-primary focus:outline-none shadow-2xs cursor-pointer"
-              >
-                {exams.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title} ({e.subject})
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleExamChange(val)}
+                options={exams.map((e) => ({
+                  value: e.id,
+                  label: `${e.title} (${e.subject})`,
+                }))}
+                className="max-w-[260px]"
+              />
             </div>
           </div>
         )}

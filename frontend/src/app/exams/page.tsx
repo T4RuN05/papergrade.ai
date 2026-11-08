@@ -38,6 +38,7 @@ import {
   FormInput,
   ExamsGridSkeleton,
   useConfirm,
+  AppleSelect,
 } from "@/components/ui";
 
 export default function ExamsPage() {
@@ -370,44 +371,32 @@ export default function ExamsPage() {
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {/* Subject Selector */}
             {availableSubjects.length > 0 && (
-              <div className="relative min-w-[130px] flex-1 sm:flex-initial">
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="w-full appearance-none rounded-md border border-hairline bg-canvas-soft px-2.5 py-1.5 pr-7 text-xs text-ink font-medium focus:border-primary focus:bg-surface focus:outline-none transition-colors cursor-pointer shadow-2xs"
-                >
-                  <option value="ALL">All Subjects</option>
-                  {availableSubjects.map((sub) => (
-                    <option key={sub} value={sub}>
-                      {sub}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted text-[10px]">
-                  ▼
-                </div>
-              </div>
+              <AppleSelect
+                value={selectedSubject}
+                onChange={(val) => setSelectedSubject(val)}
+                options={[
+                  { value: "ALL", label: "All Subjects" },
+                  ...availableSubjects.map((sub) => ({ value: sub, label: sub })),
+                ]}
+                className="min-w-[130px] flex-1 sm:flex-initial"
+              />
             )}
 
             {/* Rubric / Window Status Filter */}
-            <div className="relative min-w-[140px] flex-1 sm:flex-initial">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full appearance-none rounded-md border border-hairline bg-canvas-soft px-2.5 py-1.5 pr-7 text-xs text-ink font-medium focus:border-primary focus:bg-surface focus:outline-none transition-colors cursor-pointer shadow-2xs"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="PUBLISHED">Published</option>
-                <option value="APPROVED_RUBRIC">Rubric Approved</option>
-                <option value="DRAFT_RUBRIC">Draft Rubric</option>
-                <option value="NO_RUBRIC">No Rubric</option>
-                <option value="WINDOW_OPEN">Window Open</option>
-                <option value="WINDOW_CLOSED">Window Closed</option>
-              </select>
-              <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted text-[10px]">
-                ▼
-              </div>
-            </div>
+            <AppleSelect
+              value={selectedStatus}
+              onChange={(val) => setSelectedStatus(val)}
+              options={[
+                { value: "ALL", label: "All Statuses" },
+                { value: "PUBLISHED", label: "Published" },
+                { value: "APPROVED_RUBRIC", label: "Rubric Approved" },
+                { value: "DRAFT_RUBRIC", label: "Draft Rubric" },
+                { value: "NO_RUBRIC", label: "No Rubric" },
+                { value: "WINDOW_OPEN", label: "Window Open" },
+                { value: "WINDOW_CLOSED", label: "Window Closed" },
+              ]}
+              className="min-w-[140px] flex-1 sm:flex-initial"
+            />
 
             {/* Reset Filter Button if active */}
             {(searchQuery || selectedSubject !== "ALL" || selectedStatus !== "ALL") && (
@@ -538,10 +527,10 @@ export default function ExamsPage() {
 
                     {/* Subject & Scoped Batch Meta Tags */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="inline-flex items-center text-[11px] font-semibold text-ink-secondary bg-canvas-soft px-2 py-0.5 rounded border border-hairline/80">
+                      <span className="inline-flex items-center text-[11px] font-semibold text-ink-secondary bg-canvas-soft px-2.5 py-0.5 rounded-md border border-hairline/80">
                         {exam.subject}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted bg-canvas-soft px-2 py-0.5 rounded border border-hairline/80">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted bg-canvas-soft px-2.5 py-0.5 rounded-md border border-hairline/80">
                         <Users className="h-3 w-3 text-ink-secondary shrink-0" />
                         <span className="truncate max-w-[200px] sm:max-w-none">
                           {exam.batch_scope === "SPECIFIC" && exam.scoped_batches && exam.scoped_batches.length > 0
@@ -591,8 +580,8 @@ export default function ExamsPage() {
 
                     <div className="shrink-0 flex items-center">
                       {!isWindowActive && !isInGrace ? (
-                        <ButtonPrimary
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => {
                             setTargetExamForReopen(exam);
                             setReopenReason(windowsMap[exam.id]?.has_window ? "Reopened by administrator" : "Scheduled examination upload session");
@@ -600,22 +589,22 @@ export default function ExamsPage() {
                             setReopenScope("ALL_STUDENTS");
                             setReopenModalOpen(true);
                           }}
-                          className="w-full sm:w-auto justify-center whitespace-nowrap px-3 py-1.5 text-xs shadow-xs cursor-pointer"
+                          className="h-8.5 px-3.5 rounded-md btn-glass-primary text-xs font-semibold inline-flex items-center justify-center whitespace-nowrap shadow-2xs cursor-pointer active:scale-[0.98]"
                         >
                           <Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" />
                           Open Window
-                        </ButtonPrimary>
+                        </button>
                       ) : (
-                        <ButtonUtility
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => handleHardCloseWindow(exam.id, exam.title)}
                           disabled={closingExamId === exam.id}
-                          className="w-full sm:w-auto justify-center whitespace-nowrap px-2.5 py-1.5 text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-100 font-semibold cursor-pointer"
+                          className="h-8.5 px-3 rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100 font-semibold text-xs inline-flex items-center justify-center whitespace-nowrap cursor-pointer active:scale-[0.98]"
                           title="Terminate active submission window immediately"
                         >
                           <Square className="h-3 w-3 mr-1 fill-red-600 text-red-600 shrink-0" />
                           {closingExamId === exam.id ? "Closing..." : "Close"}
-                        </ButtonUtility>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -626,7 +615,7 @@ export default function ExamsPage() {
                   <div className="flex items-center justify-between text-xs text-ink-muted">
                     <div className="flex items-center gap-1.5">
                       <span className="text-ink-muted text-xs">Total Marks:</span>
-                      <span className="font-mono font-bold text-ink bg-canvas-soft px-1.5 py-0.5 rounded border border-hairline/70 text-xs">
+                      <span className="font-mono font-bold text-ink bg-canvas-soft px-1.5 py-0.5 rounded-md border border-hairline/70 text-xs">
                         {exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}
                       </span>
                     </div>
@@ -638,7 +627,7 @@ export default function ExamsPage() {
                           setTargetExamForDelete(exam);
                           setDeleteConfirmText("");
                         }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-xs font-medium"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer text-xs font-medium"
                         title="Permanently Delete Exam"
                       >
                         <Trash2 className="h-3.5 w-3.5 shrink-0" />
@@ -650,14 +639,14 @@ export default function ExamsPage() {
                   <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                     <Link
                       href={`/exams/${exam.id}/rubric`}
-                      className="inline-flex items-center justify-center py-2 px-2 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink font-semibold text-xs transition-colors shadow-2xs text-center active:scale-[0.98]"
+                      className="h-9 px-3 rounded-md btn-glass-utility text-ink-secondary hover:text-ink font-semibold text-xs inline-flex items-center justify-center transition-all shadow-2xs text-center cursor-pointer active:scale-[0.98]"
                     >
                       <span>Rubric</span>
                     </Link>
 
                     <Link
                       href={`/marks?exam_id=${exam.id}`}
-                      className="inline-flex items-center justify-center gap-1 py-2 px-2 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink font-semibold text-xs transition-colors shadow-2xs text-center active:scale-[0.98]"
+                      className="h-9 px-3 rounded-md btn-glass-utility text-ink-secondary hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs text-center cursor-pointer active:scale-[0.98]"
                     >
                       <FileSpreadsheet className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                       <span>Marks</span>
@@ -665,7 +654,7 @@ export default function ExamsPage() {
 
                     <Link
                       href={`/exams/${exam.id}`}
-                      className="inline-flex items-center justify-center gap-1 py-2 px-2 rounded-md bg-primary hover:bg-primary-hover text-white font-bold text-xs transition-colors shadow-xs text-center active:scale-[0.98]"
+                      className="h-9 px-3 rounded-md btn-glass-primary text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs text-center cursor-pointer active:scale-[0.98]"
                     >
                       <span className="truncate">Submissions</span>
                       <ArrowRight className="h-3.5 w-3.5 shrink-0" />
@@ -704,32 +693,34 @@ export default function ExamsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-ink mb-1">Duration</label>
-                <select
+                <AppleSelect
                   value={reopenDuration}
-                  onChange={(e) => setReopenDuration(e.target.value)}
+                  onChange={(val) => setReopenDuration(val)}
                   disabled={isSubmittingWindow}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
-                >
-                  <option value="5">5 Minutes</option>
-                  <option value="10">10 Minutes</option>
-                  <option value="15">15 Minutes</option>
-                  <option value="30">30 Minutes</option>
-                  <option value="45">45 Minutes</option>
-                  <option value="60">60 Minutes</option>
-                </select>
+                  options={[
+                    { value: "5", label: "5 Minutes" },
+                    { value: "10", label: "10 Minutes" },
+                    { value: "15", label: "15 Minutes" },
+                    { value: "30", label: "30 Minutes" },
+                    { value: "45", label: "45 Minutes" },
+                    { value: "60", label: "60 Minutes" },
+                  ]}
+                  className="w-full"
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-ink mb-1">Target Scope</label>
-                <select
+                <AppleSelect
                   value={reopenScope}
-                  onChange={(e) => setReopenScope(e.target.value)}
+                  onChange={(val) => setReopenScope(val)}
                   disabled={isSubmittingWindow}
-                  className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
-                >
-                  <option value="ALL_STUDENTS">All Students (Replacements Allowed)</option>
-                  <option value="UNSUBMITTED_ONLY">Unsubmitted Students Only</option>
-                </select>
+                  options={[
+                    { value: "ALL_STUDENTS", label: "All Students (Replacements Allowed)" },
+                    { value: "UNSUBMITTED_ONLY", label: "Unsubmitted Students Only" },
+                  ]}
+                  className="w-full"
+                />
               </div>
             </div>
 

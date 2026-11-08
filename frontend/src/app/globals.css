@@ -967,4 +967,39 @@ input[type="number"] {
   animation: appleNumberDown 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Apple-style spring popover and dropdown animations */
+@keyframes applePopoverIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes applePopoverOut {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+.animate-apple-in {
+  animation: applePopoverIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+  will-change: transform, opacity;
+}
+
+.animate-apple-out {
+  animation: applePopoverOut 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+  will-change: transform, opacity;
+}
+
 
