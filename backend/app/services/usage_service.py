@@ -240,6 +240,7 @@ class UsageService:
                 "batch_40": projections_40,
                 "batch_50": projections_50
             },
+            "active_key_count": len(settings.configured_api_keys),
             "recent_events": events[:30],
             "gcp_paid": gcp_metrics
         }
@@ -354,6 +355,7 @@ class UsageService:
             },
             "quota_settings": quotas,
             "projections": {"batch_40": proj_40, "batch_50": proj_50},
+            "active_key_count": len(settings.configured_api_keys),
             "recent_events": [],
             "gcp_paid": {
                 "is_configured": settings.is_gcp_paid_configured,

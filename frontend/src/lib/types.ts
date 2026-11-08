@@ -286,6 +286,7 @@ export interface UsageMetrics {
     batch_40: BatchProjection;
     batch_50: BatchProjection;
   };
+  active_key_count?: number;
   recent_events: {
     id: string;
     timestamp: string;

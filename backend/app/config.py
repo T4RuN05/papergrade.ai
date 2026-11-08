@@ -119,7 +119,11 @@ class Settings:
             if clean and clean != "your_gemini_api_key_here" and clean not in seen:
                 seen.add(clean)
                 valid_keys.append(clean)
-        return valid_keys
+
+        # Temporary safeguard: cap active free-tier pool to initial keys (default 4)
+        # to avoid Google multi-project account-level anti-abuse quota clamps.
+        max_pool = int(os.getenv("MAX_ACTIVE_GEMINI_KEYS", "4"))
+        return valid_keys[:max_pool]
 
     @property
     def is_gemini_configured(self) -> bool:

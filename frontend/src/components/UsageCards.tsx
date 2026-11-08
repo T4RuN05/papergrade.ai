@@ -34,6 +34,7 @@ interface UsageCardsProps {
 export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
   const { toast } = useToast();
   const { summary, latency, per_paper_metrics, quota_settings, projections, recent_events, gcp_paid } = metrics;
+  const activeKeyCount = metrics.active_key_count || 4;
 
   // Active Telemetry Tab: Free Tier Pool vs GCP Paid Account
   const [activeTab, setActiveTab] = useState<"free_pool" | "gcp_paid">("free_pool");
@@ -124,7 +125,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             <Zap className="h-3.5 w-3.5 text-primary" />
             <span>AI Studio Engine (Free Pool)</span>
             <span className="ml-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.2 text-[10px] font-mono">
-              22 Keys
+              {activeKeyCount} Keys
             </span>
           </button>
 
@@ -147,7 +148,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
 
         <div className="text-xs text-ink-muted flex items-center gap-2">
           {activeTab === "free_pool" ? (
-            <span>Load-balanced round-robin rotation across 22 API keys</span>
+            <span>Load-balanced round-robin rotation across {activeKeyCount} API keys</span>
           ) : (
             <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
               <CreditCard className="h-3.5 w-3.5" />
@@ -277,7 +278,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                   Confirm your project rate limits from Google AI Studio. Feasibility projections automatically adapt.
                 </p>
               </div>
-              <BadgePill label="Multi-Key Rotation (22 Keys)" color="green" />
+              <BadgePill label={`Multi-Key Rotation (${activeKeyCount} Keys)`} color="green" />
             </div>
 
             <form onSubmit={handleSaveQuotas} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
