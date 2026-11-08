@@ -862,7 +862,7 @@ def confirm_presigned_upload(
         notif_type="SUBMISSION_RECEIVED",
         title="New Student Submission",
         message=f"Student {clean_roll} submitted their answer script for '{exam_title}'.",
-        link_url="/overview"
+        link_url=f"/exams/{exam_id}"
     )
 
     db.commit()
@@ -1027,7 +1027,7 @@ def _process_submission_sync(
             notif_type="SUBMISSION_RECEIVED",
             title="New Student Submission",
             message=f"Student {clean_roll} submitted their answer script for '{exam_title}'.",
-            link_url="/overview"
+            link_url=f"/exams/{exam_id}"
         )
 
         session.commit()

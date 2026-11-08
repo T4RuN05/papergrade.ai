@@ -379,7 +379,7 @@ def update_report_status(
 
     if new_status == "RESOLVED":
         reporter_id = report.user_id
-        link_target = "/student/portal" if report.user_role == "STUDENT" else "/branch/batches"
+        link_target = "/student/portal" if report.user_role == "STUDENT" else "/overview"
         note_snip = f": {admin_notes}" if admin_notes else " - please refresh your portal."
         notif_msg = f"Your report '{report.subject[:45]}' has been marked resolved{note_snip}"
 

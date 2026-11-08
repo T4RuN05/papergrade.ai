@@ -81,7 +81,7 @@ def dispatch_webpush_for_users(user_ids: List[str], title: str, message: str, li
                 payload = json.dumps({
                     "title": title,
                     "body": message,
-                    "url": link_url or "/student/portal",
+                    "url": link_url or "/overview",
                 })
 
                 for s in subs:
@@ -470,7 +470,7 @@ def background_dispatch_exam_created(
                     notif_type="EXAM_CREATED",
                     title="Branch Exam Created",
                     message=f"Branch '{branch_name}' created exam '{title}' ({subject}). Awaiting answer key upload.",
-                    link_url="/exams",
+                    link_url=f"/exams/{exam_id}",
                     exclude_user_id=creator_id
                 )
             elif creator_role == "ROOT_ADMIN" and branch_id:
@@ -480,7 +480,7 @@ def background_dispatch_exam_created(
                     notif_type="EXAM_CREATED",
                     title="New Exam Scheduled",
                     message=f"Exam '{title}' ({subject}) was created for your branch by Root Admin.",
-                    link_url="/exams"
+                    link_url=f"/exams/{exam_id}"
                 )
     except Exception as e:
         logger.error(f"Failed in background_dispatch_exam_created: {e}", exc_info=True)
@@ -508,14 +508,14 @@ def background_dispatch_window_event(
                 student_msg = f"The submission window for '{exam_title}' has been reopened for {duration} min.{reason_part}"
                 manager_title = "Submission Window Reopened"
                 manager_msg = f"Submission window for '{exam_title}' was reopened by Root Admin ({duration} min).{reason_part}"
-                manager_link = "/overview"
+                manager_link = f"/exams/{exam_id}"
             elif action == "CLOSE":
                 notif_type = "WINDOW_CLOSED"
                 title = "Submission Window Closed"
                 student_msg = f"The submission window for '{exam_title}' has been closed.{reason_part}"
                 manager_title = "Submission Window Closed Early"
                 manager_msg = f"Submission window for '{exam_title}' was closed early by Root Admin.{reason_part}"
-                manager_link = "/overview"
+                manager_link = f"/exams/{exam_id}"
             else:  # OPEN
                 notif_type = "WINDOW_OPENED"
                 title = "Submission Window Open"
@@ -599,25 +599,26 @@ def background_dispatch_results_published(
 
             if students_to_notify:
                 now = get_iso_now()
+                notif_msg = f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown."
                 for sub_id, u_id in students_to_notify:
+                    if not u_id:
+                        continue
                     session.add(Notification(
                         id=f"notif_{uuid.uuid4().hex[:12]}",
                         user_id=u_id,
                         type="RESULT_PUBLISHED",
                         title="Results Published",
-                        message=f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown.",
+                        message=notif_msg,
                         link_url=f"/student/submissions/{sub_id}",
                         is_read=0,
                         created_at=now,
                     ))
-
-                uids = [u_id for _, u_id in students_to_notify if u_id]
-                dispatch_webpush_for_users(
-                    uids,
-                    "Results Published",
-                    f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown.",
-                    "/student/portal"
-                )
+                    dispatch_webpush_for_user(
+                        user_id=u_id,
+                        title="Results Published",
+                        message=notif_msg,
+                        link_url=f"/student/submissions/{sub_id}",
+                    )
 
             # Notify Root Admin and Branch Manager
             branch_name = get_branch_name(session, branch_id)

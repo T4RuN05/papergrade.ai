@@ -204,6 +204,9 @@ class PersistentQueueWorker:
                     sess.execute(update(Submission).where(Submission.id == submission_id).values(status='FAILED', error_message=err_msg, updated_at=now))
                     sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == submission_id).values(status='FAILED', last_error=err_msg, updated_at=now))
                     sess.commit()
+                if batch_id:
+                    self._update_batch_progress(batch_id)
+                self._update_exam_evaluation_status(exam_id)
                 return True
 
             rubric_data = json.loads(r_row.rubric_data)
@@ -222,6 +225,9 @@ class PersistentQueueWorker:
                 sess.execute(update(Submission).where(Submission.id == submission_id).values(status='FAILED', error_message=err_msg, updated_at=now))
                 sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == submission_id).values(status='FAILED', last_error=err_msg, updated_at=now))
                 sess.commit()
+            if batch_id:
+                self._update_batch_progress(batch_id)
+            self._update_exam_evaluation_status(exam_id)
             return True
 
         # 3. Single-Pass Multimodal Grading Call
@@ -300,6 +306,10 @@ class PersistentQueueWorker:
                         .values(status='FAILED', attempt_count=new_retries, last_error=err_msg[:300], updated_at=now_str)
                     )
                 sess.commit()
+            if new_retries >= 3:
+                if batch_id:
+                    self._update_batch_progress(batch_id)
+                self._update_exam_evaluation_status(exam_id)
             return True
 
         # 4. Enforce Invariants and Save
@@ -352,6 +362,30 @@ class PersistentQueueWorker:
                     ex.status = target_status
                     ex.lifecycle_status = "PUBLISHED" if is_pub else "EVALUATED"
                     ex.updated_at = now
+
+                    exam_completed = counts.get("COMPLETED", 0) + counts.get("NEEDS_REVIEW", 0)
+                    exam_failed = counts.get("FAILED", 0)
+                    ex_title = ex.title or "Exam"
+                    ex_branch = ex.branch_id
+
+                    # Notify Branch Managers of this exam's branch
+                    notify_branch_managers(
+                        cursor=session,
+                        branch_id=ex_branch,
+                        notif_type="GRADING_COMPLETED",
+                        title="AI Grading Completed",
+                        message=f"Evaluation complete for '{ex_title}' ({exam_completed} graded, {exam_failed} failed). Papers are ready for faculty verification.",
+                        link_url=f"/exams/{exam_id}"
+                    )
+                    # Notify Root Admins
+                    notify_root_admins(
+                        cursor=session,
+                        notif_type="GRADING_COMPLETED",
+                        title="AI Grading Completed",
+                        message=f"Evaluation complete for '{ex_title}' ({exam_completed} graded, {exam_failed} failed).",
+                        link_url=f"/exams/{exam_id}"
+                    )
+
                     session.commit()
 
     def _update_batch_progress(self, batch_id: str):
@@ -373,7 +407,6 @@ class PersistentQueueWorker:
             if not batch_rec:
                 return
 
-            prev_status = batch_rec.status
             if queued == 0 and processing == 0:
                 batch_status = "COMPLETED" if failed == 0 else "PARTIALLY_FAILED"
             else:
@@ -385,28 +418,6 @@ class PersistentQueueWorker:
             batch_rec.updated_at = now
 
             session.commit()
-
-            # Dispatch notification if batch transitioned into COMPLETED
-            if queued == 0 and processing == 0 and prev_status != "COMPLETED":
-                b_name = batch_rec.name or "Batch"
-                b_branch = batch_rec.branch_id
-
-                notify_branch_managers(
-                    cursor=session,
-                    branch_id=b_branch,
-                    notif_type="GRADING_COMPLETED",
-                    title="AI Grading Completed",
-                    message=f"Evaluation complete for '{b_name}'. Papers are ready for faculty verification.",
-                    link_url="/batches"
-                )
-                notify_root_admins(
-                    cursor=session,
-                    notif_type="GRADING_COMPLETED",
-                    title="Batch Grading Complete",
-                    message=f"Batch '{b_name}' grading finished ({completed} graded, {failed} failed).",
-                    link_url="/marks"
-                )
-                session.commit()
 
 
 queue_worker = PersistentQueueWorker()

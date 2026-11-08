@@ -60,7 +60,7 @@ self.addEventListener("push", (event) => {
   let data = {
     title: "PaperGrade AI",
     body: "You have a new academic update.",
-    url: "/student/portal"
+    url: "/overview"
   };
 
   if (event.data) {
@@ -80,7 +80,7 @@ self.addEventListener("push", (event) => {
     tag: `papergrade-push-${Date.now()}`,
     renotify: true,
     data: {
-      url: data.url || "/student/portal",
+      url: data.url || "/overview",
     },
     actions: [
       { action: "open", title: "View Update" }
@@ -101,7 +101,8 @@ self.addEventListener("message", (event) => {
 // User clicked on system notification
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/student/portal";
+  const rawUrl = (event.notification.data && event.notification.data.url) || "/overview";
+  const targetUrl = rawUrl.startsWith("http") ? rawUrl : new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
