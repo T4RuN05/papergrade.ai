@@ -184,13 +184,7 @@ function StudentMarksTrajectory({
     count > 0
       ? (points.reduce((acc, p) => acc + p.percentage, 0) / count).toFixed(1)
       : null;
-  const maxPct = count > 0 ? Math.max(...points.map((p) => p.percentage)).toFixed(1) : null;
   const revalUpgradesCount = points.filter((p) => p.isMarksRevised).length;
-
-  const trendDiff =
-    count >= 2
-      ? Number((points[count - 1].percentage - points[0].percentage).toFixed(1))
-      : null;
 
   const [lineAnimated, setLineAnimated] = useState(false);
 
@@ -271,80 +265,20 @@ function StudentMarksTrajectory({
   }
 
   return (
-    <FeatureCard className="p-4 sm:p-5 space-y-3.5">
-      {/* Top Header: Subject Title & Metrics */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="h-6 w-6 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <TrendingUp className="h-3.5 w-3.5" />
-          </div>
-          <h2 className="text-sm sm:text-base font-bold text-ink flex items-center gap-1.5">
-            <span>Marks Trajectory:</span>
-            <span className="text-primary font-bold">
-              {selectedSubject === "ALL" ? "All Subjects" : selectedSubject}
-            </span>
-          </h2>
-          {revalUpgradesCount > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-              <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              {revalUpgradesCount} Upgraded
-            </span>
-          )}
-        </div>
-
-        {/* Minimal Metrics Badges */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {count > 0 && (
-            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-canvas-soft text-ink-secondary border border-hairline font-mono">
-              <span>{count} {count === 1 ? "Paper" : "Papers"}</span>
-            </div>
-          )}
-
-          {trendDiff !== null && (
-            <div
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${
-                trendDiff > 0
-                  ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                  : trendDiff < 0
-                  ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                  : "bg-surface text-ink-secondary border-hairline"
-              } shadow-2xs font-mono`}
-            >
-              {trendDiff > 0 ? (
-                <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              ) : trendDiff < 0 ? (
-                <TrendingDown className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-              ) : (
-                <Minus className="h-3 w-3 text-ink-muted" />
-              )}
-              <span>
-                {trendDiff > 0
-                  ? `+${trendDiff}%`
-                  : trendDiff < 0
-                  ? `${trendDiff}%`
-                  : "0%"}
-              </span>
-            </div>
-          )}
-
-          {avgPct !== null && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-surface text-ink-secondary border border-hairline shadow-2xs font-mono">
-              <Award className="h-3.5 w-3.5 text-ink-muted" />
-              <span>Avg: <strong className="text-ink font-semibold">{avgPct}%</strong></span>
-            </div>
-          )}
-
-          {maxPct !== null && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-surface text-ink-secondary border border-hairline shadow-2xs font-mono">
-              <Sparkles className="h-3.5 w-3.5 text-ink-muted" />
-              <span>Peak: <strong className="text-ink font-semibold">{maxPct}%</strong></span>
-            </div>
-          )}
-        </div>
+    <FeatureCard className="p-3.5 sm:p-4 space-y-3">
+      {/* Top Header: Minimal Subject Title */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm sm:text-base font-bold text-ink">Marks Trajectory</h2>
+        {revalUpgradesCount > 0 && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+            <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+            {revalUpgradesCount} Upgraded
+          </span>
+        )}
       </div>
 
       {/* Subject Tabs Navigation (All Subjects, Physics, Chemistry, Maths, Biology) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 text-xs border-b border-hairline/60">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs border-b border-hairline/60">
         <button
           type="button"
           onClick={() => setSelectedSubject("ALL")}

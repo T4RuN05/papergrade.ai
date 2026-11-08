@@ -135,7 +135,7 @@ export function AppleSelect({
           role="listbox"
           className={`absolute top-full mt-1.5 ${
             align === "right" ? "right-0" : "left-0"
-          } min-w-[160px] max-w-xs w-max bg-surface/98 dark:bg-[#1a1a1a]/98 backdrop-blur-md rounded-lg border border-hairline shadow-notion-modal p-1 z-50 overflow-hidden ${
+          } min-w-[160px] max-w-xs w-max bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-1 z-50 overflow-hidden ${
             isExiting ? "animate-apple-out" : "animate-apple-in"
           } ${menuClassName}`}
         >

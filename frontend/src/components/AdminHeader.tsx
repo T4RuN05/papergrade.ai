@@ -248,7 +248,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
 
           {/* Styled Apple-grade Floating Popover Dropdown Menu */}
           {branchDropdownOpen && mounted && (
-            <div className={`absolute top-full mt-1.5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 w-64 sm:w-72 bg-surface/98 dark:bg-[#1a1a1a]/98 backdrop-blur-md rounded-lg border border-hairline shadow-notion-modal p-2 z-50 overflow-hidden ${
+            <div className={`absolute top-full mt-1.5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0 w-64 sm:w-72 bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-50 overflow-hidden ${
               isBranchDropdownExiting ? "animate-apple-out" : "animate-apple-in"
             }`}>
               <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1.5">
