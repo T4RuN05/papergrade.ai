@@ -283,7 +283,7 @@ export function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/auth/login?role=claim"
-                className="hidden sm:inline-flex items-center text-xs font-medium text-ink-secondary hover:text-primary px-2.5 py-1 rounded-md hover:bg-canvas-soft transition-colors"
+                className="hidden sm:inline-flex items-center btn-glass-utility text-xs font-semibold text-ink px-3 h-8 rounded-md transition-all cursor-pointer active:scale-[0.98]"
               >
                 Claim Student ID
               </Link>
@@ -297,7 +297,7 @@ export function Navbar() {
                     ? "/auth/login?role=staff"
                     : "/auth/login"
                 }
-                className="inline-flex items-center justify-center rounded-full bg-primary hover:bg-primary-active text-white px-3.5 py-1 text-xs font-medium transition-colors shadow-xs"
+                className="btn-glass-primary inline-flex items-center justify-center rounded-md px-3.5 h-8 text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
               >
                 Sign In
               </Link>
@@ -486,7 +486,7 @@ export function Navbar() {
                   <Link
                     href="/auth/login"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="w-full inline-flex items-center justify-center h-9 px-4 rounded-full bg-primary hover:bg-primary-active text-white text-xs font-medium transition-colors shadow-xs"
+                    className="w-full btn-glass-primary inline-flex items-center justify-center h-9 px-4 rounded-md text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
                   >
                     <span>Sign In to Portal</span>
                     <ArrowRight className="h-3.5 w-3.5 ml-1.5" />

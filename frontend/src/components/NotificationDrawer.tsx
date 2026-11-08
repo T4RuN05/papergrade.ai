@@ -191,12 +191,6 @@ export function NotificationDrawer() {
               <Bell className="h-4 w-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold tracking-tight text-ink">Notifications</h2>
-                {unreadCount > 0 && (
-                  <BadgePill label={`${unreadCount} unread`} color="sky" />
-                )}
-              </div>
               <p className="text-[11px] text-ink-muted">
                 System alerts, grading updates & revaluations
               </p>

@@ -875,6 +875,33 @@ body {
 }
 
 /* ==========================================================================
+   Landing Page Lightweight Mounting Animation Engine
+   Subtle GPU-accelerated fade-and-rise entrance with zero layout shift
+   ========================================================================== */
+@keyframes landingMount {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-landing-mount {
+  animation: landingMount 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-landing-hero {
+  animation: landingMount 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+}
+
+.animate-landing-demo {
+  animation: landingMount 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+/* ==========================================================================
    Notion Dark Mode Systematic Badge & Banner Tone Engine
    Converts all pastel/light badge fills and borders across the platform into
    deep, muted, eye-friendly luminous wells with soft borders.

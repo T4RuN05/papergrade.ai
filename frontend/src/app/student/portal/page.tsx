@@ -1432,7 +1432,7 @@ export default function StudentPortalPage() {
   const studentIdDisplay = user?.student_id_num || user?.student?.student_id_num || user?.id;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group">
+    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group overflow-x-hidden">
       {/* Header Profile Greeting */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-3 border-b border-hairline">
         <div className="space-y-1">

@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="min-h-screen bg-canvas-soft text-ink flex flex-col font-sans selection:bg-primary selection:text-white">
           {/* Public / Student Navbar */}
           <Navbar />
-          <main className="flex-1 w-full">
+          <main className="flex-1 w-full max-w-full overflow-x-clip sm:overflow-x-visible">
             {children}
           </main>
           {pathname !== "/" && (

@@ -863,13 +863,13 @@ export function AnalyticsSkeleton() {
 
 export function StudentPortalSkeleton() {
   return (
-    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 animate-in fade-in duration-200">
+    <div className="w-full max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 overflow-x-hidden animate-in fade-in duration-200">
       {/* Header Profile Greeting Skeleton */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-3 border-b border-hairline">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <Skeleton className="h-6 sm:h-7 w-48 sm:w-56" />
-            <Skeleton className="h-5 w-24 rounded-full" />
+            <Skeleton className="h-6 sm:h-7 w-48 sm:w-56 max-w-[70vw]" />
+            <Skeleton className="h-5 w-20 rounded-full shrink-0" />
           </div>
           <div className="flex items-center gap-2">
             <Skeleton className="h-3.5 w-28" />
@@ -882,12 +882,12 @@ export function StudentPortalSkeleton() {
       </div>
 
       {/* Portal Top Navigation Switcher Skeleton (Segmented Control) */}
-      <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
-        <div className="flex-1 sm:flex-initial h-8 w-full sm:w-32 rounded-lg bg-surface border border-hairline/60 flex items-center justify-center gap-1.5 px-3.5">
+      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto overflow-hidden">
+        <div className="flex-1 sm:flex-initial h-8 sm:w-32 rounded-lg bg-surface border border-hairline/60 flex items-center justify-center gap-1.5 px-3.5">
           <Skeleton className="h-3.5 w-3.5 rounded" />
           <Skeleton className="h-3.5 w-16" />
         </div>
-        <div className="flex-1 sm:flex-initial h-8 w-full sm:w-32 rounded-lg flex items-center justify-center gap-1.5 px-3.5">
+        <div className="flex-1 sm:flex-initial h-8 sm:w-32 rounded-lg flex items-center justify-center gap-1.5 px-3.5">
           <Skeleton className="h-3.5 w-3.5 rounded" />
           <Skeleton className="h-3.5 w-16" />
         </div>
@@ -907,51 +907,31 @@ export function StudentPortalSkeleton() {
         ))}
       </div>
 
-      {/* Marks Trajectory Graph Card Skeleton */}
-      <FeatureCard className="p-4 sm:p-5 space-y-3.5">
-        {/* Graph Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-6 w-6 rounded-md shrink-0" />
-            <Skeleton className="h-4 sm:h-5 w-40 sm:w-48" />
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Skeleton className="h-6 w-16 rounded-md" />
-            <Skeleton className="h-6 w-16 rounded-md" />
-            <Skeleton className="h-6 w-20 rounded-md" />
-          </div>
+      {/* Marks Trajectory Graph Card Skeleton (Minimized) */}
+      <FeatureCard className="p-3.5 sm:p-4 space-y-3 overflow-hidden">
+        {/* Graph Header: Minimized */}
+        <div className="flex items-center justify-between gap-2.5">
+          <Skeleton className="h-4 sm:h-5 w-36 sm:w-44" />
         </div>
 
-        {/* Subject Tabs Navigation Skeleton */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-hairline/60">
-          <Skeleton className="h-7 w-24 rounded-full shrink-0" />
-          <Skeleton className="h-7 w-20 rounded-full shrink-0" />
-          <Skeleton className="h-7 w-24 rounded-full shrink-0" />
-          <Skeleton className="h-7 w-18 rounded-full shrink-0" />
-          <Skeleton className="h-7 w-20 rounded-full shrink-0" />
+        {/* Subject Filter Tabs Skeleton */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+          <Skeleton className="h-6 w-20 rounded-md shrink-0" />
+          <Skeleton className="h-6 w-16 rounded-md shrink-0" />
+          <Skeleton className="h-6 w-18 rounded-md shrink-0" />
         </div>
 
         {/* Graph Chart Canvas Skeleton */}
-        <div className="h-[200px] sm:h-[240px] w-full rounded-md border border-hairline/60 bg-canvas-soft/40 relative overflow-hidden flex flex-col justify-between p-4">
-          <div className="flex justify-between items-center opacity-30">
-            <Skeleton className="h-2 w-8" />
-            <div className="h-px w-full bg-hairline mx-2" />
-          </div>
-          <div className="flex justify-between items-center opacity-30">
-            <Skeleton className="h-2 w-8" />
-            <div className="h-px w-full bg-hairline mx-2" />
-          </div>
-          <div className="flex justify-between items-center opacity-30">
-            <Skeleton className="h-2 w-8" />
-            <div className="h-px w-full bg-hairline mx-2" />
-          </div>
-          <div className="flex justify-between items-center opacity-30">
-            <Skeleton className="h-2 w-8" />
-            <div className="h-px w-full bg-hairline mx-2" />
-          </div>
-          <div className="flex justify-between pt-2">
+        <div className="h-[180px] sm:h-[220px] w-full rounded-md border border-hairline/60 bg-canvas-soft/40 relative overflow-hidden flex flex-col justify-between p-3 sm:p-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center opacity-30 min-w-0">
+              <Skeleton className="h-2 w-6 shrink-0" />
+              <div className="h-px flex-1 bg-hairline mx-2" />
+            </div>
+          ))}
+          <div className="flex justify-between pt-1 gap-1">
             {[1, 2, 3, 4, 5, 6].map((idx) => (
-              <Skeleton key={idx} className="h-2.5 w-10 sm:w-14" />
+              <Skeleton key={idx} className="h-2 w-7 sm:w-10 shrink-0" />
             ))}
           </div>
         </div>

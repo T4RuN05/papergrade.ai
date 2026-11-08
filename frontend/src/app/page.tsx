@@ -140,21 +140,29 @@ export default function LandingPage() {
         ========================================================================
       */}
       <div
-        className="relative z-10 w-full bg-canvas-soft border-b border-hairline shadow-[0_25px_50px_-12px_rgba(0,0,0,0.18)]"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-            linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)
-          `,
-          backgroundSize: "28px 28px",
-        }}
+        className="relative z-10 w-full bg-canvas-soft border-b border-hairline shadow-[0_25px_50px_-12px_rgba(0,0,0,0.18)] overflow-hidden"
       >
-        <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-8 sm:pt-16 pb-20 sm:pb-32 space-y-12 sm:space-y-24">
+        {/* Hero Background Grid: Active only in Hero section with smooth gradient fade-out */}
+        <div
+          aria-hidden="true"
+          className="absolute top-0 left-0 right-0 h-[560px] sm:h-[640px] pointer-events-none select-none z-0 overflow-hidden"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+              linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)
+            `,
+            backgroundSize: "28px 28px",
+            maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.75) 55%, rgba(0,0,0,0) 100%)",
+            WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.75) 55%, rgba(0,0,0,0) 100%)",
+          }}
+        />
+
+        <div className="relative z-10 max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-8 sm:pt-16 pb-20 sm:pb-32 space-y-12 sm:space-y-24 animate-landing-mount">
           
           {/* 1. HERO SECTION */}
-          <section className="text-center max-w-3xl mx-auto space-y-5 sm:space-y-6 pt-2 sm:pt-6">
+          <section className="text-center max-w-3xl mx-auto space-y-5 sm:space-y-6 pt-2 sm:pt-6 animate-landing-hero">
             
-            {/* Authentic Brand Badge (Preserving official golden logo & Notion Blue AI) */}
+            {/* Authentic Brand Badge */}
             <div className="flex justify-center px-2">
               <div className="inline-flex items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-full border border-hairline bg-surface shadow-xs max-w-full">
                 <Image
@@ -184,13 +192,13 @@ export default function LandingPage() {
               PaperGrade evaluates handwritten student answer sheets against itemized, instructor-approved rubrics. Every question receives discrete criteria scoring, annotated step feedback, and auditable revaluation records.
             </p>
 
-            {/* Notion Pill-Shaped Action Buttons (button-primary & button-secondary from DESIGN-notion.md) */}
+            {/* Overhauled Tactile Action Buttons (Matching Platform Curved-Glass Design System) */}
             <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 w-full max-w-xs sm:max-w-none mx-auto px-2">
               {currentUser ? (
                 currentUser.role === "ROOT_ADMIN" ? (
                   <Link
                     href="/overview"
-                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs w-full sm:w-auto text-center"
+                    className="btn-glass-primary inline-flex items-center justify-center h-10 px-6 rounded-md text-sm font-semibold transition-all shadow-xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
                     <span>Open Administrator Desk</span>
                     <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
@@ -198,7 +206,7 @@ export default function LandingPage() {
                 ) : currentUser.role === "BRANCH_MANAGER" ? (
                   <Link
                     href="/branch/batches"
-                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs w-full sm:w-auto text-center"
+                    className="btn-glass-primary inline-flex items-center justify-center h-10 px-6 rounded-md text-sm font-semibold transition-all shadow-xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
                     <span>Open Branch Batches</span>
                     <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
@@ -206,7 +214,7 @@ export default function LandingPage() {
                 ) : (
                   <Link
                     href="/student/portal"
-                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs w-full sm:w-auto text-center"
+                    className="btn-glass-primary inline-flex items-center justify-center h-10 px-6 rounded-md text-sm font-semibold transition-all shadow-xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
                     <span>Open Student Portal</span>
                     <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
@@ -216,20 +224,20 @@ export default function LandingPage() {
                 <>
                   <Link
                     href="/auth/login?role=staff"
-                    className="inline-flex items-center justify-center h-10 px-6 rounded-full bg-primary hover:bg-primary-active text-on-primary text-sm font-medium transition-colors shadow-xs w-full sm:w-auto text-center"
+                    className="btn-glass-primary inline-flex items-center justify-center h-10 px-6 rounded-md text-sm font-semibold transition-all shadow-xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
                     <span>Sign In to Console</span>
                     <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
                   </Link>
                   <Link
                     href="/auth/login?role=student"
-                    className="inline-flex items-center justify-center h-10 px-5 rounded-full border border-hairline bg-surface text-sm font-medium text-ink hover:bg-canvas-soft transition-colors shadow-xs w-full sm:w-auto text-center"
+                    className="btn-glass-utility inline-flex items-center justify-center h-10 px-5 rounded-md text-sm font-semibold text-ink transition-all shadow-2xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
                     <span>Student Portal</span>
                   </Link>
                   <Link
                     href="/auth/login?role=claim"
-                    className="inline-flex items-center justify-center h-10 px-5 rounded-full border border-hairline bg-surface text-sm font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors w-full sm:w-auto text-center"
+                    className="btn-glass-utility inline-flex items-center justify-center h-10 px-5 rounded-md text-sm font-semibold text-ink-secondary hover:text-ink transition-all shadow-2xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
                     <span>Claim Student ID</span>
                   </Link>
@@ -367,17 +375,17 @@ export default function LandingPage() {
             3. INTERACTIVE SKELETON MOCK SHOWCASE (Notion Card & Hairlines)
             ========================================================================
           */}
-          <section className="space-y-4">
-            {/* Notion-Style Segmented Tab Switcher */}
+          <section className="space-y-4 animate-landing-demo">
+            {/* Segmented Tab Switcher */}
             <div className="w-full flex items-center justify-center overflow-x-auto scrollbar-none py-1 px-1">
               <div className="inline-flex items-center p-1 rounded-lg border border-hairline bg-surface shadow-xs gap-1 max-w-full">
                 <button
                   type="button"
                   onClick={() => setActiveMock("viewer")}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
                     activeMock === "viewer"
-                      ? "bg-canvas-soft text-ink font-semibold shadow-xs border border-hairline"
-                      : "text-ink-muted hover:text-ink"
+                      ? "btn-glass-utility text-ink font-bold shadow-2xs"
+                      : "text-ink-muted hover:text-ink font-medium hover:bg-canvas-soft/60"
                   }`}
                 >
                   <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -387,10 +395,10 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setActiveMock("submissions")}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
                     activeMock === "submissions"
-                      ? "bg-canvas-soft text-ink font-semibold shadow-xs border border-hairline"
-                      : "text-ink-muted hover:text-ink"
+                      ? "btn-glass-utility text-ink font-bold shadow-2xs"
+                      : "text-ink-muted hover:text-ink font-medium hover:bg-canvas-soft/60"
                   }`}
                 >
                   <Users className="h-3.5 w-3.5 text-accent-teal shrink-0" />
@@ -400,10 +408,10 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setActiveMock("rubric")}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0 ${
                     activeMock === "rubric"
-                      ? "bg-canvas-soft text-ink font-semibold shadow-xs border border-hairline"
-                      : "text-ink-muted hover:text-ink"
+                      ? "btn-glass-utility text-ink font-bold shadow-2xs"
+                      : "text-ink-muted hover:text-ink font-medium hover:bg-canvas-soft/60"
                   }`}
                 >
                   <Sliders className="h-3.5 w-3.5 text-accent-purple-deep shrink-0" />
