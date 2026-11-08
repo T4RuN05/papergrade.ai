@@ -331,11 +331,11 @@ export function GradingModal({
                                   <button
                                     type="button"
                                     onClick={() => setShowAddPageDropdown((prev) => !prev)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded hover:bg-teal-100 transition-colors cursor-pointer shadow-2xs"
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#165651] bg-[#eaf4f3] border border-[#c4e2df] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a] px-2 py-0.5 rounded-md hover:opacity-90 transition-all cursor-pointer shadow-2xs"
                                     title="Add an additional bounding box continuation on another sheet"
                                   >
                                     <Plus className="h-3 w-3" />
-                                    <span>+ Add Sheet</span>
+                                    <span>Add Sheet</span>
                                   </button>
                                   {showAddPageDropdown && (
                                     <div className="absolute top-full right-0 mt-1 w-48 bg-surface border border-hairline shadow-lg rounded-lg p-1.5 z-50 space-y-1">
@@ -453,14 +453,14 @@ export function GradingModal({
 
               {/* Official Solution / Model Answer */}
               {answer.official_answer && (
-                <div className="rounded-md border border-emerald-200 bg-[#edf7ed] p-4 text-xs">
-                  <div className="flex items-center gap-2 font-bold text-emerald-800 mb-1.5">
-                    <Check className="h-4 w-4 text-emerald-600" />
+                <div className="rounded-lg border border-emerald-200/80 bg-[#edf7ed]/80 dark:bg-[#101d15] dark:border-[#1a3324] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] p-3.5 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-[#86d4a4] mb-1.5">
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-[#86d4a4]" />
                     Official Solution / Model Answer
                   </div>
-                  <p className="text-emerald-950 font-mono leading-relaxed whitespace-pre-wrap">
+                  <div className="text-emerald-950 dark:text-[#86d4a4]/90 font-mono leading-relaxed whitespace-pre-wrap bg-white/60 dark:bg-[#0b140e] p-2.5 rounded-md border border-emerald-200/60 dark:border-[#1a3324]/80">
                     {answer.official_answer}
-                  </p>
+                  </div>
                 </div>
               )}
             </div>

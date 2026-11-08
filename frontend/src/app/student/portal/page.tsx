@@ -2056,7 +2056,7 @@ export default function StudentPortalPage() {
                               }`}
                             >
                               <Plus className="h-3.5 w-3.5" />
-                              <span>+ Add Photos</span>
+                              <span>Add Photos</span>
                             </button>
                           </div>
                         )}
@@ -3556,8 +3556,8 @@ export default function StudentPortalPage() {
 
                           {/* 3. AI Grading Rationale (if present and distinct) */}
                           {hasRationale && (
-                            <div className="text-[11px] text-indigo-950 bg-indigo-50/50 p-2 rounded border border-indigo-200/60 leading-relaxed">
-                              <span className="font-semibold text-indigo-900">AI Detailed Reasoning: </span>
+                            <div className="text-[11px] text-indigo-950 dark:text-[#c7d2fe] bg-indigo-50/50 dark:bg-[#13172e] p-2.5 rounded-md border border-indigo-200/60 dark:border-[#242b58] leading-relaxed">
+                              <span className="font-semibold text-indigo-900 dark:text-[#e0e7ff]">AI Detailed Reasoning: </span>
                               {ans.grading_rationale}
                             </div>
                           )}

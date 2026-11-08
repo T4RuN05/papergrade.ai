@@ -1077,8 +1077,8 @@ export function DocumentViewer({
               title={`Add bounding box for any question on Page ${currentPage}`}
             >
               <Plus className="h-3.5 w-3.5 text-primary" />
-              <span className="hidden sm:inline">+ Add Box to Page {currentPage}</span>
-              <span className="sm:hidden">+ Box</span>
+              <span className="hidden sm:inline">Add Box to Page {currentPage}</span>
+              <span className="sm:hidden">Add Box</span>
             </button>
             {showAddBoxDropdown && (
               <div className="absolute top-full left-0 mt-1 w-80 max-h-80 overflow-y-auto rounded-lg bg-surface border border-hairline shadow-lg z-50 p-2 space-y-1.5">
