@@ -191,6 +191,9 @@ export function NotificationDrawer() {
               <Bell className="h-4 w-4" />
             </div>
             <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold tracking-tight text-ink">Notifications</h2>
+              </div>
               <p className="text-[11px] text-ink-muted">
                 System alerts, grading updates & revaluations
               </p>

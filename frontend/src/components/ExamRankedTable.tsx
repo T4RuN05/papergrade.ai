@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -187,6 +187,11 @@ export function ExamRankedTable({
   const effectiveSearchTerm = propSearchTerm !== undefined ? propSearchTerm : internalSearchTerm;
   const effectiveBracketFilter = propBracketFilter !== undefined ? propBracketFilter : internalBracketFilter;
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const [visibleRows, setVisibleRows] = useState<Record<string, boolean>>({});
+  const isInitialMountRef = useRef(true);
+
   // 1. Compute rankings with DENSE RANKING logic (1, 1, 2, 3...) - never skips ranks on ties!
   const rankedAll = useMemo(() => {
     return computeRankedSubmissions(submissions, maxMarks, currentStudentRoll, currentStudentId);
@@ -243,6 +248,80 @@ export function ExamRankedTable({
       return true;
     });
   }, [rankedAll, effectiveSearchTerm, effectiveBracketFilter, isStudentView]);
+
+  // Dynamically check whether list overflows and user can scroll down
+  const checkScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      setCanScrollDown(false);
+      return;
+    }
+    const hasOverflow = el.scrollHeight > el.clientHeight + 4;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+    setCanScrollDown(hasOverflow && !isAtBottom);
+  }, []);
+
+  // Check scroll state when items or filters change
+  useEffect(() => {
+    checkScroll();
+    const timer = setTimeout(checkScroll, 80);
+    const el = scrollContainerRef.current;
+    if (!el) return () => clearTimeout(timer);
+
+    const onScroll = () => checkScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [checkScroll, filteredRanked]);
+
+  // Handle row initial mount cascade vs scroll-driven morph & snap
+  useEffect(() => {
+    isInitialMountRef.current = true;
+    setVisibleRows({});
+    const timer = setTimeout(() => {
+      isInitialMountRef.current = false;
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [effectiveBracketFilter, effectiveSearchTerm]);
+
+  // IntersectionObserver: Morph upcoming rows from small when entering from bottom
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const rowEls = container.querySelectorAll<HTMLElement>("[data-standings-row]");
+    if (rowEls.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const rowId = entry.target.getAttribute("data-standings-row");
+          if (!rowId) return;
+
+          if (entry.isIntersecting) {
+            setVisibleRows((prev) => (prev[rowId] ? prev : { ...prev, [rowId]: true }));
+          } else {
+            // If the row exits out of the bottom of the scroll container, reset so it morphs again on entry
+            if (entry.rootBounds && entry.boundingClientRect.top > entry.rootBounds.bottom - 4) {
+              setVisibleRows((prev) => (prev[rowId] === false ? prev : { ...prev, [rowId]: false }));
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        rootMargin: "0px 0px -6px 0px",
+        threshold: 0.05,
+      }
+    );
+
+    rowEls.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [filteredRanked]);
 
   // 4. Export Ranked List as CSV (Faculty only)
   const handleExportCSV = () => {
@@ -521,10 +600,16 @@ export function ExamRankedTable({
            ========================================================================= */
         <div className="w-full rounded-xl border border-hairline bg-surface shadow-2xs overflow-hidden">
           <div
+            ref={scrollContainerRef}
             className="max-h-[50vh] sm:max-h-[55vh] overflow-y-auto relative sleek-scrollbar overscroll-contain"
             style={{
-              maskImage: "linear-gradient(to bottom, black calc(100% - 44px), transparent 100%)",
-              WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 44px), transparent 100%)",
+              maskImage: canScrollDown
+                ? "linear-gradient(to bottom, black calc(100% - 44px), transparent 100%)"
+                : "none",
+              WebkitMaskImage: canScrollDown
+                ? "linear-gradient(to bottom, black calc(100% - 44px), transparent 100%)"
+                : "none",
+              transition: "mask-image 0.2s ease, -webkit-mask-image 0.2s ease",
             }}
           >
             <table className="w-full text-left text-xs border-collapse table-fixed">
@@ -536,11 +621,13 @@ export function ExamRankedTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
-                {filteredRanked.map((item) => {
+                {filteredRanked.map((item, idx) => {
                   const isYou = item.isCurrentStudent;
                   const isRank1 = item.rank === 1;
                   const isRank2 = item.rank === 2;
                   const isRank3 = item.rank === 3;
+                  const isSeen = visibleRows[item.id] ?? (idx < 5);
+                  const transitionDelay = isInitialMountRef.current ? `${Math.min(idx, 6) * 45}ms` : "0ms";
 
                   // Subtle row-wise gold, silver, bronze tint from left fading to right
                   const rowTintClass = isYou
@@ -556,7 +643,11 @@ export function ExamRankedTable({
                   return (
                     <tr
                       key={item.id}
-                      className={`transition-colors h-12 ${rowTintClass}`}
+                      data-standings-row={item.id}
+                      style={{
+                        transitionDelay,
+                      }}
+                      className={`h-12 ${rowTintClass} ${isSeen ? "standings-row-seen" : "standings-row-unseen"}`}
                     >
                       {/* Column 1: Rank */}
                       <td className="py-2.5 px-2.5 sm:px-3 text-center whitespace-nowrap">

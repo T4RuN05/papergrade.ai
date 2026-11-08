@@ -1239,6 +1239,7 @@ export default function StudentPortalPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [examSubjectFilter, setExamSubjectFilter] = useState("ALL");
   const [examStatusFilter, setExamStatusFilter] = useState("ALL");
+  const [isPastExamsFilterExpanded, setIsPastExamsFilterExpanded] = useState(false);
   const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
 
   // Compute unique subjects present in student submissions
@@ -2267,37 +2268,6 @@ export default function StudentPortalPage() {
                     </div>
                   </div>
 
-                  {/* 15-Day Storage Retention Notice Banner for Published Papers */}
-                  {isPublished && (
-                    sub.is_document_purged ? (
-                      <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
-                        <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                        <span>
-                          <strong>Answer Sheet Archived:</strong> In accordance with the 15-day retention policy, the uploaded PDF copy has been archived. Your question marks, breakdown, and official scorecard remain permanently saved.
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-900 dark:text-amber-200">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                          <span>
-                            <strong>Storage Retention Notice:</strong> This graded answer sheet will be permanently deleted in{" "}
-                            <strong>{sub.days_remaining !== undefined && sub.days_remaining !== null ? `${sub.days_remaining} days` : "15 days"}</strong>. Please download your evaluated PDF now to preserve your personal copy. (Revaluation requests remain open for 7 days).
-                          </span>
-                        </div>
-                        <a
-                          href={api.getAnnotatedPdfUrl(sub.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 underline text-xs"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Download Copy
-                        </a>
-                      </div>
-                    )
-                  )}
-
                   {/* Score & Revaluation Feedback Banner */}
                   {isAbsent ? (
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
@@ -2584,146 +2554,178 @@ export default function StudentPortalPage() {
         </div>
       </div>
 
-      {/* SEARCH & FILTER CONTROLS TOOLBAR */}
-      <div className="p-3 sm:p-4 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-3">
-        {/* Search Bar & Expand/Collapse All Row */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+      {/* SEARCH & FILTER CONTROLS TOOLBAR (Collapsible, default compact) */}
+      <div className="p-2 sm:p-2.5 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
+        {/* Search Bar & Filter Toggle Row (Always Visible) */}
+        <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search exams by title or subject (e.g. Physics, Chemistry, Rotation)..."
-              className="w-full pl-9 pr-9 py-2 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface dark:bg-[#1a1a1a] dark:focus:bg-[#202020] text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline/70 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+              placeholder="Search exams by title or subject..."
+              className="w-full pl-8 pr-8 py-1.5 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface dark:bg-[#1a1a1a] dark:focus:bg-[#202020] text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline/70 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-md transition-colors cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-md transition-colors cursor-pointer"
                 title="Clear search"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-3 w-3" />
               </button>
             )}
           </div>
 
-          {/* Quick Expand / Collapse All Controls */}
-          {filteredPastSubmissions.length > 0 && (
-            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-              <span className="text-[11px] font-medium text-ink-muted sm:hidden">
-                {filteredPastSubmissions.length} {filteredPastSubmissions.length === 1 ? "paper" : "papers"}
-              </span>
-              <div className="inline-flex items-center rounded-xl border border-hairline bg-canvas-soft/80 p-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => handleToggleAllCards(true)}
-                  className="text-[11px] font-medium text-ink-secondary hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
-                  title="Expand all cards"
-                >
-                  Expand All
-                </button>
-                <div className="h-3 w-px bg-hairline" />
-                <button
-                  type="button"
-                  onClick={() => handleToggleAllCards(false)}
-                  className="text-[11px] font-medium text-ink-secondary hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
-                  title="Collapse all cards"
-                >
-                  Collapse All
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Filter Drawer Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsPastExamsFilterExpanded((prev) => !prev)}
+            className={`btn-glass-utility inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 select-none ${
+              isPastExamsFilterExpanded || examSubjectFilter !== "ALL" || examStatusFilter !== "ALL"
+                ? "border-primary text-primary font-bold shadow-2xs"
+                : "text-ink-muted hover:text-ink"
+            }`}
+            title={isPastExamsFilterExpanded ? "Collapse filters" : "Expand filters"}
+            aria-expanded={isPastExamsFilterExpanded}
+          >
+            <Sliders className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Filters</span>
+            {(examSubjectFilter !== "ALL" || examStatusFilter !== "ALL") && (
+              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+            )}
+            <ChevronDown
+              className={`h-3 w-3 transition-transform duration-200 ${
+                isPastExamsFilterExpanded ? "rotate-180" : ""
+              }`}
+            />
+          </button>
         </div>
 
-        {/* Filter Pills (Subject & Status) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-hairline/70 text-xs">
-          {/* Subject Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-            <span className="text-[10.5px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
-              Subject:
-            </span>
-            <button
-              type="button"
-              onClick={() => setExamSubjectFilter("ALL")}
-              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
-                examSubjectFilter === "ALL"
-                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
-              }`}
-            >
-              All Subjects
-            </button>
-            {uniqueExamSubjects.map((sub) => (
+        {/* Collapsible Filters Drawer */}
+        <div
+          className={`grid transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            isPastExamsFilterExpanded
+              ? "grid-rows-[1fr] opacity-100 pt-2 border-t border-hairline/70"
+              : "grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden space-y-2.5">
+            {/* Quick Expand / Collapse All Controls & Paper Count */}
+            {filteredPastSubmissions.length > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[11px] font-medium text-ink-muted">
+                  Showing {filteredPastSubmissions.length} of {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "paper" : "papers"}
+                </span>
+                <div className="inline-flex items-center rounded-lg border border-hairline bg-canvas-soft/80 p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAllCards(true)}
+                    className="text-[10.5px] font-medium text-ink-secondary hover:text-ink px-2 py-1 rounded hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
+                    title="Expand all cards"
+                  >
+                    Expand All
+                  </button>
+                  <div className="h-2.5 w-px bg-hairline" />
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAllCards(false)}
+                    className="text-[10.5px] font-medium text-ink-secondary hover:text-ink px-2 py-1 rounded hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
+                    title="Collapse all cards"
+                  >
+                    Collapse All
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Subject Filters */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
+              <span className="text-[10px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
+                Subject:
+              </span>
               <button
-                key={sub}
                 type="button"
-                onClick={() => setExamSubjectFilter(sub)}
-                className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
-                  examSubjectFilter === sub
-                    ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
+                onClick={() => setExamSubjectFilter("ALL")}
+                className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+                  examSubjectFilter === "ALL"
+                    ? "bg-primary text-white font-semibold shadow-2xs"
                     : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
                 }`}
               >
-                {sub}
+                All Subjects
               </button>
-            ))}
-          </div>
+              {uniqueExamSubjects.map((sub) => (
+                <button
+                  key={sub}
+                  type="button"
+                  onClick={() => setExamSubjectFilter(sub)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+                    examSubjectFilter === sub
+                      ? "bg-primary text-white font-semibold shadow-2xs"
+                      : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
+                  }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
 
-          {/* Status Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-            <span className="text-[10.5px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
-              Status:
-            </span>
-            <button
-              type="button"
-              onClick={() => setExamStatusFilter("ALL")}
-              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
-                examStatusFilter === "ALL"
-                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setExamStatusFilter("PUBLISHED")}
-              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
-                examStatusFilter === "PUBLISHED"
-                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
-              }`}
-            >
-              Published
-            </button>
-            <button
-              type="button"
-              onClick={() => setExamStatusFilter("IN_PROGRESS")}
-              className={`px-2.5 py-1 rounded-lg text-xs transition-all shrink-0 cursor-pointer ${
-                examStatusFilter === "IN_PROGRESS"
-                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
-              }`}
-            >
-              In Progress
-            </button>
-
-            {(searchQuery || examSubjectFilter !== "ALL" || examStatusFilter !== "ALL") && (
+            {/* Status Filters */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
+              <span className="text-[10px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
+                Status:
+              </span>
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setExamSubjectFilter("ALL");
-                  setExamStatusFilter("ALL");
-                }}
-                className="text-[11px] font-semibold text-primary hover:underline ml-1.5 cursor-pointer shrink-0"
+                onClick={() => setExamStatusFilter("ALL")}
+                className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+                  examStatusFilter === "ALL"
+                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
+                }`}
               >
-                Reset
+                All
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setExamStatusFilter("PUBLISHED")}
+                className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+                  examStatusFilter === "PUBLISHED"
+                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
+                }`}
+              >
+                Published
+              </button>
+              <button
+                type="button"
+                onClick={() => setExamStatusFilter("IN_PROGRESS")}
+                className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+                  examStatusFilter === "IN_PROGRESS"
+                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
+                }`}
+              >
+                In Progress
+              </button>
+
+              {(searchQuery || examSubjectFilter !== "ALL" || examStatusFilter !== "ALL") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setExamSubjectFilter("ALL");
+                    setExamStatusFilter("ALL");
+                  }}
+                  className="text-[10.5px] font-semibold text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2919,36 +2921,6 @@ export default function StudentPortalPage() {
                   }`}
                 >
                   <div className="overflow-hidden space-y-4">
-                    {isPublished && (
-                      sub.is_document_purged ? (
-                        <div className="flex items-center gap-2 p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-xs text-slate-700 dark:text-slate-300">
-                          <Info className="h-4 w-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                          <span>
-                            <strong>Answer Sheet Archived:</strong> In accordance with the 15-day retention policy, the uploaded PDF copy has been archived. Your question marks, breakdown, and official scorecard remain permanently saved.
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-xs text-amber-900 dark:text-amber-200">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                            <span>
-                              <strong>Storage Retention Notice:</strong> This graded answer sheet will be permanently deleted in{" "}
-                              <strong>{sub.days_remaining !== undefined && sub.days_remaining !== null ? `${sub.days_remaining} days` : "15 days"}</strong>. Please download your evaluated PDF now to preserve your personal copy. (Revaluation requests remain open for 7 days).
-                            </span>
-                          </div>
-                          <a
-                            href={api.getAnnotatedPdfUrl(sub.id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="shrink-0 inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 underline text-xs"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            Download Copy
-                          </a>
-                        </div>
-                      )
-                    )}
-
                     {isAbsent ? (
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-lg bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40">
                         <div className="flex items-center gap-2.5">

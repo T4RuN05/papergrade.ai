@@ -221,50 +221,8 @@ export default function StudentSubmissionViewerPage() {
         </div>
       </div>
 
-      {/* Storage Retention Notice Banner (Active only post-publication) */}
-      {isPublished ? (
-        isPurged ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-800 space-y-1">
-            <div className="flex items-center gap-2 font-bold text-slate-900">
-              <Info className="h-4 w-4 text-slate-600 shrink-0" />
-              <span>Storage Retention Policy: Scanned Document Purged</span>
-            </div>
-            <p className="text-slate-600 leading-relaxed">
-              In accordance with storage retention policies, raw uploaded answer sheet files were purged on{" "}
-              <strong>{submission.purged_at ? new Date(submission.purged_at).toLocaleDateString() : "schedule"}</strong>. All verified question marks, totals, and faculty review decisions remain permanently archived in the official marks ledger below.
-            </p>
-          </div>
-        ) : (
-          <StatusWell
-            variant="amber"
-            icon={<Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
-            title={
-              <>
-                <span>Document Retention Active</span>
-                <span className="font-mono text-[10px] text-ink-muted font-normal">
-                  • {submission.days_remaining !== undefined && submission.days_remaining !== null ? `${submission.days_remaining}d remaining` : "15d remaining"}
-                </span>
-              </>
-            }
-            badge={
-              <a
-                href={api.getAnnotatedPdfUrl(submission.id)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md btn-glass-primary text-xs font-semibold shrink-0 cursor-pointer"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Save Copy Now</span>
-              </a>
-            }
-          >
-            This graded answer sheet is scheduled to expire on{" "}
-            <strong className="text-ink font-semibold">
-              {submission.retention_expires_at ? new Date(submission.retention_expires_at).toLocaleDateString() : "in 15 days"}
-            </strong>. Download your personal copy before purge. Revaluation appeals remain open for 7 days post-publication.
-          </StatusWell>
-        )
-      ) : (
+      {/* Notice Banner */}
+      {!isPublished && (
         <StatusWell
           variant="blue"
           icon={<Info className="h-3.5 w-3.5 text-primary" />}

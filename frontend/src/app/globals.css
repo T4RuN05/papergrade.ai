@@ -1150,6 +1150,23 @@ input[type="number"] {
   }
 }
 
+/* Standings Table: Dynamic Row Morph-and-Snap on Entry */
+.standings-row-unseen {
+  opacity: 0.2;
+  transform: scale(0.92) translateY(14px);
+  transform-origin: center center;
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.standings-row-seen {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transform-origin: center center;
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
 /* Smooth Non-Displacing Cross Fade (Skeleton to Loaded Content) */
 @keyframes crossFadeIn {
   from {
