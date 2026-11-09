@@ -939,11 +939,17 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
     raw_path = exam.get("question_paper_path") if is_qp else exam.get("answer_key_path")
     filename = "question_paper.pdf" if is_qp else "answer_key.pdf"
 
+    # Only fall back to sample bundled documents if this exam is explicitly the seeded sample exam
+    is_sample_exam = str(exam_id).startswith("exam_sample") or str(exam_id) == "sample_exam"
+
+    # If the exam does not have a question paper / answer key path, and is NOT the sample exam, return None immediately
+    if not raw_path and not is_sample_exam:
+        return None
+
     candidates = []
     if raw_path:
         candidates.append(raw_path)
-
-    candidates.append(str(settings.UPLOADS_DIR / f"exam_{exam_id}" / filename))
+        candidates.append(str(settings.UPLOADS_DIR / f"exam_{exam_id}" / filename))
 
     for cand in candidates:
         cand_path = Path(cand)
@@ -959,13 +965,13 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
             if marker in clean_raw:
                 storage_keys.append(clean_raw[clean_raw.index(marker) + len(marker):])
 
-    artifact_dir = "question_paper" if is_qp else "answer_key"
-    storage_keys.extend([
-        f"exams/{exam_id}/{filename}",
-        f"exams/{exam_id}/{artifact_dir}",
-        f"exam_{exam_id}/{filename}",
-        f"uploads/exam_{exam_id}/{filename}",
-    ])
+        artifact_dir = "question_paper" if is_qp else "answer_key"
+        storage_keys.extend([
+            f"exams/{exam_id}/{filename}",
+            f"exams/{exam_id}/{artifact_dir}",
+            f"exam_{exam_id}/{filename}",
+            f"uploads/exam_{exam_id}/{filename}",
+        ])
 
     for key in storage_keys:
         try:
@@ -977,18 +983,19 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
             logger.warning(f"Failed fetching key {key}: {e}")
             continue
 
-    pkg_dir = Path(__file__).resolve().parent.parent.parent
-    sample_sub = "question_paper.pdf" if is_qp else "answer_key.pdf"
-    sample_candidates = [
-        Path(f"backend/sample_data/sample_exam/{sample_sub}"),
-        pkg_dir / "sample_data" / "sample_exam" / sample_sub,
-        pkg_dir / "backend" / "sample_data" / "sample_exam" / sample_sub,
-        Path.cwd() / "backend" / "sample_data" / "sample_exam" / sample_sub,
-        Path.cwd() / "sample_data" / "sample_exam" / sample_sub,
-    ]
-    for s_path in sample_candidates:
-        if s_path.exists() and s_path.is_file():
-            return s_path
+    if is_sample_exam:
+        pkg_dir = Path(__file__).resolve().parent.parent.parent
+        sample_sub = "question_paper.pdf" if is_qp else "answer_key.pdf"
+        sample_candidates = [
+            Path(f"backend/sample_data/sample_exam/{sample_sub}"),
+            pkg_dir / "sample_data" / "sample_exam" / sample_sub,
+            pkg_dir / "backend" / "sample_data" / "sample_exam" / sample_sub,
+            Path.cwd() / "backend" / "sample_data" / "sample_exam" / sample_sub,
+            Path.cwd() / "sample_data" / "sample_exam" / sample_sub,
+        ]
+        for s_path in sample_candidates:
+            if s_path.exists() and s_path.is_file():
+                return s_path
 
     return None
 
@@ -1087,13 +1094,15 @@ async def get_exam_artifact_meta(
 
     pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
     if not pdf_path or not pdf_path.exists():
+        art_label = "Question paper" if clean_art == "question-paper" else "Official answer key"
         return {
             "exam_id": exam_id,
             "artifact_type": clean_art,
             "has_document": False,
             "is_purged": False,
             "page_count": 0,
-            "title": exam.get("title", "")
+            "title": exam.get("title", ""),
+            "notice": f"{art_label} not uploaded."
         }
 
     render_key = f"exam_{exam_id}_{clean_art}"

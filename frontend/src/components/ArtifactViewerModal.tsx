@@ -787,7 +787,7 @@ export function ArtifactViewerModal({
                 <HelpCircle className="h-6 w-6" />
               </div>
               <h4 className="text-sm font-bold text-ink">
-                No {activeArtifact === "question-paper" ? "Question Paper" : "Answer Key"} Attached
+                {activeArtifact === "question-paper" ? "Question Paper Not Uploaded" : "Answer Key Not Uploaded"}
               </h4>
               <p className="text-xs text-ink-muted leading-relaxed">
                 Faculty has not uploaded a digital copy of the{" "}
