@@ -62,6 +62,7 @@ import {
   ModalCard,
   FormInput,
   StudentPortalSkeleton,
+  PastExamsCardsSkeleton,
   PastExamsTabSkeleton,
   StatusWell,
   MathText,
@@ -3130,26 +3131,22 @@ export default function StudentPortalPage() {
         tabDirection === "right" ? "animate-tab-slide-right" : "animate-tab-slide-left"
       }`}
     >
-      {isPastExamsInitialLoading ? (
-        <PastExamsTabSkeleton />
-      ) : (
-        <>
-          {/* SECTION HEADER */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
-                {pastExamsTotal > 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
-                    {pastExamsTotal} {pastExamsTotal === 1 ? "Paper" : "Papers"}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
-                Search by title or subject. Click any exam card to expand detailed scores, verified PDF viewer, and answer keys.
-              </p>
-            </div>
+      {/* SECTION HEADER (Static, never re-renders or unmounts during filter updates) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
+            {pastExamsTotal > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                {pastExamsTotal} {pastExamsTotal === 1 ? "Paper" : "Papers"}
+              </span>
+            )}
           </div>
+          <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
+            Search by title or subject. Click any exam card to expand detailed scores, verified PDF viewer, and answer keys.
+          </p>
+        </div>
+      </div>
 
       {/* SEARCH & FILTER CONTROLS TOOLBAR (Collapsible, default compact) */}
       <div className="p-2 sm:p-2.5 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
@@ -3211,7 +3208,7 @@ export default function StudentPortalPage() {
         >
           <div className="overflow-hidden space-y-2.5">
             {/* Quick Expand / Collapse All Controls & Paper Count */}
-            {paginatedPastExams.length > 0 && (
+            {paginatedPastExams.length > 0 && !isPastExamsInitialLoading && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[11px] font-medium text-ink-muted">
                   Showing {paginatedPastExams.length} of {pastExamsTotal} {pastExamsTotal === 1 ? "paper" : "papers"}
@@ -3328,7 +3325,9 @@ export default function StudentPortalPage() {
       </div>
 
       {/* PAST EXAMS SUBMISSION CARDS */}
-      {paginatedPastExams.length === 0 ? (
+      {isPastExamsInitialLoading ? (
+        <PastExamsCardsSkeleton count={3} />
+      ) : paginatedPastExams.length === 0 ? (
         <div className="rounded-xl border border-hairline bg-surface p-10 text-center space-y-3">
           <FileText className="h-10 w-10 text-ink-faint mx-auto" />
           <div className="space-y-1">
@@ -3375,38 +3374,38 @@ export default function StudentPortalPage() {
             ))}
           </div>
 
-        {/* Infinite Scroll Sentinel & Inline Loader */}
-        <div
-          ref={sentinelCallbackRef}
-          className="py-4 flex flex-col items-center justify-center min-h-[50px]"
-        >
-          {isLoadingMorePastExams ? (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-hairline text-xs font-medium text-ink-muted shadow-2xs animate-in fade-in duration-200">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
-              <span>Loading next exams...</span>
-            </div>
-          ) : hasMorePastExams ? (
-            <button
-              type="button"
-              onClick={() => fetchPastExamsPage(pastExamsPageRef.current + 1, false)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-primary transition-all shadow-2xs cursor-pointer select-none active:scale-95"
-            >
-              <span>Load More Exams</span>
-              {pastExamsTotal > paginatedPastExams.length && (
-                <span className="text-[10.5px] font-mono text-ink-muted">
-                  ({pastExamsTotal - paginatedPastExams.length} remaining)
-                </span>
-              )}
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          ) : paginatedPastExams.length > 0 ? (
-            <span className="text-[11px] font-mono text-ink-faint select-none">
-              • All {pastExamsTotal} past exams loaded •
-            </span>
-          ) : null}
-        </div>
-      </>
-    )}
+          {/* Infinite Scroll Sentinel & Inline Loader */}
+          <div
+            ref={sentinelCallbackRef}
+            className="py-4 flex flex-col items-center justify-center min-h-[50px]"
+          >
+            {isLoadingMorePastExams ? (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-surface border border-hairline text-xs font-medium text-ink-muted shadow-2xs animate-in fade-in duration-200">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>Loading next exams...</span>
+              </div>
+            ) : hasMorePastExams ? (
+              <button
+                type="button"
+                onClick={() => fetchPastExamsPage(pastExamsPageRef.current + 1, false)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-primary transition-all shadow-2xs cursor-pointer select-none active:scale-95"
+              >
+                <span>Load More Exams</span>
+                {pastExamsTotal > paginatedPastExams.length && (
+                  <span className="text-[10.5px] font-mono text-ink-muted">
+                    ({pastExamsTotal - paginatedPastExams.length} remaining)
+                  </span>
+                )}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            ) : paginatedPastExams.length > 0 ? (
+              <span className="text-[11px] font-mono text-ink-faint select-none">
+                • All {pastExamsTotal} past exams loaded •
+              </span>
+            ) : null}
+          </div>
+        </>
+      )}
 
       {/* Direct Technical Support & Report Issue Card */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline relative overflow-hidden shadow-2xs">
@@ -3431,10 +3430,8 @@ export default function StudentPortalPage() {
           <span>Report Technical Issue</span>
         </button>
       </div>
-    </>
+    </div>
   )}
-</div>
-)}
 </div>
 
       {/* DETAILED QUESTION BREAKDOWN MODAL */}
