@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  BellRing,
   X,
   CheckCircle2,
   Check,
@@ -12,9 +13,20 @@ import {
   GraduationCap,
   RotateCcw,
   Clock,
-  Sparkles,
   Inbox,
   RefreshCw,
+  BookOpen,
+  UploadCloud,
+  Lock,
+  TimerReset,
+  FileCheck2,
+  Cpu,
+  Award,
+  Scale,
+  ClipboardCheck,
+  Wrench,
+  KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 import { useNotifications, AppNotification } from "@/lib/NotificationContext";
 import { BadgePill, NotificationDrawerSkeleton } from "./ui";
@@ -38,18 +50,194 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-function getNotificationIcon(title: string, message: string) {
+function getNotificationIconMeta(type?: string, title: string = "", message: string = ""): {
+  icon: React.ReactNode;
+  containerClass: string;
+} {
+  const normalizedType = (type || "").toUpperCase().trim();
   const text = `${title} ${message}`.toLowerCase();
-  if (text.includes("revaluation") || text.includes("review")) {
-    return <RotateCcw className="h-4 w-4 text-[#dd5b00]" />;
+
+  // 1. Password Reset Success
+  if (
+    normalizedType === "PASSWORD_RESET_SUCCESS" ||
+    text.includes("password changed successfully") ||
+    text.includes("password was successfully reset")
+  ) {
+    return {
+      icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />,
+      containerClass: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/80 dark:border-emerald-800/60",
+    };
   }
-  if (text.includes("publish") || text.includes("exam") || text.includes("grade")) {
-    return <GraduationCap className="h-4 w-4 text-primary" />;
+
+  // 2. Password Reset Approved
+  if (
+    normalizedType === "PASSWORD_RESET_APPROVED" ||
+    text.includes("password reset request approved") ||
+    text.includes("approved your password reset")
+  ) {
+    return {
+      icon: <ShieldCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />,
+      containerClass: "bg-blue-50 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-800/60",
+    };
   }
-  if (text.includes("submission") || text.includes("window")) {
-    return <Clock className="h-4 w-4 text-[#2a9d99]" />;
+
+  // 3. Password Reset Request
+  if (
+    normalizedType === "PASSWORD_RESET_REQUEST" ||
+    text.includes("password reset request") ||
+    text.includes("requested a password reset")
+  ) {
+    return {
+      icon: <KeyRound className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />,
+      containerClass: "bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/60",
+    };
   }
-  return <Sparkles className="h-4 w-4 text-[#793caf]" />;
+
+  // 4. Revaluation Resolved / Decided
+  if (
+    normalizedType === "REVALUATION_DECIDED" ||
+    text.includes("revaluation resolved") ||
+    text.includes("revaluation decided") ||
+    text.includes("appeal has been resolved")
+  ) {
+    return {
+      icon: <ClipboardCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />,
+      containerClass: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200/80 dark:border-indigo-800/60",
+    };
+  }
+
+  // 5. Revaluation Requested / Appeal Lodged
+  if (
+    normalizedType === "REVALUATION_REQUESTED" ||
+    normalizedType === "REVALUATION_REQUEST" ||
+    text.includes("revaluation appeal") ||
+    text.includes("submitted an appeal") ||
+    text.includes("revaluation request")
+  ) {
+    return {
+      icon: <Scale className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />,
+      containerClass: "bg-orange-50 dark:bg-orange-950/40 border-orange-200/80 dark:border-orange-800/60",
+    };
+  }
+
+  // 6. Bug / Tech Report Resolved
+  if (
+    normalizedType === "REPORT_RESOLVED" ||
+    normalizedType === "REPORT_RECEIVED" ||
+    text.includes("technical issue resolved") ||
+    text.includes("report has been marked resolved")
+  ) {
+    return {
+      icon: <Wrench className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />,
+      containerClass: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/80 dark:border-emerald-800/60",
+    };
+  }
+
+  // 7. Results Published
+  if (
+    normalizedType === "RESULT_PUBLISHED" ||
+    text.includes("results published") ||
+    text.includes("score breakdown") ||
+    text.includes("revaluation window open")
+  ) {
+    return {
+      icon: <Award className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />,
+      containerClass: "bg-amber-50 dark:bg-amber-950/40 border-amber-200/80 dark:border-amber-800/60",
+    };
+  }
+
+  // 8. AI Grading Completed
+  if (
+    normalizedType === "GRADING_COMPLETED" ||
+    text.includes("grading complete") ||
+    text.includes("ai grading completed") ||
+    text.includes("evaluation complete")
+  ) {
+    return {
+      icon: <Cpu className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />,
+      containerClass: "bg-purple-50 dark:bg-purple-950/40 border-purple-200/80 dark:border-purple-800/60",
+    };
+  }
+
+  // 9. Submission Window Reopened
+  if (
+    normalizedType === "WINDOW_REOPENED" ||
+    text.includes("window reopened") ||
+    text.includes("window was reopened")
+  ) {
+    return {
+      icon: <TimerReset className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />,
+      containerClass: "bg-sky-50 dark:bg-sky-950/40 border-sky-200/80 dark:border-sky-800/60",
+    };
+  }
+
+  // 10. Submission Window Closed
+  if (
+    normalizedType === "WINDOW_CLOSED" ||
+    text.includes("window closed") ||
+    text.includes("window was closed")
+  ) {
+    return {
+      icon: <Lock className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />,
+      containerClass: "bg-rose-50 dark:bg-rose-950/40 border-rose-200/80 dark:border-rose-800/60",
+    };
+  }
+
+  // 11. Submission Window Opened / Active
+  if (
+    normalizedType === "WINDOW_OPENED" ||
+    text.includes("submission window open") ||
+    text.includes("window activated") ||
+    text.includes("window is now open")
+  ) {
+    return {
+      icon: <UploadCloud className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />,
+      containerClass: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/80 dark:border-emerald-800/60",
+    };
+  }
+
+  // 12. Student Answer Sheet Submitted Confirmed
+  if (
+    normalizedType === "SUBMISSION_CONFIRMED" ||
+    text.includes("answer sheet submitted") ||
+    text.includes("has been received. status: submitted")
+  ) {
+    return {
+      icon: <FileCheck2 className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />,
+      containerClass: "bg-teal-50 dark:bg-teal-950/40 border-teal-200/80 dark:border-teal-800/60",
+    };
+  }
+
+  // 13. Admin View: New Submission Received
+  if (
+    normalizedType === "SUBMISSION_RECEIVED" ||
+    text.includes("new student submission") ||
+    text.includes("submitted their answer script")
+  ) {
+    return {
+      icon: <Inbox className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />,
+      containerClass: "bg-blue-50 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-800/60",
+    };
+  }
+
+  // 14. Exam Created / Scheduled
+  if (
+    normalizedType === "EXAM_CREATED" ||
+    text.includes("exam created") ||
+    text.includes("exam scheduled") ||
+    text.includes("new exam assigned")
+  ) {
+    return {
+      icon: <BookOpen className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />,
+      containerClass: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200/80 dark:border-indigo-800/60",
+    };
+  }
+
+  // Default fallback: Clean contextual bell instead of ambiguous twinkle/sparkles
+  return {
+    icon: <Bell className="h-3.5 w-3.5 text-ink-muted" />,
+    containerClass: "bg-surface border-hairline text-ink-secondary",
+  };
 }
 
 export function NotificationDrawer() {
@@ -274,7 +462,7 @@ export function NotificationDrawer() {
                     onClick={() => requestPermission()}
                     className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary-active transition-colors shadow-2xs cursor-pointer"
                   >
-                    <Sparkles className="h-3 w-3" />
+                    <BellRing className="h-3 w-3" />
                     Allow Notifications
                   </button>
                 </div>
@@ -326,9 +514,14 @@ export function NotificationDrawer() {
                   }`}
                 >
                   {/* Icon */}
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface border border-hairline shadow-xs">
-                    {getNotificationIcon(n.title, n.message)}
-                  </div>
+                  {(() => {
+                    const iconMeta = getNotificationIconMeta(n.type, n.title, n.message);
+                    return (
+                      <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-2xs ${iconMeta.containerClass}`}>
+                        {iconMeta.icon}
+                      </div>
+                    );
+                  })()}
 
                   {/* Body */}
                   <div className="flex-1 min-w-0">
