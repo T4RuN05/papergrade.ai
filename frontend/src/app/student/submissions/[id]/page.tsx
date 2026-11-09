@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   Award,
   Flag,
-  Info,
   AlertCircle,
   Archive,
   BookOpen,
@@ -24,7 +23,7 @@ import dynamic from "next/dynamic";
 import { api, getAuthToken } from "@/lib/api";
 import { StudentQuestionModal } from "@/components/StudentQuestionModal";
 import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton, StatusWell } from "@/components/ui";
+import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
 
@@ -220,22 +219,6 @@ export default function StudentSubmissionViewerPage() {
           )}
         </div>
       </div>
-
-      {/* Notice Banner */}
-      {!isPublished && (
-        <StatusWell
-          variant="blue"
-          icon={<Info className="h-3.5 w-3.5 text-primary" />}
-          title={
-            <>
-              <span>Evaluation in Progress</span>
-              <span className="font-mono text-[10px] text-ink-muted font-normal">• MARKS_LOCKED</span>
-            </>
-          }
-        >
-          Your submitted answer sheet has been securely registered and is being evaluated by academic examiners. Question marks, detailed grading rubrics, and faculty feedback will be unlocked here once examination results are officially published.
-        </StatusWell>
-      )}
 
       {/* Student & Examination Banner */}
       <FeatureCard className="p-3.5 sm:p-6 border-hairline bg-surface">
