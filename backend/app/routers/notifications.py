@@ -2,6 +2,7 @@ import uuid
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete, update
 
@@ -33,7 +34,12 @@ class PushUnsubscribePayload(BaseModel):
 @router.get("/vapid-public-key")
 def get_vapid_public_key():
     """Expose the server's VAPID public key so client PWAs can subscribe to browser push."""
-    return {"public_key": settings.VAPID_PUBLIC_KEY}
+    return JSONResponse(
+        content={"public_key": settings.VAPID_PUBLIC_KEY},
+        headers={
+            "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+        }
+    )
 
 
 @router.post("/push-subscription")

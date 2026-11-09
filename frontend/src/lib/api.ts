@@ -56,6 +56,7 @@ interface CacheEntry<T> {
 
 const memoryCache = new Map<string, CacheEntry<any>>();
 const inFlightRequests = new Map<string, Promise<any>>();
+let _cachedVapidPublicKey: string | null = null;
 
 export function getCached<T>(key: string, ttlMs: number = 30000): T | null {
   const entry = memoryCache.get(key);
@@ -1146,13 +1147,18 @@ export const api = {
   },
 
   async getVapidPublicKey(): Promise<string | null> {
+    if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+      return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    }
+    if (_cachedVapidPublicKey) {
+      return _cachedVapidPublicKey;
+    }
     try {
-      const res = await fetch(`${API_BASE}/api/v1/notifications/vapid-public-key`, {
-        cache: "no-store",
-      });
+      const res = await fetch(`${API_BASE}/api/v1/notifications/vapid-public-key`);
       if (!res.ok) return null;
       const data = await res.json();
-      return data.public_key || null;
+      _cachedVapidPublicKey = data.public_key || null;
+      return _cachedVapidPublicKey;
     } catch {
       return null;
     }

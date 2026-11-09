@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { Analytics } from "@vercel/analytics/react";
 import { ThemeProvider } from "@/lib/ThemeContext";
+import { QueryProvider } from "@/lib/QueryProvider";
 
 export const metadata: Metadata = {
   title: "PaperGrade AI — Academic Evaluation & Submissions",
@@ -81,9 +82,11 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider>
-          <ServiceWorkerRegister />
-          <AppShell>{children}</AppShell>
-          <Analytics />
+          <QueryProvider>
+            <ServiceWorkerRegister />
+            <AppShell>{children}</AppShell>
+            <Analytics />
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

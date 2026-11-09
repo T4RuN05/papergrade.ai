@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.107.1",
     "@types/katex": "^0.16.8",
     "@vercel/analytics": "^2.0.1",
     "katex": "^0.19.1",
