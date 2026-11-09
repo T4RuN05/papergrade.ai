@@ -12,7 +12,7 @@
 3. [Multi-Tenant Hierarchy & Strict RBAC Security Matrix](#3-multi-tenant-hierarchy--strict-rbac-security-matrix)
 4. [End-to-End Operational Lifecycle & Flowcharts](#4-end-to-end-operational-lifecycle--flowcharts)
    - 4.1 Exam Setup & Agentic Rubric Extraction
-   - 4.2 Timed Submission Windows & Real-Time PWA Countdown
+   - 4.2 Timed Submission Windows, Hard-Close Workflow & Published Exam Lifecycle Locks
    - 4.3 Student Ingestion, EXIF Auto-Orientation & Canonical PDF Assembly
    - 4.4 Autonomous Queue Worker Execution & Fallback Ring
    - 4.5 Teacher Audit, Manual Overrides & Spatial Bounding Box Adjustment
@@ -57,7 +57,7 @@
 10. [Web Push Notification & Real-Time Alert Engine](#10-web-push-notification--real-time-alert-engine)
     - 10.1 W3C Standard Web Push via VAPID Cryptographic Keys
     - 10.2 Closed-App PWA Background Delivery
-    - 10.3 In-App Notification Center
+    - 10.3 In-App Notification Center, Context-Appropriate Icon Taxonomy & Audio Chimes
 11. [Exhaustive Backend API Router Catalog](#11-exhaustive-backend-api-router-catalog)
     - Complete Reference of All 13 Routers & 32+ Endpoints
 12. [Frontend Architecture & Next.js 14 App Router](#12-frontend-architecture--nextjs-14-app-router)
@@ -66,6 +66,9 @@
     - 12.3 Role-Based Dynamic Routing & Zero-Flicker SSR Auth Check
     - 12.4 Spatial Document Viewer Canvas (`DocumentViewer.tsx`)
     - 12.5 One-Click Verification & Override Studio (`GradingModal.tsx`)
+    - 12.6 TanStack React Query Caching Tier (`@tanstack/react-query`)
+    - 12.7 Apple-Style Curved-Glass Micro-Tactility Design System
+    - 12.8 Student PWA Mobile Portal Architecture & Past Exams Subsystem
 13. [Observability, Telemetry & Quota Feasibility](#13-observability-telemetry--quota-feasibility)
     - 13.1 Real-Time Token Telemetry & Paid-Equivalent Cost Tracking
     - 13.2 Latency Percentiles ($P_{50}, P_{95}$)
@@ -74,6 +77,11 @@
     - 14.1 Environment Configuration Matrix (`.env`)
     - 14.2 Production Deployment Setup (Render + Vercel + Supabase)
     - 14.3 Emergency Troubleshooting Playbooks
+15. [Master Data Architecture & Business Intelligence (BI) Retention Specification](#15-master-data-architecture--business-intelligence-bi-retention-specification)
+    - 15.1 Storage Tier Partitioning & Structural Invariants
+    - 15.2 15-Day TTL Cascade Purge Engine Mechanics
+    - 15.3 Historical Grade & Analytics Retention for Academic BI
+    - 15.4 Multi-Tenant Data Isolation & Compliance Guarantees
 
 ---
 
@@ -316,18 +324,20 @@ sequenceDiagram
 
 ---
 
-### 4.2 Flow 2: Timed Submission Windows & Real-Time PWA Countdown
-To simulate real-world testing environments, PaperGrade AI provides synchronized, timed submission windows with a strict deadline and automated grace period.
+### 4.2 Flow 2: Timed Submission Windows, Hard-Close Workflow & Published Exam Lifecycle Locks
+To simulate real-world testing environments, PaperGrade AI provides synchronized, timed submission windows with a strict deadline, automated grace periods, instant administrative cutoff controls, and strict post-publication lifecycle locking.
 
 ```mermaid
 flowchart TD
-    Manager(["Branch Manager"]) --> OpenWin["POST /api/v1/windows/open<br/>Duration: 30 mins, Grace: 2 mins"]
+    Manager(["Branch Manager"]) --> CheckPub{"Is Exam Published?<br/>(is_published == 1)"}
+    CheckPub -->|"Yes (Finalized)"| LockUI["Suppress 'Open Window'<br/>Render Permanent 'Finalized' Badge<br/>Window Ingestion Permanently Locked"]
+    CheckPub -->|"No (Open Lifecycle)"| OpenWin["POST /api/v1/windows/open<br/>Duration: 30 mins, Grace: 2 mins"]
     OpenWin --> DB_Win["INSERT INTO submission_windows<br/>status='OPEN', deadline_at, grace_deadline_at"]
     DB_Win --> NotifDispatch["NotificationService.notify_branch_students"]
     NotifDispatch --> WebPush["VAPID Encrypted Web Push to Phones"]
     
     subgraph StudentApp["Student PWA Client"]
-        PortalState["GET /api/v1/student/portal-state<br/>(Cached 4s in-memory)"] --> TimerCalc{"Check Window Timestamps"}
+        PortalState["GET /api/v1/student/portal-state<br/>(Cached via TanStack Query)"] --> TimerCalc{"Check Window Timestamps"}
         TimerCalc -->|"Within Deadline (Active)"| ActiveState["Display Green Countdown Timer<br/>Submissions Allowed"]
         TimerCalc -->|"Grace Period (2 mins)"| GraceState["Display Amber Grace Period Timer<br/>Submissions Allowed with Warning"]
         TimerCalc -->|"Window Expired"| ExpiredState["Display Closed State<br/>Upload Blocked with 403 Forbidden"]
@@ -335,7 +345,41 @@ flowchart TD
 
     ActiveState --> UploadReq["Student Submits Answer PDF"]
     GraceState --> UploadReq
+
+    subgraph AdminCutoff["Administrative Hard-Close Workflow"]
+        ManagerOverride(["Branch Manager Trigger"]) --> ForceClose["POST /api/v1/windows/{exam_id}/close"]
+        ForceClose --> CloseDB["UPDATE submission_windows<br/>status='CLOSED', closed_at=NOW()"]
+        CloseDB --> DropGrace["Immediate Grace Invalidation<br/>Instant 403 Block on In-Flight Uploads"]
+    end
 ```
+
+#### Administrative Hard-Close Workflow
+In proctored or unannounced testing environments, branch managers require the capability to abort or prematurely terminate an active submission window. Calling `POST /api/v1/windows/{exam_id}/close`:
+1. Sets `submission_windows.status = 'CLOSED'` and stamps `closed_at = NOW()`.
+2. Truncates all remaining grace periods to zero milliseconds.
+3. Immediately invalidates client upload tokens; any in-flight multipart PDF uploads reaching the server after the cutoff timestamp are rejected with `403 Forbidden ("Submission window has been closed by proctor")`.
+4. Emits a real-time notification to active student PWA clients to update their UI to the closed state.
+
+#### Published Exam Lifecycle Window Lock (`isExamPublished` Invariant)
+Once an examination has been evaluated, audited by instructors, and officially published (`exams.is_published = 1`):
+- **Integrity Invariant**: No further student submissions, window extensions, or re-evaluations can be scheduled for that exam. Allowing a submission window to reopen on a published exam would corrupt class rankings, tamper with finalized scorecards, and create un-evaluated orphan submissions.
+- **UI Guardrail**: The exam dashboard dynamically inspects `isExamPublished`:
+  ```tsx
+  const isExamPublished = exam.is_published === 1 || exam.is_published === true;
+  // If published, suppress the interactive "Open Window" button and render a static "Finalized" badge
+  {isExamPublished ? (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-neutral-400 cursor-not-allowed">
+      <Lock className="w-3.5 h-3.5 text-neutral-500" />
+      Finalized
+    </span>
+  ) : (
+    <button onClick={handleOpenWindow} className="btn-glass-primary h-8 px-3 text-xs">
+      <Clock className="w-3.5 h-3.5" />
+      Open Window
+    </button>
+  )}
+  ```
+- **Backend Rejection**: The submission window creation endpoint verifies `exams.is_published == 0`; if true, it aborts with `HTTP 409 Conflict ("Cannot open submission window for an exam whose results are published")`.
 
 ---
 
@@ -1150,6 +1194,29 @@ PaperGrade AI integrates an enterprise W3C-standard **Web Push Notification Engi
 - When a submission window opens, a deadline approaches (5-minute warning), or results are officially published, the backend dispatches Web Push packets asynchronously via background daemon threads.
 - The service worker (`ServiceWorkerRegister.tsx`) intercepts the push event, waking the operating system notification center on Android and iOS devices.
 
+### 10.3 In-App Notification Center, Context-Appropriate Icon Taxonomy & Audio Chimes
+Beyond external OS push notifications, PaperGrade AI provides an interactive In-App Notification Drawer ([`frontend/src/components/NotificationDrawer.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/NotificationDrawer.tsx)) supporting real-time visual, badge, and audible feedback for active users.
+
+#### Context-Appropriate Semantic Icon Taxonomy
+Earlier notification systems frequently used ambiguous icons (such as generic sparkles or identical bell symbols) across completely disparate events. PaperGrade AI enforces a strict, domain-specific icon taxonomy that immediately communicates the nature, urgency, and domain of each notification:
+
+| Notification Category | Event Type / Key | Semantic Icon | Visual Accent | Contextual Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **Evaluations & Grades** | `evaluation_completed`, `paper_graded` | `CheckCircle2` / `Sparkles` | Emerald / Green | Confirms successful automated AI grading or scorecard release. |
+| **Rubric Actions** | `rubric_generated`, `rubric_approved` | `Scroll` / `FileCheck` | Blue / Indigo | Signals rubric extraction readiness or supervisor approval. |
+| **Timed Windows** | `window_opened`, `window_closing_soon` | `Clock` / `Timer` | Sky / Cyan | Informs students that submission portal is live or countdown is active. |
+| **Grace Periods** | `window_grace_period` | `Hourglass` / `AlertCircle` | Amber / Rose | Warns student that standard deadline passed and final grace countdown is ticking. |
+| **Disputes & Revaluation** | `revaluation_requested`, `dispute_resolved` | `Scale` / `MessageSquare` | Purple / Violet | Alerts teachers to student grade challenges or informs student of outcome. |
+| **Deletions & Purge** | `exam_deleted`, `document_purged` | `Trash2` / `Archive` | Red / Slate | Confirms destructive purge of underlying PDF binaries under 15-day TTL. |
+| **System & Security** | `password_reset`, `auth_warning` | `ShieldAlert` / `KeyRound` | Orange | Security tokens and administrative reset approvals. |
+
+#### Synthesized Web Audio Chimes Engine
+To alert active users without bundling heavy audio asset files (MP3/WAV) or triggering network latency, the platform features a zero-dependency Web Audio API harmonic chime synthesizer:
+- **Zero Asset Overhead**: Waveforms are synthesized on the client via `window.AudioContext` or `window.webkitAudioContext`.
+- **Harmonic Sine-Wave Envelope**: Synthesizes a subtle, pleasant two-tone chord (frequency progression $F_1 = 587.33\,\text{Hz}\;[D_5] \to F_2 = 880.00\,\text{Hz}\;[A_5]$) with an exponential decay gain envelope ($T_{\text{decay}} = 0.4\text{s}$) to avoid acoustic distortion or harsh transients.
+- **User Preference Persistence**: Users can toggle notification audio on or off via the drawer header switch. The boolean preference is persisted in `localStorage` under key `pg_notifications_sound` and respected across all tabs and routes.
+- **Autoplay Compliance**: The `AudioContext` initializes lazily on first user interaction, complying with modern browser autoplay safety policies.
+
 ---
 
 ## 11. Exhaustive Backend API Router Catalog
@@ -1216,6 +1283,7 @@ frontend/src/
 │   │   └── [id]/                  # Exam detail, rubric studio, submissions table
 │   │       └── submissions/[subId]# Spatial Document Canvas & inspection studio
 │   ├── student/                   # Student PWA portal with window countdown timers
+│   │   └── portal/                # Mobile-optimized student dashboard & past exams portal
 │   ├── revaluation/               # Revaluation dispute management interface
 │   └── analytics/                 # Telemetry dashboards, token charts, cost calculators
 ├── components/
@@ -1223,9 +1291,15 @@ frontend/src/
 │   ├── GradingModal.tsx           # Teacher verification, rubric breakdown & override studio
 │   ├── RubricEditor.tsx           # Interactive rubric point editor & approval controls
 │   ├── MarksTable.tsx             # Sortable student scorecard table with review badges
-│   └── NotificationDrawer.tsx     # Sliding notification center with Web Push toggle
+│   ├── NotificationDrawer.tsx     # Sliding notification center with Web Audio chime engine
+│   └── ui/
+│       ├── AppleSelect.tsx        # Viewport-aware portal dropdown with Apple ease physics
+│       ├── AppleNumberStepper.tsx # Accelerated micro-stepper with tactile scaling & direct input
+│       └── Skeleton.tsx           # Atomic skeletons (PastExamsCardsSkeleton, TableSkeleton)
 └── lib/
     ├── api.ts                     # 50KB Exhaustive typed API client
+    ├── queryKeys.ts               # Centralized TanStack React Query key factory
+    ├── QueryProvider.tsx          # Hydration boundary & query client provider
     ├── TenantContext.tsx          # Multi-tenant branch scoping state
     ├── ConfirmContext.tsx         # Enterprise confirmation dialog provider
     ├── ToastContext.tsx           # Action-linked toast notifications
@@ -1257,6 +1331,93 @@ Clicking any bounding box on the canvas opens the inspection studio ([`frontend/
 - **Side-by-Side Crop & Evidence**: Displays the 150 DPI handwriting crop alongside the transcribed text and verbatim rubric evidence quote.
 - **Criterion-by-Criterion Stepper**: Teachers can increment or decrement marks on individual criteria; the modal automatically recalculates the question total clamped to `max_marks`.
 - **Mandatory Audit Logging**: Requires an explicit reason before enabling the save button, preventing unaccountable grade inflation.
+
+---
+
+### 12.6 TanStack React Query Caching Tier (`@tanstack/react-query`)
+To replace naive `cache: "no-store"` HTTP fetches—which generated repetitive round-trips, layout thrashing, and unnecessary load on the backend database—the frontend incorporates **TanStack React Query v5** ([`frontend/src/lib/QueryProvider.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/lib/QueryProvider.tsx)).
+
+#### Centralized Query Key Taxonomy
+All query cache operations are governed by a strictly typed key factory ([`frontend/src/lib/queryKeys.ts`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/lib/queryKeys.ts)), preventing string typo collisions and enabling surgical cache invalidation:
+```typescript
+export const queryKeys = {
+  auth: {
+    me: () => ['auth', 'me'] as const,
+  },
+  exams: {
+    all: () => ['exams'] as const,
+    list: (branchId?: string) => ['exams', 'list', { branchId }] as const,
+    detail: (id: string) => ['exams', 'detail', id] as const,
+    rubric: (examId: string) => ['exams', 'rubric', examId] as const,
+    evaluationStatus: (examId: string) => ['exams', 'eval-status', examId] as const,
+    windowStatus: (examId: string) => ['exams', 'window-status', examId] as const,
+  },
+  submissions: {
+    byExam: (examId: string) => ['submissions', 'by-exam', examId] as const,
+    detail: (id: string) => ['submissions', 'detail', id] as const,
+  },
+  student: {
+    portalState: () => ['student', 'portal-state'] as const,
+    pastExams: (filters?: Record<string, any>) => ['student', 'past-exams', filters] as const,
+  },
+  analytics: {
+    telemetry: (range: string) => ['analytics', 'telemetry', range] as const,
+    feasibility: (params: any) => ['analytics', 'feasibility', params] as const,
+  },
+};
+```
+
+#### Core Benefits & Architectural Guarantees
+- **Stale-While-Revalidate**: Screens render instantly from memory cache while fresh data is revalidated silently in the background, cutting perceived screen transition latency to 0ms.
+- **Request Deduplication**: If multiple sibling components mount simultaneously and request the active user profile or branch state, TanStack Query coalesces them into a single in-flight network request.
+- **Configurable Stale Times**: Static configurations and past exam catalogs utilize a 60-second `staleTime`, while active submission window countdowns use short or reactive poll intervals.
+- **Surgical Mutation Invalidation**: When an instructor updates marks in `GradingModal.tsx`, only the specific `queryKeys.submissions.detail(id)` and `queryKeys.exams.detail(examId)` query keys are invalidated and refetched.
+
+---
+
+### 12.7 Apple-Style Curved-Glass Micro-Tactility Design System
+The platform features an Apple-inspired dark-mode design system founded on physical micro-tactility, pure specular edge refraction, and strict geometric consistency.
+
+#### Rectangular Geometry Standard (No Pill Shapes)
+To maintain structural visual discipline, all action triggers, filters, and buttons strictly avoid pill (`rounded-full`) geometries, adhering uniformly to standard rectangular `rounded-md` bounding boxes with defined height tiers:
+- **`h-8` (32px)**: Compact action triggers, card utility buttons, table action links.
+- **`h-9` (36px)**: Standard interactive buttons, dropdown triggers, and modal actions.
+- **`h-11` (44px)**: Primary submission triggers and prominent portal action buttons.
+
+#### Curved-Glass Specular Physics
+The CSS utility system (`globals.css`) defines high-polish glassmorphism classes simulating curved optical surfaces:
+- **`.btn-glass-primary`**: Electric blue specular finish featuring a subtle top-edge internal specular highlight (`box-shadow: inset 0 1px 0 rgba(255,255,255,0.25)`), dynamic linear gradient fill (`from-blue-500/20 to-blue-600/30`), and interactive micro-press compression (`active:scale-[0.98]`).
+- **`.btn-glass-utility`**: Neutral frosted glass dark surface (`bg-white/[0.04]`), ultra-subtle perimeter border (`border-white/[0.08]`), and gentle hover luminescence.
+- **`.btn-glass-danger-utility`**: Dark crimson translucent glass for secondary destructive actions.
+- **`.btn-glass-danger`**: High-visibility ruby glass for irreversible actions (e.g., cascade exam purge).
+
+#### High-Polish Interactive Primitives
+1. **Accelerated Micro-Stepper ([`AppleNumberStepper.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/ui/AppleNumberStepper.tsx))**:
+   - **Micro-Press Scaling**: Stepper decrement and increment triggers feature physical scale feedback (`active:scale-90`).
+   - **Press-and-Hold Progressive Acceleration**: Holding down a stepper button initiates an auto-repeat cycle after 350ms, dynamically reducing the step interval down to 50ms for rapid value adjustments.
+   - **Sliding Number Animation**: Digits transition using GPU-accelerated directional translateY slide keyframes (`@keyframes appleNumberUp` / `appleNumberDown`).
+   - **Direct Numerical Input**: Clicking the displayed number instantly converts the component into an inline HTML input with auto-select and discrete step clamping ($0.5$ step increments).
+2. **Viewport-Aware Portal Dropdown ([`AppleSelect.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/ui/AppleSelect.tsx))**:
+   - **Body Portal Rendering**: Renders the menu directly into `document.body` via React `createPortal`, completely eliminating clipping or z-index stacking issues inside modal dialogs or table containers.
+   - **Collision Detection & Auto-Flip**: Continuously calculates bounding client rects. If the trigger is within 240px of the viewport bottom, the dropdown opens upwards automatically.
+   - **Apple Easing Curves**: Uses spring-calibrated cubic-bezier transitions (`cubic-bezier(0.16, 1, 0.3, 1)`) for natural menu expansion.
+
+---
+
+### 12.8 Student PWA Mobile Portal Architecture & Past Exams Subsystem
+The student mobile portal ([`frontend/src/app/student/portal/page.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/app/student/portal/page.tsx)) is built as an installable Progressive Web App (PWA) tailored for high-latency mobile conditions.
+
+#### Decoupled Static Search & Filter Architecture
+In earlier revisions, selecting a filter tab (e.g. switching from *All* to *Evaluated*) unmounted the entire container, causing the search bar, filter tabs, and exam lists to flash skeleton screens simultaneously.
+- **Permanent Component Mounting**: The search input, clear button, and filter tab controls remain permanently mounted and interactive.
+- **Isolated Cards-Only Skeleton (`PastExamsCardsSkeleton`)**: During network refetches or filter shifts, only the exam cards container transitions into a card skeleton with zero layout shift; search input focus is never interrupted.
+- **Zero Pill Skeletons**: Eliminates awkward pill badge placeholders in favor of crisp rectangular card skeletons matching exact production card geometries.
+
+#### Touch Gesture Navigation & Fluid Transitions
+- **Horizontal Touch Swipe Navigation**: The student dashboard tracks touch start and end coordinates (`handlePortalTouchStart`, `handlePortalTouchEnd`). Swiping left or right with sufficient velocity toggles seamlessly between the **Dashboard** and **Past Exams** views without requiring thumb reach to the top navigation bar.
+- **Dynamic Time-Aware Greetings**: Welcomes students with contextual greetings matched to their local time of day (`Good Morning`, `Good Afternoon`, `Good Evening`, `Good Night`, `Late Night Study Session`), combined with user name interpolation and an entrance fade animation.
+- **Clean Mobile Document Canvas**: On mobile viewports ($<768\text{px}$), redundant manual zoom buttons are hidden to maximize document viewable area, giving students native two-finger pinch-to-zoom and pan gestures.
+- **Missing Question Paper Fallback**: When an instructor has not uploaded a question paper PDF, the portal displays an informative "Question paper not uploaded" notice rather than failing or injecting placeholder test papers.
 
 ---
 
@@ -1393,6 +1554,118 @@ ACCESS_TOKEN_EXPIRE_MINUTES=10080
   1. Add additional API keys to the `GEMINI_API_KEYS` comma-separated list in `.env`.
   2. The multi-key ring will automatically expand its round-robin cycle.
   3. The worker pool will sleep for 30 seconds automatically without dropping queued student jobs.
+
+---
+
+## 15. Master Data Architecture & Business Intelligence (BI) Retention Specification
+
+### 15.1 Storage Tier Partitioning & Structural Invariants
+PaperGrade AI divides platform data across three distinct storage tiers to achieve high query performance, low cost, and strict compliance:
+
+```mermaid
+flowchart TD
+    subgraph Tier1["Tier 1: Relational State (PostgreSQL / SQLite WAL)"]
+        direction TB
+        T1_Meta["20 Core Normalized Tables<br/>Institutes, Branches, Users, Exams, Rubrics"]
+        T1_Scores["Granular Score Data<br/>Criteria Breakdown, Section Sums, Audit Trail"]
+        T1_Invar["Permanent Retention Invariant<br/>Preserved Indefinitely for Historical BI"]
+    end
+
+    subgraph Tier2["Tier 2: Local Processing Cache (SSD Buffer)"]
+        direction TB
+        T2_Uploads["backend/data/uploads/<br/>Raw Image Scans & Multipart Uploads"]
+        T2_Proc["PyMuPDF Vector Burning & EXIF Normalization"]
+        T2_Evict["Ephemeral Lifecycle<br/>Flushed Upon CDN Sync"]
+    end
+
+    subgraph Tier3["Tier 3: Cloud Object Storage (Cloudinary / R2 / S3)"]
+        direction TB
+        T3_Canonical["Canonical Upright Student PDFs"]
+        T3_Extracts["150 DPI Answer Region Crops"]
+        T3_Annotated["PyMuPDF Graded Vector Overlays"]
+        T3_TTL["15-Day Strict TTL Expiration Window"]
+    end
+
+    Tier2 -->|"Async Ingestion"| Tier3
+    Tier2 -->|"Extract Structured Grades"| Tier1
+    Tier3 -.->|"15-Day TTL Cascade Purge"| PurgeEngine["Scheduled Purge Worker<br/>(Binary Documents Expunged)"]
+    Tier1 -.->|"Permanent BI Analytics"| BI["Cohort Progression, NAAC/ABET Reports,<br/>Item Difficulty & Discrimination Curves"]
+```
+
+1. **Relational Tier (PostgreSQL 15+ / SQLite 3 WAL)**:
+   - Houses all system state across 20 normalized tables (`institutions`, `branches`, `users`, `exams`, `rubrics`, `submissions`, `evaluations`, `overrides`, `audit_trail`, `telemetry`).
+   - Handles ACID transactions, row-level concurrency claims (`FOR UPDATE SKIP LOCKED`), and structured criteria score breakdowns.
+2. **Local SSD Processing Buffer (`backend/data/uploads/`)**:
+   - High-throughput scratchpad for EXIF transposition, multi-image merging, 150 DPI page rendering, and PyMuPDF vector drawing.
+   - Cleared automatically or synchronized with cloud storage.
+3. **Cloud CDN & Object Tier (Cloudinary / Cloudflare R2 / AWS S3)**:
+   - Stores binary PDF payloads: raw canonical uploads, vector-annotated review PDFs, and 150 DPI handwriting crops.
+   - Governed by the automated 15-day time-to-live lifecycle.
+
+---
+
+### 15.2 15-Day TTL Cascade Purge Engine Mechanics
+To satisfy educational data privacy regulations (FERPA, GDPR) and eliminate unbounded cloud storage costs, the platform implements an automated document purge lifecycle:
+
+$$\text{retention\_expires\_at} = t_{\text{submission}} + 15 \times 86400\,\text{seconds}$$
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Cron as Scheduled Purge Daemon
+    participant API as Storage Router (POST /purge-expired)
+    participant DB as Relational Database
+    participant CDN as Cloudinary / R2 CDN
+    participant Disk as Local File Storage
+
+    Cron->>API: Trigger Expired Purge Sweep
+    API->>DB: SELECT id, file_path, annotated_file_path FROM submissions WHERE retention_expires_at <= NOW() AND is_document_purged = 0
+    DB-->>API: Return Expired Submissions List
+    loop For Each Expired Submission
+        API->>Disk: os.remove(local_pdf_path) (if cached)
+        API->>CDN: uploader.destroy(public_id, resource_type='raw')
+        API->>DB: UPDATE submissions SET is_document_purged = 1, file_path = NULL, annotated_file_path = NULL WHERE id = :id
+    end
+    API-->>Cron: Purge Summary (Total Reclaimed Bytes, Purged Records)
+```
+
+- **Physical Media Deletion**: Both the raw student scan PDF and the vector-annotated PDF are unlinked from local disk and destroyed in the cloud CDN via Admin API credentials.
+- **Database Tombstone**: The `is_document_purged` flag is set to `1`, and path columns are set to `NULL`.
+- **Student Portal UX**: If a student accesses an expired exam paper in the portal, the spatial viewer displays an informative *"Document archived under 15-day retention policy"* banner while still rendering their complete numerical score and question-by-question performance breakdown.
+
+---
+
+### 15.3 Historical Grade & Analytics Retention for Academic BI
+A core architectural guarantee of PaperGrade AI is that **document purge does not equal data loss**:
+
+| Data Entity | Storage Location | Retention Lifespan | Academic & BI Purpose |
+| :--- | :--- | :--- | :--- |
+| **Raw Scanned PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Temporary grading evidence & immediate student review. |
+| **Annotated Graded PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Downloadable vector report card during verification window. |
+| **Final Marks & Percentages** | Relational DB (`submissions`) | **Permanent ($\infty$)** | Official student academic records, GPA calculation, transcripts. |
+| **Question-by-Question Breakdown** | Relational DB (`submission_evaluations`) | **Permanent ($\infty$)** | Item difficulty analysis, curriculum defect identification. |
+| **Criteria-Level Marks & Rubrics** | Relational DB (`evaluation_criteria_results`)| **Permanent ($\infty$)** | Pedagogical scoring distribution, rubric fairness auditing. |
+| **Teacher Override Trail** | Relational DB (`teacher_manual_overrides`)| **Permanent ($\infty$)** | Immutable accountability audit logs for institutional compliance. |
+| **LLM Inference Telemetry** | Relational DB (`api_usage_events`) | **Permanent ($\infty$)** | Historical cost tracking, latency percentiles, quota planning. |
+
+#### Continuous Business Intelligence Capabilities
+Because structured performance records are preserved permanently, academic institutions can execute longitudinal analytics across decades without storing petabytes of raw PDF scans:
+- **Longitudinal Cohort Tracking**: Measure learning outcome progression across multi-year academic cohorts.
+- **Curriculum & Item Difficulty Indexing**: Compute classical test theory metrics ($P$-value facility indices and item discrimination coefficients) to isolate flawed examination questions.
+- **Accreditation Evidence**: Instantly export structured compliance matrices required by international accreditation boards (e.g., ABET, NAAC, NBA).
+
+---
+
+### 15.4 Multi-Tenant Data Isolation & Compliance Guarantees
+1. **Hierarchical Row Scoping**:
+   - Every administrative query strictly filters across `institute_id` and `branch_id`.
+   - Foreign key constraints with `ON DELETE CASCADE` guarantee that deleting an institutional branch automatically scrubs all associated exams, rubrics, and student records without leaving orphan rows.
+2. **Student Privacy (Zero PII Ingestion to AI)**:
+   - Student identities (names, emails, demographic data) are never transmitted to Google Gemini inference endpoints.
+   - Evaluation prompts receive only the isolated question paper text and anonymized student handwriting pixel buffers labeled by synthetic roll-number identifiers.
+3. **FERPA & GDPR Compliance**:
+   - Right to erasure and data minimization are structurally enforced via the 15-day TTL purge engine.
+   - Comprehensive teacher audit logging ensures full transparency and defensibility for every grade awarded or modified.
 
 ---
 
