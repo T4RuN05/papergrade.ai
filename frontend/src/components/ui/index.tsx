@@ -22,7 +22,7 @@ export function ButtonPrimary({
   ...props
 }: ButtonPrimaryProps) {
   const sizeClasses = {
-    sm: "h-8 px-3.5 text-xs font-medium rounded-md",
+    sm: "h-8 px-3.5 text-xs font-semibold rounded-md",
     md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-semibold rounded-md",
     lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-semibold rounded-lg",
   }[size];

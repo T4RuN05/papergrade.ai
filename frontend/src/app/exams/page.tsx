@@ -24,6 +24,7 @@ import {
   Search,
   X,
   Filter,
+  Lock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -482,6 +483,11 @@ export default function ExamsPage() {
             const minutesRemaining = Math.max(0, Math.floor(secondsRemaining / 60));
 
             const isRubricApproved = checkIsRubricApproved(exam);
+            const isExamPublished = Boolean(
+              exam.is_published ||
+              exam.status === "PUBLISHED" ||
+              exam.lifecycle_status === "PUBLISHED"
+            );
 
             return (
               <FeatureCard
@@ -498,7 +504,7 @@ export default function ExamsPage() {
                       </h3>
 
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        {exam.is_published ? (
+                        {isExamPublished ? (
                           <BadgePill label="Published" color="purple" />
                         ) : exam.status === "EVALUATED" || exam.lifecycle_status === "EVALUATED" ? (
                           <BadgePill label="Evaluated" color="teal" />
@@ -543,29 +549,31 @@ export default function ExamsPage() {
                     </div>
                   </div>
 
-                  {/* Submission Window Pill / Controller */}
+                  {/* Submission Window Controller */}
                   <div className="p-2.5 sm:p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                     <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                      <div className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md border shrink-0 ${
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-md border shrink-0 ${
                         isWindowActive
-                          ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400"
                           : isInGrace
-                          ? "bg-amber-50 border-amber-200 text-amber-600"
+                          ? "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400"
                           : "bg-surface border-hairline text-ink-secondary"
                       }`}>
-                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <Clock className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-ink flex items-center gap-1.5 flex-wrap">
                           <span className="whitespace-nowrap">Submission Window:</span>
                           {isWindowActive ? (
-                            <span className="text-emerald-700 font-bold whitespace-nowrap">
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold whitespace-nowrap">
                               Active ({minutesRemaining}m left)
                             </span>
                           ) : isInGrace ? (
-                            <span className="text-amber-700 font-bold whitespace-nowrap">
+                            <span className="text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
                               Grace ({win?.grace_seconds_remaining || 0}s)
                             </span>
+                          ) : isExamPublished ? (
+                            <span className="text-purple-700 dark:text-purple-400 font-semibold whitespace-nowrap">Closed (Published)</span>
                           ) : (
                             <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>
                           )}
@@ -573,14 +581,22 @@ export default function ExamsPage() {
                         <p className="text-[10.5px] sm:text-[11px] text-ink-muted leading-tight mt-0.5">
                           {isWindowActive
                             ? "Eligible students can submit or replace PDF."
+                            : isExamPublished
+                            ? "Results published. Submissions closed permanently."
                             : "Uploads blocked until opened by operator."}
                         </p>
                       </div>
                     </div>
 
                     <div className="shrink-0 flex items-center">
-                      {!isWindowActive && !isInGrace ? (
-                        <button
+                      {isExamPublished ? (
+                        <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
+                          <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                          <span>Finalized</span>
+                        </span>
+                      ) : !isWindowActive && !isInGrace ? (
+                        <ButtonPrimary
+                          size="sm"
                           type="button"
                           onClick={() => {
                             setTargetExamForReopen(exam);
@@ -589,22 +605,24 @@ export default function ExamsPage() {
                             setReopenScope("ALL_STUDENTS");
                             setReopenModalOpen(true);
                           }}
-                          className="h-8.5 px-3.5 rounded-md btn-glass-primary text-xs font-semibold inline-flex items-center justify-center whitespace-nowrap shadow-2xs cursor-pointer active:scale-[0.98]"
+                          className="shadow-2xs cursor-pointer"
                         >
                           <Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                          Open Window
-                        </button>
+                          <span>Open Window</span>
+                        </ButtonPrimary>
                       ) : (
-                        <button
+                        <ButtonUtility
+                          variant="danger"
+                          size="sm"
                           type="button"
                           onClick={() => handleHardCloseWindow(exam.id, exam.title)}
                           disabled={closingExamId === exam.id}
-                          className="h-8.5 px-3 rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100 font-semibold text-xs inline-flex items-center justify-center whitespace-nowrap cursor-pointer active:scale-[0.98]"
+                          className="shadow-2xs cursor-pointer"
                           title="Terminate active submission window immediately"
                         >
-                          <Square className="h-3 w-3 mr-1 fill-red-600 text-red-600 shrink-0" />
-                          {closingExamId === exam.id ? "Closing..." : "Close"}
-                        </button>
+                          <Square className="h-3 w-3 mr-1.5 fill-red-600 text-red-600 shrink-0" />
+                          <span>{closingExamId === exam.id ? "Closing..." : "Close"}</span>
+                        </ButtonUtility>
                       )}
                     </div>
                   </div>

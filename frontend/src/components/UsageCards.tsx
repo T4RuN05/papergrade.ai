@@ -329,7 +329,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                 <ButtonPrimary
                   type="submit"
                   disabled={isSavingQuota}
-                  className="w-full h-8.5 sm:h-9 text-xs font-semibold"
+                  className="w-full h-9 text-xs font-semibold"
                 >
                   <Save className="h-3.5 w-3.5 mr-1.5" />
                   {quotaSaved ? "Saved!" : isSavingQuota ? "Saving..." : "Save Limits"}
