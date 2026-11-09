@@ -22,12 +22,12 @@
    - 5.1 Rationale: Dual-Dialect (PostgreSQL + SQLite WAL)
    - 5.2 The `PostgresCursorWrapper` & Parameter Sanitization Engine
    - 5.3 The PostgreSQL NUL Byte (`0x00`) Sanitizer (`UntranslatableCharacter` Fix)
-   - 5.4 Complete Data Dictionary & Schema Specification (20 Core Tables)
+   - 5.4 Complete Data Dictionary & Schema Specification (24 Tables Across 5 Domains)
    - 5.5 Master Entity-Relationship (ER) Diagram
 6. [The AI Engine & Google Gemini Multimodal Pipeline](#6-the-ai-engine--google-gemini-multimodal-pipeline)
    - 6.1 Multimodal Vision vs OCR Chaining Tradeoff
    - 6.2 The Multi-Key Failover Ring (4-Key Round Robin)
-   - 6.3 4-Tier Model Fallback Cascade
+   - 6.3 3-Tier Full-Flash Model Cascade (3.8 -> 3.6 -> 3.5)
    - 6.4 The 8,192 vs 65,536 Output Token Ceiling Forensic Analysis
    - 6.5 The Self-Healing JSON Stream Buffer (`_repair_truncated_json`)
    - 6.6 Prompt Engineering & Pedagogical Invariants
@@ -50,7 +50,7 @@
    - 8.5 150 DPI Answer Region Extraction & Image Crop Pipeline
    - 8.6 Immutable Teacher Audit Trail Engine
 9. [Unified Hybrid Storage Tier & 15-Day TTL Lifecycle](#9-unified-hybrid-storage-tier--15-day-ttl-lifecycle)
-   - 9.1 Storage Abstraction (`UnifiedStorageService`: Local, Cloudinary, R2/S3)
+   - 9.1 Storage Abstraction (`StorageService` Hierarchy: Local, Cloudinary, R2/S3)
    - 9.2 Mobile Photo EXIF Normalization & Multi-Image PDF Assembly
    - 9.3 15-Day Retention Policy (TTL) & Privacy Compliance (FERPA/GDPR)
    - 9.4 Cascade Exam Deletion & CDN Purge Engine
@@ -126,7 +126,7 @@ PaperGrade AI abandons the fragile OCR-to-text pipeline entirely. Instead, it ut
 1. **LLMs Are Evaluators, Never Calculators**: Language models must never be trusted to calculate arithmetic totals, sum sub-scores, or enforce section attempt limits. The backend Python invariants engine deterministically calculates all totals from validated criteria sub-scores and clamps marks within strict $[0, \text{max}]$ ranges.
 2. **Zero-Trust Role Isolation**: Academic integrity requires physical separation of duties. Branch Managers can upload student scans and trigger grading, but they **cannot view or upload official answer keys**. Answer keys and rubric approvals are restricted exclusively to Root Administrators.
 3. **Audit Trail Immutability**: Any modification made by a human teacher—whether adjusting a criterion mark, correcting transcription text, or dragging a bounding box—is logged with the user ID, timestamp, prior value, and explicit justification in an immutable audit table.
-4. **Resilience Over Perfection**: Evaluation must never crash due to network drops, transient 429 quota exhaustion, or malformed JSON. The system features a 4-key round-robin ring, a 4-tier model fallback cascade, self-healing stream repair, and a persistent watchdog background worker pool.
+4. **Resilience Over Perfection**: Evaluation must never crash due to network drops, transient 429 quota exhaustion, or malformed JSON. The system features a multi-key round-robin ring (up to 4 active free-tier keys or Vertex AI paid service account), a 3-tier full-Flash model cascade (3.8 -> 3.6 -> 3.5), self-healing stream repair, and a persistent watchdog background worker pool.
 
 ---
 
@@ -136,14 +136,14 @@ PaperGrade AI abandons the fragile OCR-to-text pipeline entirely. Instead, it ut
 flowchart TB
     subgraph ClientTier["Client Tier (Next.js 14 App Router / React 18 / Tailwind CSS)"]
         direction TB
-        AdminApp["Root Admin Dashboard\n(/admin, /branches)"]
-        ManagerApp["Branch Workspace\n(/exams, /batches)"]
-        StudentApp["Student PWA Portal\n(/student/portal, /revaluation)"]
-        CanvasApp["Spatial Document Canvas\n(/exams/{id}/submissions/{subId})"]
+        AdminApp["Root Admin Dashboard\n(/admin/tenancy, /admin/reports)"]
+        ManagerApp["Branch Workspace\n(/exams, /batches, /grading)"]
+        StudentApp["Student PWA Portal\n(/student/portal, /student/exams)"]
+        CanvasApp["Spatial Document Canvas\n(/grading/[id], /student/submissions/[id])"]
     end
 
     subgraph EdgeCDN["Storage & Edge Delivery Tier"]
-        Cloudinary["Cloudinary CDN / S3 Object Storage\n(Signed Canonical PDFs, 150 DPI Crops, Annotated Vectors)"]
+        Cloudinary["Cloudinary CDN / R2 / S3 Storage\n(Signed Canonical PDFs, 150 DPI Crops, Annotated Vectors)"]
         VAPID["W3C Web Push Gateway\n(Google FCM / Apple APNs / Mozilla)"]
     end
 
@@ -153,30 +153,30 @@ flowchart TB
         MW_Auth["JWT & Role Authorization Guard"]
         
         subgraph Routers["FastAPI Routers (13 Dedicated Domains)"]
-            R_Auth["auth.py (JWT, Student PIN)"]
-            R_Tenancy["tenancy.py (Institutes & Branches)"]
-            R_Exams["exams.py (Exams & Rubric Approval)"]
-            R_Subs["submissions.py (Batch & Single Uploads)"]
-            R_Grading["grading.py (Teacher Overrides)"]
-            R_Reval["revaluation.py (7-Day Student Disputes)"]
-            R_Windows["windows.py (Timed Windows & Grace)"]
+            R_Auth["auth.py (JWT, Account Claim, Password Resets)"]
+            R_Tenancy["tenancy.py (Institutes, Branches, Subjects, Batches)"]
+            R_Exams["exams.py (Exams, Key Upload, Rubric Approval, Publishing)"]
+            R_Subs["submissions.py (Uploads, Single Ingestion, Purge Expired)"]
+            R_Grading["grading.py (Teacher Overrides, Bbox Edits, Reevaluations)"]
+            R_Reval["revaluation.py (7-Day Student Disputes & Resolution)"]
+            R_Windows["windows.py (Timed Windows, Hard-Close & Grace)"]
             R_Reports["reports.py (Issue Tickets & Screenshots)"]
-            R_Exports["exports.py (CSV & PDF Streamers)"]
-            R_Notifs["notifications.py (Push & In-App)"]
-            R_Students["students.py (Unified Portal State)"]
-            R_Analytics["analytics.py (Telemetry & Feasibility)"]
-            R_Storage["storage.py (File Delivery & TTL Purge)"]
+            R_Exports["exports.py (CSV, Vector Graded PDF, Batch ZIP)"]
+            R_Notifs["notifications.py (Push & In-App Drawer)"]
+            R_Students["students.py (Unified Portal State & Past Submissions)"]
+            R_Analytics["analytics.py (Telemetry, Quotas & Feasibility)"]
+            R_Storage["storage.py (Signed Upload/Download URLs)"]
         end
     end
 
     subgraph ServiceTier["Core Business Logic & Service Domain"]
         direction TB
-        S_Grading["GradingService\n(Invariants, Best-of-N, PyMuPDF Overlays)"]
+        S_Grading["GradingService\n(Invariants, Best-of-N, Audit Trail)"]
         S_Exam["ExamService\n(Lifecycle State Machine & Cascade Delete)"]
-        S_PDF["PDFService\n(EXIF Auto-Orientation, DPI Image Renders)"]
-        S_Storage["UnifiedStorageService\n(Local Disk Cache + Cloudinary Client)"]
-        S_Retention["RetentionService\n(15-Day TTL Automated Purge Engine)"]
-        S_Notif["NotificationService\n(VAPID Encrypted Push Dispatcher)"]
+        S_PDF["PDFService\n(EXIF Auto-Orientation, PyMuPDF Vector Overlays, 150 DPI)"]
+        S_Storage["StorageService\n(LocalStorageService, Cloudinary, Cloudflare R2)"]
+        S_Retention["RetentionService\n(15-Day TTL Post-Grading Purge Engine)"]
+        S_Notif["NotificationService\n(VAPID Encrypted Push & Web Audio Chimes)"]
         S_Usage["UsageService\n(P50/P95 Latency & Cost Analytics)"]
     end
 
@@ -190,11 +190,11 @@ flowchart TB
 
     subgraph AIEngine["AI Inference Cluster (Google GenAI Python SDK)"]
         direction TB
-        GeminiClient["GeminiGradingClient\n(4-Key Round-Robin Ring)"]
-        PrimaryModel["gemini-3.8-flash (Primary, 64k Output Tokens)"]
-        Fallback1["gemini-3.5-flash-lite (Tier 1 Fallback)"]
-        Fallback2["gemini-flash-lite-latest (Tier 2 Fallback)"]
-        Fallback3["gemini-1.5-flash (Emergency Fallback)"]
+        GeminiClient["GeminiGradingClient\n(4-Key Round-Robin Ring & GCP Vertex AI)"]
+        PrimaryModel["gemini-3.8-flash (Primary, 65,536 Output Tokens)"]
+        Fallback1["gemini-3.6-flash (Tier 1 Fallback)"]
+        Fallback2["gemini-3.5-flash (Tier 2 Fallback)"]
+        ReevalModel["gemini-3.5-flash-lite (Targeted Single-Answer Re-eval)"]
         StreamHealer["_repair_truncated_json\n(Bracket/Quote Recovery Engine)"]
     end
 
@@ -202,7 +202,7 @@ flowchart TB
         PG_Pool["Supabase Transaction Pooler (:6543)\nThreadedConnectionPool (max 25 conn)"]
         SQLite_WAL["SQLite 3 (WAL Mode + Foreign Keys)\n(Local Development & Offline Testing)"]
         CursorWrapper["PostgresCursorWrapper\n(? to %s Rewriter + NUL 0x00 Byte Filter)"]
-        Tables[("20 Core Tables:\ninstitutes, branches, users, exams, batches,\nstudents, submission_windows, rubric_versions,\nsubmissions, answers, answer_regions, criterion_scores,\nevaluation_queue, revaluation_requests, notifications,\npush_subscriptions, password_reset_requests,\ntechnical_reports, audit_logs, api_usage_events")]
+        Tables[("24 Normalized Tables across 5 Domains:\ninstitutes, branches, subjects, users, batches,\nstudents, exams, exam_batches, submission_windows,\nrubric_versions, submissions, answers, answer_regions,\ncriterion_scores, evaluation_queue, revaluation_requests,\nnotifications, push_subscriptions, password_reset_requests,\ntechnical_reports, audit_logs, api_usage_events,\nuser_quota_settings, experiment_benchmarks")]
     end
 
     %% Client Interactions
@@ -218,7 +218,6 @@ flowchart TB
     GeminiClient --> PrimaryModel
     PrimaryModel -.->|429 Resource Exhausted| Fallback1
     Fallback1 -.-> Fallback2
-    Fallback2 -.-> Fallback3
     GeminiClient --> StreamHealer
 
     %% Database Connections
@@ -268,7 +267,7 @@ Academic assessment integrity requires strict operational separation:
 | :--- | :---: | :---: | :---: | :--- |
 | **Provision Institutes & Branches** |  | ❌ | ❌ | `require_root_admin` dependency |
 | **Upload Question Papers** |  |  | ❌ | Branch-scoped query validation |
-| **Upload Official Answer Keys** |  | ❌ | ❌ | Restricted endpoint (`/api/v1/exams/{id}/upload-key`) |
+| **Upload Official Answer Keys** |  | ❌ | ❌ | Restricted endpoint (`/api/v1/exams/{exam_id}/answer-key`) |
 | **Approve / Unlock Rubrics** |  | ❌ | ❌ | Enforces immutable evaluation contract |
 | **Open / Reopen Submission Windows** |  |  | ❌ | `require_branch_manager` dependency |
 | **Batch Upload Student Papers** |  |  | ❌ | File format & EXIF orientation pipeline |
@@ -279,7 +278,7 @@ Academic assessment integrity requires strict operational separation:
 | **Download Vector Graded PDF** |  |  |  | Blocked for students until exam published |
 | **File 7-Day Revaluation Dispute** | ❌ | ❌ |  | Validates `now <= requested_at + 7 days` |
 | **Approve / Reject Revaluation** |  |  | ❌ | Manual review requirement |
-| **Trigger 15-Day Storage Purge** |  | ❌ | ❌ | Automated background service / admin API |
+| **Trigger 15-Day Storage Purge** |  | ❌ | ❌ | Automated background service (`/api/v1/submissions/purge-expired`) |
 | **Permanent Cascade Exam Deletion** |  | ❌ | ❌ | Purges DB records & Cloudinary CDN assets |
 
 ---
@@ -295,7 +294,7 @@ sequenceDiagram
     actor Admin as Root Admin
     participant UI as Next.js Exam Studio
     participant API as FastAPI Backend
-    participant Storage as Unified Storage (Disk/CDN)
+    participant Storage as StorageService (Disk/CDN)
     participant AI as Gemini Multimodal Client
     participant DB as Dual-Dialect Database
 
@@ -306,8 +305,9 @@ sequenceDiagram
     API-->>UI: Exam Created (ID generated)
 
     Admin->>UI: Triggers "Extract Rubric"
-    UI->>API: POST /api/v1/exams/{id}/upload-key
+    UI->>API: POST /api/v1/exams/{id}/answer-key
     API->>Storage: Store Official Answer Key
+    UI->>API: POST /api/v1/exams/{id}/generate-rubric
     API->>AI: extract_exam_rubric(question_pdf, key_pdf, notes)
     Note over AI: Multi-key ring routes to gemini-3.8-flash<br/>max_output_tokens=65536<br/>Enforces MCQ Single-Criterion & 0.5-step rules
     AI-->>API: Returns ExamRubricExtractionResult JSON
@@ -501,10 +501,10 @@ To minimize cloud storage expenditure and comply with student data privacy stand
 
 ```mermaid
 flowchart TD
-    Graded(["Submission Graded"]) --> StampTTL["Stamp retention_expires_at = now + 15 days<br/>is_document_purged = 0"]
+    Graded(["Submission Graded"]) --> StampTTL["Stamp retention_expires_at = graded_at + 15 days<br/>is_document_purged = 0"]
     StampTTL --> ActiveWindow["15-Day Retrieval Window<br/>Full PDF Downloads Allowed"]
     
-    ActiveWindow --> PurgeSweep["Nightly Cron / API: POST /api/v1/storage/purge-expired"]
+    ActiveWindow --> PurgeSweep["Nightly Cron / API: POST /api/v1/submissions/purge-expired"]
     PurgeSweep --> ScanDB["SELECT * FROM submissions<br/>WHERE now &gt; retention_expires_at<br/>AND is_document_purged = 0"]
     
     ScanDB --> CloudPurge["Cloudinary Admin API: Delete Raw & Annotated PDFs"]
@@ -553,7 +553,7 @@ A critical failure mode in LLM-assisted multimodal evaluation is the spontaneous
 
 ---
 
-### 5.4 Complete Data Dictionary & Schema Specification (20 Core Tables)
+### 5.4 Complete Data Dictionary & Schema Specification (24 Tables Across 5 Domains)
 
 #### 1. `institutes`
 The root tenant organization.
@@ -571,20 +571,29 @@ Physical campus or operating division under an institute.
 - `city` (TEXT, NOT NULL): Geographical city.
 - `created_at` (TEXT, NOT NULL): ISO 8601 UTC timestamp.
 
-#### 3. `users`
-System user accounts for Root Admins, Branch Managers, Teachers, and Students.
+#### 3. `subjects`
+Academic course and subject definitions scoped to an institutional campus.
+- `id` (TEXT, PK): Unique subject identifier (`sub_01j7...`).
+- `branch_id` (TEXT, FK $\to$ `branches.id` ON DELETE CASCADE).
+- `name` (TEXT, NOT NULL): Subject name (e.g., *"Physics"*).
+- `code` (TEXT): Subject code (e.g., `"PHY-101"`).
+- `description` (TEXT): Syllabus summary or description.
+- `created_at` (TEXT, NOT NULL): ISO 8601 UTC timestamp.
+
+#### 4. `users`
+System user accounts for Root Admins, Branch Managers, and Students.
 - `id` (TEXT, PK): User identifier (`usr_01j7...`).
 - `institute_id` (TEXT, FK $\to$ `institutes.id` ON DELETE SET NULL).
 - `branch_id` (TEXT, FK $\to$ `branches.id` ON DELETE SET NULL).
 - `email` (TEXT, UNIQUE): Login email address.
-- `role` (TEXT, NOT NULL): Role enum (`ROOT_ADMIN`, `BRANCH_MANAGER`, `TEACHER`, `STUDENT`).
+- `role` (TEXT, NOT NULL): Role enum (`ROOT_ADMIN`, `BRANCH_MANAGER`, `STUDENT`). Evaluator and grading workflows are executed under `BRANCH_MANAGER` / `ROOT_ADMIN` access levels.
 - `password_hash` (TEXT, NOT NULL): Bcrypt hashed credentials.
 - `full_name` (TEXT, NOT NULL): Display name.
 - `is_active` (INTEGER, DEFAULT 1): Account status flag.
 - `last_login_at` (TEXT): Last successful login timestamp.
 - `created_at` (TEXT, NOT NULL): ISO 8601 UTC timestamp.
 
-#### 4. `batches`
+#### 5. `batches`
 Academic cohort grouping within a branch.
 - `id` (TEXT, PK): Batch identifier (`batch_01j7...`).
 - `branch_id` (TEXT, FK $\to$ `branches.id` ON DELETE CASCADE).
@@ -596,7 +605,7 @@ Academic cohort grouping within a branch.
 - `completed_submissions` (INTEGER, DEFAULT 0).
 - `failed_submissions` (INTEGER, DEFAULT 0).
 
-#### 5. `students`
+#### 6. `students`
 Student demographic profiles and account claim state.
 - `id` (TEXT, PK): Unique student record ID (`stu_01j7...`).
 - `batch_id` (TEXT, FK $\to$ `batches.id` ON DELETE CASCADE).
@@ -607,7 +616,7 @@ Student demographic profiles and account claim state.
 - `email` (TEXT): Contact email.
 - `account_claimed` (INTEGER, DEFAULT 0): Whether student has activated login.
 
-#### 6. `exams`
+#### 7. `exams`
 The central examination definition entity.
 - `id` (TEXT, PK): Exam identifier (`exam_01j7...`).
 - `institute_id` (TEXT, FK $\to$ `institutes.id`).
@@ -622,7 +631,12 @@ The central examination definition entity.
 - `is_published` (INTEGER, DEFAULT 0): Visibility flag for student portal.
 - `published_at` (TEXT): Publication timestamp.
 
-#### 7. `submission_windows`
+#### 8. `exam_batches`
+Many-to-many relationship mapping examinations to assigned student cohort batches.
+- `exam_id` (TEXT, PK, FK $\to$ `exams.id` ON DELETE CASCADE).
+- `batch_id` (TEXT, PK, FK $\to$ `batches.id` ON DELETE CASCADE).
+
+#### 9. `submission_windows`
 Timed submission windows with deadline and grace period.
 - `id` (TEXT, PK): Window ID (`win_01j7...`).
 - `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
@@ -635,7 +649,7 @@ Timed submission windows with deadline and grace period.
 - `reopen_reason` (TEXT): Justification if window was reopened.
 - `reopen_scope` (TEXT, DEFAULT 'UNSUBMITTED_ONLY').
 
-#### 8. `rubric_versions`
+#### 10. `rubric_versions`
 Historical revisions of grading rubrics with approval locking.
 - `id` (TEXT, PK): Rubric version ID (`rub_01j7...`).
 - `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
@@ -645,7 +659,7 @@ Historical revisions of grading rubrics with approval locking.
 - `approved_at` (TEXT): Approval timestamp.
 - `rubric_data` (TEXT, NOT NULL): JSON serialized `ExamRubricExtractionResult`.
 
-#### 9. `submissions`
+#### 11. `submissions`
 Individual student answer script records.
 - `id` (TEXT, PK): Submission identifier (`sub_01j7...`).
 - `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
@@ -663,10 +677,11 @@ Individual student answer script records.
 - `is_manual_override` (INTEGER, DEFAULT 0): Teacher modification flag.
 - `retry_count` (INTEGER, DEFAULT 0): Worker retry attempts.
 - `ttl_days` (INTEGER, DEFAULT 15): Document retention lifecycle duration.
+- `graded_at` (TEXT): Timestamp when AI evaluation completed (starts 15-day TTL).
 - `retention_expires_at` (TEXT): Purge timestamp ($t_{\text{graded}} + 15\text{d}$).
 - `is_document_purged` (INTEGER, DEFAULT 0): Purge status flag.
 
-#### 10. `answers`
+#### 12. `answers`
 Evaluated answers mapped to questions.
 - `id` (TEXT, PK): Answer identifier (`ans_01j7...`).
 - `submission_id` (TEXT, FK $\to$ `submissions.id` ON DELETE CASCADE).
@@ -682,7 +697,7 @@ Evaluated answers mapped to questions.
 - `needs_review` (INTEGER, DEFAULT 0): Low-confidence human review flag.
 - `is_manual_override` (INTEGER, DEFAULT 0): Teacher edit indicator.
 
-#### 11. `answer_regions`
+#### 13. `answer_regions`
 Normalized spatial bounding boxes for visual localization.
 - `id` (TEXT, PK): Region identifier (`reg_01j7...`).
 - `answer_id` (TEXT, FK $\to$ `answers.id` ON DELETE CASCADE).
@@ -693,7 +708,7 @@ Normalized spatial bounding boxes for visual localization.
 - `height` (REAL, NOT NULL): Box height $\in [0.0, 1.0]$.
 - `is_manual_override` (INTEGER, DEFAULT 0): Flag if box was dragged by teacher.
 
-#### 12. `criterion_scores`
+#### 14. `criterion_scores`
 Atomic sub-criteria breakdowns for each evaluated question.
 - `id` (TEXT, PK): Criterion score ID (`crit_01j7...`).
 - `answer_id` (TEXT, FK $\to$ `answers.id` ON DELETE CASCADE).
@@ -704,7 +719,7 @@ Atomic sub-criteria breakdowns for each evaluated question.
 - `evidence` (TEXT, NOT NULL): Verbatim textual quote from student work.
 - `is_manual_override` (INTEGER, DEFAULT 0).
 
-#### 13. `evaluation_queue`
+#### 15. `evaluation_queue`
 FIFO queue supporting atomic row-level claiming for background workers.
 - `id` (TEXT, PK): Queue item ID (`q_01j7...`).
 - `submission_id` (TEXT, FK $\to$ `submissions.id` ON DELETE CASCADE).
@@ -715,7 +730,7 @@ FIFO queue supporting atomic row-level claiming for background workers.
 - `claimed_by_worker` (TEXT): Worker thread identifier.
 - `claimed_at` (TEXT): Claim lease timestamp.
 
-#### 14. `revaluation_requests`
+#### 16. `revaluation_requests`
 Formal student grade disputes.
 - `id` (TEXT, PK): Revaluation ID (`rev_01j7...`).
 - `submission_id` (TEXT, FK $\to$ `submissions.id` ON DELETE CASCADE).
@@ -727,7 +742,7 @@ Formal student grade disputes.
 - `reviewer_notes` (TEXT): Evaluator comments.
 - `expires_at` (TEXT, NOT NULL): Statutory 7-day expiration timestamp.
 
-#### 15. `notifications`
+#### 17. `notifications`
 In-app user notifications.
 - `id` (TEXT, PK): Notification ID (`notif_01j7...`).
 - `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
@@ -737,7 +752,7 @@ In-app user notifications.
 - `link_url` (TEXT): Navigation route.
 - `is_read` (INTEGER, DEFAULT 0): Read receipt flag.
 
-#### 16. `push_subscriptions`
+#### 18. `push_subscriptions`
 VAPID Web Push client device subscriptions.
 - `id` (TEXT, PK): Subscription ID (`psub_01j7...`).
 - `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
@@ -746,7 +761,7 @@ VAPID Web Push client device subscriptions.
 - `auth` (TEXT, NOT NULL): Shared auth secret.
 - `user_agent` (TEXT): Device metadata.
 
-#### 17. `password_reset_requests`
+#### 19. `password_reset_requests`
 Two-tier password reset approval workflow for students.
 - `id` (TEXT, PK): Request ID (`pwd_01j7...`).
 - `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
@@ -756,7 +771,7 @@ Two-tier password reset approval workflow for students.
 - `reset_token` (TEXT): Cryptographic reset token.
 - `approved_by` (TEXT): Branch manager who authorized reset.
 
-#### 18. `technical_reports`
+#### 20. `technical_reports`
 In-app bug and technical issue ticket management.
 - `id` (TEXT, PK): Report ID (`rep_01j7...`).
 - `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
@@ -767,7 +782,7 @@ In-app bug and technical issue ticket management.
 - `status` (TEXT, DEFAULT 'OPEN'): `OPEN`, `IN_PROGRESS`, `RESOLVED`.
 - `admin_notes` (TEXT): Root Admin resolution notes.
 
-#### 19. `audit_logs`
+#### 21. `audit_logs`
 Immutable compliance audit trail for all human teacher adjustments.
 - `id` (TEXT, PK): Log entry ID (`aud_01j7...`).
 - `user_id` (TEXT): Actor who initiated action.
@@ -780,7 +795,7 @@ Immutable compliance audit trail for all human teacher adjustments.
 - `action` (TEXT, DEFAULT 'MANUAL_EDIT').
 - `created_at` (TEXT, NOT NULL): Immutable timestamp.
 
-#### 20. `api_usage_events`
+#### 22. `api_usage_events`
 Detailed telemetry for every Google Gemini API call.
 - `id` (TEXT, PK): Event ID (`evt_01j7...`).
 - `timestamp` (TEXT, NOT NULL): Request start timestamp.
@@ -796,6 +811,25 @@ Detailed telemetry for every Google Gemini API call.
 - `success` (INTEGER, NOT NULL): 1 = Success, 0 = Failed.
 - `http_status` (INTEGER): HTTP status code (200, 429, 500).
 
+#### 23. `user_quota_settings`
+Custom user/admin Google AI Studio rate-limit allocations and custom quotas.
+- `user_id` (TEXT, PK, FK $\to$ `users.id` ON DELETE CASCADE).
+- `custom_rpm` (INTEGER): Custom requests per minute limit.
+- `custom_tpm` (INTEGER): Custom tokens per minute limit.
+- `custom_rpd` (INTEGER): Custom requests per day limit.
+- `updated_at` (TEXT, NOT NULL): Last quota update timestamp.
+
+#### 24. `experiment_benchmarks`
+In-app benchmarking records evaluating accuracy, latency, and token consumption across model versions.
+- `id` (TEXT, PK): Benchmark identifier (`bmk_01j7...`).
+- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
+- `model_name` (TEXT, NOT NULL): Evaluated model (e.g., `"gemini-3.8-flash"`).
+- `paper_count` (INTEGER, NOT NULL): Number of test papers graded.
+- `avg_duration_sec` (REAL, NOT NULL): Average latency per paper.
+- `total_cost` (REAL, NOT NULL): Paid-equivalent API cost in USD.
+- `accuracy_score` (REAL): Benchmark score against ground-truth rubrics.
+- `created_at` (TEXT, NOT NULL): Benchmark execution timestamp.
+
 ---
 
 ### 5.5 Master Entity-Relationship (ER) Diagram
@@ -803,16 +837,30 @@ Detailed telemetry for every Google Gemini API call.
 ```mermaid
 erDiagram
     institutes ||--o{ branches : "operates"
+    branches ||--o{ subjects : "offers"
     branches ||--o{ users : "employs"
     branches ||--o{ batches : "manages"
     batches ||--o{ students : "enrolls"
     users ||--o| students : "claims identity"
+    users ||--o| user_quota_settings : "configures"
     branches ||--o{ exams : "schedules"
+    exams ||--o{ exam_batches : "maps"
+    batches ||--o{ exam_batches : "assigned"
     exams ||--o{ rubric_versions : "revises"
     exams ||--o{ submission_windows : "defines"
     exams ||--o{ submissions : "receives"
     exams ||--o{ evaluation_queue : "enqueues"
+    exams ||--o{ experiment_benchmarks : "benchmarks"
     submissions ||--o{ answers : "contains"
+    answers ||--o{ criterion_scores : "evaluates"
+    answers ||--o{ answer_regions : "localizes"
+    submissions ||--o{ revaluation_requests : "contested by"
+    users ||--o{ notifications : "receives"
+    users ||--o{ push_subscriptions : "registers"
+    users ||--o{ password_reset_requests : "submits"
+    users ||--o{ technical_reports : "files"
+    users ||--o{ audit_logs : "records"
+    exams ||--o{ api_usage_events : "tracks"
     answers ||--o{ criterion_scores : "evaluates"
     answers ||--o{ answer_regions : "localizes"
     submissions ||--o{ revaluation_requests : "contested by"
@@ -942,28 +990,31 @@ Google AI Studio enforces Requests Per Minute (RPM) and Requests Per Day (RPD) c
 - If an HTTP `429 RESOURCE_EXHAUSTED` error is encountered, the client immediately switches to the next key in the ring, applying jittered exponential backoff:
   $$t_{\text{sleep}} = 1.5^{\text{attempt}} + \text{Uniform}(0.1, 0.5)$$
 
-### 6.3 4-Tier Model Fallback Cascade
-If all configured keys exhaust their quota on the primary model, the client cascades gracefully down a 4-tier model hierarchy:
-$$\text{gemini-3.8-flash (Primary)} \longrightarrow \text{gemini-3.5-flash-lite} \longrightarrow \text{gemini-flash-lite-latest} \longrightarrow \text{gemini-1.5-flash}$$
-This guarantees that student grading queues never halt completely during unexpected campus upload surges.
+### 6.3 3-Tier Full-Flash Model Cascade (3.8 -> 3.6 -> 3.5)
+If all configured keys exhaust their quota on the primary model, the client cascades gracefully down a 3-tier full-Flash hierarchy:
+$$\text{gemini-3.8-flash (Primary)} \longrightarrow \text{gemini-3.6-flash (Tier 1 Fallback)} \longrightarrow \text{gemini-3.5-flash (Tier 2 Fallback)}$$
+
+- **Strict Exclusion of Lite/1.5 Models for Answer Sheet Grading**: In earlier iterations, lightweight models (`gemini-3.5-flash-lite`, `gemini-1.5-flash`) were tested as fallbacks. However, forensic analysis revealed that lite models suffered severe cursive handwriting transcription errors, hallucinated mathematical signs, and enforced hard 8,192 token output ceilings. In [`backend/app/gemini/client.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/client.py#L61), all `-lite` and `1.5` models are strictly filtered out of the full grading cascade.
+- **Targeted Single-Answer Re-Evaluation**: For re-evaluating an isolated disputed question crop (`POST /api/grading/answers/{sub_id}/{ans_id}/reevaluate`), where the payload is small and focused, the client utilizes `GEMINI_REEVAL_MODEL = "gemini-3.5-flash-lite"` (with fallback to `gemini-3.5-flash`) with a compact `max_output_tokens = 8192`.
 
 ---
 
 ### 6.4 The 8,192 vs 65,536 Output Token Ceiling Forensic Analysis
 During large-scale production testing on complex board examinations (e.g., 16 questions, ~50 criteria evaluated across 7–10 handwritten pages), evaluations repeatedly experienced a critical failure mode:
 1. **The 8,192 Token Barrier**: Standard LLM generation configs default `max_output_tokens=8192`.
-2. **Token Inflation Under Vision Reasoning**: When Gemini processes multiple high-resolution PDF pages with `thinking_budget=1024`, transcribes full student handwriting, quotes evidence for 50 criteria, and generates 4 floating-point coordinates for each bounding box, the required JSON response payload reaches **9,000 to 14,000 output tokens**.
+2. **Token Inflation Under Vision Reasoning**: When Gemini processes multiple high-resolution PDF pages with `thinking_budget=4096`, transcribes full student handwriting, quotes evidence for 50 criteria, and generates 4 floating-point coordinates for each bounding box, the required JSON response payload reaches **9,000 to 14,000 output tokens**.
 3. **The Silent Truncation Trap**: At token 8,192, Google's API terminates the output stream cleanly with `finish_reason='MAX_TOKENS'`. The stream ends abruptly mid-JSON (typically around question 12 or 13), causing Pydantic schema validation to fail with `ValidationError: EOF while parsing a value at line 742 column 15`.
-4. **The Resolution**: In [`backend/app/gemini/client.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/client.py#L509), the token ceiling was explicitly raised to:
+4. **The Resolution**: In [`backend/app/gemini/client.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/client.py#L694), the student grading configuration enforces:
    ```python
    config = types.GenerateContentConfig(
        max_output_tokens=65536,
-       temperature=0.1,
+       temperature=0.0,
        response_mime_type="application/json",
        response_schema=StudentGradingExtractionResult,
+       thinking_config=types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET),
    )
    ```
-   Expanding to 65,536 tokens provides ample runway for even the most extensive 20-page examination answer scripts.
+   Expanding to 65,536 tokens provides ample runway for even the most extensive 20-page examination answer scripts, while `temperature=0.0` guarantees deterministic evaluation repeatability.
 
 ---
 
@@ -1160,11 +1211,11 @@ Whenever a teacher adjusts marks or edits transcription text:
 
 The storage subsystem ([`backend/app/services/storage.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/storage.py)) provides a resilient hybrid storage tier.
 
-### 9.1 Storage Abstraction (`UnifiedStorageService`)
-The service supports multiple backends configured via `STORAGE_BACKEND`:
-- **Local Cache First**: Files uploaded or generated are cached under `backend/data/`.
-- **Cloudinary CDN**: In cloud deployments (Render/Vercel), assets are automatically synced to Cloudinary under structured folders (`papergrade/submissions/{exam_id}/{roll_number}/`).
-- **Cloudflare R2 / S3**: High-throughput object storage using standard S3 API credentials.
+### 9.1 Storage Abstraction (`StorageService` Hierarchy)
+The storage subsystem exposes an abstract interface [`StorageService`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/storage.py#L9) with runtime implementations resolved via `get_storage_service()`:
+- **`LocalStorageService`**: Files uploaded or generated are stored locally under `backend/data/` for local development and offline environments.
+- **`CloudinaryStorageService`**: In production cloud deployments (Render/Vercel), assets are synced to Cloudinary under structured folders (`papergrade/submissions/{exam_id}/{roll_number}/`).
+- **`CloudflareR2StorageService`**: High-throughput S3-compatible object storage configured via `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
 
 ### 9.2 Mobile Photo EXIF Normalization
 When mobile cameras capture answer sheets, EXIF orientation metadata often causes raw image bytes to display rotated $90^\circ$ or $180^\circ$.
@@ -1173,10 +1224,11 @@ When mobile cameras capture answer sheets, EXIF orientation metadata often cause
 
 ### 9.3 15-Day Retention Policy (TTL) Architecture
 To comply with student privacy policies (FERPA/GDPR) and keep cloud storage costs near zero:
-- Submissions are stamped with `retention_expires_at = now() + 15 days`.
-- The scheduled retention purge engine (`POST /api/v1/storage/purge-expired`) scans for expired submissions where `is_document_purged = 0`.
-- The engine unlinks the raw scanned PDF and annotated PDF from disk and deletes them from Cloudinary CDN via the Admin API.
-- `is_document_purged` is set to `1`.
+- Submissions are stamped with `retention_expires_at = graded_at + 15 days` (the retention clock starts strictly when grading completes; un-evaluated submissions waiting in queue do not decay).
+- The scheduled retention purge engine (`POST /api/v1/submissions/purge-expired`) scans for expired submissions where `is_document_purged = 0`.
+- The engine unlinks the raw scanned PDF and annotated PDF from disk and deletes them from Cloudinary / R2 via Admin API credentials.
+- Rendered page images, crop previews, and bounding box coordinates (`answer_regions`) are deleted to conserve disk and database space.
+- `is_document_purged` is set to `1`, and path columns are nulled.
 - **All numerical marks, question-by-question criteria breakdowns, and teacher audit logs are permanently preserved** in the database.
 
 ---
@@ -1221,50 +1273,85 @@ To alert active users without bundling heavy audio asset files (MP3/WAV) or trig
 
 ## 11. Exhaustive Backend API Router Catalog
 
-The backend exposes 32+ endpoints across 13 dedicated routers:
+The backend exposes 50+ endpoints across 13 dedicated routers plus root utility routes:
 
 | Router | Method | Endpoint Path | Access Level | Description & Architectural Rationale |
 | :--- | :--- | :--- | :--- | :--- |
-| **Auth** | `POST` | `/api/v1/auth/login` | Public | Authenticates root admins, branch managers, and teachers; returns signed JWT. |
-| | `POST` | `/api/v1/auth/student-login` | Public | Student roll-number and PIN authentication for direct portal access. |
+| **Auth** | `POST` | `/api/v1/auth/login` | Public | Authenticates root admins, branch managers, and students; returns signed JWT. |
+| | `POST` | `/api/v1/auth/claim-account` | Public | Student claims pre-seeded roster account using roll-number and PIN. |
 | | `GET` | `/api/v1/auth/me` | Authenticated | Fetches current user profile, branch affiliation, and role permissions. |
-| | `POST` | `/api/v1/auth/request-password-reset` | Student | Submits student password reset request for branch manager approval. |
-| | `GET` | `/api/v1/auth/password-reset-requests` | Branch Manager | Lists pending student password reset requests within the manager's branch. |
-| | `POST` | `/api/v1/auth/approve-password-reset` | Branch Manager | Approves reset request and generates one-time cryptographic reset token. |
+| | `POST` | `/api/v1/auth/forgot-password/request`| Public | Initiates student password reset request for branch manager review. |
+| | `GET` | `/api/v1/auth/password-resets` | Branch Manager | Lists pending student password reset requests within manager's branch. |
+| | `POST` | `/api/v1/auth/password-resets/{id}/approve` | Branch Manager | Approves reset request and generates one-time cryptographic token. |
+| | `POST` | `/api/v1/auth/password-resets/{id}/reject` | Branch Manager | Rejects reset request with audit comment. |
+| | `POST` | `/api/v1/auth/create-user` | Root Admin | Manually provisions a new administrative or manager account. |
+| | `GET` | `/api/v1/auth/users` | Root/Manager | Lists registered users filtered by branch and role. |
 | **Tenancy** | `GET` | `/api/v1/tenancy/institutes` | Root Admin | Lists all enrolled educational institutions. |
-| | `GET` | `/api/v1/tenancy/branches` | Root Admin | Lists all campuses across all institutions. |
+| | `POST` | `/api/v1/tenancy/institutes` | Root Admin | Provisions a new institutional tenant. |
+| | `GET` | `/api/v1/tenancy/branches` | Authenticated | Lists campuses (scoped by institute or user permissions). |
 | | `POST` | `/api/v1/tenancy/branches` | Root Admin | Provisions a new campus with unique code and geographical location. |
+| | `GET` | `/api/v1/tenancy/subjects` | Authenticated | Lists academic courses and subjects scoped to branch. |
+| | `POST` | `/api/v1/tenancy/institutes/{id}/subjects` | Root Admin | Adds an official course/subject definition. |
+| | `GET` | `/api/v1/tenancy/batches` | Manager/Admin | Lists academic student batches. |
+| | `POST` | `/api/v1/tenancy/batches` | Branch Manager | Provisions an academic cohort/batch within a branch. |
+| | `GET` | `/api/v1/tenancy/batches/{id}/students` | Manager/Admin | Roster lookup of enrolled students in a cohort. |
+| | `POST` | `/api/v1/tenancy/batches/{id}/students` | Branch Manager | Enrolls a student with official roll-number and PIN. |
+| | `POST` | `/api/v1/tenancy/batches/{id}/import-students`| Branch Manager | Bulk CSV ingestion of class rosters with roll-number deduplication. |
 | **Exams** | `GET` | `/api/v1/exams` | Manager/Admin | Lists exams scoped to user branch; batch-loads window status in 1 query. |
 | | `POST` | `/api/v1/exams` | Manager/Admin | Creates exam record; uploads question paper. |
 | | `GET` | `/api/v1/exams/{id}` | Manager/Admin | Fetches exam details, rubric versions, section rules, and evaluation stats. |
 | | `DELETE`| `/api/v1/exams/{id}` | Root Admin | **Cascade Deletion**: Permanently purges exam, rubrics, submissions, and CDN assets. |
-| | `POST` | `/api/v1/exams/{id}/upload-key` | Root Admin | Uploads official answer key; executes agentic Gemini rubric extraction. |
+| | `POST` | `/api/v1/exams/{id}/answer-key` | Root Admin | Uploads official answer key PDF. |
+| | `POST` | `/api/v1/exams/{id}/question-paper` | Manager/Admin | Uploads or replaces master question paper PDF. |
+| | `POST` | `/api/v1/exams/{id}/generate-rubric` | Root Admin | Executes agentic Gemini multimodal rubric extraction. |
 | | `POST` | `/api/v1/exams/{id}/rubric/approve` | Root Admin | Locks approved rubric version as immutable evaluation contract. |
 | | `POST` | `/api/v1/exams/{id}/rubric/unlock` | Root Admin | Unlocks rubric back to draft state for modifications. |
-| | `POST` | `/api/v1/exams/{id}/evaluate` | Manager/Admin | Enqueues all active submissions into the background evaluation queue. |
+| | `POST` | `/api/v1/exams/{id}/start-evaluation` | Manager/Admin | Enqueues all active submissions into the background evaluation queue. |
 | | `POST` | `/api/v1/exams/{id}/publish` | Manager/Admin | Publishes finalized results to student portal. |
 | | `GET` | `/api/v1/exams/{id}/evaluation-status` | Manager/Admin | High-speed (<5ms) polling endpoint for real-time evaluation progress bar. |
+| | `GET` | `/api/v1/exams/{id}/rankings` | Manager/Admin | Calculates and returns class rankings and score distribution. |
 | **Submissions** | `GET` | `/api/v1/submissions` | Authenticated | Lists submissions with role-based filtering (students see only own records). |
-| | `POST` | `/api/v1/submissions/upload` | Manager/Admin | Multipart upload of student answer sheets; normalizes EXIF and merges PDFs. |
+| | `POST` | `/api/v1/submissions/{exam_id}/upload-single` | Authenticated | Ingests student answer sheet (single PDF or multiple images); merges upright. |
+| | `POST` | `/api/v1/submissions/{exam_id}/request-upload` | Authenticated | Initiates chunked/presigned upload session for heavy PDFs. |
+| | `POST` | `/api/v1/submissions/{exam_id}/confirm-upload` | Authenticated | Verifies uploaded asset and creates queued submission. |
 | | `GET` | `/api/v1/submissions/{id}` | Authenticated | Returns detailed evaluation breakdown with criteria, bboxes, and transcripts. |
-| **Grading** | `POST` | `/api/v1/grading/override` | Teacher/Admin | Records manual teacher override, updates scores, and logs immutable audit trail. |
-| **Windows** | `POST` | `/api/v1/windows/open` | Branch Manager | Opens timed submission window with defined duration (e.g. 30m) and grace period. |
+| | `GET` | `/api/v1/submissions/exam/{exam_id}` | Manager/Admin | Lists all student submissions enrolled under an exam. |
+| | `POST` | `/api/v1/submissions/purge-expired` | Root Admin | Triggers scheduled or manual sweep of the 15-day storage retention purge engine. |
+| **Grading** | `POST` | `/api/grading/answers/{sub_id}/{ans_id}/edit` | Teacher/Admin | Records manual teacher override, updates scores, and logs immutable audit trail. |
+| | `POST` | `/api/grading/answers/{sub_id}/{ans_id}/reevaluate` | Teacher/Admin | Targeted second-opinion re-evaluation of an answer crop via Gemini Flash-Lite. |
+| | `POST` | `/api/grading/regions/{sub_id}/{reg_id}/edit` | Teacher/Admin | Updates bounding box coordinates after instructor drags handles on canvas. |
+| | `POST` | `/api/grading/regions/{sub_id}/add` | Teacher/Admin | Manually draws and registers a new answer region bounding box. |
+| | `DELETE`| `/api/grading/regions/{sub_id}/{reg_id}` | Teacher/Admin | Deletes an invalid or false-positive bounding box region. |
+| | `GET` | `/api/grading/crop/{sub_id}/{ans_id}` | Authenticated | Serves 150 DPI cropped image of student handwriting for side-by-side modal. |
+| | `GET` | `/api/grading/page-image/{sub_id}/{page_num}`| Authenticated | Serves full 150 DPI raster image of a student answer page. |
+| **Windows** | `POST` | `/api/v1/windows/{exam_id}/open` | Branch Manager | Opens timed submission window with defined duration (e.g. 30m) and grace period. |
 | | `GET` | `/api/v1/windows/{exam_id}/status` | Authenticated | Returns exact seconds remaining for real-time PWA countdown timers. |
-| | `POST` | `/api/v1/windows/{exam_id}/close` | Branch Manager | Manually closes active submission window with logged reason. |
+| | `POST` | `/api/v1/windows/{exam_id}/close` | Branch Manager | Administratively hard-closes active window, cutting off student uploads. |
 | | `POST` | `/api/v1/windows/{exam_id}/reopen` | Branch Manager | Reopens window for unsubmitted students with audit justification. |
-| **Revaluation** | `POST` | `/api/v1/revaluation/requests` | Student | Files 7-day student revaluation dispute on specific questions with rationale. |
-| | `GET` | `/api/v1/revaluation/requests` | Manager/Admin | Lists pending revaluation requests for teacher review. |
-| | `PUT` | `/api/v1/revaluation/requests/{id}/resolve`| Manager/Admin | Approves or rejects dispute, adjusting awarded marks and notifying student. |
-| **Exports** | `GET` | `/api/exports/pdf/{sub_id}` | Authenticated | Streams PyMuPDF vector-annotated PDF (blocked for students until published). |
+| **Revaluation** | `POST` | `/api/v1/revaluation/{sub_id}/request` | Student | Files 7-day student revaluation dispute on specific questions with rationale. |
+| | `GET` | `/api/v1/revaluation/my-requests` | Student | Lists student's own filed revaluation disputes and statuses. |
+| | `GET` | `/api/v1/revaluation/requests` | Manager/Admin | Lists pending revaluation requests across campus for teacher review. |
+| | `POST` | `/api/v1/revaluation/{request_id}/resolve` | Manager/Admin | Approves or rejects dispute, adjusting awarded marks and notifying student. |
+| **Exports** | `GET` | `/api/exports/pdf/{sub_id}` | Authenticated | Streams PyMuPDF vector-annotated PDF (blocked for students until published; 410 if purged). |
 | | `GET` | `/api/exports/marks-csv/{exam_id}` | Manager/Admin | Generates and streams complete class scorecard in CSV format. |
 | | `GET` | `/api/exports/batch-zip/{batch_id}` | Manager/Admin | Compiles all graded PDFs for an entire batch into a downloadable ZIP archive. |
-| **Notifications** | `GET` | `/api/v1/notifications` | Authenticated | Fetches user in-app notifications. |
+| **Notifications**| `GET` | `/api/v1/notifications` | Authenticated | Fetches user in-app notifications. |
 | | `POST` | `/api/v1/notifications/push-subscription` | Authenticated | Registers client device VAPID push token for browser push delivery. |
+| | `POST` | `/api/v1/notifications/push-unsubscribe` | Authenticated | Revokes registered browser push subscription. |
+| | `GET` | `/api/v1/notifications/vapid-public-key` | Authenticated | Returns VAPID public key for browser push registration. |
+| | `POST` | `/api/v1/notifications/{id}/read` | Authenticated | Marks a single notification as read. |
+| | `POST` | `/api/v1/notifications/read-all` | Authenticated | Marks all user notifications as read in one batch. |
 | **Reports** | `POST` | `/api/v1/reports` | Authenticated | Submits technical issue report with up to 3 screenshots (max 500KB each). |
+| | `GET` | `/api/v1/reports/my` | Authenticated | Lists issues submitted by current user. |
+| | `GET` | `/api/v1/reports` | Root Admin | Administrative ticket triage queue across all tenants. |
+| | `PATCH` | `/api/v1/reports/{report_id}` | Root Admin | Updates ticket status (`IN_PROGRESS`, `RESOLVED`) with admin notes. |
 | **Students** | `GET` | `/api/v1/student/portal-state` | Student | Unified high-performance endpoint with 4-second in-memory caching. |
+| | `GET` | `/api/v1/student/past-submissions` | Student | Paginated past exams endpoint for student portal infinite scrolling. |
 | **Analytics** | `GET` | `/api/v1/analytics/telemetry` | Root Admin | Real-time token consumption, latency percentiles ($P_{50}, P_{95}$), and costs. |
-| | `GET` | `/api/v1/analytics/feasibility` | Root Admin | Cost and rate-limit feasibility projections for 40 and 50 paper batches. |
-| **Storage** | `POST` | `/api/v1/storage/purge-expired` | Root Admin | Triggers manual sweep of the 15-day storage retention purge engine. |
+| | `POST` | `/api/v1/analytics/quota-settings` | Root Admin | Updates custom RPM, TPM, and RPD limits per user. |
+| | `POST` | `/api/v1/analytics/benchmark` | Root Admin | Triggers model benchmarking run on test exams. |
+| **Storage** | `GET` | `/api/v1/storage/download` | Authenticated | Generates pre-signed GET URL for direct-from-storage asset retrieval. |
+| | `PUT` | `/api/v1/storage/upload` | Authenticated | Direct pre-signed upload handler for large binary objects. |
 
 ---
 
@@ -1278,13 +1365,29 @@ frontend/src/
 ├── app/
 │   ├── layout.tsx                 # Root layout with font, theme & global context providers
 │   ├── page.tsx                   # Interactive landing page with role-based auto-redirect
-│   ├── admin/                     # Root Admin console (institutes, branches, global metrics)
-│   ├── exams/                     # Exam management hub & creation wizards
-│   │   └── [id]/                  # Exam detail, rubric studio, submissions table
-│   │       └── submissions/[subId]# Spatial Document Canvas & inspection studio
-│   ├── student/                   # Student PWA portal with window countdown timers
-│   │   └── portal/                # Mobile-optimized student dashboard & past exams portal
+│   ├── admin/
+│   │   ├── tenancy/               # Tenancy & campus infrastructure manager (institutes, branches, subjects)
+│   │   └── reports/               # Technical issue reports and triage dashboard
+│   ├── auth/
+│   │   ├── login/                 # Unified credentials login portal
+│   │   └── claim/                 # Student roll-number & PIN account claim
+│   ├── batches/                   # Academic cohort management & CSV roster enrollment
+│   │   └── [id]/                  # Batch detail & student roster table
+│   ├── branch/batches/            # Campus-scoped batch workspaces
+│   ├── exams/                     # Exam creation wizard & management hub
+│   │   ├── new/                   # Multi-step exam creation flow
+│   │   └── [id]/                  # Exam overview, key upload, window controls & submissions
+│   │       └── rubric/            # Interactive rubric studio & version approval
+│   ├── grading/                   # Teacher inspection hub
+│   │   └── [id]/                  # Spatial Document Canvas & inspection studio (by submission ID)
+│   ├── marks/                     # Class scorecards & export studio
+│   ├── results/[id]/              # Published exam rankings & student performance distributions
+│   ├── student/
+│   │   ├── portal/                # Mobile-optimized PWA student dashboard & past exams
+│   │   ├── exams/                 # Active student exam listing
+│   │   └── submissions/[id]/      # Student view of evaluated paper & dispute filing
 │   ├── revaluation/               # Revaluation dispute management interface
+│   ├── notifications/             # Full-page notification history
 │   └── analytics/                 # Telemetry dashboards, token charts, cost calculators
 ├── components/
 │   ├── DocumentViewer.tsx         # 1,480-line Spatial Document Canvas with 8-handle bbox resize
@@ -1292,6 +1395,9 @@ frontend/src/
 │   ├── RubricEditor.tsx           # Interactive rubric point editor & approval controls
 │   ├── MarksTable.tsx             # Sortable student scorecard table with review badges
 │   ├── NotificationDrawer.tsx     # Sliding notification center with Web Audio chime engine
+│   ├── ExamRankedTable.tsx        # Published exam class rankings table
+│   ├── ReportIssueModal.tsx       # Multi-screenshot technical issue reporter
+│   ├── ServiceWorkerRegister.tsx  # PWA service worker & closed-app push interceptor
 │   └── ui/
 │       ├── AppleSelect.tsx        # Viewport-aware portal dropdown with Apple ease physics
 │       ├── AppleNumberStepper.tsx # Accelerated micro-stepper with tactile scaling & direct input
@@ -1301,6 +1407,8 @@ frontend/src/
     ├── queryKeys.ts               # Centralized TanStack React Query key factory
     ├── QueryProvider.tsx          # Hydration boundary & query client provider
     ├── TenantContext.tsx          # Multi-tenant branch scoping state
+    ├── NotificationContext.tsx    # Unread counter, drawer state & push sync
+    ├── ThemeContext.tsx           # Theme switcher state
     ├── ConfirmContext.tsx         # Enterprise confirmation dialog provider
     ├── ToastContext.tsx           # Action-linked toast notifications
     └── types.ts                   # Unified TypeScript interfaces matching backend Pydantic models
@@ -1311,6 +1419,8 @@ frontend/src/
 - **`ToastContext`**: Provides feedback toasts with custom icons, progress timers, and undo action hooks.
 - **`ConfirmContext`**: Prevents accidental destructive actions (e.g., cascade exam deletion, closing submission windows) via modal dialogs.
 - **`BreadcrumbContext`**: Maintains synchronized breadcrumb trails, shortening long UUIDs to 8 characters during loading states to prevent layout overflow.
+- **`NotificationContext`**: Coordinates in-app alert badges, unread counts, audio chime playback, and push subscription synchronizations.
+- **`ThemeContext`**: Manages responsive system and dark-mode styling across all client components.
 
 ### 12.3 Zero-Flicker SSR Auth Verification
 To prevent the jarring "logged-out redirect flicker" on page refresh:
@@ -1465,30 +1575,48 @@ PORT=8000
 DATABASE_URL=postgresql://postgres.xxx:xxx@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require
 
 # ==============================================================================
-# GOOGLE GEMINI MULTI-KEY FAILOVER RING
+# GOOGLE GEMINI MULTI-KEY FAILOVER RING & VERTEX AI
 # ==============================================================================
 GEMINI_API_KEY=AIzaSyA_PrimaryKey...
 GEMINI_API_KEY_2=AIzaSyB_SecondaryKey...
 GEMINI_API_KEY_3=AIzaSyC_TertiaryKey...
 GEMINI_API_KEY_4=AIzaSyD_QuaternaryKey...
+MAX_ACTIVE_GEMINI_KEYS=4
 GEMINI_MODEL=gemini-3.8-flash
-GEMINI_THINKING_BUDGET=1024
+GEMINI_FALLBACK_MODEL_1=gemini-3.6-flash
+GEMINI_FALLBACK_MODEL_2=gemini-3.5-flash
+GEMINI_REEVAL_MODEL=gemini-3.5-flash-lite
+GEMINI_THINKING_BUDGET=4096
+
+# Optional: Google Cloud Paid Vertex AI Service Account
+GCP_PROJECT_ID=your_gcp_project_id
+GCP_LOCATION=us-central1
+GCP_SERVICE_ACCOUNT_PATH=backend/credentials/gcp_service_account.json
 
 # ==============================================================================
 # WORKER POOL & STORAGE LIFECYCLE
 # ==============================================================================
-MAX_EVALUATION_WORKERS=3
+MAX_EVALUATION_WORKERS=2
 SUBMISSION_RETENTION_DAYS=15
 WINDOW_DURATION_MINUTES=30
 GRACE_PERIOD_MINUTES=2
 
 # ==============================================================================
-# CLOUDINARY CDN (OBJECT STORAGE)
+# OBJECT STORAGE BACKENDS (CLOUDINARY / CLOUDFLARE R2 / LOCAL)
 # ==============================================================================
 STORAGE_BACKEND=cloudinary
+
+# Cloudinary CDN Credentials
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+
+# Cloudflare R2 / S3 Credentials (Alternative to Cloudinary)
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET_NAME=papergrade-bucket
+R2_PUBLIC_URL=https://pub-xxx.r2.dev
 
 # ==============================================================================
 # W3C BROWSER WEB PUSH (VAPID KEYS)
@@ -1520,6 +1648,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=10080
 - **Build Command**: `npm run build`
 - **Environment Variables**:
   - `NEXT_PUBLIC_API_URL=https://your-backend-service.onrender.com`
+  - `NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_vapid_public_key`
 
 ---
 
@@ -1566,7 +1695,7 @@ PaperGrade AI divides platform data across three distinct storage tiers to achie
 flowchart TD
     subgraph Tier1["Tier 1: Relational State (PostgreSQL / SQLite WAL)"]
         direction TB
-        T1_Meta["20 Core Normalized Tables<br/>Institutes, Branches, Users, Exams, Rubrics"]
+        T1_Meta["24 Normalized Tables across 5 Domains<br/>Institutes, Branches, Subjects, Users, Batches, Exams"]
         T1_Scores["Granular Score Data<br/>Criteria Breakdown, Section Sums, Audit Trail"]
         T1_Invar["Permanent Retention Invariant<br/>Preserved Indefinitely for Historical BI"]
     end
@@ -1593,7 +1722,7 @@ flowchart TD
 ```
 
 1. **Relational Tier (PostgreSQL 15+ / SQLite 3 WAL)**:
-   - Houses all system state across 20 normalized tables (`institutions`, `branches`, `users`, `exams`, `rubrics`, `submissions`, `evaluations`, `overrides`, `audit_trail`, `telemetry`).
+   - Houses all system state across 24 normalized tables (`institutes`, `branches`, `subjects`, `users`, `batches`, `students`, `exams`, `exam_batches`, `submission_windows`, `rubric_versions`, `submissions`, `answers`, `answer_regions`, `criterion_scores`, `evaluation_queue`, `revaluation_requests`, `notifications`, `push_subscriptions`, `password_reset_requests`, `technical_reports`, `audit_logs`, `api_usage_events`, `user_quota_settings`, `experiment_benchmarks`).
    - Handles ACID transactions, row-level concurrency claims (`FOR UPDATE SKIP LOCKED`), and structured criteria score breakdowns.
 2. **Local SSD Processing Buffer (`backend/data/uploads/`)**:
    - High-throughput scratchpad for EXIF transposition, multi-image merging, 150 DPI page rendering, and PyMuPDF vector drawing.
@@ -1607,30 +1736,31 @@ flowchart TD
 ### 15.2 15-Day TTL Cascade Purge Engine Mechanics
 To satisfy educational data privacy regulations (FERPA, GDPR) and eliminate unbounded cloud storage costs, the platform implements an automated document purge lifecycle:
 
-$$\text{retention\_expires\_at} = t_{\text{submission}} + 15 \times 86400\,\text{seconds}$$
+$$\text{retention\_expires\_at} = t_{\text{graded}} + 15 \times 86400\,\text{seconds}$$
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Cron as Scheduled Purge Daemon
-    participant API as Storage Router (POST /purge-expired)
+    participant API as Submissions Router (POST /api/v1/submissions/purge-expired)
     participant DB as Relational Database
     participant CDN as Cloudinary / R2 CDN
     participant Disk as Local File Storage
 
     Cron->>API: Trigger Expired Purge Sweep
-    API->>DB: SELECT id, file_path, annotated_file_path FROM submissions WHERE retention_expires_at <= NOW() AND is_document_purged = 0
+    API->>DB: SELECT id, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE retention_expires_at <= NOW() AND is_document_purged = 0
     DB-->>API: Return Expired Submissions List
     loop For Each Expired Submission
         API->>Disk: os.remove(local_pdf_path) (if cached)
         API->>CDN: uploader.destroy(public_id, resource_type='raw')
-        API->>DB: UPDATE submissions SET is_document_purged = 1, file_path = NULL, annotated_file_path = NULL WHERE id = :id
+        API->>DB: DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = :id)
+        API->>DB: UPDATE submissions SET is_document_purged = 1, canonical_pdf_path = NULL, annotated_pdf_path = NULL WHERE id = :id
     end
     API-->>Cron: Purge Summary (Total Reclaimed Bytes, Purged Records)
 ```
 
 - **Physical Media Deletion**: Both the raw student scan PDF and the vector-annotated PDF are unlinked from local disk and destroyed in the cloud CDN via Admin API credentials.
-- **Database Tombstone**: The `is_document_purged` flag is set to `1`, and path columns are set to `NULL`.
+- **Database Tombstone**: The `is_document_purged` flag is set to `1`, path columns are set to `NULL`, and coordinate bounding boxes in `answer_regions` are dropped to conserve database space.
 - **Student Portal UX**: If a student accesses an expired exam paper in the portal, the spatial viewer displays an informative *"Document archived under 15-day retention policy"* banner while still rendering their complete numerical score and question-by-question performance breakdown.
 
 ---
@@ -1643,9 +1773,9 @@ A core architectural guarantee of PaperGrade AI is that **document purge does no
 | **Raw Scanned PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Temporary grading evidence & immediate student review. |
 | **Annotated Graded PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Downloadable vector report card during verification window. |
 | **Final Marks & Percentages** | Relational DB (`submissions`) | **Permanent ($\infty$)** | Official student academic records, GPA calculation, transcripts. |
-| **Question-by-Question Breakdown** | Relational DB (`submission_evaluations`) | **Permanent ($\infty$)** | Item difficulty analysis, curriculum defect identification. |
-| **Criteria-Level Marks & Rubrics** | Relational DB (`evaluation_criteria_results`)| **Permanent ($\infty$)** | Pedagogical scoring distribution, rubric fairness auditing. |
-| **Teacher Override Trail** | Relational DB (`teacher_manual_overrides`)| **Permanent ($\infty$)** | Immutable accountability audit logs for institutional compliance. |
+| **Question-by-Question Breakdown** | Relational DB (`answers`) | **Permanent ($\infty$)** | Item difficulty analysis, curriculum defect identification. |
+| **Criteria-Level Marks & Rubrics** | Relational DB (`criterion_scores`)| **Permanent ($\infty$)** | Pedagogical scoring distribution, rubric fairness auditing. |
+| **Teacher Override Trail** | Relational DB (`audit_logs`) | **Permanent ($\infty$)** | Immutable accountability audit logs for institutional compliance. |
 | **LLM Inference Telemetry** | Relational DB (`api_usage_events`) | **Permanent ($\infty$)** | Historical cost tracking, latency percentiles, quota planning. |
 
 #### Continuous Business Intelligence Capabilities
