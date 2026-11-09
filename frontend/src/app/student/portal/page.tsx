@@ -1294,18 +1294,34 @@ export default function StudentPortalPage() {
   const [paginatedPastExams, setPaginatedPastExams] = useState<any[]>([]);
   const [pastExamsPage, setPastExamsPage] = useState<number>(1);
   const [hasMorePastExams, setHasMorePastExams] = useState<boolean>(true);
-  const [isPastExamsInitialLoading, setIsPastExamsInitialLoading] = useState<boolean>(true);
+  const [isPastExamsInitialLoading, setIsPastExamsInitialLoading] = useState<boolean>(false);
   const [isLoadingMorePastExams, setIsLoadingMorePastExams] = useState<boolean>(false);
   const [pastExamsTotal, setPastExamsTotal] = useState<number>(0);
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Fetch batches with API & fallback
-  const fetchPastExamsBatch = useCallback(
-    async (pageToFetch: number, isInitial = false) => {
-      if (isInitial) {
+  // Refs to avoid tearing down observers or triggering infinite loops on countdowns/polling
+  const isLoadingMoreRef = useRef<boolean>(false);
+  const isInitialLoadingRef = useRef<boolean>(false);
+  const pastExamsPageRef = useRef<number>(1);
+  pastExamsPageRef.current = pastExamsPage;
+  const hasMorePastExamsRef = useRef<boolean>(true);
+  hasMorePastExamsRef.current = hasMorePastExams;
+
+  const filteredPastSubmissionsRef = useRef<any[]>(filteredPastSubmissions);
+  filteredPastSubmissionsRef.current = filteredPastSubmissions;
+
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const activeFilterKeyRef = useRef<string>("");
+
+  // Core batch fetching function (stable identity, unaffected by background polling or timer ticks)
+  const fetchPastExamsPage = useCallback(
+    async (pageToFetch: number, isReset = false) => {
+      if (isReset) {
         setIsPastExamsInitialLoading(true);
+        isInitialLoadingRef.current = true;
       } else {
+        if (isLoadingMoreRef.current || !hasMorePastExamsRef.current) return;
         setIsLoadingMorePastExams(true);
+        isLoadingMoreRef.current = true;
       }
 
       try {
@@ -1327,81 +1343,97 @@ export default function StudentPortalPage() {
               return [...prev, ...fresh];
             });
           }
-          setPastExamsTotal(typeof res.total === "number" ? res.total : res.items.length);
-          setHasMorePastExams(Boolean(res.has_more));
+          const totalCount = typeof res.total === "number" ? res.total : res.items.length;
+          setPastExamsTotal(totalCount);
+          const hasMore = Boolean(res.has_more);
+          setHasMorePastExams(hasMore);
+          hasMorePastExamsRef.current = hasMore;
           setPastExamsPage(pageToFetch);
+          pastExamsPageRef.current = pageToFetch;
           return;
         }
       } catch (err) {
-        console.warn("API past submissions failed, falling back to local portal data", err);
+        console.warn("API past submissions fetch failed, falling back to cached portal data", err);
+      } finally {
+        if (isReset) {
+          setIsPastExamsInitialLoading(false);
+          isInitialLoadingRef.current = false;
+        } else {
+          setIsLoadingMorePastExams(false);
+          isLoadingMoreRef.current = false;
+        }
       }
 
-      // Fallback: slice from filteredPastSubmissions
+      // Fallback: slice from local filtered submissions without triggering re-render cascades
+      const localSubs = filteredPastSubmissionsRef.current || [];
       const offset = (pageToFetch - 1) * PAST_EXAMS_BATCH_SIZE;
-      const slice = filteredPastSubmissions.slice(offset, offset + PAST_EXAMS_BATCH_SIZE);
+      const slice = localSubs.slice(offset, offset + PAST_EXAMS_BATCH_SIZE);
       if (pageToFetch === 1) {
         setPaginatedPastExams(slice);
       } else {
-        setPaginatedPastExams((prev) => [...prev, ...slice]);
+        setPaginatedPastExams((prev) => {
+          const existingIds = new Set(prev.map((i) => i.id));
+          const fresh = slice.filter((i: any) => !existingIds.has(i.id));
+          return [...prev, ...fresh];
+        });
       }
-      setPastExamsTotal(filteredPastSubmissions.length);
-      setHasMorePastExams(offset + slice.length < filteredPastSubmissions.length);
+      setPastExamsTotal(localSubs.length);
+      const hasMore = offset + slice.length < localSubs.length;
+      setHasMorePastExams(hasMore);
+      hasMorePastExamsRef.current = hasMore;
       setPastExamsPage(pageToFetch);
+      pastExamsPageRef.current = pageToFetch;
     },
-    [searchQuery, examSubjectFilter, examStatusFilter, filteredPastSubmissions]
+    [searchQuery, examSubjectFilter, examStatusFilter]
   );
 
-  // Debounced fetch when Past Exams tab is active and filters/search change
+  // Only trigger reset and initial fetch when tab is "exams" and filter criteria genuinely changes
   useEffect(() => {
     if (activeTab !== "exams") return;
 
+    const filterKey = `${searchQuery.trim().toLowerCase()}|${examSubjectFilter}|${examStatusFilter}`;
+    // If the filters haven't changed and we already have loaded cards, NEVER reset or refetch!
+    if (activeFilterKeyRef.current === filterKey && paginatedPastExams.length > 0) {
+      return;
+    }
+    activeFilterKeyRef.current = filterKey;
+
     let isMounted = true;
     const timer = setTimeout(() => {
-      fetchPastExamsBatch(1, true).finally(() => {
-        if (isMounted) {
-          setIsPastExamsInitialLoading(false);
-        }
-      });
+      if (!isMounted) return;
+      fetchPastExamsPage(1, true);
     }, 200);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [activeTab, searchQuery, examSubjectFilter, examStatusFilter, fetchPastExamsBatch]);
+  }, [activeTab, searchQuery, examSubjectFilter, examStatusFilter, fetchPastExamsPage, paginatedPastExams.length]);
 
-  // Load next batch
-  const handleLoadMorePastExams = useCallback(() => {
-    if (isLoadingMorePastExams || !hasMorePastExams || isPastExamsInitialLoading) return;
-    fetchPastExamsBatch(pastExamsPage + 1, false).finally(() => {
-      setIsLoadingMorePastExams(false);
-    });
-  }, [
-    isLoadingMorePastExams,
-    hasMorePastExams,
-    isPastExamsInitialLoading,
-    pastExamsPage,
-    fetchPastExamsBatch,
-  ]);
-
-  // IntersectionObserver for infinite scrolling sentinel
+  // Sentinel IntersectionObserver for infinite scrolling (stable lifecycle)
   useEffect(() => {
-    if (activeTab !== "exams" || !hasMorePastExams || isLoadingMorePastExams || isPastExamsInitialLoading) return;
+    if (activeTab !== "exams") return;
     const el = loadMoreSentinelRef.current;
     if (!el) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          handleLoadMorePastExams();
+        const first = entries[0];
+        if (
+          first.isIntersecting &&
+          hasMorePastExamsRef.current &&
+          !isLoadingMoreRef.current &&
+          !isInitialLoadingRef.current
+        ) {
+          fetchPastExamsPage(pastExamsPageRef.current + 1, false);
         }
       },
-      { root: null, rootMargin: "300px", threshold: 0.1 }
+      { root: null, rootMargin: "250px", threshold: 0.05 }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [activeTab, hasMorePastExams, isLoadingMorePastExams, isPastExamsInitialLoading, handleLoadMorePastExams]);
+  }, [activeTab, fetchPastExamsPage]);
 
   const toggleCard = (id: string) => {
     setExpandedCardIds((prev) => ({
