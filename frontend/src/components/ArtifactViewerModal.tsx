@@ -504,7 +504,7 @@ export function ArtifactViewerModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs ${
+      className={`fixed inset-0 z-[120] flex items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs ${
         isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
       }`}
       role="dialog"
@@ -514,11 +514,11 @@ export function ArtifactViewerModal({
       <div className="fixed inset-0" onClick={handleRequestClose} aria-hidden="true" />
 
       {/* Main Container */}
-      <div className={`relative w-full max-w-5xl h-[94vh] sm:h-[90vh] flex flex-col bg-surface rounded-t-2xl sm:rounded-2xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${
+      <div className={`relative w-full max-w-5xl h-full sm:h-[90vh] max-h-[100dvh] sm:max-h-[90vh] flex flex-col bg-surface rounded-none sm:rounded-2xl shadow-notion-modal border-0 sm:border sm:border-hairline z-10 overflow-hidden ${
         isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
       }`}>
         {/* Top Header Bar */}
-        <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-b border-hairline bg-surface shrink-0">
+        <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-b border-hairline bg-surface shrink-0 pt-[max(0.625rem,env(safe-area-inset-top))]">
           <div className="flex items-center justify-between gap-2.5">
             {/* Exam info (Left) */}
             <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">

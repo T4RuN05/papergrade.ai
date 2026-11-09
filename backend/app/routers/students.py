@@ -490,9 +490,14 @@ def _fetch_past_submissions_sync(
         if not user_row:
             return {"items": [], "total": 0, "page": page, "limit": limit, "has_more": False}
 
-        student_row = session.scalar(select(Student).where(Student.user_id == user_id))
+        student_row = session.scalar(
+            select(Student)
+            .where(or_(Student.user_id == user_id, Student.email == user_row.email))
+            .order_by(Student.claimed_at.desc())
+            .limit(1)
+        )
         student_id = student_row.id if student_row else None
-        roll_number = student_row.roll_number if student_row else user_row.roll_number
+        roll_number = student_row.roll_number if student_row else None
         batch_id = student_row.batch_id if student_row else getattr(user_row, "batch_id", None)
 
         # 1. Fetch exams assigned to the student's batch

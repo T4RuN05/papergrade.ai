@@ -1410,29 +1410,55 @@ export default function StudentPortalPage() {
     };
   }, [activeTab, searchQuery, examSubjectFilter, examStatusFilter, fetchPastExamsPage, paginatedPastExams.length]);
 
-  // Sentinel IntersectionObserver for infinite scrolling (stable lifecycle)
+  // Callback ref: immediately attaches IntersectionObserver the moment sentinel mounts into the DOM
+  const sentinelObserverRef = useRef<IntersectionObserver | null>(null);
+  const sentinelCallbackRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (sentinelObserverRef.current) {
+        sentinelObserverRef.current.disconnect();
+        sentinelObserverRef.current = null;
+      }
+      if (node && activeTab === "exams") {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const first = entries[0];
+            if (
+              first.isIntersecting &&
+              hasMorePastExamsRef.current &&
+              !isLoadingMoreRef.current &&
+              !isInitialLoadingRef.current
+            ) {
+              fetchPastExamsPage(pastExamsPageRef.current + 1, false);
+            }
+          },
+          { root: null, rootMargin: "400px", threshold: 0 }
+        );
+        observer.observe(node);
+        sentinelObserverRef.current = observer;
+      }
+    },
+    [activeTab, fetchPastExamsPage]
+  );
+
+  // Window scroll fallback to guarantee detection even on touch devices / fast scrolling
   useEffect(() => {
     if (activeTab !== "exams") return;
-    const el = loadMoreSentinelRef.current;
-    if (!el) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (
-          first.isIntersecting &&
-          hasMorePastExamsRef.current &&
-          !isLoadingMoreRef.current &&
-          !isInitialLoadingRef.current
-        ) {
-          fetchPastExamsPage(pastExamsPageRef.current + 1, false);
-        }
-      },
-      { root: null, rootMargin: "250px", threshold: 0.05 }
-    );
+    const handleWindowScroll = () => {
+      if (!hasMorePastExamsRef.current || isLoadingMoreRef.current || isInitialLoadingRef.current) {
+        return;
+      }
+      const scrollHeight = document.documentElement.scrollHeight;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const clientHeight = window.innerHeight || document.documentElement.clientHeight;
 
-    observer.observe(el);
-    return () => observer.disconnect();
+      if (scrollHeight - (scrollTop + clientHeight) < 450) {
+        fetchPastExamsPage(pastExamsPageRef.current + 1, false);
+      }
+    };
+
+    window.addEventListener("scroll", handleWindowScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleWindowScroll);
   }, [activeTab, fetchPastExamsPage]);
 
   const toggleCard = (id: string) => {
@@ -1588,7 +1614,6 @@ export default function StudentPortalPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
               Welcome, {user?.full_name || "Student"}
             </h1>
-            <BadgePill label="Active Student" color="green" />
           </div>
           <div className="text-xs text-ink-muted mt-1 leading-normal flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="whitespace-nowrap">
@@ -3310,20 +3335,33 @@ export default function StudentPortalPage() {
 
         {/* Infinite Scroll Sentinel & Inline Loader */}
         <div
-          ref={loadMoreSentinelRef}
-          className="py-4 flex flex-col items-center justify-center min-h-[44px]"
+          ref={sentinelCallbackRef}
+          className="py-4 flex flex-col items-center justify-center min-h-[50px]"
         >
-          {isLoadingMorePastExams && (
+          {isLoadingMorePastExams ? (
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface border border-hairline text-xs font-medium text-ink-muted shadow-2xs animate-in fade-in duration-200">
               <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
               <span>Loading next exams...</span>
             </div>
-          )}
-          {!hasMorePastExams && paginatedPastExams.length > 0 && (
+          ) : hasMorePastExams ? (
+            <button
+              type="button"
+              onClick={() => fetchPastExamsPage(pastExamsPageRef.current + 1, false)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-primary transition-all shadow-2xs cursor-pointer select-none active:scale-95"
+            >
+              <span>Load More Exams</span>
+              {pastExamsTotal > paginatedPastExams.length && (
+                <span className="text-[10.5px] font-mono text-ink-muted">
+                  ({pastExamsTotal - paginatedPastExams.length} remaining)
+                </span>
+              )}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          ) : paginatedPastExams.length > 0 ? (
             <span className="text-[11px] font-mono text-ink-faint select-none">
               • All {pastExamsTotal} past exams loaded •
             </span>
-          )}
+          ) : null}
         </div>
       </>
     )}
