@@ -369,156 +369,188 @@ export function DocumentViewer({
   const initialPinchDistRef = useRef<number>(0);
   const initialZoomRef = useRef<number>(1);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const isSwipingRef = useRef<boolean>(false);
+  isSwipingRef.current = isSwiping;
+  const touchOffsetRef = useRef<number>(0);
+  touchOffsetRef.current = touchOffset;
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const target = e.target as HTMLElement;
-    if (
-      target.closest("[data-handle]") ||
-      target.closest("button") ||
-      target.closest("input") ||
-      target.closest("[data-prevent-swipe]")
-    ) {
-      return;
-    }
+  // Native non-passive touch listeners on viewportRef to guarantee e.preventDefault() blocks browser page scrolling when zoomed in
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
 
-    didPanRef.current = false;
-    setIsSnapping(false);
-
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      isPinchingRef.current = true;
-      setIsSwiping(false);
-      setTouchOffset(0);
-      initialPinchDistRef.current = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      initialZoomRef.current = zoomScaleRef.current;
-      return;
-    }
-
-    if (e.touches.length === 1) {
-      touchStartXRef.current = e.touches[0].clientX;
-      touchStartYRef.current = e.touches[0].clientY;
-      touchStartTimeRef.current = Date.now();
-      panStartRef.current = { ...panRef.current };
-      setIsSwiping(false);
-      setTouchOffset(0);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isPinchingRef.current && e.touches.length === 2 && initialPinchDistRef.current > 0) {
-      e.preventDefault();
-      didPanRef.current = true;
-      const currentDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const factor = currentDist / initialPinchDistRef.current;
-      const targetScale = Math.min(3.5, Math.max(1.0, Number((initialZoomRef.current * factor).toFixed(2))));
-      setZoomScale(targetScale);
-      if (targetScale <= 1.05) {
-        setPan({ x: 0, y: 0 });
-      }
-      return;
-    }
-
-    if (touchStartXRef.current === null || touchStartYRef.current === null || e.touches.length !== 1) {
-      return;
-    }
-
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const deltaX = currentX - touchStartXRef.current;
-    const deltaY = currentY - touchStartYRef.current;
-
-    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
-      didPanRef.current = true;
-    }
-
-    if (zoomScaleRef.current > 1.05) {
-      // Zoomed in: pan within active sheet
-      e.preventDefault();
-      const newX = panStartRef.current.x + deltaX;
-      const newY = panStartRef.current.y + deltaY;
-      setPan(clampPan(newX, newY, zoomScaleRef.current));
-    } else {
-      // Fit mode: slide between pages
-      if (!isSwiping && Math.abs(deltaX) > 8) {
-        if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
-          setIsSwiping(true);
-        }
+    const onTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest("[data-handle]") ||
+        target.closest("button") ||
+        target.closest("input") ||
+        target.closest("[data-prevent-swipe]")
+      ) {
+        return;
       }
 
-      if (isSwiping) {
-        const isAtStart = currentPageRef.current <= 1 && deltaX > 0;
-        const isAtEnd = currentPageRef.current >= totalPagesRef.current && deltaX < 0;
-        const damped = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
-        setTouchOffset(damped);
-      }
-    }
-  };
+      didPanRef.current = false;
+      setIsSnapping(false);
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (isPinchingRef.current) {
-      if (e.touches.length < 2) {
-        isPinchingRef.current = false;
-        initialPinchDistRef.current = 0;
-        if (zoomScaleRef.current <= 1.05) {
-          setZoomScale(1.0);
+      if (e.touches.length === 2) {
+        if (e.cancelable) e.preventDefault();
+        isPinchingRef.current = true;
+        setIsSwiping(false);
+        isSwipingRef.current = false;
+        setTouchOffset(0);
+        touchOffsetRef.current = 0;
+        initialPinchDistRef.current = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialZoomRef.current = zoomScaleRef.current;
+        return;
+      }
+
+      if (e.touches.length === 1) {
+        touchStartXRef.current = e.touches[0].clientX;
+        touchStartYRef.current = e.touches[0].clientY;
+        touchStartTimeRef.current = Date.now();
+        panStartRef.current = { ...panRef.current };
+        setIsSwiping(false);
+        isSwipingRef.current = false;
+        setTouchOffset(0);
+        touchOffsetRef.current = 0;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (isPinchingRef.current && e.touches.length === 2 && initialPinchDistRef.current > 0) {
+        if (e.cancelable) e.preventDefault();
+        didPanRef.current = true;
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = currentDist / initialPinchDistRef.current;
+        const targetScale = Math.min(3.5, Math.max(1.0, Number((initialZoomRef.current * factor).toFixed(2))));
+        setZoomScale(targetScale);
+        if (targetScale <= 1.05) {
           setPan({ x: 0, y: 0 });
         }
+        return;
       }
-      return;
-    }
 
-    if (e.touches.length === 0) {
-      const now = Date.now();
-      const elapsed = now - touchStartTimeRef.current;
+      if (touchStartXRef.current === null || touchStartYRef.current === null || e.touches.length !== 1) {
+        return;
+      }
 
-      // Double tap toggle: 1.0x <-> 2.0x
-      if (e.changedTouches.length === 1 && touchStartXRef.current !== null && touchStartYRef.current !== null) {
-        const movedDist = Math.hypot(
-          e.changedTouches[0].clientX - touchStartXRef.current,
-          e.changedTouches[0].clientY - touchStartYRef.current
-        );
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const deltaX = currentX - touchStartXRef.current;
+      const deltaY = currentY - touchStartYRef.current;
 
-        if (movedDist < 10 && elapsed < 300) {
-          if (now - lastTapTimeRef.current < 300) {
-            if (zoomScaleRef.current > 1.05) {
-              handleResetZoom();
-            } else {
-              setZoomScale(2.0);
-            }
-            lastTapTimeRef.current = 0;
-            touchStartXRef.current = null;
-            touchStartYRef.current = null;
-            return;
-          } else {
-            lastTapTimeRef.current = now;
+      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+        didPanRef.current = true;
+      }
+
+      if (zoomScaleRef.current > 1.05) {
+        // Zoomed in: pan within active sheet without scrolling parent page
+        if (e.cancelable) e.preventDefault();
+        const newX = panStartRef.current.x + deltaX;
+        const newY = panStartRef.current.y + deltaY;
+        setPan(clampPan(newX, newY, zoomScaleRef.current));
+      } else {
+        // Fit mode: slide between pages
+        if (!isSwipingRef.current && Math.abs(deltaX) > 8) {
+          if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+            setIsSwiping(true);
+            isSwipingRef.current = true;
           }
         }
-      }
 
-      // Swipe release
-      if (isSwiping) {
-        const threshold = 45;
-        if (touchOffset < -threshold && currentPageRef.current < totalPagesRef.current) {
-          setIsPageImageLoading(true);
-          setCurrentPageRef.current((p) => p + 1);
-        } else if (touchOffset > threshold && currentPageRef.current > 1) {
-          setIsPageImageLoading(true);
-          setCurrentPageRef.current((p) => p - 1);
+        if (isSwipingRef.current) {
+          if (e.cancelable) e.preventDefault();
+          const isAtStart = currentPageRef.current <= 1 && deltaX > 0;
+          const isAtEnd = currentPageRef.current >= totalPagesRef.current && deltaX < 0;
+          const damped = isAtStart || isAtEnd ? deltaX * 0.25 : deltaX;
+          setTouchOffset(damped);
+          touchOffsetRef.current = damped;
         }
-        setTouchOffset(0);
-        setIsSwiping(false);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (isPinchingRef.current) {
+        if (e.touches.length < 2) {
+          isPinchingRef.current = false;
+          initialPinchDistRef.current = 0;
+          if (zoomScaleRef.current <= 1.05) {
+            setZoomScale(1.0);
+            setPan({ x: 0, y: 0 });
+          }
+        }
+        return;
       }
 
-      touchStartXRef.current = null;
-      touchStartYRef.current = null;
-    }
-  };
+      if (e.touches.length === 0) {
+        const now = Date.now();
+        const elapsed = now - touchStartTimeRef.current;
+
+        // Double tap toggle: 1.0x <-> 2.0x
+        if (e.changedTouches.length === 1 && touchStartXRef.current !== null && touchStartYRef.current !== null) {
+          const movedDist = Math.hypot(
+            e.changedTouches[0].clientX - touchStartXRef.current,
+            e.changedTouches[0].clientY - touchStartYRef.current
+          );
+
+          if (movedDist < 10 && elapsed < 300) {
+            if (now - lastTapTimeRef.current < 300) {
+              if (zoomScaleRef.current > 1.05) {
+                handleResetZoom();
+              } else {
+                setZoomScale(2.0);
+              }
+              lastTapTimeRef.current = 0;
+              touchStartXRef.current = null;
+              touchStartYRef.current = null;
+              return;
+            } else {
+              lastTapTimeRef.current = now;
+            }
+          }
+        }
+
+        // Swipe release
+        if (isSwipingRef.current) {
+          const threshold = 45;
+          const offset = touchOffsetRef.current;
+          if (offset < -threshold && currentPageRef.current < totalPagesRef.current) {
+            setIsPageImageLoading(true);
+            setCurrentPageRef.current((p) => p + 1);
+          } else if (offset > threshold && currentPageRef.current > 1) {
+            setIsPageImageLoading(true);
+            setCurrentPageRef.current((p) => p - 1);
+          }
+          setTouchOffset(0);
+          touchOffsetRef.current = 0;
+          setIsSwiping(false);
+          isSwipingRef.current = false;
+        }
+
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [clampPan, handleResetZoom]);
 
   // Desktop mouse dragging & wheel handlers
   const isMouseDownRef = useRef<boolean>(false);
@@ -1256,11 +1288,13 @@ export function DocumentViewer({
       {/* Canvas Viewport - Fixed Frame Viewer with Smooth Horizontal Carousel */}
       <div
         ref={viewportRef}
-        className="relative flex-1 w-full overflow-hidden bg-[#f6f6f4] select-none touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
+        className={`relative flex-1 w-full overflow-hidden bg-[#f6f6f4] select-none overscroll-contain ${
+          zoomScale > 1.05 ? "touch-none cursor-grab active:cursor-grabbing" : "touch-pan-y"
+        }`}
+        style={{
+          touchAction: zoomScale > 1.05 ? "none" : "pan-y",
+          overscrollBehavior: "contain",
+        }}
         onMouseDown={handleMouseDown}
       >
         {/* Connected Pages Carousel Track */}
