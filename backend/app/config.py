@@ -29,7 +29,7 @@ class Settings:
 
     # Google Cloud Vertex AI Paid Account Settings
     GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "project-fe04c36f-bda1-4c99-86b").strip()
-    GCP_LOCATION: str = os.getenv("GCP_LOCATION", "us-central1").strip()
+    GCP_LOCATION: str = os.getenv("GCP_LOCATION", "global").strip()
     GCP_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL", "1040007059825-compute@developer.gserviceaccount.com").strip()
     GCP_SERVICE_ACCOUNT_PATH: Path = Path(os.getenv("GCP_SERVICE_ACCOUNT_PATH", str(Path(__file__).resolve().parent.parent / "credentials" / "gcp_service_account.json")))
     GCP_SERVICE_ACCOUNT_JSON: str = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "").strip()

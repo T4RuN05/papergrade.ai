@@ -101,7 +101,7 @@ class GeminiGradingClient:
                 self._gcp_client = genai.Client(
                     vertexai=True,
                     project=settings.GCP_PROJECT_ID or sa_data.get("project_id"),
-                    location=settings.GCP_LOCATION or "us-central1",
+                    location=settings.GCP_LOCATION or "global",
                     credentials=creds
                 )
                 print(f"[GeminiClient] GCP Paid Vertex AI client initialized for project: {sa_data.get('project_id')}")
