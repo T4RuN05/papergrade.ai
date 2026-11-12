@@ -13,6 +13,8 @@ class Institute(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     code: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     subjects: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    deleted_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default=None)
 
     # Relationships
     branches: Mapped[List["Branch"]] = relationship("Branch", back_populates="institute", cascade="all, delete-orphan")

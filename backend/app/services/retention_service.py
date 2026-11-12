@@ -7,7 +7,7 @@ from sqlalchemy import select, delete, update
 from backend.app.config import settings
 from backend.app.db.session import get_session
 from backend.app.db.base import get_iso_now
-from backend.app.db.models import Submission, Exam, Answer, AnswerRegion
+from backend.app.db.models import Submission, Exam, Answer, AnswerRegion, Institute
 from backend.app.services.storage import get_storage_service
 
 
@@ -291,10 +291,68 @@ class RetentionService:
         }
 
     @staticmethod
+    def purge_expired_institutes(grace_days: int = 7) -> List[Dict[str, Any]]:
+        """
+        Permanently purges institutes that have remained in soft-delete status
+        beyond the 7-day recovery grace period.
+        """
+        now_dt = datetime.now(timezone.utc)
+        cutoff = (now_dt - timedelta(days=grace_days)).isoformat()
+        purged = []
+
+        from backend.app.routers.tenancy import purge_institute_cascade
+
+        with get_session() as session:
+            expired_insts = session.scalars(
+                select(Institute).where(
+                    Institute.is_deleted == 1,
+                    Institute.deleted_at.isnot(None),
+                    Institute.deleted_at <= cutoff
+                )
+            ).all()
+            candidates = [(i.id, i.name, i.code, i.deleted_at) for i in expired_insts]
+
+        for inst_id, name, code, del_at in candidates:
+            try:
+                with get_session() as session:
+                    res = purge_institute_cascade(session, inst_id, caller_email="RetentionDaemon/AutoPurge")
+                    purged.append({
+                        "id": inst_id,
+                        "name": name,
+                        "code": code,
+                        "deleted_at": del_at,
+                        "details": res
+                    })
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to auto-purge expired institute {inst_id}: {e}")
+
+        return purged
+
+    @staticmethod
+    def purge_expired_password_resets() -> int:
+        """Purge expired password reset requests to keep auth tables lean."""
+        now_iso = get_iso_now()
+        with get_session() as session:
+            from backend.app.db.models.auth import PasswordResetRequest
+            res = session.execute(
+                delete(PasswordResetRequest).where(
+                    PasswordResetRequest.expires_at.isnot(None),
+                    PasswordResetRequest.expires_at < now_iso
+                )
+            )
+            session.commit()
+            return res.rowcount if res and res.rowcount else 0
+
+    @staticmethod
     def check_and_purge_expired_submissions() -> Dict[str, Any]:
         """
-        Scans all graded/completed submissions and published exams,
-        purging those whose 15-day TTL has expired.
+        Comprehensive automated maintenance sweep:
+        1. Purges student submission PDFs & bounding regions after 15-day TTL post-grading.
+        2. Purges exam PDFs & page renders after 15-day TTL post-publication.
+        3. Permanently deletes soft-deleted institutes past their 7-day recovery grace period.
+        4. Prunes stale user notifications, strictly keeping only the 50 latest per user.
+        5. Purges expired password reset tokens.
         """
         now_dt = datetime.now(timezone.utc)
         purged_sub_ids = []
@@ -341,6 +399,24 @@ class RetentionService:
             except Exception:
                 continue
 
+        # 3. Purge soft-deleted institutes past 7-day recovery grace period
+        purged_institutes = RetentionService.purge_expired_institutes(grace_days=7)
+
+        # 4. Prune notifications older than 50 per user
+        pruned_notifs_count = 0
+        try:
+            from backend.app.services.notification_service import prune_all_notifications
+            pruned_notifs_count = prune_all_notifications(keep_limit=50)
+        except Exception:
+            pass
+
+        # 5. Purge expired password resets
+        purged_resets_count = 0
+        try:
+            purged_resets_count = RetentionService.purge_expired_password_resets()
+        except Exception:
+            pass
+
         return {
             "scanned_submissions": len(sub_candidates),
             "purged_submissions": len(purged_sub_ids),
@@ -350,6 +426,10 @@ class RetentionService:
             "purged_exams": len(purged_exam_ids),
             "purged_exams_count": len(purged_exam_ids),
             "purged_exam_ids": purged_exam_ids,
+            "purged_institutes_count": len(purged_institutes),
+            "purged_institutes": purged_institutes,
+            "pruned_notifications_count": pruned_notifs_count,
+            "purged_password_resets_count": purged_resets_count,
         }
 
 retention_service = RetentionService()

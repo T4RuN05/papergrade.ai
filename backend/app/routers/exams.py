@@ -1315,7 +1315,12 @@ async def delete_exam(
 
     db.execute(delete(EvaluationQueue).where(EvaluationQueue.exam_id == exam_id))
     db.execute(delete(RevaluationRequest).where(RevaluationRequest.exam_id == exam_id))
-    db.execute(delete(ApiUsageEvent).where(ApiUsageEvent.exam_id == exam_id))
+    # Retain financial & token telemetry for cost accounting & billing reconciliation
+    db.execute(
+        update(ApiUsageEvent)
+        .where(ApiUsageEvent.exam_id == exam_id)
+        .values(request_purpose=func.concat(ApiUsageEvent.request_purpose, " [EXAM_PURGED]"))
+    )
     db.execute(delete(ExperimentBenchmark).where(ExperimentBenchmark.exam_id == exam_id))
     db.execute(delete(SubmissionWindow).where(SubmissionWindow.exam_id == exam_id))
     db.execute(delete(RubricVersion).where(RubricVersion.exam_id == exam_id))
@@ -1329,7 +1334,12 @@ async def delete_exam(
     )
 
     db.execute(delete(Notification).where(Notification.link_url.like(f"%{exam_id}%")))
-    db.execute(delete(AuditLog).where(AuditLog.resource_id == exam_id))
+    # Retain AuditLog compliance records for accreditation audit trails
+    db.execute(
+        update(AuditLog)
+        .where(AuditLog.resource_id == exam_id)
+        .values(resource_type="PURGED_EXAM")
+    )
 
     db.delete(exam)
     db.commit()

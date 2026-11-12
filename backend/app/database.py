@@ -261,6 +261,8 @@ def init_db():
             name {text_type} NOT NULL,
             code {text_type} NOT NULL UNIQUE,
             subjects {text_type},
+            is_deleted {int_type} NOT NULL DEFAULT 0,
+            deleted_at {text_type},
             created_at {text_type} NOT NULL
         );
         """)
@@ -822,6 +824,10 @@ def init_db():
             inst_cols = [row[1] for row in cursor.fetchall()]
             if "subjects" not in inst_cols:
                 cursor.execute("ALTER TABLE institutes ADD COLUMN subjects TEXT")
+            if "is_deleted" not in inst_cols:
+                cursor.execute("ALTER TABLE institutes ADD COLUMN is_deleted INTEGER DEFAULT 0")
+            if "deleted_at" not in inst_cols:
+                cursor.execute("ALTER TABLE institutes ADD COLUMN deleted_at TEXT")
 
             cursor.execute("PRAGMA table_info(branches)")
             br_cols = [row[1] for row in cursor.fetchall()]
@@ -858,6 +864,8 @@ def init_db():
                 cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS batch_scope TEXT NOT NULL DEFAULT 'ALL';")
                 cursor.execute("ALTER TABLE exams ADD COLUMN IF NOT EXISTS batch_ids TEXT;")
                 cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS subjects TEXT;")
+                cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0;")
+                cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS deleted_at TEXT;")
                 cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS subjects TEXT;")
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS exam_batches (

@@ -5,7 +5,7 @@ import json
 import shutil
 import logging
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, delete, update, or_
@@ -99,11 +99,28 @@ def _format_institute_dict(inst: Institute) -> Dict[str, Any]:
             subs = json.loads(inst.subjects)
         except Exception:
             subs = [s.strip() for s in inst.subjects.split(",") if s.strip()]
+
+    is_del = getattr(inst, "is_deleted", 0) == 1
+    del_at = getattr(inst, "deleted_at", None)
+    recovery_days_left = None
+    if is_del and del_at:
+        try:
+            from datetime import datetime, timezone, timedelta
+            del_dt = datetime.fromisoformat(del_at.replace("Z", "+00:00"))
+            exp_dt = del_dt + timedelta(days=7)
+            diff_days = (exp_dt - datetime.now(timezone.utc)).total_seconds() / 86400.0
+            recovery_days_left = max(0.0, round(diff_days, 1))
+        except Exception:
+            pass
+
     return {
         "id": inst.id,
         "name": inst.name,
         "code": inst.code,
         "subjects": subs,
+        "is_deleted": 1 if is_del else 0,
+        "deleted_at": del_at,
+        "recovery_days_left": recovery_days_left,
         "created_at": inst.created_at,
     }
 
@@ -164,12 +181,16 @@ def _format_student_dict(student: Student) -> Dict[str, Any]:
 
 @router.get("/institutes")
 def list_institutes(
+    include_deleted: bool = Query(False, description="Whether to include soft-deleted institutes in trash (Root Admin only)"),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     user_role = current_user.get("role")
     if user_role == "ROOT_ADMIN":
-        institutes = db.scalars(select(Institute).order_by(Institute.created_at.desc())).all()
+        stmt = select(Institute).order_by(Institute.created_at.desc())
+        if not include_deleted:
+            stmt = stmt.where(Institute.is_deleted == 0)
+        institutes = db.scalars(stmt).all()
     elif user_role == "BRANCH_MANAGER":
         inst_id = current_user.get("institute_id")
         if not inst_id and current_user.get("branch_id"):
@@ -177,7 +198,7 @@ def list_institutes(
             if branch:
                 inst_id = branch.institute_id
         if inst_id:
-            institutes = db.scalars(select(Institute).where(Institute.id == inst_id)).all()
+            institutes = db.scalars(select(Institute).where(Institute.id == inst_id, Institute.is_deleted == 0)).all()
         else:
             institutes = []
     else:
@@ -675,12 +696,11 @@ def _chunked_delete_orm(db: Session, model, column, ids: List[str], chunk_size: 
         db.execute(delete(model).where(column.in_(chunk)))
 
 
-@router.delete("/institutes/{institute_id}")
-def delete_institute(
+def purge_institute_cascade(
+    db: Session,
     institute_id: str,
-    current_user: Dict[str, Any] = Depends(require_root_admin),
-    db: Session = Depends(get_db)
-):
+    caller_email: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Permanently delete an entire coaching institute and cascade delete everything under it:
     - Branches and Subjects
@@ -964,8 +984,9 @@ def delete_institute(
     db.delete(inst)
     db.commit()
 
+    by_who = caller_email or "System/RetentionDaemon"
     logger.info(
-        f"Institute '{inst_name}' ({institute_id}) and all cascaded entities permanently deleted by {current_user.get('email')}."
+        f"Institute '{inst_name}' ({institute_id}) and all cascaded entities permanently deleted by {by_who}."
     )
 
     return {
@@ -979,4 +1000,68 @@ def delete_institute(
         "deleted_students_count": len(student_ids),
         "deleted_users_count": len(user_ids_list),
         "deleted_files_count": deleted_files_count,
+    }
+
+
+@router.delete("/institutes/{institute_id}")
+def delete_institute(
+    institute_id: str,
+    permanent: bool = Query(False, description="Set to true to permanently delete immediately, bypassing 7-day recovery grace period"),
+    current_user: Dict[str, Any] = Depends(require_root_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete an institute.
+    By default (permanent=False), soft-deletes the institute for 7 days.
+    If permanent=True, permanently purges the institute and all its cascaded entities.
+    """
+    inst = db.scalar(select(Institute).where(Institute.id == institute_id))
+    if not inst:
+        raise HTTPException(status_code=404, detail="Institute not found")
+
+    if permanent:
+        return purge_institute_cascade(db, institute_id, caller_email=current_user.get("email"))
+
+    now = get_iso_now()
+    inst.is_deleted = 1
+    inst.deleted_at = now
+    db.commit()
+
+    logger.info(f"Institute '{inst.name}' ({institute_id}) soft-deleted by {current_user.get('email')} (7-day recovery grace period).")
+    return {
+        "status": "soft_deleted",
+        "message": f"Institute '{inst.name}' ({inst.code}) has been soft-deleted. It can be recovered within 7 days, after which it will be permanently deleted.",
+        "institute_id": institute_id,
+        "deleted_at": now,
+        "recovery_window_days": 7
+    }
+
+
+@router.post("/institutes/{institute_id}/restore")
+def restore_institute(
+    institute_id: str,
+    current_user: Dict[str, Any] = Depends(require_root_admin),
+    db: Session = Depends(get_db)
+):
+    """Restore a soft-deleted institute within the 7-day recovery grace period."""
+    inst = db.scalar(select(Institute).where(Institute.id == institute_id))
+    if not inst:
+        raise HTTPException(status_code=404, detail="Institute not found")
+
+    if not inst.is_deleted:
+        return {
+            "status": "already_active",
+            "message": f"Institute '{inst.name}' is already active.",
+            "institute": _format_institute_dict(inst)
+        }
+
+    inst.is_deleted = 0
+    inst.deleted_at = None
+    db.commit()
+
+    logger.info(f"Institute '{inst.name}' ({institute_id}) restored by {current_user.get('email')}.")
+    return {
+        "status": "restored",
+        "message": f"Institute '{inst.name}' ({inst.code}) has been restored successfully.",
+        "institute": _format_institute_dict(inst)
     }

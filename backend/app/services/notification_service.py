@@ -104,6 +104,105 @@ def dispatch_webpush_for_user(user_id: str, title: str, message: str, link_url: 
         dispatch_webpush_for_users([user_id], title, message, link_url)
 
 
+def prune_user_notifications(cursor_or_session, user_id: str, keep_limit: int = 50) -> int:
+    """Ensure a user retains at most keep_limit latest notifications, deleting older ones."""
+    if not user_id:
+        return 0
+    try:
+        from sqlalchemy import text
+        prune_sql = """
+            DELETE FROM notifications
+            WHERE id IN (
+                SELECT id FROM (
+                    SELECT id, ROW_NUMBER() OVER (
+                        PARTITION BY user_id ORDER BY created_at DESC, id DESC
+                    ) AS rn
+                    FROM notifications
+                    WHERE user_id = :user_id
+                ) ranked
+                WHERE ranked.rn > :keep_limit
+            )
+        """
+        if isinstance(cursor_or_session, Session):
+            res = cursor_or_session.execute(text(prune_sql), {"user_id": user_id, "keep_limit": keep_limit})
+            return res.rowcount if res and res.rowcount else 0
+        else:
+            from backend.app.database import is_postgres
+            param = "%s" if is_postgres() else "?"
+            sql = f"""
+                DELETE FROM notifications
+                WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY user_id ORDER BY created_at DESC, id DESC
+                        ) AS rn
+                        FROM notifications
+                        WHERE user_id = {param}
+                    ) ranked
+                    WHERE ranked.rn > {param}
+                )
+            """
+            cursor_or_session.execute(sql, (user_id, keep_limit))
+            return getattr(cursor_or_session, "rowcount", 0)
+    except Exception as e:
+        logger.warning(f"Failed to prune notifications for user {user_id}: {e}")
+        return 0
+
+
+def prune_all_notifications(cursor_or_session=None, keep_limit: int = 50) -> int:
+    """
+    Deletes all notifications older than keep_limit latest for each user across the entire database.
+    Operates seamlessly across PostgreSQL and SQLite.
+    """
+    prune_sql = """
+        DELETE FROM notifications
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY user_id ORDER BY created_at DESC, id DESC
+                ) AS rn
+                FROM notifications
+            ) ranked
+            WHERE ranked.rn > :keep_limit
+        )
+    """
+    try:
+        if cursor_or_session is None:
+            with get_session() as session:
+                from sqlalchemy import text
+                res = session.execute(text(prune_sql), {"keep_limit": keep_limit})
+                session.commit()
+                deleted = res.rowcount if res and res.rowcount else 0
+                if deleted > 0:
+                    logger.info(f"Pruned {deleted} old notifications across all users (limit={keep_limit}).")
+                return deleted
+        elif isinstance(cursor_or_session, Session):
+            from sqlalchemy import text
+            res = cursor_or_session.execute(text(prune_sql), {"keep_limit": keep_limit})
+            deleted = res.rowcount if res and res.rowcount else 0
+            return deleted
+        else:
+            from backend.app.database import is_postgres
+            param = "%s" if is_postgres() else "?"
+            sql = f"""
+                DELETE FROM notifications
+                WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY user_id ORDER BY created_at DESC, id DESC
+                        ) AS rn
+                        FROM notifications
+                    ) ranked
+                    WHERE ranked.rn > {param}
+                )
+            """
+            cursor_or_session.execute(sql, (keep_limit,))
+            return getattr(cursor_or_session, "rowcount", 0)
+    except Exception as e:
+        logger.warning(f"Failed to prune all notifications: {e}")
+        return 0
+
+
 def send_notification(
     cursor,
     user_id: str,
@@ -135,6 +234,9 @@ def send_notification(
             VALUES (?, ?, ?, ?, ?, ?, 0, ?)
         """, (notif_id, user_id, notif_type, title, message, link_url, now))
 
+    # Keep only the latest 50 notifications for this user
+    prune_user_notifications(cursor, user_id, keep_limit=50)
+
     dispatch_webpush_for_user(user_id, title, message, link_url)
     return notif_id
 
@@ -149,6 +251,7 @@ def notify_user_direct(
     """Send a notification in an isolated DB connection."""
     with get_session() as session:
         notif_id = send_notification(session, user_id, notif_type, title, message, link_url)
+        session.commit()
         return notif_id
 
 
@@ -234,6 +337,8 @@ def notify_branch_students(
                 created_at=now,
             ))
 
+        prune_all_notifications(cursor, keep_limit=50)
+        prune_all_notifications(cursor, keep_limit=50)
         dispatch_webpush_for_users(uids, title, message, link_url)
         return len(uids)
 
@@ -306,6 +411,7 @@ def notify_branch_students(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, records)
 
+    prune_all_notifications(cursor, keep_limit=50)
     dispatch_webpush_for_users(uids, title, message, link_url)
     return len(uids)
 
@@ -339,6 +445,8 @@ def notify_branch_managers(
                 is_read=0,
                 created_at=now,
             ))
+        prune_all_notifications(cursor, keep_limit=50)
+        prune_all_notifications(cursor, keep_limit=50)
         dispatch_webpush_for_users(uids, title, message, link_url)
         return len(uids)
 
@@ -397,6 +505,7 @@ def notify_root_admins(
                 is_read=0,
                 created_at=now,
             ))
+        prune_all_notifications(cursor, keep_limit=50)
         dispatch_webpush_for_users(uids, title, message, link_url)
         return len(uids)
 
