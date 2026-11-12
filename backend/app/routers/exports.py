@@ -8,6 +8,13 @@ from sqlalchemy import select
 from backend.app.db.session import get_db
 from backend.app.db.models import Submission, Exam, Batch
 from backend.app.services.export_service import export_service
+from backend.app.services.grading_service import grading_service
+from backend.app.services.storage import (
+    get_storage_service,
+    is_remote_storage,
+    build_remote_redirect_response,
+    sync_file_to_remote_storage,
+)
 from backend.app.services.auth import get_current_user, require_branch_manager
 
 router = APIRouter(prefix="/api/exports", tags=["Exports"])
@@ -51,10 +58,6 @@ def _resolve_pdf_response(
                 detail="Forbidden: Evaluation results for this examination have not been officially published yet. Graded PDFs will become available once officially released by academic faculty."
             )
 
-    pdf_path = export_service.get_submission_pdf_path(clean_sub_id)
-    if not pdf_path or not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Annotated PDF not found or could not be generated.")
-
     if custom_filename:
         safe_name = custom_filename if custom_filename.lower().endswith(".pdf") else f"{custom_filename}.pdf"
     else:
@@ -66,6 +69,32 @@ def _resolve_pdf_response(
             safe_name = f"{safe_base}.pdf"
         else:
             safe_name = f"submission_{clean_sub_id[:8]}_graded.pdf"
+
+    storage = get_storage_service()
+    annotated_key = (
+        sub.annotated_pdf_path
+        if sub and sub.annotated_pdf_path and sub.annotated_pdf_path not in ("", "PURGED")
+        else f"exports/{clean_sub_id}_annotated.pdf"
+    )
+    if is_remote_storage(storage) and not grading_service.is_export_dirty(clean_sub_id):
+        if storage.file_exists(annotated_key):
+            redirect_resp = build_remote_redirect_response(
+                storage, annotated_key, filename=safe_name, attachment=True
+            )
+            if redirect_resp is not None:
+                return redirect_resp
+
+    pdf_path = export_service.get_submission_pdf_path(clean_sub_id)
+    if not pdf_path or not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Annotated PDF not found or could not be generated.")
+
+    if is_remote_storage(storage):
+        sync_file_to_remote_storage(pdf_path, annotated_key, content_type="application/pdf", storage=storage)
+        redirect_resp = build_remote_redirect_response(
+            storage, annotated_key, filename=safe_name, attachment=True
+        )
+        if redirect_resp is not None:
+            return redirect_resp
 
     return FileResponse(
         str(pdf_path),
@@ -105,12 +134,24 @@ def _resolve_zip_response(batch_id: str, db: Session, custom_filename: Optional[
 
     batch = db.scalar(select(Batch).where(Batch.id == clean_batch_id))
 
-    if batch and batch.name:
+    if custom_filename:
+        safe_name = custom_filename if custom_filename.lower().endswith(".zip") else f"{custom_filename}.zip"
+    elif batch and batch.name:
         raw_name = batch.name.strip()
         clean_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
         safe_name = f"{clean_name}_Graded_PDFs.zip"
     else:
         safe_name = f"Batch_{clean_batch_id[:8]}_Graded_PDFs.zip"
+
+    storage = get_storage_service()
+    if is_remote_storage(storage):
+        zip_key = f"exports/batch_{clean_batch_id}_graded_pdfs.zip"
+        if sync_file_to_remote_storage(zip_path, zip_key, content_type="application/zip", storage=storage):
+            redirect_resp = build_remote_redirect_response(
+                storage, zip_key, filename=safe_name, attachment=True
+            )
+            if redirect_resp is not None:
+                return redirect_resp
 
     return FileResponse(
         str(zip_path),

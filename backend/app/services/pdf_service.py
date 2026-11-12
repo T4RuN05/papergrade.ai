@@ -1,12 +1,18 @@
 import os
 import shutil
 import io
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Tuple, Optional
 import fitz  # PyMuPDF
 from PIL import Image, ImageOps
 
 from backend.app.config import settings
+from backend.app.services.storage import (
+    get_storage_service,
+    is_remote_storage,
+    sync_file_to_remote_storage,
+)
 
 class PDFService:
     @staticmethod
@@ -117,6 +123,23 @@ class PDFService:
                 rendered_paths.append(page_img_path)
         finally:
             doc.close()
+
+        storage = get_storage_service()
+        if rendered_paths and is_remote_storage(storage):
+            def _upload_page(p: Path) -> None:
+                sync_file_to_remote_storage(
+                    p,
+                    f"renders/{submission_id}/{p.name}",
+                    content_type="image/png",
+                    storage=storage,
+                )
+
+            if len(rendered_paths) == 1:
+                _upload_page(rendered_paths[0])
+            else:
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    list(pool.map(_upload_page, rendered_paths))
+
         return rendered_paths
 
     @staticmethod
@@ -127,7 +150,8 @@ class PDFService:
         width: float,
         height: float,
         output_crop_path: Path,
-        padding_pct: float = 0.02
+        padding_pct: float = 0.02,
+        upload_key: Optional[str] = None,
     ) -> Optional[Path]:
         """
         Crops the exact answer region from the rendered page image using normalized coordinates.
@@ -149,6 +173,8 @@ class PDFService:
 
         cropped = img.crop((crop_x, crop_y, crop_x + crop_w, crop_y + crop_h))
         cropped.save(output_crop_path, format="PNG")
+        if upload_key:
+            sync_file_to_remote_storage(output_crop_path, upload_key, content_type="image/png")
         return output_crop_path
 
     @staticmethod

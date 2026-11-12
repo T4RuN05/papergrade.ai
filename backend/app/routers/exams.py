@@ -39,7 +39,12 @@ from backend.app.db.models import (
 from backend.app.schemas import ExamRubricExtractionResult, RubricApproveRequest
 from backend.app.services.exam_service import exam_service
 from backend.app.services.pdf_service import pdf_service
-from backend.app.services.storage import get_storage_service
+from backend.app.services.storage import (
+    get_storage_service,
+    is_remote_storage,
+    build_remote_redirect_response,
+    sync_file_to_remote_storage,
+)
 from backend.app.services.auth import (
     get_current_user,
     get_current_user_optional,
@@ -929,6 +934,26 @@ def load_sample_exam(
     }
 
 
+def _build_exam_artifact_storage_keys(exam_id: str, raw_path: Optional[str], is_qp: bool) -> List[str]:
+    """Build ordered candidate object storage keys for an exam question paper or answer key."""
+    if not raw_path:
+        return []
+    filename = "question_paper.pdf" if is_qp else "answer_key.pdf"
+    artifact_dir = "question_paper" if is_qp else "answer_key"
+    clean_raw = str(raw_path).replace("\\", "/").strip().lstrip("/")
+    storage_keys = [clean_raw]
+    for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
+        if marker in clean_raw:
+            storage_keys.append(clean_raw[clean_raw.index(marker) + len(marker):])
+    storage_keys.extend([
+        f"exams/{exam_id}/{filename}",
+        f"exams/{exam_id}/{artifact_dir}",
+        f"exam_{exam_id}/{filename}",
+        f"uploads/exam_{exam_id}/{filename}",
+    ])
+    return list(dict.fromkeys(k for k in storage_keys if k))
+
+
 def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Path]:
     """Resolves local Path for question-paper or answer-key."""
     exam = exam_service.get_exam(exam_id)
@@ -957,21 +982,7 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
             return cand_path
 
     storage = get_storage_service()
-    storage_keys = []
-    if raw_path:
-        clean_raw = str(raw_path).replace("\\", "/").strip().lstrip("/")
-        storage_keys.append(clean_raw)
-        for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
-            if marker in clean_raw:
-                storage_keys.append(clean_raw[clean_raw.index(marker) + len(marker):])
-
-        artifact_dir = "question_paper" if is_qp else "answer_key"
-        storage_keys.extend([
-            f"exams/{exam_id}/{filename}",
-            f"exams/{exam_id}/{artifact_dir}",
-            f"exam_{exam_id}/{filename}",
-            f"uploads/exam_{exam_id}/{filename}",
-        ])
+    storage_keys = _build_exam_artifact_storage_keys(exam_id, raw_path, is_qp)
 
     for key in storage_keys:
         try:
@@ -1000,68 +1011,87 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
     return None
 
 
-@router.get("/{exam_id}/question-paper")
-async def get_exam_question_paper(
+def _serve_exam_artifact_pdf(
     exam_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    artifact_type: str,
+    current_user: Dict[str, Any],
+    download: bool = False,
 ):
+    """Shared handler to validate permissions and serve or CDN-redirect exam PDF artifacts."""
     exam = exam_service.get_exam(exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
+    is_qp = artifact_type == "question-paper"
+    label = "Question paper" if is_qp else "Official answer key"
+
     if exam.get("is_document_purged"):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="Document unavailable: Question paper was permanently purged in accordance with the 15-day storage retention policy."
+            detail=f"Document unavailable: {label} was permanently purged in accordance with the 15-day storage retention policy."
         )
 
     if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Question paper is available to students once exam results are published."
+        forbidden_msg = (
+            "Question paper is available to students once exam results are published."
+            if is_qp
+            else "Official answer key is confidential until exam results are published."
         )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_msg)
 
-    pdf_path = _resolve_exam_artifact_pdf(exam_id, "question-paper")
+    out_filename = f"{'question_paper' if is_qp else 'answer_key'}_{exam_id}.pdf"
+    storage = get_storage_service()
+    if is_remote_storage(storage):
+        raw_path = exam.get("question_paper_path") if is_qp else exam.get("answer_key_path")
+        for key in _build_exam_artifact_storage_keys(exam_id, raw_path, is_qp):
+            try:
+                if storage.file_exists(key):
+                    redirect_resp = build_remote_redirect_response(
+                        storage, key, filename=out_filename, attachment=download
+                    )
+                    if redirect_resp is not None:
+                        return redirect_resp
+            except Exception as exc:
+                logger.warning("Failed remote redirect lookup for key %s: %s", key, exc)
+
+    pdf_path = _resolve_exam_artifact_pdf(exam_id, artifact_type)
     if not pdf_path or not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Question paper document not found.")
+        not_found_msg = "Question paper document not found." if is_qp else "Answer key document not found."
+        raise HTTPException(status_code=404, detail=not_found_msg)
 
+    if is_remote_storage(storage):
+        fallback_key = f"exams/{exam_id}/{'question_paper' if is_qp else 'answer_key'}.pdf"
+        if sync_file_to_remote_storage(pdf_path, fallback_key, content_type="application/pdf", storage=storage):
+            redirect_resp = build_remote_redirect_response(
+                storage, fallback_key, filename=out_filename, attachment=download
+            )
+            if redirect_resp is not None:
+                return redirect_resp
+
+    disp = "attachment" if download else "inline"
     return FileResponse(
         str(pdf_path),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="question_paper_{exam_id}.pdf"'}
+        headers={"Content-Disposition": f'{disp}; filename="{out_filename}"'}
     )
+
+
+@router.get("/{exam_id}/question-paper")
+async def get_exam_question_paper(
+    exam_id: str,
+    download: bool = False,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    return _serve_exam_artifact_pdf(exam_id, "question-paper", current_user, download=download)
 
 
 @router.get("/{exam_id}/answer-key")
 async def get_exam_answer_key(
     exam_id: str,
+    download: bool = False,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    exam = exam_service.get_exam(exam_id)
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    if exam.get("is_document_purged"):
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="Document unavailable: Official answer key was permanently purged in accordance with the 15-day storage retention policy."
-        )
-
-    if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Official answer key is confidential until exam results are published."
-        )
-
-    pdf_path = _resolve_exam_artifact_pdf(exam_id, "answer-key")
-    if not pdf_path or not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Answer key document not found.")
-
-    return FileResponse(
-        str(pdf_path),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="answer_key_{exam_id}.pdf"'}
-    )
+    return _serve_exam_artifact_pdf(exam_id, "answer-key", current_user, download=download)
 
 
 @router.get("/{exam_id}/{artifact_type}/meta")
@@ -1154,6 +1184,14 @@ async def get_exam_artifact_page_image(
     render_key = f"exam_{exam_id}_{clean_art}"
     render_dir = settings.RENDERS_DIR / render_key
     img_path = render_dir / f"page_{page_num}.png"
+    page_storage_key = f"renders/{render_key}/page_{page_num}.png"
+    cache_headers = {"Cache-Control": "public, max-age=604800, immutable"}
+    storage = get_storage_service()
+
+    if is_remote_storage(storage) and storage.file_exists(page_storage_key):
+        redirect_resp = build_remote_redirect_response(storage, page_storage_key, headers=cache_headers)
+        if redirect_resp is not None:
+            return redirect_resp
 
     if not img_path.exists():
         pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
@@ -1164,10 +1202,16 @@ async def get_exam_artifact_page_image(
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page {page_num} not found.")
 
+    if is_remote_storage(storage):
+        sync_file_to_remote_storage(img_path, page_storage_key, content_type="image/png", storage=storage)
+        redirect_resp = build_remote_redirect_response(storage, page_storage_key, headers=cache_headers)
+        if redirect_resp is not None:
+            return redirect_resp
+
     return FileResponse(
         str(img_path),
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=604800, immutable"}
+        headers=cache_headers
     )
 
 
@@ -1202,7 +1246,12 @@ async def delete_exam(
     deleted_files_count = 0
     for sub in subs:
         sub_id = sub.id
-        for path_key in [sub.original_file_path, sub.canonical_pdf_path, sub.annotated_pdf_path]:
+        for path_key in [
+            sub.original_file_path,
+            sub.canonical_pdf_path,
+            sub.annotated_pdf_path,
+            f"exports/{sub_id}_annotated.pdf",
+        ]:
             if path_key:
                 try:
                     storage.delete_file(path_key)
@@ -1210,12 +1259,17 @@ async def delete_exam(
                 except Exception as e:
                     logger.warning(f"Failed to delete storage file {path_key}: {e}")
 
+        try:
+            deleted_files_count += storage.delete_prefix(f"renders/{sub_id}/")
+        except Exception:
+            pass
+
         local_sub_dir = settings.DATA_DIR / "uploads" / "submissions" / sub_id
         if local_sub_dir.exists():
             shutil.rmtree(local_sub_dir, ignore_errors=True)
-        render_sub_dir = settings.RENDERS_DIR / f"sub_{sub_id}"
-        if render_sub_dir.exists():
-            shutil.rmtree(render_sub_dir, ignore_errors=True)
+        for render_sub_dir in (settings.RENDERS_DIR / sub_id, settings.RENDERS_DIR / f"sub_{sub_id}"):
+            if render_sub_dir.exists():
+                shutil.rmtree(render_sub_dir, ignore_errors=True)
         annotated_pdf = settings.EXPORTS_DIR / f"{sub_id}_annotated.pdf"
         if annotated_pdf.exists():
             try:
@@ -1235,6 +1289,11 @@ async def delete_exam(
                 deleted_files_count += 1
             except Exception:
                 pass
+
+    try:
+        deleted_files_count += storage.delete_prefix(f"renders/exam_{exam_id}_")
+    except Exception:
+        pass
 
     local_exam_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
     if local_exam_dir.exists():

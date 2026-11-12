@@ -4,7 +4,11 @@ from fastapi.responses import FileResponse, Response
 from pathlib import Path
 
 from backend.app.config import settings
-from backend.app.services.storage import get_storage_service, LocalStorageService
+from backend.app.services.storage import (
+    get_storage_service,
+    LocalStorageService,
+    build_remote_redirect_response,
+)
 from backend.app.services.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/storage", tags=["Storage"])
@@ -34,17 +38,35 @@ def download_file(
     storage = get_storage_service()
     if not storage.file_exists(clean_key):
         raise HTTPException(status_code=404, detail=f"Storage key '{clean_key}' not found.")
-    
-    file_bytes = storage.download_file(clean_key)
+
     filename = Path(clean_key).name or "file.pdf"
-    
+    redirect_resp = build_remote_redirect_response(storage, clean_key, filename=filename)
+    if redirect_resp is not None:
+        return redirect_resp
+
     # Infer media type
-    media_type = "application/pdf" if clean_key.lower().endswith(".pdf") else "image/png" if clean_key.lower().endswith(".png") else "application/octet-stream"
-    
+    media_type = (
+        "application/pdf"
+        if clean_key.lower().endswith(".pdf")
+        else "image/png"
+        if clean_key.lower().endswith(".png")
+        else "application/octet-stream"
+    )
+
+    if isinstance(storage, LocalStorageService):
+        local_path = storage.get_local_path_or_download(clean_key)
+        if local_path.exists():
+            return FileResponse(
+                str(local_path),
+                media_type=media_type,
+                headers={"Content-Disposition": f'inline; filename="{filename}"'},
+            )
+
+    file_bytes = storage.download_file(clean_key)
     return Response(
         content=file_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
 
 @router.put("/upload")

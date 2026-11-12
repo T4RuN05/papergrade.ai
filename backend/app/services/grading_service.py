@@ -29,7 +29,14 @@ from backend.app.schemas import (
 )
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.retention_service import RetentionService
-from backend.app.services.storage import get_storage_service
+from backend.app.services.storage import (
+    get_storage_service,
+    is_remote_storage,
+    sync_file_to_remote_storage,
+)
+
+_export_dirty: set[str] = set()
+_export_dirty_lock = threading.Lock()
 
 
 def _enforce_evidence_grounding_and_verdict(
@@ -513,7 +520,8 @@ class GradingService:
                         y=row.y,
                         width=row.width,
                         height=row.height,
-                        output_crop_path=reg_crop_path
+                        output_crop_path=reg_crop_path,
+                        upload_key=f"renders/{submission_id}/crops/crop_{ans_id}_{reg_id}.png",
                     )
 
                 # Primary answer crop (first region)
@@ -525,8 +533,14 @@ class GradingService:
                         y=row.y,
                         width=row.width,
                         height=row.height,
-                        output_crop_path=primary_crop_path
+                        output_crop_path=primary_crop_path,
+                        upload_key=f"renders/{submission_id}/crops/crop_{ans_id}.png",
                     )
+
+    @staticmethod
+    def is_export_dirty(submission_id: str) -> bool:
+        with _export_dirty_lock:
+            return submission_id in _export_dirty
 
     @staticmethod
     def trigger_background_export_pdf(submission_id: str):
@@ -535,6 +549,9 @@ class GradingService:
         interactive modal saves and edits return to the teacher immediately without lag.
         Also invalidates the cached PDF file so any concurrent export downloads fetch fresh data.
         """
+        with _export_dirty_lock:
+            _export_dirty.add(submission_id)
+
         try:
             annotated_path = settings.EXPORTS_DIR / f"{submission_id}_annotated.pdf"
             if annotated_path.exists():
@@ -542,8 +559,15 @@ class GradingService:
         except Exception:
             pass
 
+        def _run_export(sub_id: str) -> None:
+            try:
+                GradingService.generate_export_pdf_for_submission(sub_id)
+            finally:
+                with _export_dirty_lock:
+                    _export_dirty.discard(sub_id)
+
         t = threading.Thread(
-            target=GradingService.generate_export_pdf_for_submission,
+            target=_run_export,
             args=(submission_id,),
             daemon=True,
             name=f"pdf-gen-{submission_id}"
@@ -611,6 +635,16 @@ class GradingService:
                 student_name=sub.student_name,
                 roll_number=sub.roll_number
             )
+
+            storage = get_storage_service()
+            if export_pdf.exists() and is_remote_storage(storage):
+                annotated_key = f"exports/{submission_id}_annotated.pdf"
+                if sync_file_to_remote_storage(
+                    export_pdf, annotated_key, content_type="application/pdf", storage=storage
+                ):
+                    sub.annotated_pdf_path = annotated_key
+                    sub.updated_at = get_iso_now()
+                    session.commit()
 
     @staticmethod
     def get_submission_details(submission_id: str) -> Optional[Dict[str, Any]]:
@@ -1198,7 +1232,15 @@ class GradingService:
                             pass
 
         if page_img.exists():
-            pdf_service.crop_answer_region(page_img, edit_req.x, edit_req.y, edit_req.width, edit_req.height, reg_crop_path)
+            pdf_service.crop_answer_region(
+                page_img,
+                edit_req.x,
+                edit_req.y,
+                edit_req.width,
+                edit_req.height,
+                reg_crop_path,
+                upload_key=f"renders/{submission_id}/crops/crop_{ans_id}_{actual_region_id}.png",
+            )
             with get_session() as session:
                 first_reg = session.scalar(
                     select(AnswerRegion)
@@ -1207,7 +1249,15 @@ class GradingService:
                     .limit(1)
                 )
                 if (first_reg and first_reg.id == actual_region_id) or not crop_path.exists():
-                    pdf_service.crop_answer_region(page_img, edit_req.x, edit_req.y, edit_req.width, edit_req.height, crop_path)
+                    pdf_service.crop_answer_region(
+                        page_img,
+                        edit_req.x,
+                        edit_req.y,
+                        edit_req.width,
+                        edit_req.height,
+                        crop_path,
+                        upload_key=f"renders/{submission_id}/crops/crop_{ans_id}.png",
+                    )
 
         # Re-export annotated PDF asynchronously in background
         GradingService.trigger_background_export_pdf(submission_id)
@@ -1289,6 +1339,8 @@ class GradingService:
             session.commit()
 
         # Clean up crop files
+        storage = get_storage_service()
+        remote_storage = is_remote_storage(storage)
         renders_dir = settings.RENDERS_DIR / submission_id
         crops_dir = renders_dir / "crops"
         reg_crop = crops_dir / f"crop_{ans_id}_{region_id}.png"
@@ -1297,12 +1349,23 @@ class GradingService:
                 reg_crop.unlink()
             except Exception:
                 pass
+        if remote_storage:
+            try:
+                storage.delete_file(f"renders/{submission_id}/crops/crop_{ans_id}_{region_id}.png")
+            except Exception:
+                pass
 
         primary_crop = crops_dir / f"crop_{ans_id}.png"
+        primary_crop_key = f"renders/{submission_id}/crops/crop_{ans_id}.png"
         if not remaining_regions:
             if primary_crop.exists():
                 try:
                     primary_crop.unlink()
+                except Exception:
+                    pass
+            if remote_storage:
+                try:
+                    storage.delete_file(primary_crop_key)
                 except Exception:
                     pass
         else:
@@ -1311,13 +1374,25 @@ class GradingService:
             if first_rem_crop.exists():
                 try:
                     shutil.copy2(first_rem_crop, primary_crop)
+                    if remote_storage:
+                        sync_file_to_remote_storage(
+                            primary_crop, primary_crop_key, content_type="image/png", storage=storage
+                        )
                 except Exception:
                     pass
             else:
                 page_img = renders_dir / f"page_{first_rem.page_number}.png"
                 if page_img.exists():
                     try:
-                        pdf_service.crop_answer_region(page_img, first_rem.x, first_rem.y, first_rem.width, first_rem.height, primary_crop)
+                        pdf_service.crop_answer_region(
+                            page_img,
+                            first_rem.x,
+                            first_rem.y,
+                            first_rem.width,
+                            first_rem.height,
+                            primary_crop,
+                            upload_key=primary_crop_key,
+                        )
                     except Exception:
                         pass
 
@@ -1603,7 +1678,8 @@ class GradingService:
                                 float(target_reg.y),
                                 float(target_reg.width),
                                 float(target_reg.height),
-                                out_path
+                                out_path,
+                                upload_key=f"renders/{submission_id}/crops/crop_{answer_id}.png",
                             )
                             target_crop_path = out_path
                         except Exception:

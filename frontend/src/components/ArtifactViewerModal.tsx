@@ -538,6 +538,7 @@ export function ArtifactViewerModal({
   if (!isRendered || !mounted) return null;
 
   const pdfUrl = api.getExamArtifactPdfUrl(examId, activeArtifact);
+  const downloadPdfUrl = api.getExamArtifactPdfUrl(examId, activeArtifact, true);
 
   return createPortal(
     <div
@@ -750,7 +751,7 @@ export function ArtifactViewerModal({
                   <span>Open in Tab</span>
                 </a>
                 <a
-                  href={pdfUrl}
+                  href={downloadPdfUrl}
                   download={`${activeArtifact}_${examId}.pdf`}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md btn-glass-primary cursor-pointer"
                 >

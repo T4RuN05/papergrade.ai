@@ -952,10 +952,15 @@ export const api = {
 
   getExamArtifactPdfUrl(
     examId: string,
-    artifactType: "question-paper" | "answer-key"
+    artifactType: "question-paper" | "answer-key",
+    download = false
   ): string {
+    const params = new URLSearchParams();
+    if (download) params.set("download", "1");
     const token = getAuthToken();
-    return `${API_BASE}/api/v1/exams/${examId}/${artifactType}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    if (token) params.set("token", token);
+    const qs = params.toString();
+    return `${API_BASE}/api/v1/exams/${examId}/${artifactType}${qs ? `?${qs}` : ""}`;
   },
 
   getQuestionPaperPdfUrl(examId: string): string {
@@ -1457,29 +1462,35 @@ export const api = {
   // Export URLs
   getAnnotatedPdfUrl(submissionId: string, filename?: string) {
     const clean = submissionId.replace(/\.pdf$/i, "");
+    const token = getAuthToken();
+    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
     if (filename) {
       const cleanName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
-      return `${API_BASE}/api/exports/pdf/${clean}/${encodeURIComponent(cleanName)}`;
+      return `${API_BASE}/api/exports/pdf/${clean}/${encodeURIComponent(cleanName)}${qs}`;
     }
-    return `${API_BASE}/api/exports/pdf/${clean}`;
+    return `${API_BASE}/api/exports/pdf/${clean}${qs}`;
   },
 
   getBatchZipUrl(batchId: string, filename?: string) {
     const clean = batchId.replace(/\.zip$/i, "");
+    const token = getAuthToken();
+    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
     if (filename) {
       const cleanName = filename.endsWith(".zip") ? filename : `${filename}.zip`;
-      return `${API_BASE}/api/exports/batch-zip/${clean}/${encodeURIComponent(cleanName)}`;
+      return `${API_BASE}/api/exports/batch-zip/${clean}/${encodeURIComponent(cleanName)}${qs}`;
     }
-    return `${API_BASE}/api/exports/batch-zip/${clean}`;
+    return `${API_BASE}/api/exports/batch-zip/${clean}${qs}`;
   },
 
   getMarksCsvUrl(examId: string, filename?: string) {
     const clean = examId.replace(/\.csv$/i, "");
+    const token = getAuthToken();
+    const qs = token ? `?token=${encodeURIComponent(token)}` : "";
     if (filename) {
       const cleanName = filename.endsWith(".csv") ? filename : `${filename}.csv`;
-      return `${API_BASE}/api/exports/marks-csv/${clean}/${encodeURIComponent(cleanName)}`;
+      return `${API_BASE}/api/exports/marks-csv/${clean}/${encodeURIComponent(cleanName)}${qs}`;
     }
-    return `${API_BASE}/api/exports/marks-csv/${clean}`;
+    return `${API_BASE}/api/exports/marks-csv/${clean}${qs}`;
   },
 
   getPageImageUrl(submissionId: string, pageNum: number) {

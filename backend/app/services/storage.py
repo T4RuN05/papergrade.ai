@@ -1,10 +1,19 @@
 import os
+import time
+import shutil
+import logging
+import urllib.parse
+import urllib.request
+import urllib.error
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional
 import mimetypes
+from fastapi.responses import RedirectResponse
 
 from backend.app.config import settings
+
+logger = logging.getLogger(__name__)
 
 class StorageService(ABC):
     """Abstract interface for object storage (Cloudflare R2 or Local Disk)."""
@@ -27,7 +36,13 @@ class StorageService(ABC):
         pass
 
     @abstractmethod
-    def generate_presigned_download_url(self, key: str, expires_in: int = 900) -> str:
+    def generate_presigned_download_url(
+        self,
+        key: str,
+        expires_in: int = 900,
+        filename: Optional[str] = None,
+        attachment: bool = False,
+    ) -> str:
         """Generate a time-limited pre-signed GET URL for downloading private assets."""
         pass
 
@@ -35,6 +50,10 @@ class StorageService(ABC):
     def delete_file(self, key: str) -> bool:
         """Delete an object by key."""
         pass
+
+    def delete_prefix(self, prefix: str) -> int:
+        """Delete all objects under a storage key prefix. Returns number deleted where known."""
+        return 0
 
     @abstractmethod
     def file_exists(self, key: str) -> bool:
@@ -95,7 +114,13 @@ class LocalStorageService(StorageService):
             "is_direct_cloud": False,
         }
 
-    def generate_presigned_download_url(self, key: str, expires_in: int = 900) -> str:
+    def generate_presigned_download_url(
+        self,
+        key: str,
+        expires_in: int = 900,
+        filename: Optional[str] = None,
+        attachment: bool = False,
+    ) -> str:
         # For local development, point to the local backend proxy download route
         return f"/api/v1/storage/download?key={key}"
 
@@ -105,6 +130,26 @@ class LocalStorageService(StorageService):
             file_path.unlink()
             return True
         return False
+
+    def delete_prefix(self, prefix: str) -> int:
+        clean_prefix = prefix.replace("\\", "/").lstrip("/").rstrip("/")
+        if not clean_prefix:
+            return 0
+        target = self._resolve_path(clean_prefix)
+        deleted = 0
+        if target.exists() and target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+            deleted += 1
+        elif target.parent.exists() and target.parent.is_dir():
+            name_prefix = target.name
+            for entry in target.parent.iterdir():
+                if entry.name.startswith(name_prefix):
+                    if entry.is_dir():
+                        shutil.rmtree(entry, ignore_errors=True)
+                    else:
+                        entry.unlink(missing_ok=True)
+                    deleted += 1
+        return deleted
 
     def file_exists(self, key: str) -> bool:
         return self._resolve_path(key).exists()
@@ -180,15 +225,27 @@ class CloudflareR2StorageService(StorageService):
             "is_direct_cloud": True,
         }
 
-    def generate_presigned_download_url(self, key: str, expires_in: int = 900) -> str:
+    def generate_presigned_download_url(
+        self,
+        key: str,
+        expires_in: int = 900,
+        filename: Optional[str] = None,
+        attachment: bool = False,
+    ) -> str:
         clean_key = key.replace("\\", "/").lstrip("/")
-        if settings.R2_PUBLIC_URL:
-            # Custom public domain if configured
+        if settings.R2_PUBLIC_URL and not attachment:
+            # Custom public domain if configured (inline viewing / CDN assets)
             return f"{settings.R2_PUBLIC_URL.rstrip('/')}/{clean_key}"
+
+        params: Dict[str, Any] = {"Bucket": self.bucket_name, "Key": clean_key}
+        if attachment or filename:
+            disp = "attachment" if attachment else "inline"
+            safe_fn = filename or Path(clean_key).name or "download"
+            params["ResponseContentDisposition"] = f'{disp}; filename="{safe_fn}"'
 
         return self.s3_client.generate_presigned_url(
             ClientMethod="get_object",
-            Params={"Bucket": self.bucket_name, "Key": clean_key},
+            Params=params,
             ExpiresIn=expires_in,
         )
 
@@ -199,6 +256,25 @@ class CloudflareR2StorageService(StorageService):
             return True
         except Exception:
             return False
+
+    def delete_prefix(self, prefix: str) -> int:
+        clean_prefix = prefix.replace("\\", "/").lstrip("/")
+        if not clean_prefix:
+            return 0
+        deleted = 0
+        try:
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.bucket_name, Prefix=clean_prefix):
+                objs = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
+                if objs:
+                    self.s3_client.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete={"Objects": objs, "Quiet": True},
+                    )
+                    deleted += len(objs)
+        except Exception as exc:
+            logger.warning("R2 delete_prefix failed for %s: %s", clean_prefix, exc)
+        return deleted
 
     def file_exists(self, key: str) -> bool:
         clean_key = key.replace("\\", "/").lstrip("/")
@@ -252,10 +328,20 @@ class CloudinaryStorageService(StorageService):
             k = k[2:].lstrip("/")
         return k
 
+    @staticmethod
+    def _resource_type(clean_key: str, content_type: str = "") -> str:
+        lower_key = clean_key.lower()
+        lower_ct = (content_type or "").lower()
+        if lower_key.endswith((".pdf", ".zip", ".csv", ".json")) or any(
+            t in lower_ct for t in ("pdf", "zip", "csv", "octet-stream")
+        ):
+            return "raw"
+        return "image"
+
     def upload_file(self, file_content: bytes | str | Path, key: str, content_type: str = "application/pdf") -> str:
         import cloudinary.uploader
         clean_key = self._clean_public_id(key)
-        res_type = "raw" if (clean_key.lower().endswith(".pdf") or "pdf" in content_type.lower()) else "auto"
+        res_type = self._resource_type(clean_key, content_type)
 
         if isinstance(file_content, (str, Path)):
             src = str(file_content)
@@ -264,6 +350,7 @@ class CloudinaryStorageService(StorageService):
                 public_id=clean_key,
                 resource_type=res_type,
                 overwrite=True,
+                invalidate=True,
             )
         else:
             import io
@@ -272,6 +359,7 @@ class CloudinaryStorageService(StorageService):
                 public_id=clean_key,
                 resource_type=res_type,
                 overwrite=True,
+                invalidate=True,
             )
 
         # Cache locally
@@ -293,13 +381,18 @@ class CloudinaryStorageService(StorageService):
             with open(cached_path, "rb") as f:
                 return f.read()
 
-        import urllib.request
         import cloudinary.utils
 
-        res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
+        res_type = self._resource_type(clean_key)
         if res_type == "raw":
             ext = clean_key.rsplit(".", 1)[1] if "." in clean_key else "pdf"
-            url = cloudinary.utils.private_download_url(clean_key, ext, resource_type="raw", type="upload")
+            url = cloudinary.utils.private_download_url(
+                clean_key,
+                ext,
+                resource_type="raw",
+                type="upload",
+                expires_at=int(time.time()) + 300,
+            )
         else:
             url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
 
@@ -325,24 +418,39 @@ class CloudinaryStorageService(StorageService):
             "is_direct_cloud": False,
         }
 
-    def generate_presigned_download_url(self, key: str, expires_in: int = 900) -> str:
+    def generate_presigned_download_url(
+        self,
+        key: str,
+        expires_in: int = 900,
+        filename: Optional[str] = None,
+        attachment: bool = False,
+    ) -> str:
         import cloudinary.utils
         clean_key = self._clean_public_id(key)
-        res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
+        res_type = self._resource_type(clean_key)
         if res_type == "raw":
             ext = clean_key.rsplit(".", 1)[1] if "." in clean_key else "pdf"
             return cloudinary.utils.private_download_url(
-                clean_key, ext, resource_type="raw", type="upload", expires_in=expires_in
+                clean_key,
+                ext,
+                resource_type="raw",
+                type="upload",
+                expires_at=int(time.time()) + max(60, expires_in),
+                attachment=attachment,
             )
-        url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
+        url_opts: Dict[str, Any] = {"resource_type": "image", "secure": True}
+        if attachment:
+            safe_stem = Path(filename).stem if filename else ""
+            url_opts["flags"] = f"attachment:{safe_stem}" if safe_stem else "attachment"
+        url, _ = cloudinary.utils.cloudinary_url(clean_key, **url_opts)
         return url
 
     def delete_file(self, key: str) -> bool:
         import cloudinary.uploader
         clean_key = self._clean_public_id(key)
-        res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
+        res_type = self._resource_type(clean_key)
         try:
-            cloudinary.uploader.destroy(clean_key, resource_type=res_type)
+            cloudinary.uploader.destroy(clean_key, resource_type=res_type, invalidate=True)
             cached_path = self.cache_dir / clean_key
             if cached_path.exists():
                 cached_path.unlink()
@@ -350,14 +458,48 @@ class CloudinaryStorageService(StorageService):
         except Exception:
             return False
 
+    def delete_prefix(self, prefix: str) -> int:
+        import cloudinary.api
+        clean_prefix = self._clean_public_id(prefix).rstrip("/")
+        if not clean_prefix:
+            return 0
+        deleted = 0
+        for res_type in ("image", "raw"):
+            try:
+                res = cloudinary.api.delete_resources_by_prefix(clean_prefix, resource_type=res_type, invalidate=True)
+                deleted += len(res.get("deleted", {}))
+            except Exception:
+                pass
+        cached_target = self.cache_dir / clean_prefix
+        if cached_target.exists():
+            if cached_target.is_dir():
+                shutil.rmtree(cached_target, ignore_errors=True)
+            else:
+                cached_target.unlink(missing_ok=True)
+        return deleted
+
     def file_exists(self, key: str) -> bool:
         clean_key = self._clean_public_id(key)
         cached_path = self.cache_dir / clean_key
         if cached_path.exists():
             return True
+        res_type = self._resource_type(clean_key)
+        if res_type == "image":
+            # Probe public CDN via HTTP HEAD first to avoid exhausting Cloudinary's 500/hr Admin API limit
+            try:
+                import cloudinary.utils
+                cdn_url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
+                req = urllib.request.Request(cdn_url, method="HEAD", headers={"User-Agent": "PaperGrade-AI/1.0"})
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    if 200 <= resp.status < 300:
+                        return True
+            except urllib.error.HTTPError as http_err:
+                if http_err.code == 404:
+                    return False
+            except Exception:
+                pass
         try:
             import cloudinary.api
-            res_type = "raw" if clean_key.lower().endswith(".pdf") else "image"
             cloudinary.api.resource(clean_key, resource_type=res_type)
             return True
         except Exception:
@@ -394,4 +536,63 @@ def get_storage_service() -> StorageService:
         else:
             _storage_instance = LocalStorageService()
     return _storage_instance
+
+
+def is_remote_storage(storage: Optional[StorageService] = None) -> bool:
+    """Return True when active object storage is remote (R2 / Cloudinary), not local disk."""
+    svc = storage or get_storage_service()
+    return not isinstance(svc, LocalStorageService)
+
+
+def sync_file_to_remote_storage(
+    local_path: Path,
+    key: str,
+    content_type: str = "application/octet-stream",
+    storage: Optional[StorageService] = None,
+) -> bool:
+    """Upload a local file to remote object storage if a remote backend is configured."""
+    svc = storage or get_storage_service()
+    if not is_remote_storage(svc) or not local_path or not local_path.exists():
+        return False
+    try:
+        svc.upload_file(local_path, key, content_type=content_type)
+        return True
+    except Exception as exc:
+        logger.warning("Remote storage sync failed for key '%s': %s", key, exc)
+        return False
+
+
+def build_remote_redirect_response(
+    storage: StorageService,
+    key: str,
+    *,
+    filename: Optional[str] = None,
+    attachment: bool = False,
+    cache_buster: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
+    expires_in: int = 900,
+) -> Optional[RedirectResponse]:
+    """Build a 307 RedirectResponse to object storage when storage generates an http(s) URL."""
+    if not is_remote_storage(storage) or not key:
+        return None
+    try:
+        try:
+            url = storage.generate_presigned_download_url(
+                key,
+                expires_in=expires_in,
+                filename=filename,
+                attachment=attachment,
+            )
+        except TypeError:
+            url = storage.generate_presigned_download_url(key)
+
+        if url and (url.startswith("http://") or url.startswith("https://")):
+            # Only append cache-buster on unsigned URLs so SigV4 / HMAC query signatures never break
+            if cache_buster and "?" not in url:
+                url = f"{url}?v={urllib.parse.quote(str(cache_buster))}"
+            return RedirectResponse(url=url, status_code=307, headers=headers)
+    except Exception as exc:
+        logger.warning("Presigned redirect generation failed for key '%s': %s", key, exc)
+    return None
+
 

@@ -173,12 +173,22 @@ class RetentionService:
                 return {"status": "already_purged", "submission_id": submission_id}
 
             # 1. Delete files from object storage (Cloudinary / R2 / local)
-            for path_key in [sub.original_file_path, sub.canonical_pdf_path, sub.annotated_pdf_path]:
+            for path_key in [
+                sub.original_file_path,
+                sub.canonical_pdf_path,
+                sub.annotated_pdf_path,
+                f"exports/{submission_id}_annotated.pdf",
+            ]:
                 if path_key and path_key not in ["", "PURGED"]:
                     try:
                         storage.delete_file(path_key)
                     except Exception:
                         pass
+
+            try:
+                storage.delete_prefix(f"renders/{submission_id}/")
+            except Exception:
+                pass
 
             # 2. Delete local rendered page images and crop folders
             renders_sub_dir = settings.RENDERS_DIR / submission_id
@@ -237,12 +247,22 @@ class RetentionService:
                 return {"status": "already_purged", "exam_id": exam_id}
 
             # 1. Delete files from object storage (Cloudinary / R2 / local)
-            for path_key in [exam.question_paper_path, exam.answer_key_path]:
+            for path_key in [
+                exam.question_paper_path,
+                exam.answer_key_path,
+                f"exams/{exam_id}/question_paper.pdf",
+                f"exams/{exam_id}/answer_key.pdf",
+            ]:
                 if path_key and path_key not in ["", "PURGED"]:
                     try:
                         storage.delete_file(path_key)
                     except Exception:
                         pass
+
+            try:
+                storage.delete_prefix(f"renders/exam_{exam_id}_")
+            except Exception:
+                pass
 
             # 2. Delete local exam uploads directory
             exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"

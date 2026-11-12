@@ -1,5 +1,6 @@
 import io
 import csv
+import shutil
 import zipfile
 import json
 from pathlib import Path
@@ -11,6 +12,7 @@ from backend.app.config import settings
 from backend.app.db.session import get_session
 from backend.app.db.models import Submission, RubricVersion, Answer
 from backend.app.services.grading_service import grading_service
+from backend.app.services.storage import get_storage_service, is_remote_storage
 
 
 class ExportService:
@@ -18,6 +20,21 @@ class ExportService:
     def get_submission_pdf_path(submission_id: str) -> Optional[Path]:
         annotated_path = settings.EXPORTS_DIR / f"{submission_id}_annotated.pdf"
         if not annotated_path.exists():
+            storage = get_storage_service()
+            remote_key = f"exports/{submission_id}_annotated.pdf"
+            if (
+                not grading_service.is_export_dirty(submission_id)
+                and is_remote_storage(storage)
+                and storage.file_exists(remote_key)
+            ):
+                try:
+                    cached = storage.get_local_path_or_download(remote_key)
+                    if cached and cached.exists():
+                        annotated_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(cached, annotated_path)
+                        return annotated_path
+                except Exception:
+                    pass
             grading_service.generate_export_pdf_for_submission(submission_id)
         if annotated_path.exists():
             return annotated_path

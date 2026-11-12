@@ -15,7 +15,12 @@ from backend.app.schemas import (
     SingleAnswerReevaluateRequest,
 )
 from backend.app.services.grading_service import grading_service
-from backend.app.services.storage import get_storage_service
+from backend.app.services.storage import (
+    get_storage_service,
+    is_remote_storage,
+    build_remote_redirect_response,
+    sync_file_to_remote_storage,
+)
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.auth import get_current_user, require_branch_manager
 
@@ -135,6 +140,71 @@ def delete_region(
         raise HTTPException(status_code=500, detail=f"Failed to delete region: {str(e)}")
 
 
+def _ensure_submission_pages_rendered(
+    submission_id: str,
+    sub: Optional[Submission],
+    target_img_path: Path,
+    storage,
+) -> None:
+    """Render submission PDF pages locally (and sync to remote storage) if target image is missing."""
+    if target_img_path.exists() or not sub:
+        return
+    with _render_lock:
+        if target_img_path.exists():
+            return
+        candidate_keys = []
+        for raw_k in [sub.canonical_pdf_path, sub.original_file_path]:
+            if raw_k:
+                candidate_keys.append(raw_k)
+                clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
+                candidate_keys.append(clean_k)
+                for marker in ["/submissions/", "/uploads/", "/data/"]:
+                    if marker in clean_k:
+                        candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
+                        candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
+
+        exam_id = sub.exam_id
+        roll = sub.roll_number
+        if exam_id and roll:
+            candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
+            candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
+        candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
+        candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
+
+        for k in dict.fromkeys(k for k in candidate_keys if k):
+            try:
+                if storage.file_exists(k):
+                    local_pdf = storage.get_local_path_or_download(k)
+                    if local_pdf and local_pdf.exists():
+                        pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                        if target_img_path.exists():
+                            break
+            except Exception:
+                continue
+
+
+def _serve_render_image(
+    local_path: Path,
+    storage_key: str,
+    storage,
+    headers: Dict[str, str],
+    cache_buster: Optional[str] = None,
+):
+    """Redirect to remote object storage when configured; otherwise stream local PNG."""
+    if is_remote_storage(storage):
+        if not storage.file_exists(storage_key):
+            sync_file_to_remote_storage(local_path, storage_key, content_type="image/png", storage=storage)
+        redirect_resp = build_remote_redirect_response(
+            storage,
+            storage_key,
+            cache_buster=cache_buster,
+            headers=headers,
+        )
+        if redirect_resp is not None:
+            return redirect_resp
+    return FileResponse(str(local_path), media_type="image/png", headers=headers)
+
+
 @router.get("/page-image/{submission_id}/{page_num}")
 def get_page_image(
     submission_id: str,
@@ -173,45 +243,19 @@ def get_page_image(
         if not owns_sub:
             raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's page image.")
 
+    storage = get_storage_service()
+    page_storage_key = f"renders/{submission_id}/page_{page_num}.png"
+    if is_remote_storage(storage) and storage.file_exists(page_storage_key):
+        redirect_resp = build_remote_redirect_response(storage, page_storage_key, headers=PAGE_CACHE_HEADERS)
+        if redirect_resp is not None:
+            return redirect_resp
+
     img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
-    if not img_path.exists() and sub:
-        with _render_lock:
-            # Double check inside mutex in case previous thread just finished rendering it
-            if not img_path.exists():
-                candidate_keys = []
-                for raw_k in [sub.canonical_pdf_path, sub.original_file_path]:
-                    if raw_k:
-                        candidate_keys.append(raw_k)
-                        clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
-                        candidate_keys.append(clean_k)
-                        for marker in ["/submissions/", "/uploads/", "/data/"]:
-                            if marker in clean_k:
-                                candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
-                                candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
-
-                exam_id = sub.exam_id
-                roll = sub.roll_number
-                if exam_id and roll:
-                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
-                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
-                candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
-                candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
-
-                storage = get_storage_service()
-                for k in candidate_keys:
-                    try:
-                        if storage.file_exists(k):
-                            local_pdf = storage.get_local_path_or_download(k)
-                            if local_pdf and local_pdf.exists():
-                                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
-                                if img_path.exists():
-                                    break
-                    except Exception:
-                        continue
+    _ensure_submission_pages_rendered(submission_id, sub, img_path, storage)
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
-    return FileResponse(str(img_path), media_type="image/png", headers=PAGE_CACHE_HEADERS)
+    return _serve_render_image(img_path, page_storage_key, storage, PAGE_CACHE_HEADERS)
 
 
 @router.get("/crop/{submission_id}/{answer_id}")
@@ -223,8 +267,14 @@ def get_answer_crop(
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    sub = db.scalar(select(Submission).where(Submission.id == submission_id))
+    if sub and sub.is_document_purged:
+        raise HTTPException(
+            status_code=410,
+            detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage."
+        )
+
     if current_user.get("role") == "STUDENT":
-        sub = db.scalar(select(Submission).where(Submission.id == submission_id))
         user_roll = (current_user.get("roll_number") or "").strip().upper()
         user_stu_id = current_user.get("student_id")
         owns_sub = (user_roll and sub and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub and sub.student_id == user_stu_id)
@@ -235,6 +285,7 @@ def get_answer_crop(
             if not exam or exam.is_published != 1:
                 raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
+    storage = get_storage_service()
     crops_dir = settings.RENDERS_DIR / submission_id / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
@@ -242,16 +293,32 @@ def get_answer_crop(
     target_reg = None
 
     if region_id:
-        reg_crop_path = crops_dir / f"crop_{answer_id}_{region_id}.png"
+        reg_crop_name = f"crop_{answer_id}_{region_id}.png"
+        reg_crop_path = crops_dir / reg_crop_name
+        reg_crop_key = f"renders/{submission_id}/crops/{reg_crop_name}"
+        if is_remote_storage(storage) and storage.file_exists(reg_crop_key):
+            redirect_resp = build_remote_redirect_response(
+                storage, reg_crop_key, cache_buster=v, headers=NO_CACHE_HEADERS
+            )
+            if redirect_resp is not None:
+                return redirect_resp
         if reg_crop_path.exists():
-            return FileResponse(str(reg_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
+            return _serve_render_image(reg_crop_path, reg_crop_key, storage, NO_CACHE_HEADERS, cache_buster=v)
         target_crop_path = reg_crop_path
         target_reg = db.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
 
     if not target_crop_path or not target_reg:
-        primary_crop_path = crops_dir / f"crop_{answer_id}.png"
+        primary_crop_name = f"crop_{answer_id}.png"
+        primary_crop_path = crops_dir / primary_crop_name
+        primary_crop_key = f"renders/{submission_id}/crops/{primary_crop_name}"
+        if is_remote_storage(storage) and storage.file_exists(primary_crop_key):
+            redirect_resp = build_remote_redirect_response(
+                storage, primary_crop_key, cache_buster=v, headers=NO_CACHE_HEADERS
+            )
+            if redirect_resp is not None:
+                return redirect_resp
         if primary_crop_path.exists():
-            return FileResponse(str(primary_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
+            return _serve_render_image(primary_crop_path, primary_crop_key, storage, NO_CACHE_HEADERS, cache_buster=v)
         target_crop_path = primary_crop_path
         target_reg = db.scalar(
             select(AnswerRegion)
@@ -260,43 +327,21 @@ def get_answer_crop(
             .limit(1)
         )
 
-    # Dynamic fallback: regenerate crop if missing from disk
+    # Dynamic fallback: regenerate crop if missing from disk and object storage
     if target_reg:
         page_num = target_reg.page_number
         page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
-        if not page_img.exists():
-            sub = db.scalar(select(Submission).where(Submission.id == submission_id))
-            if sub:
-                candidate_keys = []
-                for raw_k in [sub.canonical_pdf_path, sub.original_file_path]:
-                    if raw_k:
-                        candidate_keys.append(raw_k)
-                        clean_k = str(raw_k).replace("\\", "/").strip().lstrip("/")
-                        candidate_keys.append(clean_k)
-                        for marker in ["/submissions/", "/uploads/", "/data/"]:
-                            if marker in clean_k:
-                                candidate_keys.append(clean_k[clean_k.index(marker) + len(marker):])
-                                candidate_keys.append(clean_k[clean_k.index(marker) + 1:])
+        _ensure_submission_pages_rendered(submission_id, sub, page_img, storage)
 
-                exam_id = sub.exam_id
-                roll = sub.roll_number
-                if exam_id and roll:
-                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_{submission_id}.pdf")
-                    candidate_keys.append(f"submissions/{exam_id}/{roll}/original_sub_{submission_id}.pdf")
-                candidate_keys.append(f"submissions/{submission_id}/canonical.pdf")
-                candidate_keys.append(f"sub_{submission_id}/canonical.pdf")
-
-                storage = get_storage_service()
-                for k in candidate_keys:
-                    try:
-                        if storage.file_exists(k):
-                            local_pdf = storage.get_local_path_or_download(k)
-                            if local_pdf and local_pdf.exists():
-                                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
-                                if page_img.exists():
-                                    break
-                    except Exception:
-                        continue
+        if not page_img.exists() and is_remote_storage(storage):
+            page_key = f"renders/{submission_id}/page_{page_num}.png"
+            try:
+                if storage.file_exists(page_key):
+                    cached_page = storage.get_local_path_or_download(page_key)
+                    if cached_page and cached_page.exists():
+                        page_img = cached_page
+            except Exception:
+                pass
 
         if page_img.exists():
             try:
@@ -312,6 +357,7 @@ def get_answer_crop(
                 pass
 
     if target_crop_path and target_crop_path.exists():
-        return FileResponse(str(target_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
+        crop_key = f"renders/{submission_id}/crops/{target_crop_path.name}"
+        return _serve_render_image(target_crop_path, crop_key, storage, NO_CACHE_HEADERS, cache_buster=v)
 
     raise HTTPException(status_code=404, detail="Crop not found.")
