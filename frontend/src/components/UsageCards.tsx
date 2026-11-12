@@ -506,8 +506,8 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                   ) : (
                     recent_events.map((ev) => (
                       <tr key={ev.id} className="hover:bg-canvas-soft transition-colors">
-                        <td className="px-3 py-2 font-mono text-[11px] text-ink-muted">
-                          {new Date(ev.timestamp).toLocaleTimeString()}
+                        <td className="px-3 py-2 font-mono text-[11px] text-ink-muted whitespace-nowrap">
+                          {new Date(ev.timestamp).toLocaleString()}
                         </td>
                         <td className="px-3 py-2 font-medium text-ink">
                           <span className="rounded bg-canvas-soft border border-hairline px-1.5 py-0.5 text-[10px]">
@@ -592,7 +592,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <span className="text-[10px] text-ink-muted uppercase block">Location & Status</span>
                     <span className="font-semibold text-ink flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                      {gcp_paid?.location || "us-central1"} • {gcp_paid?.is_configured ? "Ready" : "Active"}
+                      {gcp_paid?.location || "global"} • {gcp_paid?.is_configured ? "Ready" : "Active"}
                     </span>
                   </div>
                 </div>
@@ -872,8 +872,8 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                   ) : (
                     gcpEvents.map((ev) => (
                       <tr key={ev.id} className="hover:bg-canvas-soft transition-colors">
-                        <td className="px-3 py-2 font-mono text-[11px] text-ink-muted">
-                          {new Date(ev.timestamp).toLocaleTimeString()}
+                        <td className="px-3 py-2 font-mono text-[11px] text-ink-muted whitespace-nowrap">
+                          {new Date(ev.timestamp).toLocaleString()}
                         </td>
                         <td className="px-3 py-2 font-medium text-ink">
                           <span className="rounded bg-canvas-soft border border-hairline px-1.5 py-0.5 text-[10px]">
@@ -883,7 +883,7 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                         <td className="px-3 py-2 font-mono text-[11px] text-primary">
                           <div>{ev.model_name}</div>
                           <div className="text-[10px] text-ink-muted font-sans font-normal">
-                            Vertex AI ({gcp_paid?.location || "us-central1"})
+                            Vertex AI ({gcp_paid?.location || "global"})
                           </div>
                         </td>
                         <td className="px-3 py-2 text-right font-mono text-ink">

@@ -35,6 +35,7 @@ def update_quota_settings(
 
 @router.post("/test-gcp-paid")
 def test_gcp_paid(
+    test_all: bool = False,
     current_user: Dict[str, Any] = Depends(require_branch_manager)
 ):
     """
@@ -42,7 +43,7 @@ def test_gcp_paid(
     logging the response, token count, duration, or exact error code to telemetry.
     """
     from backend.app.gemini.client import gemini_client
-    return gemini_client.test_gcp_paid_connection()
+    return gemini_client.test_gcp_paid_connection(test_all=test_all)
 
 
 @router.post("/benchmark")

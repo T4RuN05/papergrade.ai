@@ -1,5 +1,6 @@
 import time
 import json
+import logging
 import random
 import uuid
 import threading
@@ -37,6 +38,9 @@ from backend.app.gemini.prompts import (
 class AllGeminiKeysExhaustedError(RuntimeError):
     """Raised when all configured Gemini API keys have exhausted their quota / rate limits."""
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_rate_or_quota_error(e: Exception) -> bool:
@@ -112,10 +116,10 @@ class GeminiGradingClient:
     def is_gcp_paid_live(self) -> bool:
         return self._gcp_client is not None
 
-    def test_gcp_paid_connection(self) -> Dict[str, Any]:
+    def test_gcp_paid_connection(self, test_all: bool = False) -> Dict[str, Any]:
         """
         Executes an immediate live test ping through the Google Cloud Paid Vertex AI engine.
-        Every request, duration, token count, and exact error code is logged to the DB ledger.
+        Every attempt, duration, token count, and exact error code is logged to the DB ledger and server logs.
         """
         if not self._gcp_client:
             return {
@@ -128,16 +132,22 @@ class GeminiGradingClient:
             }
 
         start_time = time.time()
-        candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
-        last_error = None
+        candidate_models = list(
+            dict.fromkeys([*self.candidate_models, "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"])
+        )
+        attempts: List[Dict[str, Any]] = []
+        first_success: Optional[Dict[str, Any]] = None
+        last_error: Optional[Exception] = None
+        last_event_id = ""
 
         for model_name in candidate_models:
+            attempt_start = time.time()
             try:
                 response = self._gcp_client.models.generate_content(
                     model=model_name,
                     contents="PaperGrade AI diagnostic ping. Respond with 'GCP Vertex AI Online'."
                 )
-                duration_ms = int((time.time() - start_time) * 1000)
+                attempt_ms = int((time.time() - attempt_start) * 1000)
                 in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
                 out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
                 tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
@@ -147,7 +157,7 @@ class GeminiGradingClient:
                     batch_id=None,
                     submission_id=None,
                     request_purpose="GCP_PAID_DIAGNOSTIC_PING",
-                    duration_ms=duration_ms,
+                    duration_ms=attempt_ms,
                     success=True,
                     input_tokens=in_tok,
                     output_tokens=out_tok,
@@ -156,43 +166,66 @@ class GeminiGradingClient:
                     model_name=model_name,
                     api_key="GCP_PAID"
                 )
-                return {
+                result_entry = {
                     "success": True,
                     "message": response.text or "GCP Vertex AI Online",
                     "model_used": model_name,
-                    "duration_ms": duration_ms,
+                    "duration_ms": attempt_ms,
                     "input_tokens": in_tok,
                     "output_tokens": out_tok,
-                    "event_id": event_id
+                    "event_id": event_id,
                 }
+                attempts.append(result_entry)
+                if first_success is None:
+                    first_success = result_entry
+                if not test_all:
+                    return {**result_entry, "attempts": attempts}
             except Exception as e:
                 last_error = e
+                attempt_ms = int((time.time() - attempt_start) * 1000)
+                err_code = type(e).__name__
+                http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
+                err_msg = str(e)
+                last_event_id = self._record_usage_event(
+                    exam_id=None,
+                    batch_id=None,
+                    submission_id=None,
+                    request_purpose="GCP_PAID_DIAGNOSTIC_PING",
+                    duration_ms=attempt_ms,
+                    success=False,
+                    http_status=http_status,
+                    error_code=f"{err_code}: {err_msg[:120]}",
+                    model_name=model_name,
+                    api_key="GCP_PAID"
+                )
+                attempts.append({
+                    "success": False,
+                    "model_used": model_name,
+                    "error_code": err_code,
+                    "http_status": http_status,
+                    "message": err_msg[:300],
+                    "duration_ms": attempt_ms,
+                    "event_id": last_event_id,
+                })
                 continue
+
+        if first_success is not None:
+            total_ms = int((time.time() - start_time) * 1000)
+            return {**first_success, "total_duration_ms": total_ms, "attempts": attempts}
 
         duration_ms = int((time.time() - start_time) * 1000)
         err_code = type(last_error).__name__ if last_error else "UnknownError"
         http_status = getattr(last_error, "code", 500) if hasattr(last_error, "code") else 500
         err_msg = str(last_error) if last_error else "Failed to contact Vertex AI"
 
-        event_id = self._record_usage_event(
-            exam_id=None,
-            batch_id=None,
-            submission_id=None,
-            request_purpose="GCP_PAID_DIAGNOSTIC_PING",
-            duration_ms=duration_ms,
-            success=False,
-            http_status=http_status,
-            error_code=f"{err_code}: {err_msg[:120]}",
-            model_name=candidate_models[0],
-            api_key="GCP_PAID"
-        )
         return {
             "success": False,
             "error_code": err_code,
             "http_status": http_status,
             "message": err_msg,
             "duration_ms": duration_ms,
-            "event_id": event_id
+            "event_id": last_event_id,
+            "attempts": attempts,
         }
 
     def get_active_models(self) -> List[str]:
@@ -339,9 +372,14 @@ class GeminiGradingClient:
         except Exception as log_err:
             print(f"[GeminiClient] Warning: Could not record usage event to DB: {log_err}")
 
-        # Console telemetry output for developer observability
+        # Console & structured logger telemetry output for developer observability
         status_tag = f"status={http_status}" if http_status else ("SUCCESS" if success else "FAILED")
-        print(f"[Telemetry] {actual_model} via {masked_key} | {request_purpose} | {status_tag} | {duration_ms}ms | tokens: in={input_tokens or 0}, out={output_tokens or 0}")
+        telemetry_line = (
+            f"[Telemetry] {actual_model} via {masked_key} | {request_purpose} | {status_tag} "
+            f"| {duration_ms}ms | tokens: in={input_tokens or 0}, out={output_tokens or 0}"
+        )
+        logger.info(telemetry_line)
+        print(telemetry_line)
         return event_id
 
     def extract_exam_rubric(
