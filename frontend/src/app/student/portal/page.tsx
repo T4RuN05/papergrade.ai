@@ -74,9 +74,15 @@ interface TrajectoryPoint {
   title: string;
   subject: string;
   dateStr: string;
+  fullDateStr: string;
+  timeMs: number;
   marks: number;
   maxMarks: number;
   percentage: number;
+  /** Running sum of awarded marks from the first paper in this view up to this point. */
+  cumulativeMarks: number;
+  /** Running sum of available (max) marks, so cumulative marks have a meaningful ceiling. */
+  cumulativeMax: number;
   isMarksRevised: boolean;
   isRevalPending: boolean;
 }
@@ -140,44 +146,75 @@ function StudentMarksTrajectory({
             (s) => (s.exam_subject || "").trim().toLowerCase() === selectedSubject.toLowerCase()
           );
 
-    return filtered
+    const sorted = filtered
       .slice()
-      .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
-      .map((sub, idx) => {
-        const rawMarks = Number(sub.total_awarded_marks ?? 0);
-        const maxMarks = Number(sub.max_marks ?? 100);
-        const pct =
-          sub.percentage !== null && sub.percentage !== undefined
-            ? Number(sub.percentage)
-            : maxMarks > 0
-            ? Number(((rawMarks / maxMarks) * 100).toFixed(1))
-            : 0;
+      .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
 
-        const reval = sub.revaluation;
-        const isRevalResolved = reval && reval.status === "RESOLVED";
-        const isMarksRevised =
-          isRevalResolved && (reval.decision === "MARKS_REVISED" || sub.is_manual_override === 1);
-        const isRevalPending =
-          reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
+    // Date labels get a year suffix when the history crosses a calendar year.
+    const multiYear =
+      new Set(sorted.map((s) => new Date(s.created_at || 0).getFullYear())).size > 1;
 
-        return {
-          index: idx,
-          id: sub.id,
-          title: sub.exam_title || `Exam #${idx + 1}`,
-          subject: sub.exam_subject || "General",
-          dateStr: sub.created_at
-            ? new Date(sub.created_at).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })
-            : `Paper ${idx + 1}`,
-          marks: rawMarks,
-          maxMarks: maxMarks,
-          percentage: pct,
-          isMarksRevised,
-          isRevalPending,
-        };
-      });
+    let runningMarks = 0;
+    let runningMax = 0;
+
+    return sorted.map((sub, idx) => {
+      const marksNum = Number(sub.total_awarded_marks ?? 0);
+      const rawMarks = Number.isFinite(marksNum) ? marksNum : 0;
+      const maxNum = Number(sub.max_marks ?? 100);
+      const maxMarks = Number.isFinite(maxNum) && maxNum > 0 ? maxNum : 100;
+      const pctRaw =
+        sub.percentage !== null && sub.percentage !== undefined
+          ? Number(sub.percentage)
+          : maxMarks > 0
+          ? Number(((rawMarks / maxMarks) * 100).toFixed(1))
+          : 0;
+      const pct = Number.isFinite(pctRaw) ? pctRaw : 0;
+
+      const reval = sub.revaluation;
+      const isRevalResolved = Boolean(reval && reval.status === "RESOLVED");
+      const isMarksRevised = Boolean(
+        isRevalResolved && (reval.decision === "MARKS_REVISED" || sub.is_manual_override === 1)
+      );
+      const isRevalPending = Boolean(
+        reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW")
+      );
+
+      const createdAt = sub.created_at ? new Date(sub.created_at) : null;
+      const hasValidDate = Boolean(createdAt && !Number.isNaN(createdAt.getTime()));
+
+      runningMarks += rawMarks;
+      runningMax += maxMarks;
+
+      return {
+        index: idx,
+        id: sub.id,
+        title: sub.exam_title || `Exam #${idx + 1}`,
+        subject: sub.exam_subject || "General",
+        dateStr: hasValidDate
+          ? (createdAt as Date).toLocaleDateString(
+              undefined,
+              multiYear
+                ? { month: "short", day: "numeric", year: "2-digit" }
+                : { month: "short", day: "numeric" }
+            )
+          : `Paper ${idx + 1}`,
+        fullDateStr: hasValidDate
+          ? (createdAt as Date).toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })
+          : `Paper ${idx + 1}`,
+        timeMs: hasValidDate ? (createdAt as Date).getTime() : Number.NaN,
+        marks: rawMarks,
+        maxMarks,
+        percentage: pct,
+        cumulativeMarks: runningMarks,
+        cumulativeMax: runningMax,
+        isMarksRevised,
+        isRevalPending,
+      };
+    });
   }, [publishedSubmissions, selectedSubject]);
 
   // Metrics
@@ -187,6 +224,12 @@ function StudentMarksTrajectory({
       ? (points.reduce((acc, p) => acc + p.percentage, 0) / count).toFixed(1)
       : null;
   const revalUpgradesCount = points.filter((p) => p.isMarksRevised).length;
+  const totalAwarded = count > 0 ? points[count - 1].cumulativeMarks : 0;
+  const totalMax = count > 0 ? points[count - 1].cumulativeMax : 0;
+
+  // Scale toggle: per-paper percentage (default) vs running cumulative marks.
+  const [viewMode, setViewMode] = useState<"percentage" | "cumulative">("percentage");
+  const isCumulative = viewMode === "cumulative";
 
   const [lineAnimated, setLineAnimated] = useState(false);
 
@@ -201,16 +244,7 @@ function StudentMarksTrajectory({
       return () => clearTimeout(t);
     });
     return () => cancelAnimationFrame(frame);
-  }, [selectedSubject, points.length]);
-
-  // Synchronize data dot pop-in with the exact physical velocity of the S-curve line tip
-  const getPointDelay = (idx: number, total: number) => {
-    if (total <= 1) return 0.2;
-    const p = idx / (total - 1);
-    // S-curve smoothstep mapping (3p^2 - 2p^3) matching slow-fast-slow progression
-    const s = p * p * (3 - 2 * p);
-    return Number((0.15 + s * 1.15).toFixed(2));
-  };
+  }, [selectedSubject, points.length, viewMode]);
 
   // SVG Coordinates calculation (optimized 520x165 dynamic viewBox)
   const svgWidth = 520;
@@ -218,41 +252,129 @@ function StudentMarksTrajectory({
   const padTop = 16;
   const padBottom = 24;
   const padLeft = 32;
-  const padRight = 16;
+  // Cumulative point labels can be wider than "100%"; leave more room on the right edge.
+  const padRight = isCumulative ? 26 : 16;
   const plotW = svgWidth - padLeft - padRight;
   const plotH = svgHeight - padTop - padBottom;
 
-  const getY = (pct: number) => {
-    const clamped = Math.max(0, Math.min(100, pct));
-    return padTop + (1 - clamped / 100) * plotH;
-  };
+  // Y domain is 0-100% normally, or 0..sum(available marks) in cumulative mode.
+  const maxY = isCumulative ? Math.max(1, totalMax) : 100;
 
-  const getX = (idx: number) => {
-    if (count <= 1) return padLeft + plotW / 2;
-    return padLeft + (idx / (count - 1)) * plotW;
-  };
+  const getY = useCallback(
+    (value: number) => {
+      const clamped = Math.max(0, Math.min(maxY, value));
+      return padTop + (1 - clamped / maxY) * plotH;
+    },
+    [maxY, plotH, padTop]
+  );
 
-  // Build SVG path
-  const pathD = useMemo(() => {
-    if (count === 0) return "";
-    if (count === 1) {
-      const cx = getX(0);
-      const cy = getY(points[0].percentage);
-      return `M ${cx - 20} ${cy} L ${cx + 20} ${cy}`;
-    }
-    return points.reduce((acc, p, i) => {
-      const x = getX(i);
-      const y = getY(p.percentage);
-      if (i === 0) return `M ${x} ${y}`;
-      const prevX = getX(i - 1);
-      const prevY = getY(points[i - 1].percentage);
-      const cpX1 = prevX + (x - prevX) / 2;
-      const cpY1 = prevY;
-      const cpX2 = prevX + (x - prevX) / 2;
-      const cpY2 = y;
-      return `${acc} C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${x} ${y}`;
-    }, "");
+  // X axis follows real time so a month-long gap is visibly wider than a one-day gap.
+  const timeDomain = useMemo(() => {
+    if (count < 2) return null;
+    const times = points.map((p) => p.timeMs).filter((t) => Number.isFinite(t));
+    if (times.length < 2) return null;
+    const min = Math.min(...times);
+    const max = Math.max(...times);
+    // Papers uploaded within the same few hours would collapse into one x position.
+    if (max - min < 6 * 60 * 60 * 1000) return null;
+    return { min, max };
   }, [points, count]);
+
+  const getX = useCallback(
+    (idx: number) => {
+      if (count <= 1) return padLeft + plotW / 2;
+      if (timeDomain) {
+        const t = points[idx]?.timeMs ?? Number.NaN;
+        if (Number.isFinite(t)) {
+          const frac = (t - timeDomain.min) / (timeDomain.max - timeDomain.min);
+          return padLeft + Math.max(0, Math.min(1, frac)) * plotW;
+        }
+      }
+      return padLeft + (idx / (count - 1)) * plotW;
+    },
+    [count, timeDomain, points, plotW, padLeft]
+  );
+
+  // Synchronize data dot pop-in with the exact physical velocity of the S-curve line tip
+  const getPointDelay = useCallback(
+    (idx: number, total: number) => {
+      if (total <= 1) return 0.2;
+      const p = Math.max(0, Math.min(1, (getX(idx) - padLeft) / plotW));
+      // S-curve smoothstep mapping (3p^2 - 2p^3) matching slow-fast-slow progression
+      const s = p * p * (3 - 2 * p);
+      return Number((0.15 + s * 1.15).toFixed(2));
+    },
+    [getX, padLeft, plotW]
+  );
+
+  // Only draw labels that fit; first/last are prioritised so nothing overlaps.
+  const pickLabelIndexes = useCallback(
+    (minGap: number) => {
+      const shown = new Set<number>();
+      if (count === 0) return shown;
+      const lastIdx = count - 1;
+      shown.add(0);
+      if (count === 1) return shown;
+
+      const firstX = getX(0);
+      const lastX = getX(lastIdx);
+      if (lastX - firstX < minGap) {
+        shown.clear();
+        shown.add(lastIdx);
+        return shown;
+      }
+      shown.add(lastIdx);
+      let prevX = firstX;
+      for (let i = 1; i < lastIdx; i++) {
+        const x = getX(i);
+        if (x - prevX >= minGap && lastX - x >= minGap) {
+          shown.add(i);
+          prevX = x;
+        }
+      }
+      return shown;
+    },
+    [count, getX]
+  );
+
+  // Dates ("Nov 13" ≈ 28px) need more room than score labels ("70%" ≈ 16px).
+  const labeledPoints = useMemo(() => pickLabelIndexes(38), [pickLabelIndexes]);
+  const valueLabeledPoints = useMemo(() => pickLabelIndexes(24), [pickLabelIndexes]);
+
+  // Build SVG path from any value series (scored marks/percentages, or the available ceiling)
+  const buildSmoothPath = useCallback(
+    (values: number[]) => {
+      if (values.length === 0) return "";
+      if (values.length === 1) {
+        const cx = getX(0);
+        const cy = getY(values[0]);
+        return `M ${cx - 20} ${cy} L ${cx + 20} ${cy}`;
+      }
+      return values.reduce((acc, value, i) => {
+        const x = getX(i);
+        const y = getY(value);
+        if (i === 0) return `M ${x} ${y}`;
+        const prevX = getX(i - 1);
+        const prevY = getY(values[i - 1]);
+        const cpX1 = prevX + (x - prevX) / 2;
+        const cpX2 = prevX + (x - prevX) / 2;
+        return `${acc} C ${cpX1} ${prevY}, ${cpX2} ${y}, ${x} ${y}`;
+      }, "");
+    },
+    [getX, getY]
+  );
+
+  const scoredValues = useMemo(
+    () => points.map((p) => (isCumulative ? p.cumulativeMarks : p.percentage)),
+    [points, isCumulative]
+  );
+  const availableValues = useMemo(() => points.map((p) => p.cumulativeMax), [points]);
+
+  const pathD = useMemo(() => buildSmoothPath(scoredValues), [buildSmoothPath, scoredValues]);
+  const availablePathD = useMemo(
+    () => (isCumulative ? buildSmoothPath(availableValues) : ""),
+    [isCumulative, buildSmoothPath, availableValues]
+  );
 
   const areaD = useMemo(() => {
     if (count < 2) return "";
@@ -260,7 +382,22 @@ function StudentMarksTrajectory({
     const lastX = getX(count - 1);
     const bottomY = padTop + plotH;
     return `${pathD} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
-  }, [pathD, count]);
+  }, [pathD, count, getX, padTop, plotH]);
+
+  // Axis + point label formatting
+  const formatAxisValue = (v: number) => {
+    if (!isCumulative) return `${v}%`;
+    if (v >= 10000) return `${Math.round(v / 1000)}k`;
+    if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+    if (v >= 100) return `${Math.round(v)}`;
+    return Number.isInteger(v) ? `${v}` : v.toFixed(1);
+  };
+  const formatMarks = (v: number) => (Number.isInteger(v) ? `${v}` : v.toFixed(1));
+
+  const gridTicks = useMemo(
+    () => (isCumulative ? [1, 0.75, 0.5, 0.25, 0].map((f) => f * maxY) : [100, 75, 50, 25, 0]),
+    [isCumulative, maxY]
+  );
 
   if (publishedSubmissions.length === 0) {
     return null;
@@ -268,15 +405,51 @@ function StudentMarksTrajectory({
 
   return (
     <FeatureCard className="p-3.5 sm:p-4 space-y-3">
-      {/* Top Header: Minimal Subject Title */}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm sm:text-base font-bold text-ink">Marks Trajectory</h2>
-        {revalUpgradesCount > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-            <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-            {revalUpgradesCount} Upgraded
-          </span>
-        )}
+      {/* Top Header: Title + Scale Toggle */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-sm sm:text-base font-bold text-ink">Marks Trajectory</h2>
+          {revalUpgradesCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+              <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              {revalUpgradesCount} Upgraded
+            </span>
+          )}
+        </div>
+
+        {/* Percentage vs cumulative marks scale */}
+        <div
+          role="group"
+          aria-label="Trajectory scale"
+          className="inline-flex items-center rounded-full border border-hairline bg-canvas-soft p-0.5 text-[10.5px] font-semibold shrink-0"
+        >
+          <button
+            type="button"
+            onClick={() => setViewMode("percentage")}
+            aria-pressed={!isCumulative}
+            title="Each paper plotted as a percentage of its own maximum"
+            className={`px-2.5 py-0.5 rounded-full transition-colors cursor-pointer ${
+              !isCumulative
+                ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            Percent
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("cumulative")}
+            aria-pressed={isCumulative}
+            title="Running total of marks accumulated across papers"
+            className={`px-2.5 py-0.5 rounded-full transition-colors cursor-pointer ${
+              isCumulative
+                ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            Cumulative
+          </button>
+        </div>
       </div>
 
       {/* Subject Tabs Navigation (All Subjects, Physics, Chemistry, Maths, Biology) */}
@@ -380,11 +553,23 @@ function StudentMarksTrajectory({
               </filter>
             </defs>
 
-            {/* Grid lines and Y-axis percentage labels */}
-            {[100, 75, 50, 25, 0].map((pct) => {
-              const y = getY(pct);
+            {/* Y-axis unit hint for cumulative mode */}
+            {isCumulative && (
+              <text
+                x={4}
+                y={11}
+                className="fill-slate-400 dark:fill-zinc-500 font-mono text-[8px] uppercase tracking-wider select-none"
+              >
+                Marks
+              </text>
+            )}
+
+            {/* Grid lines and Y-axis labels (percent or cumulative marks) */}
+            {gridTicks.map((tick, tickIdx) => {
+              const y = getY(tick);
+              const isBaseline = tickIdx === gridTicks.length - 1;
               return (
-                <g key={pct}>
+                <g key={`tick-${tickIdx}`}>
                   <line
                     x1={padLeft}
                     y1={y}
@@ -392,7 +577,7 @@ function StudentMarksTrajectory({
                     y2={y}
                     stroke="#e2e8f0"
                     strokeWidth="1"
-                    strokeDasharray={pct === 0 ? "none" : "3 3"}
+                    strokeDasharray={isBaseline ? "none" : "3 3"}
                     className="stroke-slate-200 dark:stroke-zinc-800 transition-colors"
                   />
                   <text
@@ -401,14 +586,14 @@ function StudentMarksTrajectory({
                     textAnchor="end"
                     className="fill-slate-400 dark:fill-zinc-500 font-mono text-[8.5px] select-none"
                   >
-                    {pct}%
+                    {formatAxisValue(tick)}
                   </text>
                 </g>
               );
             })}
 
-            {/* Dotted Average Benchmark Line with Soft Mount Fade */}
-            {avgPct !== null && count >= 2 && (
+            {/* Dotted Average Benchmark Line with Soft Mount Fade (percentage mode only) */}
+            {!isCumulative && avgPct !== null && count >= 2 && (
               <g
                 style={{
                   opacity: lineAnimated ? 1 : 0,
@@ -434,6 +619,25 @@ function StudentMarksTrajectory({
                   Avg {avgPct}%
                 </text>
               </g>
+            )}
+
+            {/* Cumulative mode: marks available so far, so the gap to the score line is readable */}
+            {isCumulative && availablePathD && (
+              <path
+                d={availablePathD}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth="1.25"
+                strokeDasharray="3 3"
+                strokeOpacity="0.85"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="dark:stroke-zinc-500"
+                style={{
+                  opacity: lineAnimated ? 1 : 0,
+                  transition: "opacity 0.6s ease 0.2s",
+                }}
+              />
             )}
 
             {/* Area Fill - Sweeps from Left-to-Right in Sync with the Line */}
@@ -503,7 +707,11 @@ function StudentMarksTrajectory({
                     transition: `opacity 0.25s ease ${delay}s, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s`,
                   }}
                 >
-                  <title>{`${p.title} (${p.subject}): ${p.marks}/${p.maxMarks} (${p.percentage}%)`}</title>
+                  <title>
+                    {isCumulative
+                      ? `${p.title} (${p.subject}) — ${p.fullDateStr}: ${formatMarks(p.marks)}/${formatMarks(p.maxMarks)} · running ${formatMarks(p.cumulativeMarks)}/${formatMarks(p.cumulativeMax)}`
+                      : `${p.title} (${p.subject}) — ${p.fullDateStr}: ${formatMarks(p.marks)}/${formatMarks(p.maxMarks)} (${p.percentage}%)`}
+                  </title>
 
                   {/* Latest Exam Result Pulse Beacon */}
                   {idx === count - 1 && lineAnimated && (
@@ -555,31 +763,35 @@ function StudentMarksTrajectory({
                     className="transition-all duration-150 group-hover:r-[6.5px] dark:stroke-zinc-900"
                   />
 
-                  {/* Score Label above node */}
-                  <text
-                    x={cx}
-                    y={cy - 9}
-                    textAnchor="middle"
-                    className={`font-mono text-[9px] font-bold select-none ${
-                      p.isMarksRevised
-                        ? "fill-emerald-700 dark:fill-emerald-400"
-                        : idx === count - 1
-                        ? "fill-purple-700 dark:fill-purple-300 font-black"
-                        : "fill-slate-700 dark:fill-zinc-300"
-                    }`}
-                  >
-                    {p.percentage}%
-                  </text>
+                  {/* Score Label above node (skipped when it would collide) */}
+                  {valueLabeledPoints.has(idx) && (
+                    <text
+                      x={cx}
+                      y={cy - 9}
+                      textAnchor="middle"
+                      className={`font-mono text-[9px] font-bold select-none ${
+                        p.isMarksRevised
+                          ? "fill-emerald-700 dark:fill-emerald-400"
+                          : idx === count - 1
+                          ? "fill-purple-700 dark:fill-purple-300 font-black"
+                          : "fill-slate-700 dark:fill-zinc-300"
+                      }`}
+                    >
+                      {isCumulative ? formatMarks(p.cumulativeMarks) : `${p.percentage}%`}
+                    </text>
+                  )}
 
-                  {/* X-axis Date/Exam Label */}
-                  <text
-                    x={cx}
-                    y={svgHeight - 8}
-                    textAnchor="middle"
-                    className="font-sans text-[8.5px] fill-slate-500 dark:fill-zinc-400 select-none"
-                  >
-                    {p.dateStr}
-                  </text>
+                  {/* X-axis Date/Exam Label (skipped when labels would collide) */}
+                  {labeledPoints.has(idx) && (
+                    <text
+                      x={cx}
+                      y={svgHeight - 8}
+                      textAnchor="middle"
+                      className="font-sans text-[8.5px] fill-slate-500 dark:fill-zinc-400 select-none"
+                    >
+                      {p.dateStr}
+                    </text>
+                  )}
                 </g>
               );
             })}
@@ -589,7 +801,7 @@ function StudentMarksTrajectory({
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1.5 mt-1 border-t border-hairline/60 text-[11px] text-ink-muted">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-primary" />
-              <span>Standard</span>
+              <span>{isCumulative ? "Cumulative score" : "Standard"}</span>
             </span>
             {points.some((p) => p.isMarksRevised) && (
               <span className="flex items-center gap-1.5">
@@ -603,11 +815,22 @@ function StudentMarksTrajectory({
                 <span>In Review</span>
               </span>
             )}
-            {count >= 2 && (
+            {!isCumulative && count >= 2 && (
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 border-t-2 border-dashed border-purple-500" />
                 <span>Average</span>
               </span>
+            )}
+            {isCumulative && count >= 1 && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 border-t-2 border-dashed border-slate-400 dark:border-zinc-500" />
+                  <span>Available</span>
+                </span>
+                <span className="ml-auto font-mono font-bold text-ink">
+                  {formatMarks(totalAwarded)} / {formatMarks(totalMax)} marks
+                </span>
+              </>
             )}
           </div>
         </div>
