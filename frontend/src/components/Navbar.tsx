@@ -314,14 +314,14 @@ export function Navbar() {
         Apple-style smooth spring slide and fade for both opening and closing.
         ========================================================================
       */}
-      {/* Ambient Backdrop - Clicking closes the menu */}
-      <div
-        className={`fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-40 md:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-          mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={() => setMobileMenuOpen(false)}
-        aria-hidden="true"
-      />
+      {/* Ambient Backdrop - Clicking closes the menu (only mounted while open) */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-40 md:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Floating Dropdown Panel (Respects Notion surface with Apple-style smooth slide & scale) */}
       <div

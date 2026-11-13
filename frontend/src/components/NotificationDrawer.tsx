@@ -357,14 +357,15 @@ export function NotificationDrawer() {
       aria-label="Notifications Drawer"
       aria-hidden={!isOpen}
     >
-      {/* Backdrop with fade animation */}
-      <div
-        className={`fixed inset-0 bg-black/30 backdrop-blur-xs transition-opacity duration-300 ease-in-out ${
-          isOpen ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={closeDrawer}
-        aria-hidden="true"
-      />
+      {/* Backdrop with fade animation — mounted only while open so no
+          invisible full-viewport compositing layer survives in the shell. */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-xs transition-opacity duration-300 ease-in-out"
+          onClick={closeDrawer}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Slide-over Drawer with Tailwind slide animation */}
       <aside

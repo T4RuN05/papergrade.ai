@@ -468,13 +468,15 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
         }`}
         aria-hidden={!mobileOpen}
       >
-        <div
-          className={`fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ease-in-out ${
-            mobileOpen ? "opacity-100" : "opacity-0"
-          }`}
-          onClick={onCloseMobile}
-          aria-hidden="true"
-        />
+        {/* Scrim — mounted only while open so an invisible backdrop-filter
+            layer never lingers over the page. */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ease-in-out opacity-100"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+        )}
         <div
           className={`fixed inset-y-0 left-0 w-64 max-w-[80vw] h-full h-[100dvh] bg-surface shadow-2xl transition-transform duration-300 ease-in-out transform ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"

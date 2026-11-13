@@ -1073,12 +1073,10 @@ input[type="number"] {
   0% {
     transform: translateY(60%);
     opacity: 0;
-    filter: blur(0.5px);
   }
   100% {
     transform: translateY(0);
     opacity: 1;
-    filter: blur(0);
   }
 }
 
@@ -1086,12 +1084,10 @@ input[type="number"] {
   0% {
     transform: translateY(-60%);
     opacity: 0;
-    filter: blur(0.5px);
   }
   100% {
     transform: translateY(0);
     opacity: 1;
-    filter: blur(0);
   }
 }
 
@@ -1206,6 +1202,49 @@ input[type="number"] {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ==========================================================================
+   Mobile GPU Rasterization Guard (Android Chromium / Installed PWA)
+   --------------------------------------------------------------------------
+   Every `backdrop-filter` element forces the compositor to allocate a
+   viewport-sized "backdrop root" texture and re-snapshot everything painted
+   behind it. The shell keeps several of those alive simultaneously:
+     • sticky admin header      (backdrop-blur-md, repaints on every scroll)
+     • notification drawer      (full-viewport invisible backdrop layer)
+     • mobile sidebar drawer    (full-viewport invisible backdrop layer)
+     • dialog / confirm scrims  (full-viewport layers)
+   On mid/low-end Android GPUs the layer pool runs dry, Chromium stops
+   re-rasterizing tiles and reuses stale texture memory. The symptom is a
+   horizontal band of scrambled pixels (often containing a squashed copy of
+   the page) that sits over a slice of scrolling content — exactly the band
+   seen around the exam toolbar on /exams/[id].
+   Glass blur is a desktop niceity; on touch devices we drop the blur pass
+   entirely. Layout, tint and elevation stay identical — only the snapshot
+   cost disappears. We also stop permanently promoting animation layers
+   (will-change) on the same devices, which otherwise pin GPU memory for the
+   whole session.
+   ========================================================================== */
+@media (max-width: 1023px), (pointer: coarse) {
+  *,
+  *::before,
+  *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .animate-shimmer,
+  .toast-bar-primary,
+  .toast-bar-secondary,
+  .animate-toast-loading,
+  .animate-apple-in,
+  .animate-apple-out,
+  .standings-row-unseen,
+  .standings-row-seen,
+  .animate-cross-fade,
+  .animate-cascade-row {
+    will-change: auto;
+  }
 }
 
 

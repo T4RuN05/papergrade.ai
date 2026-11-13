@@ -181,8 +181,10 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const activeTrail = trail || getDefaultTrail();
   const lastSegment = activeTrail.segments[activeTrail.segments.length - 1];
 
+  // Solid (non-blurred) surface on touch/small screens — see the Mobile GPU
+  // Rasterization Guard in globals.css for why backdrop blur is banned there.
   return (
-    <header className="sticky top-0 z-20 w-full border-b border-hairline bg-surface/90 backdrop-blur-md">
+    <header className="sticky top-0 z-20 w-full border-b border-hairline bg-surface lg:bg-surface/90 lg:backdrop-blur-md">
       <div className="flex h-14 items-center justify-between px-3 sm:px-6 gap-2">
         {/* Left: Mobile hamburger & Unified Canonical Breadcrumbs */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
