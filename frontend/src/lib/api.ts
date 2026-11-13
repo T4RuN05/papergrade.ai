@@ -1525,9 +1525,14 @@ export const api = {
     return `${API_BASE}/api/exports/marks-csv/${clean}${qs}`;
   },
 
-  getPageImageUrl(submissionId: string, pageNum: number) {
+  getPageImageUrl(submissionId: string, pageNum: number, width?: number, version?: number) {
     const token = getAuthToken();
-    return `${API_BASE}/api/grading/page-image/${submissionId}/${pageNum}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const params = new URLSearchParams();
+    if (width) params.set("w", String(Math.round(width)));
+    if (version) params.set("v", String(version));
+    if (token) params.set("token", token);
+    const qs = params.toString();
+    return `${API_BASE}/api/grading/page-image/${submissionId}/${pageNum}${qs ? `?${qs}` : ""}`;
   },
 
   getCropImageUrl(

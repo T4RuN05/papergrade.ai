@@ -143,6 +143,45 @@ class PDFService:
         return rendered_paths
 
     @staticmethod
+    def render_page_variant(
+        page_img_path: Path,
+        output_path: Path,
+        target_width: int,
+        quality: int = 80,
+    ) -> Optional[Path]:
+        """
+        Downscales a rendered page PNG into a display-only JPEG variant.
+
+        The 150 DPI master PNG stays the source of truth for crops, exports and
+        the answer-region coordinate space; this only shrinks what the browser
+        has to download and decode on mobile. Pages are already upright (the
+        canonical PDF is normalised), so no orientation handling is needed.
+        """
+        if not page_img_path.exists() or target_width <= 0:
+            return None
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with Image.open(page_img_path) as img:
+                rgb = img.convert("RGB")
+                src_w, src_h = rgb.size
+                if src_w <= target_width:
+                    resized = rgb
+                else:
+                    target_height = max(1, round(src_h * (target_width / src_w)))
+                    resized = rgb.resize((target_width, target_height), Image.LANCZOS)
+                resized.save(
+                    output_path,
+                    format="JPEG",
+                    quality=quality,
+                    optimize=True,
+                    progressive=True,
+                )
+            return output_path
+        except Exception:
+            # A failed optimisation must never break page display; the caller falls back to the master PNG.
+            return None
+
+    @staticmethod
     def crop_answer_region(
         page_img_path: Path,
         x: float,

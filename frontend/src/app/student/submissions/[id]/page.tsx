@@ -390,7 +390,6 @@ export default function StudentSubmissionViewerPage() {
             <DocumentViewer
               submissionId={submission.id}
               pageCount={submission.page_count || 1}
-              pdfUrl={(submission as any).pdf_url}
               answers={answers}
               onSelectAnswer={(ans) => handleSelectAnswer(ans, false)}
               onInspectAnswer={(ans) => handleSelectAnswer(ans, true)}

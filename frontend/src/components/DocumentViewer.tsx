@@ -25,7 +25,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { GradedAnswer, AnswerRegion } from "@/lib/types";
-import { api, getAuthToken } from "@/lib/api";
+import { api } from "@/lib/api";
+
+// Display widths the backend can serve as pre-encoded JPEG variants of the 150 DPI page master.
+const PAGE_IMAGE_SRCSET_WIDTHS = [480, 720, 1200, 1800];
 
 type HandleType = "move" | "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
@@ -41,7 +44,6 @@ interface DraftRegionCoord {
 interface DocumentViewerProps {
   submissionId: string;
   pageCount: number;
-  pdfUrl?: string;
   answers: GradedAnswer[];
   onSelectAnswer: (answer: GradedAnswer) => void;
   onInspectAnswer?: (answer: GradedAnswer) => void;
@@ -63,14 +65,10 @@ interface DocumentViewerProps {
   initialShowAnnotations?: boolean;
 }
 
-// In-memory client LRU cache for loaded PDF documents across page changes & reopens
-const pdfDocMemoryCache = new Map<string, any>();
-const MAX_CACHED_PDFS = 5;
-
+// Page images are server-rendered; nothing PDF-specific is loaded in the browser.
 export function DocumentViewer({
   submissionId,
   pageCount,
-  pdfUrl: propPdfUrl,
   answers,
   onSelectAnswer,
   onInspectAnswer,
@@ -111,18 +109,13 @@ export function DocumentViewer({
   const isInitialFitRef = useRef(false);
 
   const [hoveredAnswerId, setHoveredAnswerId] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<boolean>(false);
+  const [failedPages, setFailedPages] = useState<Set<number>>(() => new Set());
+  const [imageRetryNonce, setImageRetryNonce] = useState<number>(0);
   const [isPageImageLoading, setIsPageImageLoading] = useState<boolean>(true);
   const [isSnapping, setIsSnapping] = useState<boolean>(false);
 
   const totalPages = Math.max(1, pageCount || 1);
   const PAGE_GAP = 28;
-
-  // Client-Side PDF.js canvas state
-  const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [pdfError, setPdfError] = useState<boolean>(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const renderTaskRef = useRef<any>(null);
 
   // Set of loaded page keys to avoid re-triggering loading skeleton when flipping back & forth
   const loadedPagesRef = useRef<Set<string>>(new Set());
@@ -131,64 +124,12 @@ export function DocumentViewer({
   // Active page is controlled if provided by parent, else local
   const currentPage = propCurrentPage !== undefined ? propCurrentPage : internalPage;
 
-  // Clear cache if submission changes, or immediately restore from memory cache
+  // Reset per-submission image bookkeeping when the document changes.
   useEffect(() => {
     loadedPagesRef.current.clear();
-    const targetUrl = propPdfUrl || (submissionId ? api.getSubmissionPdfUrl(submissionId) : "");
-    if (targetUrl && pdfDocMemoryCache.has(targetUrl)) {
-      setPdfDoc(pdfDocMemoryCache.get(targetUrl));
-    } else {
-      setPdfDoc(null);
-    }
-    setPdfError(false);
-  }, [submissionId, propPdfUrl]);
-
-  // Load the single PDF document into browser memory via pdfjs-dist (zero backend rendering RAM!)
-  useEffect(() => {
-    let isCancelled = false;
-    async function initPdf() {
-      if (!submissionId) return;
-      setPdfError(false);
-      const authToken = getAuthToken();
-      const targetUrl = propPdfUrl || api.getSubmissionPdfUrl(submissionId);
-
-      // Instant hit: document is already parsed and cached in browser memory
-      if (pdfDocMemoryCache.has(targetUrl)) {
-        setPdfDoc(pdfDocMemoryCache.get(targetUrl));
-        return;
-      }
-
-      try {
-        const pdfjs = await import("pdfjs-dist");
-        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-          pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version || "3.11.174"}/pdf.worker.min.js`;
-        }
-        const loadingTask = pdfjs.getDocument({
-          url: targetUrl,
-          withCredentials: false,
-        });
-        const doc = await loadingTask.promise;
-        if (!isCancelled) {
-          if (pdfDocMemoryCache.size >= MAX_CACHED_PDFS) {
-            const oldestKey = pdfDocMemoryCache.keys().next().value;
-            if (oldestKey) pdfDocMemoryCache.delete(oldestKey);
-          }
-          pdfDocMemoryCache.set(targetUrl, doc);
-          setPdfDoc(doc);
-        }
-      } catch (err: any) {
-        console.warn("Client-side PDF.js could not load PDF directly, falling back to server page image:", err);
-        pdfDocMemoryCache.delete(targetUrl);
-        if (!isCancelled) {
-          setPdfError(true);
-        }
-      }
-    }
-    initPdf();
-    return () => {
-      isCancelled = true;
-    };
-  }, [submissionId, propPdfUrl]);
+    setFailedPages(new Set());
+    setImageRetryNonce(0);
+  }, [submissionId]);
 
   const setCurrentPage = (p: number | ((prev: number) => number)) => {
     const next = typeof p === "function" ? p(currentPage) : p;
@@ -1299,7 +1240,7 @@ export function DocumentViewer({
       >
         {/* Connected Pages Carousel Track */}
         <div
-          className="flex items-center h-full will-change-transform"
+          className="flex items-center h-full"
           style={{
             width: `${totalPages * 100}%`,
             transform: `translateX(calc(-${((currentPage - 1) / totalPages) * 100}% + ${touchOffset}px))`,
@@ -1316,7 +1257,8 @@ export function DocumentViewer({
                 className="h-full flex items-center justify-center p-2 sm:p-4 flex-shrink-0 overflow-hidden"
                 style={{ width: `${100 / totalPages}%` }}
               >
-                {/* Fixed Frame Page Sheet with Dynamic Bounding Box Zoom */}
+                {isNearby ? (
+                /* Fixed Frame Page Sheet with Dynamic Bounding Box Zoom */
                 <div
                   ref={p === currentPage ? activeSheetRef : undefined}
                   className="relative bg-white rounded-lg sm:rounded-xl shadow-lg border border-hairline overflow-hidden flex items-center justify-center select-none"
@@ -1331,12 +1273,14 @@ export function DocumentViewer({
                         ? `translate(${pan.x}px, ${pan.y}px) scale(${zoomScale})`
                         : "none",
                     transformOrigin: "center center",
-                    willChange: "transform",
+                    // Only promote to a compositing layer while actually zoomed/panned;
+                    // permanent will-change keeps a GPU texture per page alive on mobile.
+                    willChange: p === currentPage && zoomScale > 1.05 ? "transform" : undefined,
                     transition: isSnapping ? "transform 300ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
                   }}
                 >
                 {/* Base Page Image, Loading Spinner, or Retention Purged Notice */}
-                {imageError ? (
+                {failedPages.has(p) ? (
                   <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-sm">
                     <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
                       <Archive className="h-6 w-6" />
@@ -1347,14 +1291,19 @@ export function DocumentViewer({
                     <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
                       {isDocumentPurged
                         ? "Scanned answer sheet pages and crop previews for this paper have been purged in accordance with the 15-day storage retention policy. Question marks and evaluator rationales remain permanently archived."
-                        : "Unable to render this page image or document stream. Please verify your connection or click retry below."}
+                        : "Unable to render this page image. Please verify your connection or click retry below."}
                     </p>
                     {!isDocumentPurged && (
                       <button
                         type="button"
                         onClick={() => {
-                          setImageError(false);
-                          setPdfError(false);
+                          setFailedPages((prev) => {
+                            const next = new Set(prev);
+                            next.delete(p);
+                            return next;
+                          });
+                          setImageRetryNonce((n) => n + 1);
+                          setIsPageImageLoading(true);
                         }}
                         className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary-hover transition-colors"
                       >
@@ -1382,10 +1331,15 @@ export function DocumentViewer({
                     )}
 
                     <img
-                      src={api.getPageImageUrl(submissionId, p)}
+                      src={api.getPageImageUrl(submissionId, p, 1200, imageRetryNonce || undefined)}
+                      srcSet={PAGE_IMAGE_SRCSET_WIDTHS.map(
+                        (width) =>
+                          `${api.getPageImageUrl(submissionId, p, width, imageRetryNonce || undefined)} ${width}w`
+                      ).join(", ")}
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 65vw, 820px"
                       alt={`Student Page ${p}`}
                       className="w-full h-full block rounded-sm select-none pointer-events-none"
-                      loading={isNearby ? "eager" : "lazy"}
+                      loading="eager"
                       decoding="async"
                       onLoad={(e) => {
                         const img = e.currentTarget;
@@ -1400,8 +1354,12 @@ export function DocumentViewer({
                       onError={() => {
                         if (p === currentPage) {
                           setIsPageImageLoading(false);
-                          setImageError(true);
                         }
+                        setFailedPages((prev) => {
+                          const next = new Set(prev);
+                          next.add(p);
+                          return next;
+                        });
                       }}
                     />
                   </>
@@ -1410,7 +1368,7 @@ export function DocumentViewer({
                 {/* Page 1 Teacher Score Stamp (Clean Red Ink Stamp Aesthetic) */}
                 {showAnnotations && !hideScoreStamp && p === 1 && totalMax > 0 && totalAwardedMarks !== undefined && totalAwardedMarks !== null && (
             <div
-              className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 pointer-events-none select-none rounded-md sm:rounded-lg border sm:border-2 border-red-600/90 bg-white/95 backdrop-blur-xs px-2 py-1 sm:px-4 sm:py-2 shadow-sm text-left border-dashed"
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 pointer-events-none select-none rounded-md sm:rounded-lg border sm:border-2 border-red-600/90 bg-white/95 px-2 py-1 sm:px-4 sm:py-2 shadow-sm text-left border-dashed"
               style={{
                 transformOrigin: "top right",
                 transform: `scale(${invScale})`,
@@ -1732,7 +1690,7 @@ export function DocumentViewer({
                       data-handle="n"
                       onMouseDown={(e) => handleStartDrag(e, "n", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "n", region, answer)}
-                      className="absolute w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      className="absolute w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 before:absolute before:-inset-2 before:content-[''] hidden sm:block"
                       style={{
                         top: 0,
                         left: "50%",
@@ -1760,7 +1718,7 @@ export function DocumentViewer({
                       data-handle="e"
                       onMouseDown={(e) => handleStartDrag(e, "e", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "e", region, answer)}
-                      className="absolute w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      className="absolute w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 before:absolute before:-inset-2 before:content-[''] hidden sm:block"
                       style={{
                         top: "50%",
                         right: 0,
@@ -1788,7 +1746,7 @@ export function DocumentViewer({
                       data-handle="s"
                       onMouseDown={(e) => handleStartDrag(e, "s", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "s", region, answer)}
-                      className="absolute w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      className="absolute w-4 h-2.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ns-resize z-40 before:absolute before:-inset-2 before:content-[''] hidden sm:block"
                       style={{
                         bottom: 0,
                         left: "50%",
@@ -1816,7 +1774,7 @@ export function DocumentViewer({
                       data-handle="w"
                       onMouseDown={(e) => handleStartDrag(e, "w", region, answer)}
                       onTouchStart={(e) => handleStartDrag(e, "w", region, answer)}
-                      className="absolute w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 before:absolute before:-inset-2 before:content-['']"
+                      className="absolute w-2.5 h-4 bg-white border-2 border-primary rounded-xs shadow-xs cursor-ew-resize z-40 before:absolute before:-inset-2 before:content-[''] hidden sm:block"
                       style={{
                         top: "50%",
                         left: 0,
@@ -1908,6 +1866,19 @@ export function DocumentViewer({
             );
           })}
                 </div>
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="bg-white/70 rounded-lg sm:rounded-xl border border-hairline/60"
+                    style={{
+                      height: "100%",
+                      maxHeight: "100%",
+                      maxWidth: "100%",
+                      aspectRatio: `${pageAspect}`,
+                      width: "auto",
+                    }}
+                  />
+                )}
               </div>
             );
           })}
