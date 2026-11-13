@@ -330,6 +330,14 @@ class CloudinaryStorageService(StorageService):
             k = k[2:].lstrip("/")
         return k
 
+    def _cloudinary_public_id(self, clean_key: str, res_type: str) -> str:
+        """For image assets in Cloudinary, public_id should not contain the extension."""
+        if res_type == "image":
+            for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"):
+                if clean_key.lower().endswith(ext):
+                    return clean_key[:-len(ext)]
+        return clean_key
+
     @staticmethod
     def _resource_type(clean_key: str, content_type: str = "") -> str:
         lower_key = clean_key.lower()
@@ -344,12 +352,13 @@ class CloudinaryStorageService(StorageService):
         import cloudinary.uploader
         clean_key = self._clean_public_id(key)
         res_type = self._resource_type(clean_key, content_type)
+        pub_id = self._cloudinary_public_id(clean_key, res_type)
 
         if isinstance(file_content, (str, Path)):
             src = str(file_content)
             cloudinary.uploader.upload(
                 src,
-                public_id=clean_key,
+                public_id=pub_id,
                 resource_type=res_type,
                 overwrite=True,
                 invalidate=True,
@@ -358,7 +367,7 @@ class CloudinaryStorageService(StorageService):
             import io
             cloudinary.uploader.upload(
                 io.BytesIO(file_content),
-                public_id=clean_key,
+                public_id=pub_id,
                 resource_type=res_type,
                 overwrite=True,
                 invalidate=True,
@@ -368,8 +377,10 @@ class CloudinaryStorageService(StorageService):
         cached_path = self.cache_dir / clean_key
         cached_path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(file_content, (str, Path)):
-            with open(file_content, "rb") as f_src, open(cached_path, "wb") as f_dst:
-                f_dst.write(f_src.read())
+            src_path = Path(file_content).resolve()
+            if src_path != cached_path.resolve():
+                with open(src_path, "rb") as f_src, open(cached_path, "wb") as f_dst:
+                    f_dst.write(f_src.read())
         else:
             with open(cached_path, "wb") as f_dst:
                 f_dst.write(file_content)
@@ -379,7 +390,7 @@ class CloudinaryStorageService(StorageService):
     def download_file(self, key: str) -> bytes:
         clean_key = self._clean_public_id(key)
         cached_path = self.cache_dir / clean_key
-        if cached_path.exists():
+        if cached_path.exists() and cached_path.stat().st_size > 0:
             with open(cached_path, "rb") as f:
                 return f.read()
 
@@ -396,15 +407,18 @@ class CloudinaryStorageService(StorageService):
                 expires_at=int(time.time()) + 300,
             )
         else:
-            url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
+            pub_id = self._cloudinary_public_id(clean_key, res_type)
+            fmt = clean_key.rsplit(".", 1)[1].lower() if "." in clean_key else None
+            url, _ = cloudinary.utils.cloudinary_url(pub_id, format=fmt, resource_type="image", secure=True)
 
         req = urllib.request.Request(url, headers={"User-Agent": "PaperGrade-AI/1.0"})
         with urllib.request.urlopen(req) as resp:
             data = resp.read()
 
-        cached_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(cached_path, "wb") as f:
-            f.write(data)
+        if data:
+            cached_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(cached_path, "wb") as f:
+                f.write(data)
         return data
 
     def generate_presigned_upload_url(
@@ -444,15 +458,27 @@ class CloudinaryStorageService(StorageService):
         if attachment:
             safe_stem = Path(filename).stem if filename else ""
             url_opts["flags"] = f"attachment:{safe_stem}" if safe_stem else "attachment"
-        url, _ = cloudinary.utils.cloudinary_url(clean_key, **url_opts)
+        pub_id = self._cloudinary_public_id(clean_key, res_type)
+        fmt = clean_key.rsplit(".", 1)[1].lower() if "." in clean_key else None
+        if fmt:
+            url_opts["format"] = fmt
+        url, _ = cloudinary.utils.cloudinary_url(pub_id, **url_opts)
+        if "/image/upload/v1/" in url:
+            url = url.replace("/image/upload/v1/", "/image/upload/")
         return url
 
     def delete_file(self, key: str) -> bool:
         import cloudinary.uploader
         clean_key = self._clean_public_id(key)
         res_type = self._resource_type(clean_key)
+        pub_id = self._cloudinary_public_id(clean_key, res_type)
         try:
-            cloudinary.uploader.destroy(clean_key, resource_type=res_type, invalidate=True)
+            cloudinary.uploader.destroy(pub_id, resource_type=res_type, invalidate=True)
+            if pub_id != clean_key:
+                try:
+                    cloudinary.uploader.destroy(clean_key, resource_type=res_type, invalidate=True)
+                except Exception:
+                    pass
             cached_path = self.cache_dir / clean_key
             if cached_path.exists():
                 cached_path.unlink()
@@ -482,15 +508,17 @@ class CloudinaryStorageService(StorageService):
 
     def file_exists(self, key: str) -> bool:
         clean_key = self._clean_public_id(key)
-        cached_path = self.cache_dir / clean_key
-        if cached_path.exists():
-            return True
         res_type = self._resource_type(clean_key)
+
+        # 1. Fast HTTP HEAD probe for images (CDN endpoint)
         if res_type == "image":
-            # Probe public CDN via HTTP HEAD first to avoid exhausting Cloudinary's 500/hr Admin API limit
             try:
                 import cloudinary.utils
-                cdn_url, _ = cloudinary.utils.cloudinary_url(clean_key, resource_type="image", secure=True)
+                pub_id = self._cloudinary_public_id(clean_key, res_type)
+                fmt = clean_key.rsplit(".", 1)[1].lower() if "." in clean_key else None
+                cdn_url, _ = cloudinary.utils.cloudinary_url(pub_id, format=fmt, resource_type="image", secure=True)
+                if "/image/upload/v1/" in cdn_url:
+                    cdn_url = cdn_url.replace("/image/upload/v1/", "/image/upload/")
                 req = urllib.request.Request(cdn_url, method="HEAD", headers={"User-Agent": "PaperGrade-AI/1.0"})
                 with urllib.request.urlopen(req, timeout=3) as resp:
                     if 200 <= resp.status < 300:
@@ -500,9 +528,34 @@ class CloudinaryStorageService(StorageService):
                     return False
             except Exception:
                 pass
+
+        # 2. Fast HTTP HEAD probe for raw files (e.g. PDFs)
+        if res_type == "raw":
+            try:
+                import cloudinary.utils
+                ext = clean_key.rsplit(".", 1)[1] if "." in clean_key else "pdf"
+                raw_url = cloudinary.utils.private_download_url(
+                    clean_key,
+                    ext,
+                    resource_type="raw",
+                    type="upload",
+                    expires_at=int(time.time()) + 120,
+                )
+                req = urllib.request.Request(raw_url, method="HEAD", headers={"User-Agent": "PaperGrade-AI/1.0"})
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    if 200 <= resp.status < 300:
+                        return True
+            except urllib.error.HTTPError as http_err:
+                if http_err.code == 404:
+                    return False
+            except Exception:
+                pass
+
+        # 3. Fallback to Admin API only if network/HEAD probe didn't resolve and not a 404
         try:
             import cloudinary.api
-            cloudinary.api.resource(clean_key, resource_type=res_type)
+            pub_id = self._cloudinary_public_id(clean_key, res_type)
+            cloudinary.api.resource(pub_id, resource_type=res_type)
             return True
         except Exception:
             return False

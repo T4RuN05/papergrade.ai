@@ -32,7 +32,7 @@
   --primary-active: #005bab;
   --secondary: #213183;  /* Deep Indigo Hero */
   --on-primary: #ffffff;
-  --shadow-notion-card: 0 0.175px 1.041px rgba(0,0,0,0.01), 0 0.8px 2.925px rgba(0,0,0,0.02), 0 2.025px 7.847px rgba(0,0,0,0.027), 0 4px 18px rgba(0,0,0,0.04);
+  --shadow-notion-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
   --shadow-notion-modal: 0 23px 52px rgba(0,0,0,0.05), 0 8px 18px rgba(0,0,0,0.03);
   --scrollbar-thumb: rgba(140, 135, 130, 0.35);
   --scrollbar-thumb-hover: rgba(90, 85, 80, 0.6);

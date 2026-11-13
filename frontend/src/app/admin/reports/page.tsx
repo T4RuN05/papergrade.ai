@@ -3,15 +3,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LifeBuoy,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   RotateCcw,
   Image as ImageIcon,
   ExternalLink,
-  Filter,
-  Send,
   Loader2,
   X,
   Search,
@@ -250,11 +246,10 @@ export default function AdminReportsPage() {
                 key={st}
                 type="button"
                 onClick={() => setStatusFilter(st)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
-                  statusFilter === st
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${statusFilter === st
                     ? "bg-surface text-ink shadow-2xs border border-hairline"
                     : "text-ink-secondary hover:text-ink"
-                }`}
+                  }`}
               >
                 {st === "ALL" ? "All Status" : st.replace("_", " ")}
               </button>
@@ -330,12 +325,12 @@ export default function AdminReportsPage() {
 
             const dateStr = report.created_at
               ? new Date(report.created_at).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
               : "Recent";
 
             return (
@@ -345,13 +340,12 @@ export default function AdminReportsPage() {
               >
                 {/* Micro Left Accent Indicator */}
                 <div
-                  className={`absolute left-0 top-0 bottom-0 w-1 ${
-                    isOpen
+                  className={`absolute left-0 top-0 bottom-0 w-1 ${isOpen
                       ? "bg-amber-500/80 dark:bg-amber-400/70"
                       : isInProgress
-                      ? "bg-sky-500/80 dark:bg-sky-400/70"
-                      : "bg-emerald-500/80 dark:bg-emerald-400/70"
-                  }`}
+                        ? "bg-sky-500/80 dark:bg-sky-400/70"
+                        : "bg-emerald-500/80 dark:bg-emerald-400/70"
+                    }`}
                 />
 
                 {/* Header row: Reporter info + Status */}
@@ -492,11 +486,10 @@ export default function AdminReportsPage() {
                         type="button"
                         onClick={() => handleUpdateStatus(report.id, "OPEN")}
                         disabled={isUpdating || isOpen}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                          isOpen
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${isOpen
                             ? "btn-glass-amber"
                             : "btn-glass-utility text-ink-secondary"
-                        }`}
+                          }`}
                       >
                         Open
                       </button>
@@ -505,11 +498,10 @@ export default function AdminReportsPage() {
                         type="button"
                         onClick={() => handleUpdateStatus(report.id, "IN_PROGRESS")}
                         disabled={isUpdating || isInProgress}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                          isInProgress
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${isInProgress
                             ? "btn-glass-primary"
                             : "btn-glass-utility text-ink-secondary"
-                        }`}
+                          }`}
                       >
                         In Progress
                       </button>

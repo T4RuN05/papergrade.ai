@@ -292,21 +292,32 @@ export default function NewExamPage() {
         await api.uploadAnswerKey(createdExam.id, akFormData);
       }
 
+      const targetUrl = shouldGenerateRubric ? `/exams/${createdExam.id}/rubric` : `/exams/${createdExam.id}`;
       if (shouldGenerateRubric) {
         queueToast({
           type: "success",
           title: "Exam Created & Rubric Generated",
           message: `Exam "${title.trim()}" created with AI rubric draft ready for review.`,
         });
-        router.push(`/exams/${createdExam.id}/rubric`);
       } else {
         queueToast({
           type: "success",
           title: "Exam Created",
           message: `Exam "${title.trim()}" created successfully! You can now open student submission windows.`,
         });
-        router.push(`/exams/${createdExam.id}`);
       }
+
+      setIsSubmitting(false);
+      try {
+        router.push(targetUrl);
+      } catch (e) {
+        // Fallback
+      }
+      setTimeout(() => {
+        if (typeof window !== "undefined" && window.location.pathname !== targetUrl) {
+          window.location.href = targetUrl;
+        }
+      }, 350);
     } catch (err: any) {
       const msg = err.message || "Failed to create exam";
       toast.error(msg, { title: "Exam Creation Failed" });
@@ -344,157 +355,159 @@ export default function NewExamPage() {
       <div className="relative">
         {/* Differentiated Processing Overlays */}
         {isSubmitting && (
-          isSynthesizingRubric ? (
-            /* Root Admin with Question Paper & Answer Key: Agentic Rubric Synthesis */
-            <div className="absolute inset-0 z-30 rounded-xl bg-surface/96 backdrop-blur-xl flex flex-col items-center justify-center p-6 sm:p-8 text-center animate-in fade-in duration-300 border border-hairline shadow-2xl">
-              {/* Bespoke Agentic Core */}
-              <div className="relative mb-4 flex items-center justify-center">
-                <div className="absolute h-20 w-20 rounded-full bg-indigo-500/10 animate-ping opacity-30" />
-                <div className="absolute h-16 w-16 rounded-full border border-indigo-400/25 animate-pulse" />
-                <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-tr from-indigo-50 via-surface to-sky-50 border border-indigo-200/60 dark:bg-slate-900 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm">
-                  <Cpu className="h-7 w-7 animate-pulse" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+            {isSynthesizingRubric ? (
+              /* Root Admin with Question Paper & Answer Key: Agentic Rubric Synthesis */
+              <div className="relative w-full max-w-xl rounded-2xl bg-surface border border-hairline shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
+                {/* Bespoke Agentic Core */}
+                <div className="relative mb-4 flex items-center justify-center">
+                  <div className="absolute h-20 w-20 rounded-full bg-indigo-500/10 animate-ping opacity-30" />
+                  <div className="absolute h-16 w-16 rounded-full border border-indigo-400/25 animate-pulse" />
+                  <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-tr from-indigo-50 via-surface to-sky-50 border border-indigo-200/60 dark:bg-slate-900 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm">
+                    <Cpu className="h-7 w-7 animate-pulse" />
+                  </div>
                 </div>
-              </div>
 
-              {/* Agentic Live Badge (No cartoon logos) */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold tracking-wide">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
-                </span>
-                Autonomous Rubric Agent Active
-              </div>
-
-              <h2 className="text-xl sm:text-2xl font-bold text-ink tracking-tight mt-3">
-                Synthesizing Structured Exam Rubric
-              </h2>
-              <p className="mt-1 text-xs sm:text-sm text-ink-muted max-w-lg leading-relaxed">
-                Dissecting question paper layout, validating marking constraints, and formulating step-by-step evaluation criteria.
-              </p>
-
-              {/* Document Summary Chips */}
-              <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
-                <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-primary" />
-                  <span>
-                    Question Paper: <strong>{qpFiles.length} {qpFiles.length === 1 ? "file" : "files"}</strong>
+                {/* Agentic Live Badge (No cartoon logos) */}
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold tracking-wide">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
                   </span>
+                  Autonomous Rubric Agent Active
                 </div>
-                <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
-                  <FileCheck2 className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>
-                    Answer Key: <strong>{akFiles.length} {akFiles.length === 1 ? "file" : "files"}</strong>
-                  </span>
-                </div>
-                <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 text-indigo-700 dark:text-indigo-300 font-mono font-medium flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 animate-spin" />
-                  <span>{elapsedSeconds}s elapsed</span>
-                </div>
-              </div>
 
-              {/* Agentic Timeline Feed */}
-              <div className="w-full max-w-lg mt-5 bg-canvas-soft/80 border border-hairline rounded-xl p-4 text-left space-y-2.5">
-                {AGENTIC_RUBRIC_STEPS.map((step, idx) => {
-                  const isCompleted = idx < currentStep;
-                  const isCurrent = idx === currentStep;
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-start gap-3 transition-all duration-300 ${
-                        isCompleted
-                          ? "opacity-90"
-                          : isCurrent
-                          ? "opacity-100"
-                          : "opacity-35"
-                      }`}
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        {isCompleted ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        ) : isCurrent ? (
-                          <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
-                        ) : (
-                          <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center text-[10px] text-ink-muted font-mono">
-                            {idx + 1}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`text-xs ${
-                              isCurrent
-                                ? "text-indigo-600 dark:text-indigo-400 font-bold"
-                                : isCompleted
-                                ? "text-ink font-semibold"
-                                : "text-ink-muted"
-                            }`}
-                          >
-                            {step.title}
-                          </span>
-                          {isCurrent && (
-                            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200">
-                              In Progress
-                            </span>
-                          )}
-                          {isCompleted && (
-                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200">
-                              Completed
-                            </span>
+                <h2 className="text-xl sm:text-2xl font-bold text-ink tracking-tight mt-3">
+                  Synthesizing Structured Exam Rubric
+                </h2>
+                <p className="mt-1 text-xs sm:text-sm text-ink-muted max-w-lg leading-relaxed">
+                  Dissecting question paper layout, validating marking constraints, and formulating step-by-step evaluation criteria.
+                </p>
+
+                {/* Document Summary Chips */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
+                  <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    <span>
+                      Question Paper: <strong>{qpFiles.length} {qpFiles.length === 1 ? "file" : "files"}</strong>
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
+                    <FileCheck2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>
+                      Answer Key: <strong>{akFiles.length} {akFiles.length === 1 ? "file" : "files"}</strong>
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 text-indigo-700 dark:text-indigo-300 font-mono font-medium flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 animate-spin" />
+                    <span>{elapsedSeconds}s elapsed</span>
+                  </div>
+                </div>
+
+                {/* Agentic Timeline Feed */}
+                <div className="w-full max-w-lg mt-5 bg-canvas-soft/80 border border-hairline rounded-xl p-4 text-left space-y-2.5">
+                  {AGENTIC_RUBRIC_STEPS.map((step, idx) => {
+                    const isCompleted = idx < currentStep;
+                    const isCurrent = idx === currentStep;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-start gap-3 transition-all duration-300 ${
+                          isCompleted
+                            ? "opacity-90"
+                            : isCurrent
+                            ? "opacity-100"
+                            : "opacity-35"
+                        }`}
+                      >
+                        <div className="mt-0.5 shrink-0">
+                          {isCompleted ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          ) : isCurrent ? (
+                            <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center text-[10px] text-ink-muted font-mono">
+                              {idx + 1}
+                            </div>
                           )}
                         </div>
-                        <p className="text-[11px] text-ink-muted mt-0.5 leading-tight">
-                          {step.desc}
-                        </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`text-xs ${
+                                isCurrent
+                                  ? "text-indigo-600 dark:text-indigo-400 font-bold"
+                                  : isCompleted
+                                  ? "text-ink font-semibold"
+                                  : "text-ink-muted"
+                              }`}
+                            >
+                              {step.title}
+                            </span>
+                            {isCurrent && (
+                              <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200">
+                                In Progress
+                              </span>
+                            )}
+                            {isCompleted && (
+                              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200">
+                                Completed
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-ink-muted mt-0.5 leading-tight">
+                            {step.desc}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Animated Gradient Progress Bar */}
-              <div className="w-full max-w-lg mt-4 space-y-1.5">
-                <div className="h-2 w-full bg-canvas-soft border border-hairline rounded-full overflow-hidden relative">
-                  <div
-                    className="h-full bg-gradient-to-r from-indigo-500 via-primary to-indigo-600 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${progressPercent}%` }}
-                  />
+                    );
+                  })}
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-ink-muted px-1 font-mono">
-                  <span>Synthesizing rubric criteria...</span>
-                  <span>Autonomous Pipeline</span>
-                </div>
-              </div>
 
-              {/* Security footnote */}
-              <div className="flex items-center gap-1.5 text-xs text-ink-muted mt-4">
-                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Draft rubric will be opened in the interactive editor for review and approval.</span>
-              </div>
-            </div>
-          ) : (
-            /* Fast, Clean Minimalist Loader for Branch Manager & No-Rubric Creation */
-            <div className="absolute inset-0 z-30 rounded-xl bg-surface/90 backdrop-blur-md flex flex-col items-center justify-center p-6 sm:p-8 text-center animate-in fade-in duration-200 border border-hairline shadow-notion-modal">
-              <div className="relative mb-4 flex items-center justify-center">
-                <div className="absolute h-16 w-16 rounded-full bg-primary/10 animate-ping opacity-50" />
-                <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs relative">
-                  <Loader2 className="h-6 w-6 animate-spin" />
+                {/* Animated Gradient Progress Bar */}
+                <div className="w-full max-w-lg mt-4 space-y-1.5">
+                  <div className="h-2 w-full bg-canvas-soft border border-hairline rounded-full overflow-hidden relative">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 via-primary to-indigo-600 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-ink-muted px-1 font-mono">
+                    <span>Synthesizing rubric criteria...</span>
+                    <span>Autonomous Pipeline</span>
+                  </div>
+                </div>
+
+                {/* Security footnote */}
+                <div className="flex items-center gap-1.5 text-xs text-ink-muted mt-4">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Draft rubric will be opened in the interactive editor for review and approval.</span>
                 </div>
               </div>
+            ) : (
+              /* Fast, Clean Minimalist Loader for Branch Manager & No-Rubric Creation */
+              <div className="relative w-full max-w-md rounded-2xl bg-surface border border-hairline shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
+                <div className="relative mb-4 flex items-center justify-center">
+                  <div className="absolute h-16 w-16 rounded-full bg-primary/10 animate-ping opacity-50" />
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs relative">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                </div>
 
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hairline text-ink-muted text-[11px] font-medium mb-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                Academic Operations
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hairline text-ink-muted text-[11px] font-medium mb-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  Academic Operations
+                </div>
+
+                <h2 className="text-lg sm:text-xl font-bold text-ink tracking-tight">
+                  Creating Examination...
+                </h2>
+                <p className="mt-1 text-xs text-ink-muted max-w-sm leading-relaxed">
+                  Registering examination record, linking branch settings, and initializing workspace.
+                </p>
               </div>
-
-              <h2 className="text-lg sm:text-xl font-bold text-ink tracking-tight">
-                Creating Examination...
-              </h2>
-              <p className="mt-1 text-xs text-ink-muted max-w-sm leading-relaxed">
-                Registering examination record, linking branch settings, and initializing workspace.
-              </p>
-            </div>
-          )
+            )}
+          </div>
         )}
 
         {/* Main Card */}

@@ -192,16 +192,18 @@ def _serve_render_image(
 ):
     """Redirect to remote object storage when configured; otherwise stream local PNG."""
     if is_remote_storage(storage):
+        synced = True
         if not storage.file_exists(storage_key):
-            sync_file_to_remote_storage(local_path, storage_key, content_type="image/png", storage=storage)
-        redirect_resp = build_remote_redirect_response(
-            storage,
-            storage_key,
-            cache_buster=cache_buster,
-            headers=headers,
-        )
-        if redirect_resp is not None:
-            return redirect_resp
+            synced = sync_file_to_remote_storage(local_path, storage_key, content_type="image/png", storage=storage)
+        if synced:
+            redirect_resp = build_remote_redirect_response(
+                storage,
+                storage_key,
+                cache_buster=cache_buster,
+                headers=headers,
+            )
+            if redirect_resp is not None:
+                return redirect_resp
     return FileResponse(str(local_path), media_type="image/png", headers=headers)
 
 

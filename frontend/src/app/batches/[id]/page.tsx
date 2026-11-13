@@ -28,7 +28,6 @@ import { Batch } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
 import {
-  ButtonPrimary,
   ButtonUtility,
   FeatureCard,
   BadgePill,
@@ -474,9 +473,9 @@ export default function SingleBatchPage() {
                       <td className="py-3 px-4 text-right">
                         {Boolean(
                           sub.status &&
-                            ["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(
-                              sub.status.toUpperCase()
-                            )
+                          ["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(
+                            sub.status.toUpperCase()
+                          )
                         ) ? (
                           <Link
                             href={`/grading/${sub.id}`}
@@ -492,8 +491,8 @@ export default function SingleBatchPage() {
                               sub.status === "PROCESSING"
                                 ? "AI evaluation is currently processing this paper. Inspect Sheet is disabled until status changes to completed or failed."
                                 : sub.status === "QUEUED"
-                                ? "Paper is queued for evaluation. Inspect Sheet is disabled until status changes to completed or failed."
-                                : "Evaluation in progress. Inspect Sheet is disabled in all runtime statuses until status changes to completed or failed."
+                                  ? "Paper is queued for evaluation. Inspect Sheet is disabled until status changes to completed or failed."
+                                  : "Evaluation in progress. Inspect Sheet is disabled in all runtime statuses until status changes to completed or failed."
                             }
                           >
                             <Lock className="h-3 w-3 text-ink-muted/70" />
