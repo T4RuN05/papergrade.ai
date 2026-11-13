@@ -568,13 +568,15 @@ export default function BranchBatchesPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <ButtonUtility size="sm" onClick={() => setAddStudentOpen(true)} className="flex-1 sm:flex-initial justify-center">
-                    <Users className="h-3.5 w-3.5 mr-1" />
-                    Add Student
+                  <ButtonUtility size="sm" onClick={() => setAddStudentOpen(true)} className="flex-1 sm:flex-initial justify-center whitespace-nowrap" title="Add Student">
+                    <Users className="h-3.5 w-3.5 shrink-0" />
+                    <Plus className="h-3 w-3 ml-0.5 shrink-0 sm:hidden" aria-hidden="true" />
+                    <span className="hidden sm:inline ml-1">Add Student</span>
                   </ButtonUtility>
-                  <ButtonUtility size="sm" onClick={() => setImportRosterOpen(true)} className="flex-1 sm:flex-initial justify-center">
-                    <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
-                    Import Excel
+                  <ButtonUtility size="sm" onClick={() => setImportRosterOpen(true)} className="flex-1 sm:flex-initial justify-center whitespace-nowrap" title="Import Excel Roster">
+                    <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
+                    <span className="ml-1 sm:hidden">Import</span>
+                    <span className="hidden sm:inline ml-1">Import Excel</span>
                   </ButtonUtility>
                   <ButtonUtility
                     size="sm"
