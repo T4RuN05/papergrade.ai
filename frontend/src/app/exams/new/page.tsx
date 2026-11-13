@@ -498,7 +498,7 @@ export default function NewExamPage() {
         )}
 
         {/* Main Card */}
-        <FeatureCard className="p-6 sm:p-8 space-y-6">
+        <FeatureCard className="p-4 sm:p-8 space-y-5 sm:space-y-6">
           <div className="pb-5 border-b border-hairline">
             <div className="flex items-center gap-2 mb-1.5">
               <BadgePill label="Academic Desk" color="purple" />
@@ -617,11 +617,11 @@ export default function NewExamPage() {
             </div>
 
             {/* Examination Scope & Batch Targeting */}
-            <div className="rounded-xl border border-hairline bg-canvas-soft/60 p-4 sm:p-5 space-y-4">
+            <div className="rounded-xl border border-hairline bg-canvas-soft/60 p-3.5 sm:p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-hairline">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                    <Users className="h-4 w-4" />
+                <div className="flex items-start sm:items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 mt-0.5 sm:mt-0">
+                    <Users className="h-4 w-4 shrink-0" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-ink uppercase tracking-wider">

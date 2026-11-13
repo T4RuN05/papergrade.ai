@@ -46,7 +46,8 @@ export function AppleSelect({
   const [mounted, setMounted] = useState(false);
   const [menuCoords, setMenuCoords] = useState<{
     top: number;
-    left: number;
+    left?: number;
+    right?: number;
     minWidth: number;
     openUpward?: boolean;
   }>({ top: 0, left: 0, minWidth: 160 });
@@ -69,17 +70,22 @@ export function AppleSelect({
     const openUpward = spaceBelow < 220 && rect.top > 220;
     const minWidth = Math.max(rect.width, 160);
 
-    let left = align === "right" ? rect.right - minWidth : rect.left;
-    if (left + minWidth > window.innerWidth - 12) {
-      left = window.innerWidth - minWidth - 12;
-    }
-    if (left < 12) {
-      left = 12;
+    const isRightHalf = rect.right > window.innerWidth * 0.55;
+    const effectiveAlign = align === "right" || isRightHalf ? "right" : "left";
+
+    let left: number | undefined;
+    let right: number | undefined;
+
+    if (effectiveAlign === "right") {
+      right = Math.max(12, window.innerWidth - rect.right);
+    } else {
+      left = Math.max(12, Math.min(rect.left, window.innerWidth - minWidth - 12));
     }
 
     setMenuCoords({
       top: openUpward ? rect.top - 6 : rect.bottom + 6,
       left,
+      right,
       minWidth,
       openUpward,
     });
@@ -203,7 +209,8 @@ export function AppleSelect({
               position: "fixed",
               top: menuCoords.openUpward ? undefined : `${menuCoords.top}px`,
               bottom: menuCoords.openUpward ? `${Math.max(8, window.innerHeight - menuCoords.top)}px` : undefined,
-              left: `${menuCoords.left}px`,
+              left: menuCoords.left !== undefined ? `${menuCoords.left}px` : undefined,
+              right: menuCoords.right !== undefined ? `${menuCoords.right}px` : undefined,
               minWidth: `${menuCoords.minWidth}px`,
               maxWidth: "calc(100vw - 24px)",
               zIndex: 99999,

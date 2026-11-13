@@ -708,7 +708,7 @@ export default function ExamsPage() {
               required
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-ink mb-1">Duration</label>
                 <AppleSelect

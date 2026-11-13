@@ -303,15 +303,17 @@ class CloudinaryStorageService(StorageService):
         import cloudinary.uploader
         import cloudinary.api
 
+        cfg = settings.parsed_cloudinary_config
         if settings.CLOUDINARY_URL:
-            cloudinary.config(cloudinary_url=settings.CLOUDINARY_URL)
-        else:
-            cloudinary.config(
-                cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-                api_key=settings.CLOUDINARY_API_KEY,
-                api_secret=settings.CLOUDINARY_API_SECRET,
-                secure=True,
-            )
+            os.environ["CLOUDINARY_URL"] = settings.CLOUDINARY_URL
+
+        cloudinary.reset_config()
+        cloudinary.config(
+            cloud_name=cfg.get("cloud_name") or settings.CLOUDINARY_CLOUD_NAME,
+            api_key=cfg.get("api_key") or settings.CLOUDINARY_API_KEY,
+            api_secret=cfg.get("api_secret") or settings.CLOUDINARY_API_SECRET,
+            secure=True,
+        )
 
         self.cache_dir = settings.DATA_DIR / "cloudinary_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -520,9 +522,9 @@ def get_storage_service() -> StorageService:
     global _storage_instance
     if _storage_instance is None:
         backend = settings.STORAGE_BACKEND.lower()
+        cfg = settings.parsed_cloudinary_config
         has_cloudinary = bool(
-            (settings.CLOUDINARY_URL and "<your_api_key>" not in settings.CLOUDINARY_URL and "<api_key>" not in settings.CLOUDINARY_URL)
-            or (settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_KEY.strip() and settings.CLOUDINARY_API_SECRET)
+            cfg.get("cloud_name") and cfg.get("api_key") and cfg.get("api_secret")
         )
         if (backend == "cloudinary" and has_cloudinary) or (backend == "auto" and has_cloudinary):
             _storage_instance = CloudinaryStorageService()

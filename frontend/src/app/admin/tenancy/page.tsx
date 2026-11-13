@@ -559,7 +559,7 @@ export default function TenancyManagementPage() {
                             </div>
                           </div>
 
-                          <div className="pt-3 border-t border-hairline flex items-center justify-between">
+                          <div className="pt-3 border-t border-hairline flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                             <ButtonUtility
                               size="sm"
                               onClick={() => {
@@ -567,6 +567,7 @@ export default function TenancyManagementPage() {
                                 setTargetBranchId(br.id);
                                 setIsManagerModalOpen(true);
                               }}
+                              className="w-full sm:w-auto justify-center"
                             >
                               <Plus className="h-3.5 w-3.5 mr-1" />
                               Assign Manager
@@ -578,7 +579,7 @@ export default function TenancyManagementPage() {
                                 setBranchId(br.id);
                                 router.push("/branch/batches");
                               }}
-                              className="text-primary hover:text-primary-active font-semibold"
+                              className="w-full sm:w-auto justify-center text-primary hover:text-primary-active font-semibold"
                             >
                               <span>Switch to Branch &amp; View</span>
                               <ArrowRight className="h-3.5 w-3.5 ml-1" />

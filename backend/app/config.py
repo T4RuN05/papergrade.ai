@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
 # Locate project root and load .env if present
@@ -59,6 +60,29 @@ class Settings:
     CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "").strip()
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "").strip()
     CLOUDINARY_URL: str = os.getenv("CLOUDINARY_URL", "").strip()
+
+    @property
+    def parsed_cloudinary_config(self) -> Dict[str, str]:
+        c_name = self.CLOUDINARY_CLOUD_NAME
+        a_key = self.CLOUDINARY_API_KEY
+        a_sec = self.CLOUDINARY_API_SECRET
+        if self.CLOUDINARY_URL and "@" in self.CLOUDINARY_URL:
+            try:
+                import urllib.parse
+                parsed = urllib.parse.urlparse(self.CLOUDINARY_URL)
+                if parsed.hostname:
+                    c_name = parsed.hostname
+                if parsed.username:
+                    a_key = parsed.username
+                if parsed.password:
+                    a_sec = parsed.password
+            except Exception:
+                pass
+        return {
+            "cloud_name": c_name,
+            "api_key": a_key,
+            "api_secret": a_sec,
+        }
 
     # Supabase Settings
     SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "").strip()
