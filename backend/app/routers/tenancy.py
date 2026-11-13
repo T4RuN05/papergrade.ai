@@ -164,11 +164,10 @@ def _format_batch_dict(batch: Batch) -> Dict[str, Any]:
 
 def _format_student_dict(student: Student) -> Dict[str, Any]:
     """Helper to convert Student ORM instance to client-expected dictionary."""
-    return {
+    result = {
         "id": student.id,
         "batch_id": student.batch_id,
         "user_id": student.user_id,
-        "student_id_num": student.student_id_num,
         "roll_number": student.roll_number,
         "full_name": student.full_name,
         "email": student.email,
@@ -177,6 +176,9 @@ def _format_student_dict(student: Student) -> Dict[str, Any]:
         "claimed_at": student.claimed_at,
         "created_at": student.created_at,
     }
+    if not student.account_claimed:
+        result["student_id_num"] = student.student_id_num
+    return result
 
 
 @router.get("/institutes")

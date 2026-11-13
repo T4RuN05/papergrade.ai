@@ -2248,7 +2248,6 @@ export default function StudentPortalPage() {
   ).length;
 
   const rollNumber = user?.roll_number || user?.student?.roll_number || "Enrolled";
-  const studentIdDisplay = user?.student_id_num || user?.student?.student_id_num || user?.id;
 
   return (
     <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group overflow-x-hidden">
@@ -2265,9 +2264,6 @@ export default function StudentPortalPage() {
               Roll No: <strong className="text-ink font-medium font-mono">{rollNumber}</strong>
             </span>
             <span className="text-ink-faint hidden xs:inline">•</span>
-            <span className="whitespace-nowrap">
-              Student ID: <strong className="text-ink font-medium font-mono">{studentIdDisplay}</strong>
-            </span>
           </div>
         </div>
 
@@ -4042,7 +4038,7 @@ export default function StudentPortalPage() {
               submissions={rankingsData}
               isStudentView={true}
               currentStudentRoll={user?.roll_number}
-              currentStudentId={studentIdDisplay}
+              currentStudentId={user?.student_id}
             />
           )}
 

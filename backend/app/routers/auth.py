@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, or_, update, delete
+from sqlalchemy import select, func, or_, and_, update, delete
 
 from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
@@ -135,7 +135,7 @@ async def login(
     user = None
     student_info = None
 
-    # 1. Smart lookup: If identifier contains '@', query by email; otherwise query Student roll/id directly
+    # 1. Smart lookup: claim IDs are single-use onboarding credentials.
     if is_email:
         user = db.scalar(
             select(User).where(func.lower(User.email) == clean_email, User.is_active == 1)
@@ -148,7 +148,7 @@ async def login(
             .where(
                 or_(
                     func.upper(Student.roll_number) == clean_identifier.upper(),
-                    Student.student_id_num == clean_identifier,
+                    and_(Student.student_id_num == clean_identifier, Student.account_claimed == 0),
                 ),
                 User.is_active == 1
             )
@@ -166,7 +166,7 @@ async def login(
                 .where(
                     or_(
                         func.upper(Student.roll_number) == clean_identifier.upper(),
-                        Student.student_id_num == clean_identifier,
+                        and_(Student.student_id_num == clean_identifier, Student.account_claimed == 0),
                     ),
                     User.is_active == 1
                 )
@@ -222,10 +222,8 @@ async def login(
     if student_info:
         token_payload["student_id"] = student_info.id
         token_payload["roll_number"] = student_info.roll_number
-        token_payload["student_id_num"] = student_info.student_id_num
         user_response["student_id"] = student_info.id
         user_response["roll_number"] = student_info.roll_number
-        user_response["student_id_num"] = student_info.student_id_num
 
     token = create_access_token(token_payload)
 
@@ -263,12 +261,10 @@ def get_profile(
         if st:
             profile["student"] = {
                 "student_id": st.id,
-                "student_id_num": st.student_id_num,
                 "roll_number": st.roll_number,
                 "batch_id": st.batch_id,
             }
             profile["roll_number"] = st.roll_number
-            profile["student_id_num"] = st.student_id_num
             profile["student_id"] = st.id
 
     return profile
@@ -382,7 +378,6 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         "branch_id": branch_id,
         "student_id": student.id,
         "roll_number": student.roll_number,
-        "student_id_num": student.student_id_num,
     }
     token = create_access_token(token_payload)
 
@@ -397,7 +392,6 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
             "branch_id": branch_id,
             "student_id": student.id,
             "roll_number": student.roll_number,
-            "student_id_num": student.student_id_num,
         }
     )
 

@@ -141,12 +141,10 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
             student_id = st.id
             batch_id = st.batch_id
             user_dict["student_id"] = st.id
-            user_dict["student_id_num"] = st.student_id_num
             user_dict["roll_number"] = st.roll_number
             user_dict["batch_id"] = st.batch_id
             user_dict["student"] = {
                 "student_id": st.id,
-                "student_id_num": st.student_id_num,
                 "roll_number": st.roll_number,
                 "batch_id": st.batch_id
             }

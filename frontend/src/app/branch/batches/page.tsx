@@ -20,6 +20,7 @@ import {
   KeyRound,
   Check,
   X,
+  Loader2,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useTenant } from "@/lib/TenantContext";
@@ -65,6 +66,7 @@ export default function BranchBatchesPage() {
   const [importRosterOpen, setImportRosterOpen] = useState(false);
   const [rosterFile, setRosterFile] = useState<File | null>(null);
   const [importStats, setImportStats] = useState<any>(null);
+  const [importingRoster, setImportingRoster] = useState(false);
 
   // Student Password Reset Requests state
   const [passwordResets, setPasswordResets] = useState<any[]>([]);
@@ -263,8 +265,9 @@ export default function BranchBatchesPage() {
   // Import Excel Roster
   const handleImportRoster = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBatch || !rosterFile) return;
+    if (!selectedBatch || !rosterFile || importingRoster) return;
 
+    setImportingRoster(true);
     try {
       const res = await api.importRoster(selectedBatch.id, rosterFile);
       setImportStats(res);
@@ -278,6 +281,8 @@ export default function BranchBatchesPage() {
     } catch (err: any) {
       const msg = err.message || "Excel import failed.";
       toast.error(msg, { title: "Import Failed" });
+    } finally {
+      setImportingRoster(false);
     }
   };
 
@@ -348,12 +353,16 @@ export default function BranchBatchesPage() {
         s.student_name?.toLowerCase().includes(q) ||
         s.full_name?.toLowerCase().includes(q) ||
         s.roll_number?.toLowerCase().includes(q) ||
-        s.student_id_num?.includes(q)
+        (!s.account_claimed && s.student_id_num?.includes(q))
     );
   }, [students, studentSearch]);
 
   const claimedCount = useMemo(() => {
     return students.filter((s) => s.account_claimed).length;
+  }, [students]);
+
+  const hasUnclaimedStudents = useMemo(() => {
+    return students.some((s) => !s.account_claimed);
   }, [students]);
 
   const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
@@ -597,11 +606,11 @@ export default function BranchBatchesPage() {
                   <span>One-Time Student Onboarding Claim Workflow</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Each enrolled student receives a permanent 6-digit Claim ID. Students claim their PWA account at{" "}
+                  Each unclaimed student receives a temporary 6-digit Claim ID. Students claim their PWA account at{" "}
                   <code className="font-mono font-semibold text-ink bg-surface px-1.5 py-0.5 rounded border border-hairline">
                     /auth/claim
                   </code>{" "}
-                  using their Claim ID and Roll Number to set their password.
+                  using their Claim ID and Roll Number to set their password. The Claim ID is exhausted after use.
                 </p>
               </div>
 
@@ -611,7 +620,7 @@ export default function BranchBatchesPage() {
                   <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-ink-muted" />
                   <input
                     type="text"
-                    placeholder="Search name, roll no, or claim ID..."
+                    placeholder="Search name or roll no..."
                     value={studentSearch}
                     onChange={(e) => setStudentSearch(e.target.value)}
                     className="w-full rounded-md border border-hairline bg-surface pl-9 pr-3 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none shadow-2xs"
@@ -675,9 +684,11 @@ export default function BranchBatchesPage() {
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-primary bg-primary/10 border border-primary/20">
-                                ID: {claimId}
-                              </span>
+                              {!isClaimed && claimId && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-primary bg-primary/10 border border-primary/20">
+                                  Claim ID: {claimId}
+                                </span>
+                              )}
                               <BadgePill
                                 label={isClaimed ? "Claimed" : "Unclaimed"}
                                 color={isClaimed ? "green" : "gray"}
@@ -706,7 +717,9 @@ export default function BranchBatchesPage() {
                       <tr className="border-b border-hairline bg-canvas-soft text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
                         <th className="px-4 py-3 bg-canvas-soft">Roll Number</th>
                         <th className="px-4 py-3 bg-canvas-soft">Student Name</th>
-                        <th className="px-4 py-3 bg-canvas-soft">6-Digit Claim ID</th>
+                        {hasUnclaimedStudents && (
+                          <th className="px-4 py-3 bg-canvas-soft">Temporary Claim ID</th>
+                        )}
                         <th className="px-4 py-3 bg-canvas-soft">PWA Status</th>
                         <th className="px-4 py-3 text-right bg-canvas-soft">Action</th>
                       </tr>
@@ -717,14 +730,16 @@ export default function BranchBatchesPage() {
                           <tr key={i} className="h-12">
                             <td className="px-4 py-3"><Skeleton className="h-3.5 w-16" /></td>
                             <td className="px-4 py-3"><Skeleton className="h-3.5 w-36" /></td>
-                            <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
+                            {hasUnclaimedStudents && (
+                              <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
+                            )}
                             <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
                             <td className="px-4 py-3 text-right"><Skeleton className="h-6 w-12 rounded ml-auto" /></td>
                           </tr>
                         ))
                       ) : filteredStudents.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-12 text-center text-ink-muted space-y-1">
+                          <td colSpan={hasUnclaimedStudents ? 5 : 4} className="px-4 py-12 text-center text-ink-muted space-y-1">
                             <p className="font-semibold text-ink">No students found.</p>
                             <p className="text-[11px]">
                               {studentSearch ? "No matches for your search query." : "Add students manually or import an Excel roster."}
@@ -743,11 +758,17 @@ export default function BranchBatchesPage() {
                               <td className="px-4 py-3 font-medium text-ink">
                                 {stu.full_name || stu.student_name}
                               </td>
-                              <td className="px-4 py-3 font-mono">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded font-bold text-primary bg-primary/10 border border-primary/20">
-                                  {claimId}
-                                </span>
-                              </td>
+                              {hasUnclaimedStudents && (
+                                <td className="px-4 py-3 font-mono">
+                                  {!isClaimed ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded font-bold text-primary bg-primary/10 border border-primary/20">
+                                      {claimId}
+                                    </span>
+                                  ) : (
+                                    <span className="text-ink-faint">Exhausted</span>
+                                  )}
+                                </td>
+                              )}
                               <td className="px-4 py-3">
                                 <BadgePill
                                   label={isClaimed ? "Claimed" : "Unclaimed"}
@@ -907,6 +928,7 @@ export default function BranchBatchesPage() {
           setImportRosterOpen(false);
           setImportStats(null);
           setRosterFile(null);
+          setImportingRoster(false);
         }}
       >
           {importStats ? (
@@ -964,11 +986,18 @@ export default function BranchBatchesPage() {
                 </label>
               </div>
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-                <ButtonUtility type="button" onClick={() => setImportRosterOpen(false)} className="w-full sm:w-auto justify-center">
+                <ButtonUtility type="button" onClick={() => setImportRosterOpen(false)} disabled={importingRoster} className="w-full sm:w-auto justify-center">
                   Cancel
                 </ButtonUtility>
-                <ButtonPrimary type="submit" disabled={!rosterFile} className="w-full sm:w-auto justify-center">
-                  Process Import
+                <ButtonPrimary type="submit" disabled={!rosterFile || importingRoster} className="w-full sm:w-auto justify-center">
+                  {importingRoster ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing Import...
+                    </>
+                  ) : (
+                    "Process Import"
+                  )}
                 </ButtonPrimary>
               </div>
             </form>
