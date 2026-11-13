@@ -611,7 +611,7 @@ export const api = {
   async importRoster(batchId: string, file: File): Promise<any> {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/students/import-roster`, {
+    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/import-students`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
