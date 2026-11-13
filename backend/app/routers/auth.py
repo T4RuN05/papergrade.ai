@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, update, delete
 
 from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
@@ -72,6 +72,15 @@ class CreateUserRequest(BaseModel):
     role: str  # "ROOT_ADMIN" or "BRANCH_MANAGER"
     institute_id: Optional[str] = None
     branch_id: Optional[str] = None
+
+
+class UpdateUserRequest(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+    full_name: Optional[str] = None
+    branch_id: Optional[str] = None
+    institute_id: Optional[str] = None
+    is_active: Optional[int] = None
 
 
 def _record_last_login(user_id: str):
@@ -465,6 +474,110 @@ def list_users(
         }
         for u in users
     ]
+
+
+@router.patch("/users/{user_id}")
+def update_user(
+    user_id: str,
+    req: UpdateUserRequest,
+    current_user: Dict[str, Any] = Depends(require_root_admin),
+    db: Session = Depends(get_db)
+):
+    """Root Admin endpoint to update a staff user or branch manager."""
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if req.email is not None:
+        clean_email = req.email.strip().lower()
+        if clean_email != user.email:
+            existing = db.scalar(
+                select(User.id).where(func.lower(User.email) == clean_email, User.id != user_id)
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="Another user with this email already exists.")
+            user.email = clean_email
+
+    if req.full_name is not None:
+        clean_name = req.full_name.strip()
+        if clean_name:
+            user.full_name = clean_name
+
+    if req.password is not None and req.password.strip():
+        user.password_hash = hash_password(req.password.strip())
+
+    if req.branch_id is not None:
+        clean_bid = req.branch_id.strip() if req.branch_id else ""
+        user.branch_id = clean_bid if clean_bid else None
+        if user.branch_id:
+            br = db.scalar(select(Branch).where(Branch.id == user.branch_id))
+            if br:
+                user.institute_id = br.institute_id
+
+    if req.institute_id is not None:
+        clean_iid = req.institute_id.strip() if req.institute_id else ""
+        user.institute_id = clean_iid if clean_iid else None
+
+    if req.is_active is not None:
+        user.is_active = req.is_active
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "user_id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "branch_id": user.branch_id,
+        "institute_id": user.institute_id,
+        "is_active": user.is_active,
+    }
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    current_user: Dict[str, Any] = Depends(require_root_admin),
+    db: Session = Depends(get_db)
+):
+    """Root Admin endpoint to delete a staff user or branch manager."""
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == current_user.get("id"):
+        raise HTTPException(status_code=400, detail="Cannot delete your own active administrator account.")
+
+    if user.role == "ROOT_ADMIN":
+        root_count = db.scalar(select(func.count(User.id)).where(User.role == "ROOT_ADMIN")) or 0
+        if root_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the sole Root Administrator.")
+
+    # Unlink any student claiming this user
+    db.execute(
+        update(Student)
+        .where(Student.user_id == user_id)
+        .values(user_id=None, account_claimed=0, claimed_at=None)
+    )
+
+    # Clean up dependent records
+    from backend.app.db.models.telemetry import PushSubscription, TechnicalReport
+    db.execute(delete(PasswordResetRequest).where(PasswordResetRequest.user_id == user_id))
+    db.execute(delete(PushSubscription).where(PushSubscription.user_id == user_id))
+    db.execute(delete(Notification).where(Notification.user_id == user_id))
+    db.execute(delete(TechnicalReport).where(TechnicalReport.user_id == user_id))
+
+    deleted_email = user.email
+    deleted_role = user.role
+    db.delete(user)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": f"{deleted_role} '{deleted_email}' has been permanently deleted.",
+        "user_id": user_id,
+    }
 
 
 # -------------------------------------------------------------

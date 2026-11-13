@@ -535,6 +535,38 @@ export const api = {
     return res.json();
   },
 
+  async updateUser(userId: string, data: {
+    email?: string;
+    password?: string;
+    full_name?: string;
+    branch_id?: string;
+    institute_id?: string;
+    is_active?: number;
+  }): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to update user" }));
+      throw new Error(parseErrorDetail(err, "Failed to update user"));
+    }
+    return res.json();
+  },
+
+  async deleteUser(userId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/users/${userId}`, {
+      method: "DELETE",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to delete user" }));
+      throw new Error(parseErrorDetail(err, "Failed to delete user"));
+    }
+    return res.json();
+  },
+
   async listBatches(branchId?: string, forceRefresh = false): Promise<any[]> {
     const key = `tenancy:batches:${branchId || "all"}`;
     if (forceRefresh) clearApiCache("tenancy:batches");

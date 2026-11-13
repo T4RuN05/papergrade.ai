@@ -19,6 +19,7 @@ import {
   X,
   Trash2,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, getAuthToken } from "@/lib/api";
@@ -64,6 +65,20 @@ export default function TenancyManagementPage() {
   const [newMgrName, setNewMgrName] = useState("");
   const [newMgrEmail, setNewMgrEmail] = useState("");
   const [newMgrPassword, setNewMgrPassword] = useState("");
+
+  // Edit Manager States
+  const [isEditMgrModalOpen, setIsEditMgrModalOpen] = useState(false);
+  const [editingMgr, setEditingMgr] = useState<any | null>(null);
+  const [editMgrName, setEditMgrName] = useState("");
+  const [editMgrEmail, setEditMgrEmail] = useState("");
+  const [editMgrPassword, setEditMgrPassword] = useState("");
+  const [editMgrBranchId, setEditMgrBranchId] = useState("");
+  const [editMgrActive, setEditMgrActive] = useState<number>(1);
+
+  // Delete Manager States
+  const [isDeleteMgrModalOpen, setIsDeleteMgrModalOpen] = useState(false);
+  const [mgrToDelete, setMgrToDelete] = useState<any | null>(null);
+  const [isDeletingMgr, setIsDeletingMgr] = useState(false);
 
   // Delete Institute States
   const [isDeleteInstModalOpen, setIsDeleteInstModalOpen] = useState(false);
@@ -238,6 +253,53 @@ export default function TenancyManagementPage() {
       toast.error(msg, { title: "Assignment Failed" });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditManagerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMgr) return;
+    setIsSubmitting(true);
+    setActionError(null);
+    try {
+      const payload: any = {
+        full_name: editMgrName.trim(),
+        email: editMgrEmail.trim(),
+        branch_id: editMgrBranchId || undefined,
+        is_active: editMgrActive,
+      };
+      if (editMgrPassword.trim()) {
+        payload.password = editMgrPassword.trim();
+      }
+      await api.updateUser(editingMgr.id, payload);
+      toast.success(`Manager "${editMgrName}" updated successfully!`, { title: "Manager Updated" });
+      setIsEditMgrModalOpen(false);
+      setEditingMgr(null);
+      await loadAll();
+    } catch (err: any) {
+      const msg = err.message || "Failed to update manager";
+      setActionError(msg);
+      toast.error(msg, { title: "Update Failed" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteManagerSubmit = async () => {
+    if (!mgrToDelete) return;
+    setIsDeletingMgr(true);
+    setActionError(null);
+    try {
+      await api.deleteUser(mgrToDelete.id);
+      toast.success(`Branch Manager "${mgrToDelete.full_name || mgrToDelete.email}" removed.`, { title: "Manager Removed" });
+      setIsDeleteMgrModalOpen(false);
+      setMgrToDelete(null);
+      await loadAll();
+    } catch (err: any) {
+      const msg = err.message || "Failed to delete manager";
+      toast.error(msg, { title: "Deletion Failed" });
+    } finally {
+      setIsDeletingMgr(false);
     }
   };
 
@@ -455,7 +517,41 @@ export default function TenancyManagementPage() {
                                           </div>
                                         </div>
                                       </div>
-                                      <BadgePill label="Active" color="green" />
+                                      
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <BadgePill
+                                          label={mgr.is_active === 0 ? "Inactive" : "Active"}
+                                          color={mgr.is_active === 0 ? "orange" : "green"}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingMgr(mgr);
+                                            setEditMgrName(mgr.full_name || "");
+                                            setEditMgrEmail(mgr.email || "");
+                                            setEditMgrPassword("");
+                                            setEditMgrBranchId(mgr.branch_id || br.id);
+                                            setEditMgrActive(mgr.is_active !== undefined ? mgr.is_active : 1);
+                                            setActionError(null);
+                                            setIsEditMgrModalOpen(true);
+                                          }}
+                                          className="p-1.5 hover:bg-canvas-soft text-ink-muted hover:text-ink rounded transition-colors"
+                                          title="Edit Manager"
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setMgrToDelete(mgr);
+                                            setIsDeleteMgrModalOpen(true);
+                                          }}
+                                          className="p-1.5 hover:bg-red-50 text-ink-muted hover:text-red-600 rounded transition-colors"
+                                          title="Delete Manager"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -906,6 +1002,145 @@ export default function TenancyManagementPage() {
                   <>
                     <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                     Cascade Delete Institute
+                  </>
+                )}
+              </ButtonUtility>
+            </div>
+          </div>
+        </ModalCard>
+      )}
+
+      {/* MODAL 5: Edit Branch Manager */}
+      <ModalCard
+        isOpen={isEditMgrModalOpen}
+        onClose={() => {
+          setIsEditMgrModalOpen(false);
+          setEditingMgr(null);
+        }}
+        title="Edit Branch Manager"
+      >
+        <form onSubmit={handleEditManagerSubmit} className="space-y-4">
+          {actionError && (
+            <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{actionError}</span>
+            </div>
+          )}
+
+          <FormInput
+            label="Full Name"
+            required
+            value={editMgrName}
+            onChange={(e) => setEditMgrName(e.target.value)}
+          />
+
+          <FormInput
+            label="Email Address"
+            type="email"
+            required
+            value={editMgrEmail}
+            onChange={(e) => setEditMgrEmail(e.target.value)}
+          />
+
+          <FormInput
+            label="New Password"
+            type="password"
+            placeholder="Leave blank to keep current password"
+            value={editMgrPassword}
+            onChange={(e) => setEditMgrPassword(e.target.value)}
+          />
+
+          <div>
+            <label className="block text-xs font-semibold text-ink mb-1.5">Assigned Branch</label>
+            <select
+              value={editMgrBranchId}
+              onChange={(e) => setEditMgrBranchId(e.target.value)}
+              className="w-full text-xs bg-surface border border-hairline rounded-md px-3 py-2 text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code}) — {institutes.find((i) => i.id === b.institute_id)?.name || "Institute"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink mb-1.5">Account Status</label>
+            <select
+              value={editMgrActive}
+              onChange={(e) => setEditMgrActive(Number(e.target.value))}
+              className="w-full text-xs bg-surface border border-hairline rounded-md px-3 py-2 text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value={1}>Active (Login permitted)</option>
+              <option value={0}>Inactive (Access suspended)</option>
+            </select>
+          </div>
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
+            <ButtonUtility
+              type="button"
+              onClick={() => {
+                setIsEditMgrModalOpen(false);
+                setEditingMgr(null);
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </ButtonUtility>
+            <ButtonPrimary type="submit" isLoading={isSubmitting}>
+              Save Changes
+            </ButtonPrimary>
+          </div>
+        </form>
+      </ModalCard>
+
+      {/* MODAL 6: Delete Branch Manager */}
+      {isDeleteMgrModalOpen && mgrToDelete && (
+        <ModalCard
+          isOpen={isDeleteMgrModalOpen}
+          onClose={() => {
+            setIsDeleteMgrModalOpen(false);
+            setMgrToDelete(null);
+          }}
+          title="Remove Branch Manager"
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-ink-muted leading-relaxed">
+              Are you sure you want to remove credentials for{" "}
+              <strong className="text-ink">{mgrToDelete.full_name || mgrToDelete.email}</strong> (
+              <span className="font-mono text-ink">{mgrToDelete.email}</span>)?
+            </p>
+            <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 p-3 text-xs text-amber-800 dark:text-amber-300">
+              This action immediately revokes login access for this manager. Any batches and exams created by this manager remain safe under the branch.
+            </div>
+
+            <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
+              <ButtonUtility
+                type="button"
+                onClick={() => {
+                  setIsDeleteMgrModalOpen(false);
+                  setMgrToDelete(null);
+                }}
+                disabled={isDeletingMgr}
+              >
+                Cancel
+              </ButtonUtility>
+              <ButtonUtility
+                variant="danger-solid"
+                size="md"
+                onClick={handleDeleteManagerSubmit}
+                disabled={isDeletingMgr}
+              >
+                {isDeletingMgr ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Removing Manager...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Remove Manager
                   </>
                 )}
               </ButtonUtility>
