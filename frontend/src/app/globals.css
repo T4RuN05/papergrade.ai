@@ -1226,6 +1226,19 @@ input[type="number"] {
    whole session.
    ========================================================================== */
 @media (max-width: 1023px), (pointer: coarse) {
+  /* Flatten card elevation to a hairline: `--shadow-notion-card` is two
+     blurred shadows per card, and the exam page stacks eight of them, which
+     is a lot of off-screen blur surfaces for a phone GPU to keep alive. */
+  :root {
+    --shadow-notion-card: 0 0 0 1px rgba(0, 0, 0, 0.02);
+    --shadow-notion-modal: 0 8px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .dark {
+    --shadow-notion-card: 0 0 0 1px rgba(255, 255, 255, 0.03);
+    --shadow-notion-modal: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+
   *,
   *::before,
   *::after {
@@ -1233,7 +1246,49 @@ input[type="number"] {
     backdrop-filter: none !important;
   }
 
+  /* ------------------------------------------------------------------------
+     Flat touch paint for the "curved glass" button system.
+     Each glass button is a stacked linear-gradient + 3-4 inset box-shadows,
+     re-painted on hover/active with `transition: all`. Dense toolbars (the
+     exam action bar wraps into 4 rows on a phone) therefore paint dozens of
+     expensive rounded gradient+inset-shadow surfaces in one horizontal strip.
+     Mobile GPU drivers (Mali/Adreno) are known to emit uninitialised texture
+     bands for exactly that combination, so on touch devices the buttons render
+     as flat, solid surfaces. Colour, height, radius and border are unchanged.
+     ------------------------------------------------------------------------ */
+  .btn-glass-primary,
+  .btn-glass-utility,
+  .btn-glass-amber,
+  .btn-glass-emerald,
+  .btn-glass-danger-utility,
+  .btn-glass-danger {
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transform: none !important;
+  }
+
+  .btn-glass-primary { background-color: #0d7ae8 !important; }
+  .btn-glass-utility { background-color: #ffffff !important; }
+  .btn-glass-amber { background-color: #d97706 !important; }
+  .btn-glass-emerald { background-color: #059669 !important; }
+  .btn-glass-danger-utility { background-color: #ffffff !important; }
+  .btn-glass-danger { background-color: #ef4444 !important; }
+
+  .dark .btn-glass-utility { background-color: #222222 !important; }
+  .dark .btn-glass-danger-utility { background-color: #1c1818 !important; }
+
+  /* Skeleton shimmer animates `background-position`, which forces a full
+     repaint of every skeleton block on every frame. On touch we serve a flat
+     tint instead — same silhouette, no per-frame rasterisation. */
   .animate-shimmer,
+  .dark .animate-shimmer {
+    background-image: none !important;
+    background-color: var(--shimmer-base) !important;
+    animation: none !important;
+    will-change: auto !important;
+  }
+
   .toast-bar-primary,
   .toast-bar-secondary,
   .animate-toast-loading,

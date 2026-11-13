@@ -870,7 +870,7 @@ export default function ExamDetailPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* Main Examination Header Card */}
-      <FeatureCard className="p-3.5 sm:p-7 space-y-4 sm:space-y-5 border-hairline bg-surface isolate">
+      <FeatureCard className="p-3.5 sm:p-7 space-y-4 sm:space-y-5 border-hairline bg-surface">
         {/* Top Context Breadcrumb Line */}
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
           <div className="flex items-center gap-2 flex-wrap">
@@ -925,7 +925,7 @@ export default function ExamDetailPage() {
           </div>
 
           {/* Proper Rectangular Action Buttons Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0 isolate w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
             {/* Primary Action Button */}
             {isEvaluating ? (
               <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-2xs">
