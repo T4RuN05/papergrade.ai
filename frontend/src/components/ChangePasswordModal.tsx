@@ -111,10 +111,10 @@ export function ChangePasswordModal({ isOpen, onClose, userEmail }: ChangePasswo
           <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-secondary space-y-1">
             <div className="font-semibold text-ink flex items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              <span>Initial Credentials Update</span>
+              <span>Password Security</span>
             </div>
             <p className="text-[11px] text-ink-muted leading-relaxed">
-              If this is your first time logging in with credentials provisioned by the Root Admin, set a personal password that only you know.
+              Enter your current password to set a new password. You can update your credentials initially after onboarding or anytime in the future.
             </p>
           </div>
 
