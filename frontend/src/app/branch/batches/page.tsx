@@ -21,6 +21,7 @@ import {
   Check,
   X,
   Loader2,
+  GraduationCap,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { useTenant } from "@/lib/TenantContext";
@@ -236,21 +237,22 @@ export default function BranchBatchesPage() {
   // Add Single Student
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBatch || !stuRoll.trim() || !stuName.trim()) return;
+    if (!selectedBatch || !stuName.trim()) return;
 
     const sName = stuName.trim();
-    const sRoll = stuRoll.trim().toUpperCase();
+    const sRoll = stuRoll.trim() ? stuRoll.trim().toUpperCase() : undefined;
     try {
-      await api.addStudent(selectedBatch.id, {
+      const res = await api.addStudent(selectedBatch.id, {
         roll_number: sRoll,
         full_name: sName,
         email: stuEmail.trim() || undefined,
       });
-      setAddedStudentRoll(sRoll);
+      const assignedRoll = res?.roll_number || sRoll || "Enrolled";
+      setAddedStudentRoll(assignedRoll);
       setStuRoll("");
       setStuName("");
       setStuEmail("");
-      toast.success(`Student "${sName}" enrolled (${sRoll}).`, { title: "Student Enrolled" });
+      toast.success(`Student "${sName}" enrolled (${assignedRoll}).`, { title: "Student Enrolled" });
       // Reload students & sync batch card counts
       const [updated] = await Promise.all([
         api.listStudentsInBatch(selectedBatch.id),
@@ -806,11 +808,10 @@ export default function BranchBatchesPage() {
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormInput
-              label="Batch Code"
-              placeholder="e.g. KTG_2026"
+              label="Batch Code (Optional)"
+              placeholder="e.g. KTG_2026 (auto-assigned if blank)"
               value={newBatchCode}
               onChange={(e) => setNewBatchCode(e.target.value)}
-              required
             />
             <FormInput
               label="Academic Year"
@@ -864,19 +865,27 @@ export default function BranchBatchesPage() {
           </div>
         ) : (
           <form onSubmit={handleAddStudent} className="space-y-4">
-            <FormInput
-              label="Roll Number"
-              placeholder="e.g. ROLL-101"
-              value={stuRoll}
-              onChange={(e) => setStuRoll(e.target.value)}
-              required
-            />
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs space-y-1">
+              <div className="font-semibold text-primary flex items-center gap-1.5">
+                <GraduationCap className="h-4 w-4" />
+                <span>Auto-Sequenced Roll Number</span>
+              </div>
+              <p className="text-[11px] text-ink-muted leading-relaxed">
+                PaperGrade AI automatically allocates the next sequential roll number for this branch (e.g. {selectedBranch?.code ? `...-${selectedBranch.code}-...` : "auto-generated"}).
+              </p>
+            </div>
             <FormInput
               label="Full Name"
               placeholder="e.g. Aarav Sharma"
               value={stuName}
               onChange={(e) => setStuName(e.target.value)}
               required
+            />
+            <FormInput
+              label="Custom Roll Number (Optional)"
+              placeholder="Leave blank to auto-generate (recommended)"
+              value={stuRoll}
+              onChange={(e) => setStuRoll(e.target.value)}
             />
             <FormInput
               label="Email (Optional)"
@@ -942,9 +951,8 @@ export default function BranchBatchesPage() {
           ) : (
             <form onSubmit={handleImportRoster} className="space-y-4">
               <p className="text-xs text-ink-muted leading-relaxed">
-                Upload an Excel spreadsheet (<code className="font-mono text-ink">.xlsx</code>). Columns required:{" "}
-                <span className="font-semibold text-ink">Roll Number</span> and{" "}
-                <span className="font-semibold text-ink">Student Name</span>. Email is optional.
+                Upload an Excel spreadsheet (<code className="font-mono text-ink">.xlsx</code>). Required column:{" "}
+                <span className="font-semibold text-ink">Full Name</span>. Sequential roll numbers are auto-assigned by the system. Email and Phone are optional.
               </p>
               <div className="border-2 border-dashed border-hairline rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer bg-canvas-soft">
                 <input

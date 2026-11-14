@@ -546,7 +546,7 @@ function LoginForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={
                       loginRole === "STUDENT"
-                        ? "e.g. C25-BVI-001 or ROLL-101"
+                        ? "e.g. C25-BVI-001"
                         : "e.g. user@institute.edu or admin"
                     }
                   />
@@ -618,7 +618,7 @@ function LoginForm() {
                         required
                         value={claimRollNumber}
                         onChange={(e) => setClaimRollNumber(e.target.value)}
-                        placeholder="e.g. MECH-042 or ROLL-101"
+                        placeholder="e.g. C25-BVI-001"
                       />
 
                       <FormInput
@@ -684,7 +684,7 @@ function LoginForm() {
                 placeholder={
                   loginRole === "STAFF"
                     ? "e.g. director@institute.edu or manager@branch.com"
-                    : "e.g. C25-BVI-001 or ROLL-101"
+                    : "e.g. C25-BVI-001"
                 }
               />
 

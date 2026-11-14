@@ -834,6 +834,8 @@ def init_db():
             br_cols = [row[1] for row in cursor.fetchall()]
             if "subjects" not in br_cols:
                 cursor.execute("ALTER TABLE branches ADD COLUMN subjects TEXT")
+            if "last_roll_sequence" not in br_cols:
+                cursor.execute("ALTER TABLE branches ADD COLUMN last_roll_sequence INTEGER NOT NULL DEFAULT 0")
 
             cursor.execute("PRAGMA table_info(api_usage_events)")
             api_cols = [row[1] for row in cursor.fetchall()]
@@ -873,6 +875,8 @@ def init_db():
                 cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0;")
                 cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS deleted_at TEXT;")
                 cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS subjects TEXT;")
+                cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS last_roll_sequence INTEGER NOT NULL DEFAULT 0;")
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_students_roll_unique ON students (roll_number);")
                 cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_changed_password INTEGER NOT NULL DEFAULT 0;")
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS exam_batches (

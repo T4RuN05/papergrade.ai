@@ -32,6 +32,7 @@ class Branch(Base, TimestampMixin):
     code: Mapped[str] = mapped_column(Text, nullable=False)
     city: Mapped[str] = mapped_column(Text, nullable=False)
     subjects: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_roll_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Relationships
     institute: Mapped["Institute"] = relationship("Institute", back_populates="branches")
@@ -85,6 +86,7 @@ class Student(Base, TimestampMixin):
     __table_args__ = (
         Index("idx_students_num", "student_id_num"),
         Index("idx_students_batch", "batch_id"),
+        Index("idx_students_roll_unique", "roll_number", unique=True),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"stu_{uuid.uuid4().hex[:12]}")

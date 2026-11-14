@@ -600,7 +600,7 @@ export const api = {
     }, 30000); // 30s cache with auto-invalidation on create/delete/update
   },
 
-  async createBatch(data: { branch_id: string; name: string; code: string; academic_year: string }): Promise<any> {
+  async createBatch(data: { branch_id: string; name: string; code?: string; academic_year: string }): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/tenancy/batches`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -614,7 +614,7 @@ export const api = {
     return res.json();
   },
 
-  async addStudent(batchId: string, data: { roll_number: string; full_name: string; email?: string; phone?: string }): Promise<any> {
+  async addStudent(batchId: string, data: { roll_number?: string; full_name: string; email?: string; phone?: string }): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/students`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },

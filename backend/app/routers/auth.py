@@ -291,28 +291,11 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
 
-    # 1. Verify student record exists by roll number
-    students = db.scalars(
+    # 1. Verify student record exists by globally unique roll number
+    student = db.scalar(
         select(Student).where(func.upper(Student.roll_number) == clean_roll)
-    ).all()
-
-    student = None
-    if students:
-        # Prioritize unclaimed student records
-        unclaimed = [s for s in students if s.account_claimed == 0]
-        if unclaimed:
-            if clean_id_num:
-                matching = [s for s in unclaimed if s.student_id_num == clean_id_num]
-                student = matching[0] if matching else unclaimed[0]
-            else:
-                student = unclaimed[0]
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="This student account has already been claimed. Please log in directly."
-            )
-    elif clean_id_num:
-        # Fallback to student_id_num if roll number wasn't found directly
+    )
+    if not student and clean_id_num:
         student = db.scalar(
             select(Student).where(Student.student_id_num == clean_id_num)
         )
