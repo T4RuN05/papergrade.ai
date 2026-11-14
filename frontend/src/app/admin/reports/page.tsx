@@ -73,7 +73,7 @@ export default function AdminReportsPage() {
       return;
     }
     if (stored && stored.role !== "ROOT_ADMIN") {
-      if (stored.role === "BRANCH_MANAGER") {
+      if (stored.role === "BRANCH_MANAGER" || stored.role === "INSTITUTE_DIRECTOR") {
         router.replace("/branch/batches");
       } else {
         router.replace("/student/portal");

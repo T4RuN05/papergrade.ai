@@ -13,6 +13,7 @@ import {
   Trash2,
   Loader2,
   Pencil,
+  ShieldCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, getAuthToken } from "@/lib/api";
@@ -31,10 +32,11 @@ import { useToast } from "@/lib/ToastContext";
 export default function TenancyManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { setBranchId, refreshTenancy, currentUser, isBranchManager, isLoggingOut } = useTenant();
+  const { setBranchId, refreshTenancy, currentUser, isInstituteDirector, isBranchManager, isLoggingOut } = useTenant();
   const [institutes, setInstitutes] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
+  const [directors, setDirectors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modal States
@@ -52,6 +54,11 @@ export default function TenancyManagementPage() {
   const [newBranchName, setNewBranchName] = useState("");
   const [newBranchCode, setNewBranchCode] = useState("");
   const [newBranchCity, setNewBranchCity] = useState("");
+
+  const [isDirectorModalOpen, setIsDirectorModalOpen] = useState(false);
+  const [newDirName, setNewDirName] = useState("");
+  const [newDirEmail, setNewDirEmail] = useState("");
+  const [newDirPassword, setNewDirPassword] = useState("");
 
   const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
   const [targetBranchId, setTargetBranchId] = useState("");
@@ -89,24 +96,26 @@ export default function TenancyManagementPage() {
       router.replace("/auth/login?role=staff&redirect=/admin/tenancy");
       return;
     }
-    if (isBranchManager) {
+    if (isBranchManager || isInstituteDirector) {
       router.replace("/branch/batches");
       return;
     }
     loadAll();
-  }, [isBranchManager, isLoggingOut, router]);
+  }, [isBranchManager, isInstituteDirector, isLoggingOut, router]);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [instList, branchList, userList] = await Promise.all([
+      const [instList, branchList, userList, directorList] = await Promise.all([
         api.listInstitutes().catch(() => []),
         api.listBranches().catch(() => []),
         api.listUsers("BRANCH_MANAGER").catch(() => []),
+        api.listUsers("INSTITUTE_DIRECTOR").catch(() => []),
       ]);
       setInstitutes(instList);
       setBranches(branchList);
       setManagers(userList);
+      setDirectors(directorList);
     } catch (e) {
       console.error("Failed to load tenancy data:", e);
     } finally {
@@ -249,6 +258,41 @@ export default function TenancyManagementPage() {
     }
   };
 
+  const handleAppointDirector = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionError(null);
+    setIsSubmitting(true);
+    const dName = newDirName.trim();
+    const dEmail = newDirEmail.trim();
+    const dPassword = newDirPassword;
+    if (!targetInstId) {
+      setActionError("No target institute selected.");
+      setIsSubmitting(false);
+      return;
+    }
+    try {
+      await api.createUser({
+        full_name: dName,
+        email: dEmail,
+        password: dPassword,
+        role: "INSTITUTE_DIRECTOR",
+        institute_id: targetInstId,
+      });
+      setIsDirectorModalOpen(false);
+      setNewDirName("");
+      setNewDirEmail("");
+      setNewDirPassword("");
+      toast.success(`Institute Director "${dName}" appointed successfully!`, { title: "Director Appointed" });
+      await loadAll();
+    } catch (err: any) {
+      const msg = err.message || "Failed to appoint institute director";
+      setActionError(msg);
+      toast.error(msg, { title: "Appointment Failed" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleEditManagerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMgr) return;
@@ -359,6 +403,7 @@ export default function TenancyManagementPage() {
         <div className="space-y-6">
           {institutes.map((inst) => {
             const instBranches = branches.filter((b) => b.institute_id === inst.id);
+            const instDirectors = directors.filter((d) => d.institute_id === inst.id);
 
             return (
               <FeatureCard key={inst.id} className="p-6 space-y-5">
@@ -434,6 +479,88 @@ export default function TenancyManagementPage() {
                     <Plus className="h-3 w-3" />
                     Add Subject
                   </button>
+                </div>
+
+                {/* Institute Directors Section */}
+                <div className="rounded-lg border border-hairline bg-canvas-soft/70 p-3 sm:p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-purple-500" />
+                      Institute Directors ({instDirectors.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionError(null);
+                        setTargetInstId(inst.id);
+                        setNewDirName("");
+                        setNewDirEmail("");
+                        setNewDirPassword("");
+                        setIsDirectorModalOpen(true);
+                      }}
+                      className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 px-2.5 py-1 rounded-md cursor-pointer transition-all"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Appoint Director
+                    </button>
+                  </div>
+                  {instDirectors.length === 0 ? (
+                    <p className="text-xs text-ink-muted">
+                      No director appointed yet. An Institute Director can switch between all branches of this institute.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {instDirectors.map((dir) => (
+                        <div
+                          key={dir.id}
+                          className="flex items-center justify-between p-2 rounded-md bg-surface border border-hairline text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-500/10 text-purple-600 font-bold text-[10px]">
+                              {dir.full_name?.charAt(0).toUpperCase() || "D"}
+                            </div>
+                            <div className="truncate">
+                              <p className="font-semibold text-ink truncate">{dir.full_name}</p>
+                              <p className="text-[10px] text-ink-muted truncate">{dir.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <BadgePill
+                              label={dir.is_active === 0 ? "Inactive" : "Active"}
+                              color={dir.is_active === 0 ? "orange" : "green"}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMgr(dir);
+                                setEditMgrName(dir.full_name || "");
+                                setEditMgrEmail(dir.email || "");
+                                setEditMgrPassword("");
+                                setEditMgrBranchId(dir.branch_id || "");
+                                setEditMgrActive(dir.is_active ?? 1);
+                                setIsEditMgrModalOpen(true);
+                              }}
+                              className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                              title="Edit Director"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMgrToDelete(dir);
+                                setIsDeleteMgrModalOpen(true);
+                              }}
+                              className="p-1 rounded text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Remove Director"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Branches List */}
@@ -768,6 +895,65 @@ export default function TenancyManagementPage() {
             </ButtonUtility>
             <ButtonPrimary type="submit" isLoading={isSubmitting}>
               Register Branch
+            </ButtonPrimary>
+          </div>
+        </form>
+      </ModalCard>
+
+      {/* MODAL 2.5: Appoint Institute Director */}
+      <ModalCard
+        isOpen={isDirectorModalOpen}
+        onClose={() => setIsDirectorModalOpen(false)}
+        title="Appoint Institute Director"
+      >
+        <form onSubmit={handleAppointDirector} className="space-y-4">
+          {actionError && (
+            <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{actionError}</span>
+            </div>
+          )}
+
+          <p className="text-xs text-ink-muted leading-relaxed">
+            The Institute Director will receive executive access across <strong>all physical branches</strong> of this institute, enabling them to switch operational branches freely.
+          </p>
+
+          <FormInput
+            label="Director Full Name"
+            required
+            placeholder="e.g. Dr. Rajesh Sharma"
+            value={newDirName}
+            onChange={(e) => setNewDirName(e.target.value)}
+          />
+
+          <FormInput
+            label="Director Email"
+            type="email"
+            required
+            placeholder="e.g. director.c25@papergrade.ai"
+            value={newDirEmail}
+            onChange={(e) => setNewDirEmail(e.target.value)}
+          />
+
+          <FormInput
+            label="Initial Password"
+            type="password"
+            required
+            placeholder="••••••••••••"
+            value={newDirPassword}
+            onChange={(e) => setNewDirPassword(e.target.value)}
+          />
+
+          <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
+            <ButtonUtility
+              type="button"
+              onClick={() => setIsDirectorModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </ButtonUtility>
+            <ButtonPrimary type="submit" isLoading={isSubmitting}>
+              Appoint Director
             </ButtonPrimary>
           </div>
         </form>

@@ -93,7 +93,7 @@ export default function ExamDetailPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const examId = params.id as string;
-  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, isBranchManager, currentUser, switchTenancy } = useTenant();
+  const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, isInstituteDirector, isBranchManager, currentUser, switchTenancy } = useTenant();
 
   const [exam, setExam] = useState<Exam | null>(() => {
     if (typeof window === "undefined" || !examId) return null;
@@ -556,7 +556,8 @@ export default function ExamDetailPage() {
 
   const canDeleteExam = Boolean(
     isRootAdmin ||
-    (isBranchManager && (!currentUser?.branch_id || !exam?.branch_id || currentUser.branch_id === exam?.branch_id))
+    (isBranchManager && (!currentUser?.branch_id || !exam?.branch_id || currentUser.branch_id === exam?.branch_id)) ||
+    (isInstituteDirector && (!currentUser?.institute_id || !exam?.institute_id || currentUser.institute_id === exam?.institute_id))
   );
 
   const handleDeleteExam = async () => {

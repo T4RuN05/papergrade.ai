@@ -29,6 +29,7 @@ interface TenantContextType {
   loading: boolean;
   isMounted: boolean;
   isRootAdmin: boolean;
+  isInstituteDirector: boolean;
   isBranchManager: boolean;
   isLoggingOut: boolean;
   setInstituteId: (id: string) => void;
@@ -59,6 +60,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
 
   const isRootAdmin = currentUser?.role === "ROOT_ADMIN";
+  const isInstituteDirector = currentUser?.role === "INSTITUTE_DIRECTOR";
   const isBranchManager = currentUser?.role === "BRANCH_MANAGER";
 
   const logout = useCallback(() => {
@@ -207,6 +209,33 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
         if (managerInst) localStorage.setItem(STORAGE_INST_KEY, managerInst.id);
         if (managerBranch) localStorage.setItem(STORAGE_BRANCH_KEY, managerBranch.id);
+      } else if (me.role === "INSTITUTE_DIRECTOR") {
+        const myInstId = me.institute_id || targetInstId;
+        const myInst =
+          instList.find((i: Institute) => i.id === myInstId) ||
+          instList[0] ||
+          (myInstId
+            ? {
+                id: myInstId,
+                name: "Assigned Institute",
+                code: "INST",
+              }
+            : null);
+
+        const myBranches = branchList.filter((b: Branch) => !myInst || b.institute_id === myInst.id);
+
+        const savedBranchId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_BRANCH_KEY) : null;
+        const directorBranch =
+          myBranches.find((b: Branch) => b.id === savedBranchId) ||
+          myBranches.find((b: Branch) => b.id === targetBranchId) ||
+          myBranches[0] ||
+          null;
+
+        setSelectedInstitute(myInst);
+        setSelectedBranch(directorBranch);
+
+        if (myInst) localStorage.setItem(STORAGE_INST_KEY, myInst.id);
+        if (directorBranch) localStorage.setItem(STORAGE_BRANCH_KEY, directorBranch.id);
       }
     } catch {
       // If server is temporarily restarting/unreachable, retain existing session payload
@@ -227,7 +256,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         const norm = stored.user ? { ...stored, ...stored.user } : stored;
         setCurrentUser(norm);
-        if (norm.role === "BRANCH_MANAGER") {
+        if (norm.role === "BRANCH_MANAGER" || norm.role === "INSTITUTE_DIRECTOR") {
           const savedBranchId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_BRANCH_KEY) : null;
           const branchId = norm.branch_id || savedBranchId;
           if (branchId && !selectedBranch) {
@@ -271,12 +300,16 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setBranchId = (id: string) => {
-    if (!isRootAdmin) return;
+    if (!isRootAdmin && !isInstituteDirector) return;
     const branch = allBranches.find((b) => b.id === id) || null;
+    if (!branch) return;
+    if (isInstituteDirector && selectedInstitute && branch.institute_id !== selectedInstitute.id) {
+      return; // Prevent switching to branch of another institute
+    }
     setSelectedBranch(branch);
     if (branch) {
       localStorage.setItem(STORAGE_BRANCH_KEY, branch.id);
-      if (!selectedInstitute || selectedInstitute.id !== branch.institute_id) {
+      if (isRootAdmin && (!selectedInstitute || selectedInstitute.id !== branch.institute_id)) {
         const matchingInst = institutes.find((i) => i.id === branch.institute_id) || null;
         setSelectedInstitute(matchingInst);
         if (matchingInst) localStorage.setItem(STORAGE_INST_KEY, matchingInst.id);
@@ -290,8 +323,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     targetInstituteName?: string | null,
     targetBranchName?: string | null
   ): { instituteName?: string; branchName?: string; switched: boolean } => {
-    if (!isRootAdmin) return { switched: false };
+    if (!isRootAdmin && !isInstituteDirector) return { switched: false };
     if (!targetBranchId && !targetInstituteId) return { switched: false };
+    if (isInstituteDirector && targetInstituteId && selectedInstitute && targetInstituteId !== selectedInstitute.id) {
+      return { switched: false };
+    }
 
     // Resolve branch from allBranches, fallback to constructed branch
     const branch = targetBranchId
@@ -346,10 +382,15 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       if (filtered.length > 0) return filtered;
       return allBranches.length > 0 ? allBranches : [selectedBranch];
     }
+    if (isInstituteDirector && selectedInstitute) {
+      const filtered = allBranches.filter((b) => b.institute_id === selectedInstitute.id);
+      if (filtered.length > 0) return filtered;
+      return selectedBranch ? [selectedBranch] : [];
+    }
     return selectedInstitute
       ? allBranches.filter((b) => b.institute_id === selectedInstitute.id)
       : allBranches;
-  }, [allBranches, selectedInstitute, isBranchManager, selectedBranch]);
+  }, [allBranches, selectedInstitute, isBranchManager, isInstituteDirector, selectedBranch]);
 
   return (
     <TenantContext.Provider
@@ -363,6 +404,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         loading,
         isMounted,
         isRootAdmin,
+        isInstituteDirector,
         isBranchManager,
         isLoggingOut,
         setInstituteId,

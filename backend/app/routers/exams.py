@@ -86,6 +86,12 @@ def list_exams(
 
     if user_role == "BRANCH_MANAGER" and user_branch:
         stmt = stmt.where(Exam.branch_id == user_branch)
+    elif user_role == "INSTITUTE_DIRECTOR":
+        user_inst = current_user.get("institute_id")
+        if branch_id:
+            stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == branch_id)
+        else:
+            stmt = stmt.where(Exam.institute_id == user_inst)
     elif user_role == "STUDENT" and user_branch:
         stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
     elif branch_id:
@@ -310,7 +316,15 @@ async def create_exam(
     Answer key is NOT uploaded here (Answer keys are strictly Root Admin only).
     """
     exam_id = f"exam_{uuid.uuid4().hex[:12]}"
-    effective_branch = current_user.get("branch_id") if current_user.get("role") == "BRANCH_MANAGER" else branch_id
+    user_role = current_user.get("role")
+    effective_branch = current_user.get("branch_id") if user_role == "BRANCH_MANAGER" else branch_id
+
+    if user_role == "INSTITUTE_DIRECTOR":
+        if not effective_branch:
+            raise HTTPException(status_code=400, detail="Branch must be selected when creating an examination.")
+        br = db.scalar(select(Branch).where(Branch.id == effective_branch))
+        if not br or br.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Selected branch does not belong to your institute.")
 
     # Process batch scope and batch IDs
     clean_batch_ids = []
@@ -1237,6 +1251,9 @@ async def delete_exam(
     if current_user.get("role") == "BRANCH_MANAGER":
         if exam.branch_id != current_user.get("branch_id"):
             raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your branch.")
+    elif current_user.get("role") == "INSTITUTE_DIRECTOR":
+        if exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your institute.")
 
     exam_title = exam.title
 

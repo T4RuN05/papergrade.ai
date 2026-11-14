@@ -79,7 +79,7 @@ export default function RootAdminOverviewPage() {
       return;
     }
 
-    if (currentUser.role === "BRANCH_MANAGER") {
+    if (currentUser.role === "BRANCH_MANAGER" || currentUser.role === "INSTITUTE_DIRECTOR") {
       router.replace("/branch/batches");
       return;
     }
@@ -172,10 +172,10 @@ export default function RootAdminOverviewPage() {
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            {currentUser.role === "BRANCH_MANAGER" ? (
+            {currentUser.role === "BRANCH_MANAGER" || currentUser.role === "INSTITUTE_DIRECTOR" ? (
               <ButtonPrimary href="/branch/batches">
                 <Users className="h-4 w-4 mr-2" />
-                Go to Branch Manager Batches →
+                Go to Academic Batches →
               </ButtonPrimary>
             ) : (
               <ButtonPrimary href="/student/portal">

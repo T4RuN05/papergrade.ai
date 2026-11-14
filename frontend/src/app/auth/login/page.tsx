@@ -96,7 +96,7 @@ function LoginForm() {
       if (storedUser.role === "STUDENT") {
         router.replace("/student/portal");
         return;
-      } else if (storedUser.role === "BRANCH_MANAGER") {
+      } else if (storedUser.role === "BRANCH_MANAGER" || storedUser.role === "INSTITUTE_DIRECTOR") {
         router.replace("/branch/batches");
         return;
       } else {
@@ -231,6 +231,9 @@ function LoginForm() {
         dest = redirectParam && redirectParam.startsWith("/student") ? redirectParam : "/student/portal";
       } else if (user.role === "BRANCH_MANAGER") {
         roleTitle = "Welcome Branch Manager";
+        dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
+      } else if (user.role === "INSTITUTE_DIRECTOR") {
+        roleTitle = "Welcome Institute Director";
         dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
       } else {
         dest = redirectParam && !redirectParam.startsWith("/student") ? redirectParam : "/overview";

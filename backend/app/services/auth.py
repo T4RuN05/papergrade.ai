@@ -145,5 +145,6 @@ def require_role(allowed_roles: list[str]):
 
 # Role-specific guards
 require_root_admin = require_role(["ROOT_ADMIN"])
-require_branch_manager = require_role(["ROOT_ADMIN", "BRANCH_MANAGER"])
+require_institute_director = require_role(["ROOT_ADMIN", "INSTITUTE_DIRECTOR"])
+require_branch_manager = require_role(["ROOT_ADMIN", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER"])
 require_student = require_role(["STUDENT"])

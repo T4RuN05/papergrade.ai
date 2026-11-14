@@ -6,7 +6,7 @@ from backend.app.db.base import Base, TimestampMixin, get_iso_now
 
 
 class User(Base, TimestampMixin):
-    """User account entity covering ROOT_ADMIN, BRANCH_MANAGER, and STUDENT personas."""
+    """User account entity covering ROOT_ADMIN, INSTITUTE_DIRECTOR, BRANCH_MANAGER, and STUDENT personas."""
     __tablename__ = "users"
     __table_args__ = (
         Index("idx_users_email", "email"),

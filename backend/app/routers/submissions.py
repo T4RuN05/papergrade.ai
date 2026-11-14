@@ -275,9 +275,13 @@ def list_submissions(
     user_role = current_user.get("role")
     user_branch = current_user.get("branch_id")
 
-    # Branch Manager isolation
+    # Branch Manager & Institute Director isolation
     if user_role == "BRANCH_MANAGER" and user_branch:
         stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
+    elif user_role == "INSTITUTE_DIRECTOR":
+        user_inst = current_user.get("institute_id")
+        if user_inst:
+            stmt = stmt.where(or_(Exam.institute_id == user_inst, Exam.institute_id.is_(None)))
 
     # Student privacy isolation
     if user_role == "STUDENT":

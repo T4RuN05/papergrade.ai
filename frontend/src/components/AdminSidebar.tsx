@@ -39,7 +39,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser, isRootAdmin, isBranchManager, selectedBranch, logout } = useTenant();
+  const { currentUser, isRootAdmin, isInstituteDirector, isBranchManager, selectedBranch, logout } = useTenant();
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
@@ -86,28 +86,28 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           label: "Batches & Roster",
           icon: Users,
           badge: null,
-          show: isBranchManager || isRootAdmin,
+          show: isBranchManager || isInstituteDirector || isRootAdmin,
         },
         {
           href: "/exams",
           label: "Exams & Rubrics",
           icon: GraduationCap,
           badge: null,
-          show: isBranchManager || isRootAdmin,
+          show: isBranchManager || isInstituteDirector || isRootAdmin,
         },
         {
           href: "/marks",
           label: "Marks & Inspection",
           icon: FileSpreadsheet,
           badge: null,
-          show: isBranchManager || isRootAdmin,
+          show: isBranchManager || isInstituteDirector || isRootAdmin,
         },
         {
           href: "/revaluation",
           label: "Revaluation Desk",
           icon: RotateCcw,
           badge: null,
-          show: isBranchManager || isRootAdmin,
+          show: isBranchManager || isInstituteDirector || isRootAdmin,
         },
       ],
     },
@@ -417,6 +417,8 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
               <span suppressHydrationWarning className="text-[10px] text-ink-muted truncate">
                 {currentUser?.role === "ROOT_ADMIN"
                   ? "Root Admin"
+                  : currentUser?.role === "INSTITUTE_DIRECTOR"
+                  ? "Institute Director"
                   : currentUser?.role === "BRANCH_MANAGER"
                   ? "Branch Mgr"
                   : "Staff"}

@@ -63,7 +63,7 @@ const AGENTIC_RUBRIC_STEPS = [
 export default function NewExamPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { selectedBranch, isRootAdmin, isBranchManager } = useTenant();
+  const { selectedBranch, isRootAdmin, isInstituteDirector, isBranchManager } = useTenant();
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [extraNotes, setExtraNotes] = useState("");
@@ -521,7 +521,7 @@ export default function NewExamPage() {
               Create Examination
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-ink-muted leading-relaxed">
-              {isBranchManager
+              {isBranchManager || isInstituteDirector
                 ? "Set up an examination to immediately open student submission windows. Question Paper can be attached now or uploaded prior to evaluation."
                 : "Set up an examination to immediately open student submission windows. Question Paper and Official Answer Key can be uploaded now or attached later prior to AI grading."}
             </p>

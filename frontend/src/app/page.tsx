@@ -203,12 +203,12 @@ export default function LandingPage() {
                     <span>Open Administrator Desk</span>
                     <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
                   </Link>
-                ) : currentUser.role === "BRANCH_MANAGER" ? (
+                ) : currentUser.role === "BRANCH_MANAGER" || currentUser.role === "INSTITUTE_DIRECTOR" ? (
                   <Link
                     href="/branch/batches"
                     className="btn-glass-primary inline-flex items-center justify-center h-10 px-6 rounded-md text-sm font-semibold transition-all shadow-xs w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
                   >
-                    <span>Open Branch Batches</span>
+                    <span>Open Academic Console</span>
                     <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
                   </Link>
                 ) : (

@@ -45,7 +45,7 @@ import {
 export default function ExamsPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const { selectedBranch, isRootAdmin, isBranchManager, currentUser, loading: tenantLoading } = useTenant();
+  const { selectedBranch, isRootAdmin, isInstituteDirector, isBranchManager, currentUser, loading: tenantLoading } = useTenant();
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
   const [windowsMap, setWindowsMap] = useState<Record<string, any>>({});
@@ -127,7 +127,8 @@ export default function ExamsPage() {
 
   const canDeleteExam = (exam: Exam) => Boolean(
     isRootAdmin ||
-    (isBranchManager && (!currentUser?.branch_id || !exam.branch_id || currentUser.branch_id === exam.branch_id))
+    (isBranchManager && (!currentUser?.branch_id || !exam.branch_id || currentUser.branch_id === exam.branch_id)) ||
+    (isInstituteDirector && (!currentUser?.institute_id || !exam.institute_id || currentUser.institute_id === exam.institute_id))
   );
 
 

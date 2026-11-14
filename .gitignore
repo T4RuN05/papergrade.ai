@@ -42,6 +42,7 @@ reports/
 *.sqlite
 *.sqlite3
 scratch/
+outputs/
 backend/data/uploads/*
 backend/data/page_renders/*
 backend/data/exports/*

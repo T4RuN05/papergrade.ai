@@ -105,6 +105,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
     institutes,
     branches,
     isRootAdmin,
+    isInstituteDirector,
     isBranchManager,
     setInstituteId,
     setBranchId,
@@ -242,7 +243,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
             <span className="font-bold text-ink truncate text-xs">
               {mounted
-                ? selectedBranch?.name || selectedInstitute?.name || (isBranchManager && branches[0]?.name) || "Select Branch"
+                ? selectedBranch?.name || selectedInstitute?.name || ((isBranchManager || isInstituteDirector) && branches[0]?.name) || "Select Branch"
                 : "PaperGrade"}
             </span>
             <ChevronDown
@@ -260,6 +261,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
               <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1.5">
                 <span>Operational Branch</span>
                 {isRootAdmin && <span className="text-[10px] text-primary font-semibold lowercase">root admin</span>}
+                {isInstituteDirector && <span className="text-[10px] text-purple-400 font-semibold lowercase">director</span>}
               </div>
 
               {isRootAdmin && institutes.length > 1 && (

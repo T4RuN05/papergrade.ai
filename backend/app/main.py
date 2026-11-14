@@ -108,6 +108,12 @@ def get_batches_shortcut(
         stmt = select(Batch)
         if user_role == "BRANCH_MANAGER" and user_branch:
             stmt = stmt.where(Batch.branch_id == user_branch)
+        elif user_role == "INSTITUTE_DIRECTOR":
+            inst_id = current_user.get("institute_id")
+            inst_branches = select(Branch.id).where(Branch.institute_id == inst_id)
+            stmt = stmt.where(Batch.branch_id.in_(inst_branches))
+            if branch_id:
+                stmt = stmt.where(Batch.branch_id == branch_id)
         elif branch_id:
             stmt = stmt.where(Batch.branch_id == branch_id)
         stmt = stmt.order_by(Batch.created_at.desc())
@@ -138,6 +144,11 @@ def get_batch_by_id(
             raise HTTPException(status_code=404, detail="Batch not found")
         if user_role == "BRANCH_MANAGER" and user_branch and batch.branch_id != user_branch:
             raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+        if user_role == "INSTITUTE_DIRECTOR":
+            inst_id = current_user.get("institute_id")
+            br = session.scalar(select(Branch).where(Branch.id == batch.branch_id))
+            if not br or br.institute_id != inst_id:
+                raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another institute.")
         if user_role == "STUDENT":
             raise HTTPException(status_code=403, detail="Forbidden: students cannot inspect batch admin rosters.")
         submissions = session.scalars(

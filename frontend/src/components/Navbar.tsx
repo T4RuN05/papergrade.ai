@@ -108,7 +108,7 @@ export function Navbar() {
   };
 
   const isStudent = isMounted && currentUser?.role === "STUDENT";
-  const isAdminUser = isMounted && (currentUser?.role === "ROOT_ADMIN" || currentUser?.role === "BRANCH_MANAGER");
+  const isAdminUser = isMounted && (currentUser?.role === "ROOT_ADMIN" || currentUser?.role === "INSTITUTE_DIRECTOR" || currentUser?.role === "BRANCH_MANAGER");
 
   return (
     <header
@@ -246,6 +246,8 @@ export function Navbar() {
                   label={
                     currentUser.role === "ROOT_ADMIN"
                       ? "Admin"
+                      : currentUser.role === "INSTITUTE_DIRECTOR"
+                      ? "Director"
                       : currentUser.role === "BRANCH_MANAGER"
                       ? "Branch Mgr"
                       : "Student"
@@ -253,6 +255,8 @@ export function Navbar() {
                   color={
                     currentUser.role === "ROOT_ADMIN"
                       ? "purple"
+                      : currentUser.role === "INSTITUTE_DIRECTOR"
+                      ? "indigo"
                       : currentUser.role === "BRANCH_MANAGER"
                       ? "teal"
                       : "sky"
@@ -353,6 +357,8 @@ export function Navbar() {
                   label={
                     currentUser.role === "ROOT_ADMIN"
                       ? "Admin"
+                      : currentUser.role === "INSTITUTE_DIRECTOR"
+                      ? "Director"
                       : currentUser.role === "BRANCH_MANAGER"
                       ? "Branch Mgr"
                       : "Student"
@@ -360,6 +366,8 @@ export function Navbar() {
                   color={
                     currentUser.role === "ROOT_ADMIN"
                       ? "purple"
+                      : currentUser.role === "INSTITUTE_DIRECTOR"
+                      ? "indigo"
                       : currentUser.role === "BRANCH_MANAGER"
                       ? "teal"
                       : "sky"

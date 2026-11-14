@@ -193,7 +193,7 @@ def list_institutes(
         if not include_deleted:
             stmt = stmt.where(Institute.is_deleted == 0)
         institutes = db.scalars(stmt).all()
-    elif user_role == "BRANCH_MANAGER":
+    elif user_role in ["BRANCH_MANAGER", "INSTITUTE_DIRECTOR"]:
         inst_id = current_user.get("institute_id")
         if not inst_id and current_user.get("branch_id"):
             branch = db.scalar(select(Branch).where(Branch.id == current_user["branch_id"]))
@@ -388,6 +388,28 @@ def add_institute_subjects(
     return {"status": "success", "subjects": current_subs, "added": added}
 
 
+def _verify_branch_access(db: Session, current_user: Dict[str, Any], branch_id: Optional[str]) -> bool:
+    """Check whether current_user is authorized to operate on branch_id."""
+    if not branch_id:
+        return True
+    role = current_user.get("role")
+    if role == "ROOT_ADMIN":
+        return True
+    if role == "BRANCH_MANAGER":
+        return current_user.get("branch_id") == branch_id
+    if role == "INSTITUTE_DIRECTOR":
+        inst_id = current_user.get("institute_id")
+        br = db.scalar(select(Branch).where(Branch.id == branch_id))
+        return bool(br and br.institute_id == inst_id)
+    return False
+
+def _verify_batch_access(db: Session, current_user: Dict[str, Any], batch: Optional[Batch]) -> bool:
+    """Check whether current_user is authorized to operate on batch."""
+    if not batch:
+        return False
+    return _verify_branch_access(db, current_user, batch.branch_id)
+
+
 @router.get("/branches")
 def list_branches(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -396,6 +418,11 @@ def list_branches(
     user_role = current_user["role"]
     if user_role == "ROOT_ADMIN":
         branches = db.scalars(select(Branch).order_by(Branch.name.asc())).all()
+    elif user_role == "INSTITUTE_DIRECTOR":
+        inst_id = current_user.get("institute_id")
+        branches = db.scalars(
+            select(Branch).where(Branch.institute_id == inst_id).order_by(Branch.name.asc())
+        ).all()
     else:
         branch_id = current_user.get("branch_id")
         branches = db.scalars(select(Branch).where(Branch.id == branch_id)).all()
@@ -439,6 +466,13 @@ def list_batches(
         batches = db.scalars(
             select(Batch).where(Batch.branch_id == user_branch).order_by(Batch.created_at.desc())
         ).all()
+    elif user_role == "INSTITUTE_DIRECTOR":
+        inst_id = current_user.get("institute_id")
+        inst_branches = select(Branch.id).where(Branch.institute_id == inst_id)
+        stmt = select(Batch).where(Batch.branch_id.in_(inst_branches))
+        if branch_id:
+            stmt = stmt.where(Batch.branch_id == branch_id)
+        batches = db.scalars(stmt.order_by(Batch.created_at.desc())).all()
     else:
         stmt = select(Batch)
         if branch_id:
@@ -455,8 +489,8 @@ def create_batch(
     db: Session = Depends(get_db)
 ):
     # Check tenant isolation
-    if current_user["role"] == "BRANCH_MANAGER" and current_user.get("branch_id") != req.branch_id:
-        raise HTTPException(status_code=403, detail="Cannot create batches in a different branch.")
+    if not _verify_branch_access(db, current_user, req.branch_id):
+        raise HTTPException(status_code=403, detail="Cannot create batches outside your branch/institute scope.")
 
     batch_id = f"batch_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
@@ -483,11 +517,12 @@ def list_students_in_batch(
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
-    # Verify branch scope if branch manager
-    if current_user["role"] == "BRANCH_MANAGER":
-        b = db.scalar(select(Batch).where(Batch.id == batch_id))
-        if not b or b.branch_id != current_user.get("branch_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+    # Verify branch/institute scope
+    b = db.scalar(select(Batch).where(Batch.id == batch_id))
+    if not b:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    if not _verify_batch_access(db, current_user, b):
+        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
     students = db.scalars(
         select(Student).where(Student.batch_id == batch_id).order_by(Student.roll_number.asc())
@@ -508,8 +543,8 @@ def add_single_student(
     batch = db.scalar(select(Batch).where(Batch.id == batch_id))
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if current_user["role"] == "BRANCH_MANAGER" and batch.branch_id != current_user.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+    if not _verify_batch_access(db, current_user, batch):
+        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
     # Check duplicate roll number in batch
     existing = db.scalar(
@@ -578,8 +613,8 @@ async def import_students_excel(
     batch = db.scalar(select(Batch).where(Batch.id == batch_id))
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if current_user["role"] == "BRANCH_MANAGER" and batch.branch_id != current_user.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+    if not _verify_batch_access(db, current_user, batch):
+        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
     rows = list(sheet.iter_rows(values_only=True))
     if len(rows) < 2:
@@ -660,8 +695,8 @@ def delete_batch(
     batch = db.scalar(select(Batch).where(Batch.id == batch_id))
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if current_user["role"] == "BRANCH_MANAGER" and batch.branch_id != current_user.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+    if not _verify_batch_access(db, current_user, batch):
+        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
     db.delete(batch)
     db.commit()
@@ -678,8 +713,8 @@ def delete_student_from_batch(
     batch = db.scalar(select(Batch).where(Batch.id == batch_id))
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    if current_user["role"] == "BRANCH_MANAGER" and batch.branch_id != current_user.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+    if not _verify_batch_access(db, current_user, batch):
+        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
     student = db.scalar(select(Student).where(Student.id == student_id, Student.batch_id == batch_id))
     if student:

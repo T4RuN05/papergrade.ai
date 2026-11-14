@@ -519,7 +519,7 @@ export const api = {
     email: string;
     password: string;
     full_name: string;
-    role: "ROOT_ADMIN" | "BRANCH_MANAGER";
+    role: "ROOT_ADMIN" | "INSTITUTE_DIRECTOR" | "BRANCH_MANAGER";
     institute_id?: string;
     branch_id?: string;
   }): Promise<any> {

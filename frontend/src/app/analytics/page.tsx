@@ -25,7 +25,7 @@ import { useTenant } from "@/lib/TenantContext";
 export default function AnalyticsPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { isBranchManager } = useTenant();
+  const { isBranchManager, isInstituteDirector } = useTenant();
 
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
   const [exams, setExams] = useState<Exam[]>([]);
@@ -47,12 +47,12 @@ export default function AnalyticsPage() {
   const [isSubmittingBench, setIsSubmittingBench] = useState(false);
 
   useEffect(() => {
-    if (isBranchManager) {
+    if (isBranchManager || isInstituteDirector) {
       router.replace("/branch/batches");
       return;
     }
     loadAll();
-  }, [isBranchManager]);
+  }, [isBranchManager, isInstituteDirector]);
 
   const loadAll = async () => {
     setLoading(true);

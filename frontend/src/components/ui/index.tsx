@@ -228,6 +228,7 @@ export type StickerColor =
   | "green"
   | "teal"
   | "sky"
+  | "indigo"
   | "purple"
   | "pink"
   | "orange"
@@ -247,6 +248,7 @@ export function BadgePill({ label, color = "gray", rounded = "md", className = "
     green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     teal: "bg-[#eaf4f3] text-[#165651] border-[#c4e2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     sky: "bg-[#ebf4fa] text-[#1b5380] border-[#c2def1] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#102030] dark:text-[#90caf9] dark:border-[#1d3550] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    indigo: "bg-[#edf0f9] text-[#2c3e80] border-[#c8d4f0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#141b30] dark:text-[#9db2f8] dark:border-[#1e2c50] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     purple: "bg-[#f3eff8] text-[#552e80] border-[#d8c8ed] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#20152e] dark:text-[#c4b5fd] dark:border-[#35204c] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     pink: "bg-[#fcf0f3] text-[#7f263f] border-[#f4c6d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#281318] dark:text-[#f4a7b5] dark:border-[#461e27] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
     orange: "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",

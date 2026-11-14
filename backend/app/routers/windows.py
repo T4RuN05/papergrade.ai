@@ -161,11 +161,15 @@ def open_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    # Branch Manager tenancy guard
+    # Tenancy guard (Branch Manager & Institute Director)
     if current_user["role"] == "BRANCH_MANAGER":
         user_branch = current_user.get("branch_id")
         if exam.branch_id and exam.branch_id != user_branch:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+    elif current_user["role"] == "INSTITUTE_DIRECTOR":
+        user_inst = current_user.get("institute_id")
+        if exam.institute_id and exam.institute_id != user_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     now_dt = datetime.now(timezone.utc)
     deadline_dt = now_dt + timedelta(minutes=duration)
@@ -361,11 +365,15 @@ def close_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    # Branch Manager tenancy guard
+    # Tenancy guard (Branch Manager & Institute Director)
     if current_user["role"] == "BRANCH_MANAGER":
         user_branch = current_user.get("branch_id")
         if exam.branch_id and exam.branch_id != user_branch:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+    elif current_user["role"] == "INSTITUTE_DIRECTOR":
+        user_inst = current_user.get("institute_id")
+        if exam.institute_id and exam.institute_id != user_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     # Find active open window
     window = db.scalar(

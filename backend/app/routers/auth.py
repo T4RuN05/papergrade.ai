@@ -69,7 +69,7 @@ class CreateUserRequest(BaseModel):
     email: str
     password: str
     full_name: str
-    role: str  # "ROOT_ADMIN" or "BRANCH_MANAGER"
+    role: str  # "ROOT_ADMIN", "INSTITUTE_DIRECTOR", or "BRANCH_MANAGER"
     institute_id: Optional[str] = None
     branch_id: Optional[str] = None
 
@@ -402,9 +402,16 @@ def create_user(
     current_user: Dict[str, Any] = Depends(require_root_admin),
     db: Session = Depends(get_db)
 ):
-    """Root Admin endpoint to provision Branch Managers or other staff."""
-    if req.role not in ["ROOT_ADMIN", "BRANCH_MANAGER"]:
+    """Root Admin endpoint to provision Institute Directors, Branch Managers, or other staff."""
+    if req.role not in ["ROOT_ADMIN", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER"]:
         raise HTTPException(status_code=400, detail="Invalid role specified.")
+
+    if req.role == "INSTITUTE_DIRECTOR":
+        if not req.institute_id:
+            raise HTTPException(status_code=400, detail="Institute ID is required for Institute Director.")
+        inst = db.scalar(select(Institute).where(Institute.id == req.institute_id))
+        if not inst:
+            raise HTTPException(status_code=404, detail="Specified institute does not exist.")
 
     clean_email = req.email.strip().lower()
     existing = db.scalar(select(User.id).where(func.lower(User.email) == clean_email))
@@ -442,6 +449,7 @@ def create_user(
 def list_users(
     role: Optional[str] = None,
     branch_id: Optional[str] = None,
+    institute_id: Optional[str] = None,
     current_user: Dict[str, Any] = Depends(require_root_admin),
     db: Session = Depends(get_db)
 ):
@@ -451,6 +459,8 @@ def list_users(
         stmt = stmt.where(User.role == role)
     if branch_id:
         stmt = stmt.where(User.branch_id == branch_id)
+    if institute_id:
+        stmt = stmt.where(User.institute_id == institute_id)
     stmt = stmt.order_by(User.created_at.desc())
 
     users = db.scalars(stmt).all()
@@ -835,6 +845,16 @@ def list_password_resets(
                 PasswordResetRequest.branch_id.is_(None),
             )
         )
+    elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
+        inst_id = current_user["institute_id"]
+        inst_branches = select(Branch.id).where(Branch.institute_id == inst_id)
+        stmt = stmt.where(
+            or_(
+                PasswordResetRequest.branch_id.in_(inst_branches),
+                Branch.institute_id == inst_id,
+                PasswordResetRequest.branch_id.is_(None),
+            )
+        )
 
     if status_filter:
         stmt = stmt.where(PasswordResetRequest.status == status_filter.upper())
@@ -882,10 +902,15 @@ def approve_password_reset(
     if req.status != "PENDING":
         raise HTTPException(status_code=400, detail=f"Request is already {req.status}.")
 
-    # Check branch ownership if branch manager
+    # Check branch/institute ownership
     if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
         if req.branch_id and req.branch_id != current_user["branch_id"]:
             raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned branch.")
+    elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
+        if req.branch_id:
+            br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+            if br and br.institute_id != current_user["institute_id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned institute.")
 
     reset_token = f"rst_{uuid.uuid4().hex}"
     now = get_iso_now()
@@ -930,6 +955,11 @@ def reject_password_reset(
     if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
         if req.branch_id and req.branch_id != current_user["branch_id"]:
             raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned branch.")
+    elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
+        if req.branch_id:
+            br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+            if br and br.institute_id != current_user["institute_id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned institute.")
 
     now = get_iso_now()
     req.status = "REJECTED"
