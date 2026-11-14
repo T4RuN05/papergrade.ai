@@ -55,11 +55,9 @@ export default function BranchBatchesPage() {
   // Modals
   const [createBatchOpen, setCreateBatchOpen] = useState(false);
   const [newBatchName, setNewBatchName] = useState("");
-  const [newBatchCode, setNewBatchCode] = useState("");
   const [newBatchYear, setNewBatchYear] = useState("2026");
 
   const [addStudentOpen, setAddStudentOpen] = useState(false);
-  const [stuRoll, setStuRoll] = useState("");
   const [stuName, setStuName] = useState("");
   const [stuEmail, setStuEmail] = useState("");
   const [addedStudentRoll, setAddedStudentRoll] = useState<string | null>(null);
@@ -199,18 +197,15 @@ export default function BranchBatchesPage() {
     if (!selectedBranch?.id || !newBatchName.trim()) return;
 
     const bName = newBatchName.trim();
-    const bCode = (newBatchCode || newBatchName.slice(0, 4)).trim().toUpperCase();
     const bYear = newBatchYear.trim() || "2026";
     try {
       const res = await api.createBatch({
         branch_id: selectedBranch.id,
         name: bName,
-        code: bCode,
         academic_year: bYear,
       });
       setCreateBatchOpen(false);
       setNewBatchName("");
-      setNewBatchCode("");
       toast.success(`Batch "${bName}" created successfully!`, { title: "Batch Created" });
 
       // Optimistically add and select the new batch immediately
@@ -218,7 +213,6 @@ export default function BranchBatchesPage() {
         id: res?.id || `batch_${Date.now()}`,
         branch_id: selectedBranch.id,
         name: res?.name || bName,
-        code: res?.code || bCode,
         academic_year: bYear,
         total_submissions: 0,
         created_at: new Date().toISOString(),
@@ -240,19 +234,16 @@ export default function BranchBatchesPage() {
     if (!selectedBatch || !stuName.trim()) return;
 
     const sName = stuName.trim();
-    const sRoll = stuRoll.trim() ? stuRoll.trim().toUpperCase() : undefined;
     try {
       const res = await api.addStudent(selectedBatch.id, {
-        roll_number: sRoll,
         full_name: sName,
         email: stuEmail.trim() || undefined,
       });
-      const assignedRoll = res?.roll_number || sRoll || "Enrolled";
+      const assignedRoll = res?.roll_number || "Enrolled";
       setAddedStudentRoll(assignedRoll);
-      setStuRoll("");
       setStuName("");
       setStuEmail("");
-      toast.success(`Student "${sName}" enrolled (${assignedRoll}).`, { title: "Student Enrolled" });
+      toast.success(`Student "${sName}" enrolled with Roll Number ${assignedRoll}.`, { title: "Student Enrolled" });
       // Reload students & sync batch card counts
       const [updated] = await Promise.all([
         api.listStudentsInBatch(selectedBatch.id),
@@ -536,7 +527,7 @@ export default function BranchBatchesPage() {
                       )}
                     </div>
                     <div className="text-[11px] text-ink-muted mt-0.5 truncate">
-                      Code: <span className="font-mono font-semibold">{b.code}</span> • {b.academic_year || "2026"}
+                      Academic Year: <span className="font-medium text-ink-secondary">{b.academic_year || "2026"}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -568,11 +559,8 @@ export default function BranchBatchesPage() {
               {/* Batch Action Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
                 <div>
-                  <h3 className="text-base font-bold text-ink flex items-center gap-2">
-                    <span>{selectedBatch.name}</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
-                      {selectedBatch.code}
-                    </span>
+                  <h3 className="text-base font-bold text-ink">
+                    {selectedBatch.name}
                   </h3>
                   <p className="text-xs text-ink-muted mt-0.5">
                     Academic Year: <span className="font-semibold text-ink">{selectedBatch.academic_year || "2026"}</span>
@@ -806,21 +794,13 @@ export default function BranchBatchesPage() {
             onChange={(e) => setNewBatchName(e.target.value)}
             required
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormInput
-              label="Batch Code (Optional)"
-              placeholder="e.g. KTG_2026 (auto-assigned if blank)"
-              value={newBatchCode}
-              onChange={(e) => setNewBatchCode(e.target.value)}
-            />
-            <FormInput
-              label="Academic Year"
-              placeholder="2026"
-              value={newBatchYear}
-              onChange={(e) => setNewBatchYear(e.target.value)}
-              required
-            />
-          </div>
+          <FormInput
+            label="Academic Year"
+            placeholder="2026"
+            value={newBatchYear}
+            onChange={(e) => setNewBatchYear(e.target.value)}
+            required
+          />
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
             <ButtonUtility type="button" onClick={() => setCreateBatchOpen(false)} className="w-full sm:w-auto justify-center">
               Cancel
@@ -868,10 +848,10 @@ export default function BranchBatchesPage() {
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs space-y-1">
               <div className="font-semibold text-primary flex items-center gap-1.5">
                 <GraduationCap className="h-4 w-4" />
-                <span>Auto-Sequenced Roll Number</span>
+                <span>Auto-Generated Roll Number</span>
               </div>
               <p className="text-[11px] text-ink-muted leading-relaxed">
-                PaperGrade AI automatically allocates the next sequential roll number for this branch (e.g. {selectedBranch?.code ? `...-${selectedBranch.code}-...` : "auto-generated"}).
+                Roll number is automatically assigned by PaperGrade upon enrollment (e.g. {selectedBranch?.code ? `...-${selectedBranch.code}-...` : "auto-sequenced"}).
               </p>
             </div>
             <FormInput
@@ -880,12 +860,6 @@ export default function BranchBatchesPage() {
               value={stuName}
               onChange={(e) => setStuName(e.target.value)}
               required
-            />
-            <FormInput
-              label="Custom Roll Number (Optional)"
-              placeholder="Leave blank to auto-generate (recommended)"
-              value={stuRoll}
-              onChange={(e) => setStuRoll(e.target.value)}
             />
             <FormInput
               label="Email (Optional)"

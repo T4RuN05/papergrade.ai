@@ -68,7 +68,6 @@ class Batch(Base, UpdatedTimestampMixin):
     branch_id: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("branches.id", ondelete="CASCADE"), nullable=True)
     exam_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    code: Mapped[str] = mapped_column(Text, nullable=False, default="")
     academic_year: Mapped[str] = mapped_column(Text, nullable=False, default="2026")
     status: Mapped[str] = mapped_column(Text, nullable=False, default="QUEUED")
     total_submissions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

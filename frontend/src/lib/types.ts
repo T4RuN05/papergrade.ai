@@ -199,7 +199,6 @@ export interface Batch {
   exam_id?: string;
   branch_id?: string;
   name: string;
-  code?: string;
   academic_year?: string;
   status: "QUEUED" | "PROCESSING" | "COMPLETED" | "PARTIALLY_FAILED" | "PAUSED_QUOTA" | string;
   total_submissions: number;

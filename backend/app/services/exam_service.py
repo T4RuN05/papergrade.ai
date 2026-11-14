@@ -221,13 +221,13 @@ class ExamService:
             # Attach scoped batches if specific batch scope
             if exam_dict.get("batch_scope") in ("SPECIFIC", "BATCHES"):
                 batches = session.execute(
-                    select(Batch.id, Batch.name, Batch.code, Batch.academic_year)
+                    select(Batch.id, Batch.name, Batch.academic_year)
                     .join(ExamBatch, ExamBatch.batch_id == Batch.id)
                     .where(ExamBatch.exam_id == exam_id)
                     .order_by(Batch.name.asc())
                 ).all()
                 exam_dict["scoped_batches"] = [
-                    {"id": b[0], "name": b[1], "code": b[2], "academic_year": b[3]} for b in batches
+                    {"id": b[0], "name": b[1], "academic_year": b[2]} for b in batches
                 ]
             else:
                 exam_dict["scoped_batches"] = []
@@ -255,19 +255,18 @@ class ExamService:
 
             # Pre-fetch all exam-batch mappings in one query
             eb_rows = session.execute(
-                select(ExamBatch.exam_id, Batch.id, Batch.name, Batch.code, Batch.academic_year)
+                select(ExamBatch.exam_id, Batch.id, Batch.name, Batch.academic_year)
                 .join(Batch, ExamBatch.batch_id == Batch.id)
                 .order_by(Batch.name.asc())
             ).all()
 
             scoped_map: Dict[str, List[Dict[str, Any]]] = {}
-            for ex_id, b_id, b_name, b_code, b_year in eb_rows:
+            for ex_id, b_id, b_name, b_year in eb_rows:
                 if ex_id not in scoped_map:
                     scoped_map[ex_id] = []
                 scoped_map[ex_id].append({
                     "id": b_id,
                     "name": b_name,
-                    "code": b_code,
                     "academic_year": b_year,
                 })
 

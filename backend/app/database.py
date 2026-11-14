@@ -316,7 +316,6 @@ def init_db():
             branch_id {text_type} REFERENCES branches(id) ON DELETE CASCADE,
             exam_id {text_type},
             name {text_type} NOT NULL,
-            code {text_type} NOT NULL DEFAULT '',
             academic_year {text_type} NOT NULL DEFAULT '2026',
             status {text_type} NOT NULL DEFAULT 'QUEUED',
             total_submissions {int_type} NOT NULL DEFAULT 0,
@@ -876,6 +875,7 @@ def init_db():
                 cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS deleted_at TEXT;")
                 cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS subjects TEXT;")
                 cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS last_roll_sequence INTEGER NOT NULL DEFAULT 0;")
+                cursor.execute("ALTER TABLE batches DROP COLUMN IF EXISTS code;")
                 cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_students_roll_unique ON students (roll_number);")
                 cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_changed_password INTEGER NOT NULL DEFAULT 0;")
                 cursor.execute("""

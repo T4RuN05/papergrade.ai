@@ -171,7 +171,6 @@ export default function SingleBatchPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-hairline">
           <div className="space-y-2 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
-              <BadgePill label={`Code: ${batch.code || "BATCH"}`} color="purple" />
               <BadgePill
                 label={batch.status === "COMPLETED" ? "Evaluation Completed" : batch.status}
                 color={batch.status === "COMPLETED" ? "green" : "orange"}

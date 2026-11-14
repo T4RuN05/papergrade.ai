@@ -70,7 +70,6 @@ class CreateBranchRequest(BaseModel):
 class CreateBatchRequest(BaseModel):
     branch_id: str
     name: str
-    code: Optional[str] = None
     academic_year: str = "2026"
     exam_id: Optional[str] = "general"
 
@@ -200,7 +199,6 @@ def _format_batch_dict(batch: Batch) -> Dict[str, Any]:
         "branch_id": batch.branch_id,
         "exam_id": batch.exam_id,
         "name": batch.name,
-        "code": batch.code,
         "academic_year": batch.academic_year,
         "status": batch.status,
         "total_submissions": batch.total_submissions,
@@ -544,18 +542,11 @@ def create_batch(
     batch_id = f"batch_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
 
-    batch_code = (req.code or "").strip().upper()
-    if not batch_code:
-        import re
-        slug = re.sub(r'[^A-Za-z0-9]', '', req.name)[:10].upper()
-        batch_code = slug or f"B{uuid.uuid4().hex[:6].upper()}"
-
     batch = Batch(
         id=batch_id,
         branch_id=req.branch_id,
         exam_id=req.exam_id or None,
         name=req.name.strip(),
-        code=batch_code,
         academic_year=req.academic_year,
         created_at=now,
         updated_at=now,
@@ -563,7 +554,7 @@ def create_batch(
     db.add(batch)
     db.commit()
 
-    return {"status": "success", "id": batch_id, "name": req.name, "code": batch_code}
+    return {"status": "success", "id": batch_id, "name": req.name}
 
 
 @router.get("/batches/{batch_id}/students")
@@ -599,19 +590,9 @@ def add_single_student(
     if not _verify_batch_access(db, current_user, batch):
         raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
-    # System-enforced unique roll number allocation
-    if req.roll_number and req.roll_number.strip():
-        clean_roll = req.roll_number.strip().upper()
-        # Ensure it does not collide globally
-        existing = db.scalar(select(Student.id).where(func.upper(Student.roll_number) == clean_roll))
-        if existing:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Student with roll number '{clean_roll}' already exists."
-            )
-    else:
-        allocated = allocate_next_roll_numbers(db, batch.branch_id, count=1)
-        clean_roll = allocated[0]
+    # PaperGrade strictly enforces system-generated unique roll numbers
+    allocated = allocate_next_roll_numbers(db, batch.branch_id, count=1)
+    clean_roll = allocated[0]
 
     student_id = f"stu_{uuid.uuid4().hex[:12]}"
     student_id_num = generate_unique_student_id_num(db)
