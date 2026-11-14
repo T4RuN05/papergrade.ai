@@ -14,7 +14,7 @@ export default function ClaimAccountPage() {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-3">
       <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      <p className="text-xs text-ink-muted">Redirecting to Claim ID console...</p>
+      <p className="text-xs text-ink-muted">Redirecting to account activation...</p>
     </div>
   );
 }

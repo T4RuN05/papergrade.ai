@@ -41,7 +41,6 @@ function LoginForm() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   // Claim account state
-  const [claimStudentId, setClaimStudentId] = useState("");
   const [claimRollNumber, setClaimRollNumber] = useState("");
   const [claimPassword, setClaimPassword] = useState("");
   const [claimConfirmPassword, setClaimConfirmPassword] = useState("");
@@ -306,7 +305,6 @@ function LoginForm() {
 
     try {
       const res = await api.claimAccount({
-        student_id_num: claimStudentId.trim(),
         roll_number: claimRollNumber.trim().toUpperCase(),
         password: claimPassword,
       });
@@ -325,7 +323,7 @@ function LoginForm() {
         router.push("/student/portal");
       }, 1200);
     } catch (err: any) {
-      const msg = err.message || "Failed to claim account. Check your 6-digit Student ID and Roll Number.";
+      const msg = err.message || "Failed to claim account. Check your Roll Number and try again.";
       setClaimError(msg);
       toast.error(msg, { title: "Claim Failed" });
     } finally {
@@ -458,7 +456,7 @@ function LoginForm() {
                 ? "Enter your student Roll Number and password to access your dashboard."
                 : loginRole === "STAFF"
                 ? "Enter your institutional email or Staff ID to access administrative operations."
-                : "Enter your 6-digit Student ID and Institute Roll Number to initialize your account."
+                : "Enter your Institute Roll Number to set your password and activate your account."
               : viewMode === "FORGOT_REQUEST"
               ? "Requests are audited and approved by your assigned Branch Manager."
               : viewMode === "AWAITING_APPROVAL"
@@ -522,7 +520,7 @@ function LoginForm() {
                   }`}
                 >
                   <GraduationCap className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Claim ID</span>
+                  <span className="truncate">Claim Account</span>
                 </button>
               </div>
 
@@ -609,19 +607,8 @@ function LoginForm() {
                       )}
 
                       <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-muted leading-relaxed">
-                        First time here? Enter your 6-digit admission ID and roll number to create your password and activate your account.
+                        First time here? Enter your assigned institute roll number to create your password and activate your student account.
                       </div>
-
-                      <FormInput
-                        id="claim-id-input"
-                        label="6-Digit Numeric Student ID"
-                        type="text"
-                        required
-                        maxLength={6}
-                        value={claimStudentId}
-                        onChange={(e) => setClaimStudentId(e.target.value)}
-                        placeholder="e.g. 315116"
-                      />
 
                       <FormInput
                         id="claim-roll-input"

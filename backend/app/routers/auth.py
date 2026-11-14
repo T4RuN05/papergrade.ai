@@ -59,9 +59,9 @@ class LoginResponse(BaseModel):
 
 
 class ClaimAccountRequest(BaseModel):
-    student_id_num: str
     roll_number: str
     password: str
+    student_id_num: Optional[str] = None
     email: Optional[str] = None
 
 
@@ -273,26 +273,45 @@ def get_profile(
 @router.post("/claim-account", response_model=LoginResponse)
 def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     """
-    One-time onboarding account claim for students using their assigned numeric student ID.
+    One-time onboarding account claim for students using their assigned roll number.
     Validates identity, hashes new password, links user record, and logs student in.
     """
-    clean_id_num = req.student_id_num.strip()
     clean_roll = req.roll_number.strip().upper()
+    clean_id_num = req.student_id_num.strip() if req.student_id_num else None
 
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
 
-    # 1. Verify student record exists
-    student = db.scalar(
-        select(Student).where(
-            Student.student_id_num == clean_id_num,
-            func.upper(Student.roll_number) == clean_roll
+    # 1. Verify student record exists by roll number
+    students = db.scalars(
+        select(Student).where(func.upper(Student.roll_number) == clean_roll)
+    ).all()
+
+    student = None
+    if students:
+        # Prioritize unclaimed student records
+        unclaimed = [s for s in students if s.account_claimed == 0]
+        if unclaimed:
+            if clean_id_num:
+                matching = [s for s in unclaimed if s.student_id_num == clean_id_num]
+                student = matching[0] if matching else unclaimed[0]
+            else:
+                student = unclaimed[0]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="This student account has already been claimed. Please log in directly."
+            )
+    elif clean_id_num:
+        # Fallback to student_id_num if roll number wasn't found directly
+        student = db.scalar(
+            select(Student).where(Student.student_id_num == clean_id_num)
         )
-    )
+
     if not student:
         raise HTTPException(
             status_code=404,
-            detail="No student record found with the given numeric ID and roll number."
+            detail=f"No student record found with roll number '{clean_roll}'."
         )
 
     # 2. Verify account is not already claimed
@@ -306,12 +325,13 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     new_user_id = f"usr_{uuid.uuid4().hex[:12]}"
     hashed = hash_password(req.password)
     now = get_iso_now()
-    student_email = req.email.strip().lower() if req.email else f"student_{clean_id_num}@papergrade.local"
+    student_num_tag = student.student_id_num or clean_roll.replace("-", "_").lower()
+    student_email = req.email.strip().lower() if req.email else f"student_{student_num_tag}@papergrade.local"
 
     # Check if email is already used
     email_taken = db.scalar(select(User.id).where(User.email == student_email))
     if email_taken:
-        student_email = f"student_{clean_id_num}_{uuid.uuid4().hex[:4]}@papergrade.local"
+        student_email = f"student_{student_num_tag}_{uuid.uuid4().hex[:4]}@papergrade.local"
 
     # Look up branch and institute via batch
     batch = db.scalar(select(Batch).where(Batch.id == student.batch_id))
@@ -630,7 +650,7 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
     if not user_id:
         raise HTTPException(
             status_code=400,
-            detail="Your student account has not been claimed yet. Please claim your account with your admission ID."
+            detail="Your student account has not been claimed yet. Please activate your account first using your roll number."
         )
 
     student_id = student_match.id if student_match else None

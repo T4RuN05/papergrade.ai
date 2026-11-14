@@ -61,7 +61,7 @@ export default function BranchBatchesPage() {
   const [stuRoll, setStuRoll] = useState("");
   const [stuName, setStuName] = useState("");
   const [stuEmail, setStuEmail] = useState("");
-  const [addedStudentIdNum, setAddedStudentIdNum] = useState<string | null>(null);
+  const [addedStudentRoll, setAddedStudentRoll] = useState<string | null>(null);
 
   const [importRosterOpen, setImportRosterOpen] = useState(false);
   const [rosterFile, setRosterFile] = useState<File | null>(null);
@@ -239,17 +239,18 @@ export default function BranchBatchesPage() {
     if (!selectedBatch || !stuRoll.trim() || !stuName.trim()) return;
 
     const sName = stuName.trim();
+    const sRoll = stuRoll.trim().toUpperCase();
     try {
-      const res = await api.addStudent(selectedBatch.id, {
-        roll_number: stuRoll.trim().toUpperCase(),
+      await api.addStudent(selectedBatch.id, {
+        roll_number: sRoll,
         full_name: sName,
         email: stuEmail.trim() || undefined,
       });
-      setAddedStudentIdNum(res.student_id_num);
+      setAddedStudentRoll(sRoll);
       setStuRoll("");
       setStuName("");
       setStuEmail("");
-      toast.success(`Student "${sName}" enrolled. Claim ID: ${res.student_id_num}`, { title: "Student Enrolled" });
+      toast.success(`Student "${sName}" enrolled (${sRoll}).`, { title: "Student Enrolled" });
       // Reload students & sync batch card counts
       const [updated] = await Promise.all([
         api.listStudentsInBatch(selectedBatch.id),
@@ -391,7 +392,7 @@ export default function BranchBatchesPage() {
             Batches & Student Roster
           </h1>
           <p className="text-xs sm:text-sm text-ink-muted mt-0.5 leading-relaxed">
-            Manage student batches, onboarding claim IDs, and roster enrollments for{" "}
+            Manage student batches and roster enrollments for{" "}
             <span className="font-semibold text-ink">{selectedBranch?.name || "Active Branch"}</span>.
           </p>
         </div>
@@ -603,14 +604,14 @@ export default function BranchBatchesPage() {
               <div className="p-3 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-secondary space-y-1.5">
                 <div className="font-semibold text-ink flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                  <span>One-Time Student Onboarding Claim Workflow</span>
+                  <span>Student Onboarding & Account Activation</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Each unclaimed student receives a temporary 6-digit Claim ID. Students claim their PWA account at{" "}
+                  Students activate their PWA account at{" "}
                   <code className="font-mono font-semibold text-ink bg-surface px-1.5 py-0.5 rounded border border-hairline">
                     /auth/claim
                   </code>{" "}
-                  using their Claim ID and Roll Number to set their password. The Claim ID is exhausted after use.
+                  or the student portal using their assigned Roll Number to set their password.
                 </p>
               </div>
 
@@ -671,7 +672,6 @@ export default function BranchBatchesPage() {
                   ) : (
                     filteredStudents.map((stu) => {
                       const isClaimed = Boolean(stu.account_claimed);
-                      const claimId = stu.student_id_num || stu.claim_id || "—";
                       return (
                         <div key={stu.id} className="p-3 hover:bg-canvas-soft/60 transition-colors flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1 space-y-1">
@@ -684,11 +684,6 @@ export default function BranchBatchesPage() {
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              {!isClaimed && claimId && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-primary bg-primary/10 border border-primary/20">
-                                  Claim ID: {claimId}
-                                </span>
-                              )}
                               <BadgePill
                                 label={isClaimed ? "Claimed" : "Unclaimed"}
                                 color={isClaimed ? "green" : "gray"}
@@ -717,9 +712,6 @@ export default function BranchBatchesPage() {
                       <tr className="border-b border-hairline bg-canvas-soft text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
                         <th className="px-4 py-3 bg-canvas-soft">Roll Number</th>
                         <th className="px-4 py-3 bg-canvas-soft">Student Name</th>
-                        {hasUnclaimedStudents && (
-                          <th className="px-4 py-3 bg-canvas-soft">Temporary Claim ID</th>
-                        )}
                         <th className="px-4 py-3 bg-canvas-soft">PWA Status</th>
                         <th className="px-4 py-3 text-right bg-canvas-soft">Action</th>
                       </tr>
@@ -730,16 +722,13 @@ export default function BranchBatchesPage() {
                           <tr key={i} className="h-12">
                             <td className="px-4 py-3"><Skeleton className="h-3.5 w-16" /></td>
                             <td className="px-4 py-3"><Skeleton className="h-3.5 w-36" /></td>
-                            {hasUnclaimedStudents && (
-                              <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded" /></td>
-                            )}
                             <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
                             <td className="px-4 py-3 text-right"><Skeleton className="h-6 w-12 rounded ml-auto" /></td>
                           </tr>
                         ))
                       ) : filteredStudents.length === 0 ? (
                         <tr>
-                          <td colSpan={hasUnclaimedStudents ? 5 : 4} className="px-4 py-12 text-center text-ink-muted space-y-1">
+                          <td colSpan={4} className="px-4 py-12 text-center text-ink-muted space-y-1">
                             <p className="font-semibold text-ink">No students found.</p>
                             <p className="text-[11px]">
                               {studentSearch ? "No matches for your search query." : "Add students manually or import an Excel roster."}
@@ -749,7 +738,6 @@ export default function BranchBatchesPage() {
                       ) : (
                         filteredStudents.map((stu) => {
                           const isClaimed = Boolean(stu.account_claimed);
-                          const claimId = stu.student_id_num || stu.claim_id || "—";
                           return (
                             <tr key={stu.id} className="hover:bg-canvas-soft/60 transition-colors">
                               <td className="px-4 py-3 font-mono font-semibold text-ink">
@@ -758,17 +746,6 @@ export default function BranchBatchesPage() {
                               <td className="px-4 py-3 font-medium text-ink">
                                 {stu.full_name || stu.student_name}
                               </td>
-                              {hasUnclaimedStudents && (
-                                <td className="px-4 py-3 font-mono">
-                                  {!isClaimed ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded font-bold text-primary bg-primary/10 border border-primary/20">
-                                      {claimId}
-                                    </span>
-                                  ) : (
-                                    <span className="text-ink-faint">Exhausted</span>
-                                  )}
-                                </td>
-                              )}
                               <td className="px-4 py-3">
                                 <BadgePill
                                   label={isClaimed ? "Claimed" : "Unclaimed"}
@@ -860,24 +837,24 @@ export default function BranchBatchesPage() {
         title={`Add Student to ${selectedBatch?.name}`}
         onClose={() => {
           setAddStudentOpen(false);
-          setAddedStudentIdNum(null);
+          setAddedStudentRoll(null);
         }}
       >
-        {addedStudentIdNum ? (
+        {addedStudentRoll ? (
           <div className="text-center py-4 space-y-4">
             <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-ink">Student Enrolled Successfully</h4>
-              <p className="text-xs text-ink-muted">Share this one-time 6-digit claim ID with the student:</p>
+              <p className="text-xs text-ink-muted">Roll Number registered for student portal activation:</p>
               <div className="text-2xl font-mono font-bold tracking-widest text-primary pt-1">
-                {addedStudentIdNum}
+                {addedStudentRoll}
               </div>
             </div>
             <ButtonPrimary
               onClick={() => {
-                setAddedStudentIdNum(null);
+                setAddedStudentRoll(null);
                 setAddStudentOpen(false);
               }}
               className="w-full sm:w-auto justify-center"
@@ -943,7 +920,7 @@ export default function BranchBatchesPage() {
                   <span className="font-bold text-ink">
                     {importStats.imported_count || importStats.students_imported || 0}
                   </span>{" "}
-                  students with generated 6-digit claim IDs.
+                  students ready for account activation.
                 </p>
                 {importStats.duplicates_skipped > 0 && (
                   <p className="text-[11px] text-amber-700">

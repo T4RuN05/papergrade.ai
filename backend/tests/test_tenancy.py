@@ -46,10 +46,9 @@ def test_student_creation_and_account_claim():
         student_id_num = stu_res["student_id_num"]
         assert len(student_id_num) == 6
         
-        # 3. Claim account
+        # 3. Claim account without requiring student_id_num
         claim_res = claim_account(
             ClaimAccountRequest(
-                student_id_num=student_id_num,
                 roll_number="A101_TEST",
                 password="MySecretPassword123"
             ),
@@ -63,7 +62,6 @@ def test_student_creation_and_account_claim():
         with pytest.raises(Exception):
             claim_account(
                 ClaimAccountRequest(
-                    student_id_num=student_id_num,
                     roll_number="A101_TEST",
                     password="AnotherPassword"
                 ),

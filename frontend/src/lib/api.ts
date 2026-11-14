@@ -251,7 +251,7 @@ export const api = {
     };
   },
 
-  async claimAccount(data: { student_id_num: string; roll_number: string; password: string }): Promise<{ access_token: string; role: string; user_id: string; full_name: string }> {
+  async claimAccount(data: { roll_number: string; password: string; student_id_num?: string }): Promise<{ access_token: string; role: string; user_id: string; full_name: string }> {
     const res = await fetch(`${API_BASE}/api/v1/auth/claim-account`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
