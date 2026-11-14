@@ -219,9 +219,8 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                   ) : (
                     <span
                       title={seg.label}
-                      className={`truncate max-w-[180px] sm:max-w-[280px] md:max-w-[420px] lg:max-w-[650px] ${
-                        isLast ? "font-bold text-ink" : "text-ink-secondary font-medium"
-                      }`}
+                      className={`truncate max-w-[180px] sm:max-w-[280px] md:max-w-[420px] lg:max-w-[650px] ${isLast ? "font-bold text-ink" : "text-ink-secondary font-medium"
+                        }`}
                     >
                       {seg.label}
                     </span>
@@ -247,17 +246,15 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                 : "PaperGrade"}
             </span>
             <ChevronDown
-              className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-200 ease-out ${
-                branchDropdownOpen && !isBranchDropdownExiting ? "rotate-180 text-primary" : ""
-              }`}
+              className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-200 ease-out ${branchDropdownOpen && !isBranchDropdownExiting ? "rotate-180 text-primary" : ""
+                }`}
             />
           </button>
 
           {/* Styled Apple-grade Floating Popover Dropdown Menu */}
           {branchDropdownOpen && mounted && (
-            <div className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-50 ${
-              isBranchDropdownExiting ? "animate-apple-out" : "animate-apple-in"
-            }`}>
+            <div className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-50 ${isBranchDropdownExiting ? "animate-apple-out" : "animate-apple-in"
+              }`}>
               <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1.5">
                 <span>Operational Branch</span>
                 {isRootAdmin && <span className="text-[10px] text-primary font-semibold lowercase">root admin</span>}
@@ -291,11 +288,10 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                           handleBranchChange(b.id);
                           closeBranchDropdown();
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left select-none ${
-                          isSelected
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left select-none ${isSelected
                             ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
                             : "text-ink hover:bg-canvas-soft dark:hover:bg-white/5 font-medium"
-                        }`}
+                          }`}
                       >
                         <div className="min-w-0 pr-2">
                           <p className="truncate font-semibold">{b.name}</p>
@@ -355,8 +351,24 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           {mounted && currentUser && (
             <div suppressHydrationWarning className="hidden sm:flex items-center gap-2 pl-2 border-l border-hairline">
               <BadgePill
-                label={currentUser.role === "ROOT_ADMIN" ? "Admin" : "Branch Mgr"}
-                color={currentUser.role === "ROOT_ADMIN" ? "purple" : "teal"}
+                label={
+                  currentUser.role === "ROOT_ADMIN"
+                    ? "Admin"
+                    : currentUser.role === "INSTITUTE_DIRECTOR"
+                      ? "Director"
+                      : currentUser.role === "BRANCH_MANAGER"
+                        ? "Branch Mgr"
+                        : "Staff"
+                }
+                color={
+                  currentUser.role === "ROOT_ADMIN"
+                    ? "purple"
+                    : currentUser.role === "INSTITUTE_DIRECTOR"
+                      ? "indigo"
+                      : currentUser.role === "BRANCH_MANAGER"
+                        ? "teal"
+                        : "gray"
+                }
               />
               <span className="text-xs font-semibold text-ink truncate max-w-[130px]">
                 {currentUser.full_name}

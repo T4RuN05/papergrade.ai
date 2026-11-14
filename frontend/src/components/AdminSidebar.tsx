@@ -305,6 +305,8 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
             >
               {currentUser?.role === "ROOT_ADMIN"
                 ? "Root Enterprise Desk"
+                : currentUser?.role === "INSTITUTE_DIRECTOR"
+                ? `${selectedBranch?.name ? selectedBranch.name + " • " : ""}Director Console`
                 : selectedBranch?.name
                 ? `${selectedBranch.name} Console`
                 : "Branch Console"}
