@@ -289,8 +289,8 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                           closeBranchDropdown();
                         }}
                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left select-none ${isSelected
-                            ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
-                            : "text-ink hover:bg-canvas-soft dark:hover:bg-white/5 font-medium"
+                          ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
+                          : "text-ink hover:bg-canvas-soft dark:hover:bg-white/5 font-medium"
                           }`}
                       >
                         <div className="min-w-0 pr-2">
@@ -307,13 +307,8 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           )}
         </div>
 
-        {/* Right: DB Status + Notification Bell + Profile */}
+        {/* Right: Notification Bell + Profile */}
         <div className="flex items-center gap-1 sm:gap-2">
-          {/* Supabase Status Pill */}
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-700/50 text-emerald-800 dark:text-emerald-300 text-[11px] font-medium mr-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Supabase PostgreSQL • Online</span>
-          </div>
 
           {/* Technical Support / Bug Report Button (Only for Branch Managers and Staff, not Root Admin) */}
           {!isRootAdmin && (
