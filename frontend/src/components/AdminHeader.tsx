@@ -16,6 +16,7 @@ import {
   Layers,
   LogOut,
   LifeBuoy,
+  KeyRound,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { BadgePill } from "./ui";
@@ -25,6 +26,7 @@ import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { ReportIssueModal } from "./ReportIssueModal";
+import { ChangePasswordModal } from "./ChangePasswordModal";
 import { AppleSelect } from "./ui/AppleSelect";
 
 interface AdminHeaderProps {
@@ -39,6 +41,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const { trail } = useBreadcrumbs();
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [isBranchDropdownExiting, setIsBranchDropdownExiting] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
@@ -371,6 +374,19 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             </div>
           )}
 
+          {/* Change Password Button */}
+          {mounted && currentUser && (
+            <button
+              type="button"
+              onClick={() => setChangePasswordOpen(true)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+              title="Change Password"
+              aria-label="Change password"
+            >
+              <KeyRound className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Quick Sign Out Button (always accessible in mobile & desktop headers) */}
           {mounted && currentUser && (
             <button
@@ -385,6 +401,13 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           )}
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        userEmail={currentUser?.email}
+      />
 
       {/* Technical Support & Issue Report Modal */}
       <ReportIssueModal

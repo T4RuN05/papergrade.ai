@@ -315,6 +315,8 @@ export const api = {
     message: string;
     student_name?: string;
     roll_number?: string;
+    is_staff?: boolean;
+    user_role?: string;
   }> {
     const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/request`, {
       method: "POST",
@@ -333,6 +335,8 @@ export const api = {
     status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED" | "EXPIRED";
     student_name?: string;
     roll_number?: string;
+    is_staff?: boolean;
+    user_role?: string;
     requested_at?: string;
     approved_at?: string;
     reset_token?: string;
@@ -365,8 +369,24 @@ export const api = {
     return res.json();
   },
 
-  async listPasswordResets(statusFilter?: string): Promise<any[]> {
-    const query = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+  async changePassword(data: { current_password: string; new_password: string }): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/v1/auth/change-password`, {
+      method: "POST",
+      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to change password" }));
+      throw new Error(parseErrorDetail(err, "Failed to change password"));
+    }
+    return res.json();
+  },
+
+  async listPasswordResets(statusFilter?: string, targetType?: "staff" | "student"): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (statusFilter) params.append("status_filter", statusFilter);
+    if (targetType) params.append("target_type", targetType);
+    const query = params.toString() ? `?${params.toString()}` : "";
     const res = await fetch(`${API_BASE}/api/v1/auth/password-resets${query}`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",

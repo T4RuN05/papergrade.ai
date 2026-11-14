@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -14,6 +14,10 @@ import {
   Loader2,
   Pencil,
   ShieldCheck,
+  KeyRound,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, getAuthToken } from "@/lib/api";
@@ -88,6 +92,58 @@ export default function TenancyManagementPage() {
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Staff Password Reset Requests state
+  const [staffResets, setStaffResets] = useState<any[]>([]);
+  const [isStaffResetsModalOpen, setIsStaffResetsModalOpen] = useState(false);
+  const [actingResetId, setActingResetId] = useState<string | null>(null);
+
+  const loadStaffResets = async () => {
+    try {
+      const data = await api.listPasswordResets(undefined, "staff");
+      setStaffResets(data || []);
+    } catch (err) {
+      console.warn("Failed to load staff password resets", err);
+    }
+  };
+
+  useEffect(() => {
+    loadStaffResets();
+    const interval = setInterval(loadStaffResets, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const pendingStaffResets = useMemo(() => {
+    return staffResets.filter((r) => r.status === "PENDING");
+  }, [staffResets]);
+
+  const handleApproveStaffReset = async (reqId: string, name: string) => {
+    setActingResetId(reqId);
+    try {
+      await api.approvePasswordReset(reqId);
+      toast.success(`Password reset approved for ${name}. They can now enter their new password!`, {
+        title: "Request Authorized",
+      });
+      await loadStaffResets();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve request", { title: "Approval Failed" });
+    } finally {
+      setActingResetId(null);
+    }
+  };
+
+  const handleRejectStaffReset = async (reqId: string, name: string) => {
+    setActingResetId(reqId);
+    try {
+      await api.rejectPasswordReset(reqId);
+      toast.info(`Password reset request rejected for ${name}.`, { title: "Request Rejected" });
+      await loadStaffResets();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject request", { title: "Rejection Failed" });
+    } finally {
+      setActingResetId(null);
+    }
+  };
 
   useEffect(() => {
     if (isLoggingOut) return;
@@ -366,18 +422,52 @@ export default function TenancyManagementPage() {
           </p>
         </div>
 
-        <ButtonPrimary
-          onClick={() => {
-            setActionError(null);
-            setIsInstModalOpen(true);
-          }}
-          size="sm"
-          className="self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Register Coaching Institute
-        </ButtonPrimary>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <ButtonUtility
+            onClick={() => setIsStaffResetsModalOpen(true)}
+            size="sm"
+            className="relative"
+          >
+            <KeyRound className="h-4 w-4 mr-1.5 text-amber-500" />
+            <span>Staff Password Resets</span>
+            {pendingStaffResets.length > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold animate-pulse">
+                {pendingStaffResets.length}
+              </span>
+            )}
+          </ButtonUtility>
+
+          <ButtonPrimary
+            onClick={() => {
+              setActionError(null);
+              setIsInstModalOpen(true);
+            }}
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Register Coaching Institute
+          </ButtonPrimary>
+        </div>
       </div>
+
+      {/* Pending Staff Resets Banner */}
+      {pendingStaffResets.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="font-semibold">
+              {pendingStaffResets.length} Staff Password Reset Request{pendingStaffResets.length > 1 ? "s" : ""} Pending Real-Time Authorization
+            </span>
+          </div>
+          <ButtonPrimary
+            size="sm"
+            onClick={() => setIsStaffResetsModalOpen(true)}
+            className="self-start sm:self-auto"
+          >
+            Review & Authorize
+          </ButtonPrimary>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-20 text-center text-xs text-ink-muted animate-pulse">
@@ -1328,6 +1418,116 @@ export default function TenancyManagementPage() {
           </div>
         </ModalCard>
       )}
+
+      {/* MODAL: Staff Password Reset Requests */}
+      <ModalCard
+        isOpen={isStaffResetsModalOpen}
+        onClose={() => setIsStaffResetsModalOpen(false)}
+        title="Staff Password Reset Authorizations"
+        className="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
+            Staff members who request a password reset from the login screen remain in an active waiting state until approved here. Upon approval, their screen immediately unlocks to set their new password.
+          </div>
+
+          <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+            {staffResets.length === 0 ? (
+              <div className="py-12 text-center text-xs text-ink-muted space-y-1">
+                <ShieldCheck className="h-8 w-8 text-ink-muted mx-auto opacity-50" />
+                <p className="font-semibold text-ink">No Staff Password Reset Requests</p>
+                <p className="text-[11px]">When an Institute Director or Branch Manager requests a reset, it appears here in real time.</p>
+              </div>
+            ) : (
+              staffResets.map((req) => {
+                const isPending = req.status === "PENDING";
+                const isApproved = req.status === "APPROVED";
+                const isRejected = req.status === "REJECTED";
+                const isCompleted = req.status === "COMPLETED";
+
+                const roleBadgeColor =
+                  req.user_role === "INSTITUTE_DIRECTOR"
+                    ? "indigo"
+                    : req.user_role === "BRANCH_MANAGER"
+                    ? "teal"
+                    : "purple";
+
+                const roleBadgeLabel =
+                  req.user_role === "INSTITUTE_DIRECTOR"
+                    ? "Director"
+                    : req.user_role === "BRANCH_MANAGER"
+                    ? "Branch Mgr"
+                    : req.user_role || "Staff";
+
+                return (
+                  <div
+                    key={req.id}
+                    className="p-3 sm:p-3.5 rounded-lg bg-surface border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-ink text-sm">
+                          {req.student_name || "Staff Member"}
+                        </span>
+                        <BadgePill label={roleBadgeLabel} color={roleBadgeColor as any} />
+                        <BadgePill
+                          label={req.status}
+                          color={isPending ? "orange" : isApproved || isCompleted ? "green" : "gray"}
+                        />
+                      </div>
+                      <div className="text-[11px] text-ink-muted flex items-center gap-2 flex-wrap">
+                        <span>{req.student_email || "No email"}</span>
+                        {req.branch_name && <span>• {req.branch_name}</span>}
+                        <span>• {new Date(req.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isPending ? (
+                        <>
+                          <ButtonUtility
+                            size="sm"
+                            disabled={actingResetId === req.id}
+                            onClick={() => handleRejectStaffReset(req.id, req.student_name || "Staff")}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs"
+                          >
+                            Reject
+                          </ButtonUtility>
+                          <ButtonPrimary
+                            size="sm"
+                            disabled={actingResetId === req.id}
+                            isLoading={actingResetId === req.id}
+                            onClick={() => handleApproveStaffReset(req.id, req.student_name || "Staff")}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                          >
+                            Approve Reset
+                          </ButtonPrimary>
+                        </>
+                      ) : (
+                        <span className="text-[11px] font-mono text-ink-muted">
+                          {isApproved
+                            ? "Waiting for user input"
+                            : isCompleted
+                            ? "Completed"
+                            : isRejected
+                            ? "Rejected"
+                            : req.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-hairline">
+            <ButtonUtility onClick={() => setIsStaffResetsModalOpen(false)}>
+              Close
+            </ButtonUtility>
+          </div>
+        </div>
+      </ModalCard>
     </div>
   );
 }

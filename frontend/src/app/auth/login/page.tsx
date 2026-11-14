@@ -146,17 +146,19 @@ function LoginForm() {
         if (!isMounted) return;
 
         if (res.status === "APPROVED") {
+          const approver = res.is_staff || loginRole === "STAFF" ? "Root Administrator" : "Branch Manager";
           toast.success(
-            "Branch Manager approved your request! You can now set your new password.",
+            `${approver} authorized your request! You can now set your new password.`,
             { title: "Request Approved", duration: 6000 }
           );
           setResetToken(res.reset_token || null);
           setViewMode("RESET_PASSWORD");
         } else if (res.status === "REJECTED") {
-          toast.error("Your password reset request was declined by the Branch Manager.", {
+          const approver = res.is_staff || loginRole === "STAFF" ? "Root Administrator" : "Branch Manager";
+          toast.error(`Your password reset request was declined by ${approver}.`, {
             title: "Request Declined",
           });
-          setForgotError("Request was declined by your Branch Manager. Please contact branch administration.");
+          setForgotError(`Request was declined by ${approver}. Please contact administration.`);
           setViewMode("FORGOT_REQUEST");
         } else if (res.status === "EXPIRED") {
           toast.error("Your reset authorization expired. Please submit a new request.", {
@@ -174,7 +176,7 @@ function LoginForm() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [viewMode, activeRequestId, sessionSecret, toast]);
+  }, [viewMode, activeRequestId, sessionSecret, toast, loginRole]);
 
   const handleInstallClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -361,8 +363,9 @@ function LoginForm() {
       }
 
       setViewMode("AWAITING_APPROVAL");
-      toast.info("Request routed to your Branch Manager. Please do not refresh this page.", {
-        title: "Awaiting Approval",
+      const approverTarget = res.is_staff || loginRole === "STAFF" ? "Root Administrator" : "your Branch Manager";
+      toast.info(`Request routed to ${approverTarget}. Please do not refresh this page.`, {
+        title: "Awaiting Authorization",
         duration: 5000,
       });
     } catch (err: any) {
@@ -551,19 +554,17 @@ function LoginForm() {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-ink-secondary">Password</label>
-                      {loginRole === "STUDENT" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setForgotIdentifier(email.trim());
-                            setForgotError(null);
-                            setViewMode("FORGOT_REQUEST");
-                          }}
-                          className="text-xs font-medium text-primary hover:underline cursor-pointer"
-                        >
-                          Forgot password?
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotIdentifier(email.trim());
+                          setForgotError(null);
+                          setViewMode("FORGOT_REQUEST");
+                        }}
+                        className="text-xs font-medium text-primary hover:underline cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
                     </div>
                     <FormInput
                       id="login-password-input"
@@ -669,16 +670,22 @@ function LoginForm() {
               )}
 
               <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
-                Provide your Roll Number or Student ID. A real-time password reset request will be dispatched to your Branch Manager for approval.
+                {loginRole === "STAFF"
+                  ? "Provide your registered Staff Email. A real-time password reset request will be dispatched to the Root Administrator for authorization."
+                  : "Provide your Roll Number or Student Email. A real-time password reset request will be dispatched to your Branch Manager for approval."}
               </div>
 
               <FormInput
-                label="Student Roll Number, ID, or Email"
+                label={loginRole === "STAFF" ? "Staff Institutional Email" : "Student Roll Number or Email"}
                 type="text"
                 required
                 value={forgotIdentifier}
                 onChange={(e) => setForgotIdentifier(e.target.value)}
-                placeholder="e.g. C25-BVI-001 or STU-8821"
+                placeholder={
+                  loginRole === "STAFF"
+                    ? "e.g. director@institute.edu or manager@branch.com"
+                    : "e.g. C25-BVI-001 or ROLL-101"
+                }
               />
 
               <ButtonPrimary
@@ -702,7 +709,7 @@ function LoginForm() {
             </form>
           )}
 
-          {/* VIEW: AWAITING BRANCH MANAGER APPROVAL (LOADING STATE) */}
+          {/* VIEW: AWAITING APPROVAL (LOADING STATE) */}
           {viewMode === "AWAITING_APPROVAL" && (
             <div className="text-center py-3 space-y-4">
               <div className="relative inline-flex items-center justify-center">
@@ -713,7 +720,9 @@ function LoginForm() {
 
               <div className="space-y-1">
                 <h3 className="text-sm sm:text-base font-bold text-ink">
-                  Awaiting Branch Manager Approval
+                  {loginRole === "STAFF"
+                    ? "Awaiting Root Administrator Authorization"
+                    : "Awaiting Branch Manager Approval"}
                 </h3>
                 <p className="text-xs text-ink-muted">
                   {studentInfo?.name ? `${studentInfo.name} • ` : ""}
@@ -728,10 +737,10 @@ function LoginForm() {
                   <span>Do Not Refresh or Leave</span>
                 </div>
                 <p className="leading-relaxed">
-                  Your request has been routed to your Branch Manager. <strong>Please do not refresh this page or go back</strong> while awaiting approval.
+                  Your request has been routed to {loginRole === "STAFF" ? "the Root Administrator" : "your Branch Manager"}. <strong>Please do not refresh this page or go back</strong> while awaiting authorization.
                 </p>
                 <p className="text-[11px] text-amber-700">
-                  Once your manager approves, this form will instantly update and unlock your new password form.
+                  Once authorized, this form will instantly update and unlock your new password form.
                 </p>
               </div>
 

@@ -31,6 +31,7 @@ from backend.app.services.auth import (
 from backend.app.services.notification_service import (
     send_notification,
     notify_branch_managers,
+    notify_root_admins,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication & RBAC"])
@@ -43,6 +44,11 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordSubmission(BaseModel):
     request_id: str
     reset_token: str
+    new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
     new_password: str
 
 
@@ -416,6 +422,60 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/change-password")
+def change_password(
+    req: ChangePasswordRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticated user changes their password (e.g. after receiving initial credentials from Root Admin).
+    Verifies current password, enforces minimum length of 8 chars, and updates password hash.
+    """
+    user_id = current_user.get("sub")
+    user = db.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    if not verify_password(req.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="Incorrect current password. Please verify and try again."
+        )
+
+    if len(req.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be at least 8 characters long."
+        )
+
+    if req.current_password == req.new_password:
+        raise HTTPException(
+            status_code=400,
+            detail="New password cannot be identical to your current password."
+        )
+
+    now = get_iso_now()
+    user.password_hash = hash_password(req.new_password)
+    user.updated_at = now
+
+    send_notification(
+        cursor=db,
+        user_id=user.id,
+        notif_type="PASSWORD_RESET_SUCCESS",
+        title="Password Changed",
+        message="Your account password was updated successfully.",
+        link_url="/overview"
+    )
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "Password changed successfully."
+    }
+
+
 @router.post("/create-user")
 def create_user(
     req: CreateUserRequest,
@@ -641,10 +701,93 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
             )
 
     if not student_match and not user_match:
-        raise HTTPException(
-            status_code=404,
-            detail="No student account found for this roll number or ID. Please check your credentials."
+        # Check if clean_id matches a staff user (BRANCH_MANAGER, INSTITUTE_DIRECTOR, TEACHER, EVALUATOR, etc.)
+        staff_user = db.scalar(
+            select(User).where(
+                or_(
+                    func.lower(User.email) == clean_id.lower(),
+                    User.id == clean_id,
+                ),
+                User.is_active == 1
+            ).limit(1)
         )
+        if not staff_user:
+            raise HTTPException(
+                status_code=404,
+                detail="No account found matching this identifier. Please verify your email or roll number."
+            )
+
+        if staff_user.role == "ROOT_ADMIN":
+            raise HTTPException(
+                status_code=400,
+                detail="Root Administrator passwords cannot be reset via delegation. Please consult your server environment administrator."
+            )
+
+        # Staff user flow (BRANCH_MANAGER, INSTITUTE_DIRECTOR, TEACHER, EVALUATOR)
+        now = get_iso_now()
+        now_dt = datetime.now(timezone.utc)
+        expires_at = (now_dt + timedelta(minutes=45)).isoformat()
+
+        # Check existing active request
+        existing = db.scalar(
+            select(PasswordResetRequest)
+            .where(
+                PasswordResetRequest.user_id == staff_user.id,
+                PasswordResetRequest.status.in_(["PENDING", "APPROVED"]),
+                PasswordResetRequest.expires_at > now,
+            )
+            .order_by(PasswordResetRequest.created_at.desc())
+            .limit(1)
+        )
+        if existing:
+            return {
+                "status": "success",
+                "request_id": existing.id,
+                "request_status": existing.status,
+                "message": "A reset request is already active. Please wait for Root Administrator authorization.",
+                "student_name": staff_user.full_name,
+                "roll_number": staff_user.role,
+                "is_staff": True,
+            }
+
+        session_secret = f"sec_{uuid.uuid4().hex}"
+        req_id = f"pr_{uuid.uuid4().hex[:12]}"
+        pr = PasswordResetRequest(
+            id=req_id,
+            user_id=staff_user.id,
+            student_id=None,
+            branch_id=staff_user.branch_id,
+            roll_number=staff_user.role,
+            student_name=staff_user.full_name,
+            student_email=staff_user.email,
+            status="PENDING",
+            reset_token=session_secret,
+            expires_at=expires_at,
+            created_at=now,
+        )
+        db.add(pr)
+
+        role_display = staff_user.role.replace("_", " ").title()
+        notify_root_admins(
+            cursor=db,
+            notif_type="PASSWORD_RESET_REQUEST",
+            title="Staff Password Reset Request",
+            message=f"{role_display} '{staff_user.full_name}' ({staff_user.email}) has requested a password reset. Review and approve in Tenancy & Access Console.",
+            link_url="/admin/tenancy",
+        )
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "request_id": req_id,
+            "session_secret": session_secret,
+            "request_status": "PENDING",
+            "message": "Password reset request submitted. Awaiting authorization from Root Administrator.",
+            "student_name": staff_user.full_name,
+            "roll_number": staff_user.role,
+            "is_staff": True,
+        }
 
     user_id = user_match.id if user_match else (student_match.user_id if student_match else None)
     if not user_id:
@@ -761,6 +904,8 @@ def get_password_reset_status(
         "status": current_status,
         "student_name": req.student_name,
         "roll_number": req.roll_number,
+        "is_staff": (req.student_id is None),
+        "user_role": req.roll_number if req.student_id is None else "STUDENT",
         "requested_at": req.created_at,
         "approved_at": req.approved_at,
     }
@@ -841,12 +986,14 @@ def complete_password_reset(req: ResetPasswordSubmission, db: Session = Depends(
 @router.get("/password-resets")
 def list_password_resets(
     status_filter: Optional[str] = None,
+    target_type: Optional[str] = None,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
     """
-    Branch Manager & Root Admin endpoint to list student password reset requests.
-    Filtered by branch for Branch Managers.
+    Branch Manager & Root Admin endpoint to list password reset requests.
+    - Root Admin can see all requests (students and staff) or filter by target_type ("staff" / "student").
+    - Branch Managers and Institute Directors ONLY see student requests scoped to their branch/institute.
     """
     stmt = (
         select(
@@ -858,23 +1005,35 @@ def list_password_resets(
         .outerjoin(Branch, PasswordResetRequest.branch_id == Branch.id)
     )
 
-    if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
-        stmt = stmt.where(
-            or_(
-                PasswordResetRequest.branch_id == current_user["branch_id"],
-                PasswordResetRequest.branch_id.is_(None),
+    is_root_admin = (current_user.get("role") == "ROOT_ADMIN")
+
+    if not is_root_admin:
+        # Branch Managers and Directors CANNOT see or approve staff requests
+        stmt = stmt.where(PasswordResetRequest.student_id.isnot(None))
+
+        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
+            stmt = stmt.where(
+                or_(
+                    PasswordResetRequest.branch_id == current_user["branch_id"],
+                    PasswordResetRequest.branch_id.is_(None),
+                )
             )
-        )
-    elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
-        inst_id = current_user["institute_id"]
-        inst_branches = select(Branch.id).where(Branch.institute_id == inst_id)
-        stmt = stmt.where(
-            or_(
-                PasswordResetRequest.branch_id.in_(inst_branches),
-                Branch.institute_id == inst_id,
-                PasswordResetRequest.branch_id.is_(None),
+        elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
+            inst_id = current_user["institute_id"]
+            inst_branches = select(Branch.id).where(Branch.institute_id == inst_id)
+            stmt = stmt.where(
+                or_(
+                    PasswordResetRequest.branch_id.in_(inst_branches),
+                    Branch.institute_id == inst_id,
+                    PasswordResetRequest.branch_id.is_(None),
+                )
             )
-        )
+    else:
+        # Root Admin can filter by target_type ("staff" or "student")
+        if target_type == "staff":
+            stmt = stmt.where(PasswordResetRequest.student_id.is_(None))
+        elif target_type == "student":
+            stmt = stmt.where(PasswordResetRequest.student_id.isnot(None))
 
     if status_filter:
         stmt = stmt.where(PasswordResetRequest.status == status_filter.upper())
@@ -882,8 +1041,17 @@ def list_password_resets(
     stmt = stmt.order_by(PasswordResetRequest.created_at.desc()).limit(50)
     results = db.execute(stmt).all()
 
+    # Pre-fetch target users to attach actual role and details
+    user_ids = [pr.user_id for pr, _, _ in results]
+    user_map = {}
+    if user_ids:
+        users = db.scalars(select(User).where(User.id.in_(user_ids))).all()
+        user_map = {u.id: u for u in users}
+
     items = []
     for pr, approved_by_name, branch_name in results:
+        target_user = user_map.get(pr.user_id)
+        role = target_user.role if target_user else ("STUDENT" if pr.student_id else (pr.roll_number or "STAFF"))
         items.append({
             "id": pr.id,
             "user_id": pr.user_id,
@@ -892,6 +1060,8 @@ def list_password_resets(
             "roll_number": pr.roll_number,
             "student_name": pr.student_name,
             "student_email": pr.student_email,
+            "user_role": role,
+            "is_staff": (pr.student_id is None),
             "status": pr.status,
             "reset_token": pr.reset_token,
             "approved_by": pr.approved_by,
@@ -912,8 +1082,9 @@ def approve_password_reset(
     db: Session = Depends(get_db)
 ):
     """
-    Branch Manager approves student password reset request.
-    Generates single-use reset_token for the waiting student form.
+    Approve password reset request.
+    - Staff requests: ONLY Root Admin can approve.
+    - Student requests: Branch Manager or Institute Director of that branch/institute.
     """
     req = db.scalar(select(PasswordResetRequest).where(PasswordResetRequest.id == request_id))
     if not req:
@@ -922,15 +1093,24 @@ def approve_password_reset(
     if req.status != "PENDING":
         raise HTTPException(status_code=400, detail=f"Request is already {req.status}.")
 
-    # Check branch/institute ownership
-    if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
-        if req.branch_id and req.branch_id != current_user["branch_id"]:
-            raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned branch.")
-    elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
-        if req.branch_id:
-            br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
-            if br and br.institute_id != current_user["institute_id"]:
-                raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned institute.")
+    is_staff = (req.student_id is None)
+    if is_staff:
+        # ONLY Root Admin can approve staff password resets!
+        if current_user.get("role") != "ROOT_ADMIN":
+            raise HTTPException(
+                status_code=403,
+                detail="Forbidden: Only Root Administrators can authorize staff password reset requests."
+            )
+    else:
+        # Check branch/institute ownership for student resets
+        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
+            if req.branch_id and req.branch_id != current_user["branch_id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned branch.")
+        elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
+            if req.branch_id:
+                br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+                if br and br.institute_id != current_user["institute_id"]:
+                    raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned institute.")
 
     reset_token = f"rst_{uuid.uuid4().hex}"
     now = get_iso_now()
@@ -940,12 +1120,13 @@ def approve_password_reset(
     req.approved_by = current_user["sub"]
     req.approved_at = now
 
+    approver_title = "Root Administrator" if is_staff else "Branch Manager"
     send_notification(
         cursor=db,
         user_id=req.user_id,
         notif_type="PASSWORD_RESET_APPROVED",
         title="Password Reset Request Approved",
-        message="Branch Manager has approved your password reset request. Please complete setting your new password.",
+        message=f"{approver_title} has approved your password reset request. Please complete setting your new password.",
         link_url="/auth/login",
     )
 
@@ -953,7 +1134,7 @@ def approve_password_reset(
 
     return {
         "status": "success",
-        "message": f"Password reset request for {req.student_name or 'student'} approved.",
+        "message": f"Password reset request for {req.student_name or 'user'} approved.",
         "request_id": request_id,
     }
 
@@ -964,7 +1145,11 @@ def reject_password_reset(
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
-    """Branch Manager rejects student password reset request."""
+    """
+    Reject password reset request.
+    - Staff requests: ONLY Root Admin can reject.
+    - Student requests: Branch Manager or Institute Director of that branch/institute.
+    """
     req = db.scalar(select(PasswordResetRequest).where(PasswordResetRequest.id == request_id))
     if not req:
         raise HTTPException(status_code=404, detail="Password reset request not found.")
@@ -972,14 +1157,22 @@ def reject_password_reset(
     if req.status != "PENDING":
         raise HTTPException(status_code=400, detail=f"Request is already {req.status}.")
 
-    if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
-        if req.branch_id and req.branch_id != current_user["branch_id"]:
-            raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned branch.")
-    elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
-        if req.branch_id:
-            br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
-            if br and br.institute_id != current_user["institute_id"]:
-                raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned institute.")
+    is_staff = (req.student_id is None)
+    if is_staff:
+        if current_user.get("role") != "ROOT_ADMIN":
+            raise HTTPException(
+                status_code=403,
+                detail="Forbidden: Only Root Administrators can reject staff password reset requests."
+            )
+    else:
+        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
+            if req.branch_id and req.branch_id != current_user["branch_id"]:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned branch.")
+        elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
+            if req.branch_id:
+                br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+                if br and br.institute_id != current_user["institute_id"]:
+                    raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned institute.")
 
     now = get_iso_now()
     req.status = "REJECTED"
@@ -989,6 +1182,6 @@ def reject_password_reset(
 
     return {
         "status": "success",
-        "message": f"Password reset request for {req.student_name or 'student'} rejected.",
+        "message": f"Password reset request for {req.student_name or 'user'} rejected.",
         "request_id": request_id,
     }

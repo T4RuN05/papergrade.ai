@@ -16,12 +16,14 @@ import {
   BookOpen,
   Home,
   ChevronRight,
+  KeyRound,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
+import { ChangePasswordModal } from "./ChangePasswordModal";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -38,6 +40,7 @@ export function Navbar() {
   const [hasToken, setHasToken] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   const isPastExamsTab =
     isMounted &&
@@ -267,6 +270,17 @@ export function Navbar() {
                 </span>
               </div>
 
+              {/* Change Password button */}
+              <button
+                type="button"
+                onClick={() => setChangePasswordOpen(true)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+                title="Change Password"
+                aria-label="Change password"
+              >
+                <KeyRound className="h-4 w-4" />
+              </button>
+
               {/* Logout button */}
               <button
                 type="button"
@@ -481,6 +495,18 @@ export function Navbar() {
                     type="button"
                     onClick={() => {
                       setMobileMenuOpen(false);
+                      setChangePasswordOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                  >
+                    <KeyRound className="h-4 w-4 text-ink-muted" />
+                    <span>Change Password</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
                       handleLogout();
                     }}
                     className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
@@ -530,6 +556,13 @@ export function Navbar() {
               <span className="font-mono text-[10px]">Academic Pilot</span>
             </div>
           </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        userEmail={currentUser?.email}
+      />
     </header>
   );
 }
