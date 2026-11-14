@@ -522,8 +522,8 @@ export default function NewExamPage() {
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-ink-muted leading-relaxed">
               {isBranchManager || isInstituteDirector
-                ? "Set up an examination to immediately open student submission windows. Question Paper can be attached now or uploaded prior to evaluation."
-                : "Set up an examination to immediately open student submission windows. Question Paper and Official Answer Key can be uploaded now or attached later prior to AI grading."}
+                ? "Set up an examination ledger. Question Paper can be attached now or uploaded prior to evaluation."
+                : "Set up an examination ledger. Question Paper and Official Answer Key can be uploaded now or attached later prior to AI grading."}
             </p>
           </div>
 
@@ -1146,12 +1146,12 @@ export default function NewExamPage() {
               ) : isSynthesizingRubric ? (
                 <>
                   <Cpu className="h-4 w-4 mr-2" />
-                  <span>Create Exam & Synthesize Rubric →</span>
+                  <span>Create Exam & Synthesize Rubric</span>
                 </>
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
-                  <span>Create Examination & Open for Submissions →</span>
+                  <span>Create Exam</span>
                 </>
               )}
             </ButtonPrimary>
