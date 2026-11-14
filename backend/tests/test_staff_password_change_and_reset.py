@@ -82,7 +82,7 @@ def test_staff_change_password_when_logged_in():
             )
         assert exc_same.value.status_code == 400
 
-        # 4. Successful password change
+        # 4. Successful initial password change
         new_pass = "BrandNewPass789!"
         res = change_password(
             ChangePasswordRequest(
@@ -94,7 +94,24 @@ def test_staff_change_password_when_logged_in():
         )
         assert res["status"] == "success"
 
-        # 5. Clean up
+        # Check has_changed_password is now 1
+        updated_user = session.scalar(select(User).where(User.id == test_user_id))
+        assert updated_user.has_changed_password == 1
+
+        # 5. Subsequent password change attempt via modal is strictly rejected (one-time only)
+        with pytest.raises(HTTPException) as exc_already_changed:
+            change_password(
+                ChangePasswordRequest(
+                    current_password=new_pass,
+                    new_password="YetAnotherPass999!",
+                ),
+                current_user=current_user_token_payload,
+                db=session,
+            )
+        assert exc_already_changed.value.status_code == 400
+        assert "Initial password has already been changed" in exc_already_changed.value.detail
+
+        # 6. Clean up
         session.execute(delete(User).where(User.id == test_user_id))
         session.commit()
 

@@ -21,6 +21,7 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    has_changed_password: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_login_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships

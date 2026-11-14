@@ -18,7 +18,7 @@ import {
   ChevronRight,
   KeyRound,
 } from "lucide-react";
-import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import { api, getAuthToken, getStoredUser, setStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
@@ -36,6 +36,7 @@ export function Navbar() {
     email: string;
     role: string;
     full_name: string;
+    has_changed_password?: number;
   } | null>(null);
   const [hasToken, setHasToken] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -270,16 +271,18 @@ export function Navbar() {
                 </span>
               </div>
 
-              {/* Change Password button */}
-              <button
-                type="button"
-                onClick={() => setChangePasswordOpen(true)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
-                title="Change Password"
-                aria-label="Change password"
-              >
-                <KeyRound className="h-4 w-4" />
-              </button>
+              {/* Change Password button (One-time initial password change only) */}
+              {currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
+                <button
+                  type="button"
+                  onClick={() => setChangePasswordOpen(true)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+                  title="One-Time Initial Password Change"
+                  aria-label="One-Time Initial Password Change"
+                >
+                  <KeyRound className="h-4 w-4" />
+                </button>
+              )}
 
               {/* Logout button */}
               <button
@@ -491,17 +494,19 @@ export function Navbar() {
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      setChangePasswordOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
-                  >
-                    <KeyRound className="h-4 w-4 text-ink-muted" />
-                    <span>Change Password</span>
-                  </button>
+                  {currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setChangePasswordOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                    >
+                      <KeyRound className="h-4 w-4 text-ink-muted" />
+                      <span>One-Time Password Setup</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -561,6 +566,15 @@ export function Navbar() {
       <ChangePasswordModal
         isOpen={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => {
+          setCurrentUser((prev: any) => (prev ? { ...prev, has_changed_password: 1 } : prev));
+          try {
+            const stored = getStoredUser();
+            if (stored) {
+              setStoredUser({ ...stored, has_changed_password: 1 });
+            }
+          } catch {}
+        }}
         userEmail={currentUser?.email}
       />
     </header>

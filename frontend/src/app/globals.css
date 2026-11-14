@@ -568,7 +568,7 @@ body {
     inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
     0 3px 8px -1px rgba(0, 110, 230, 0.36),
     0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .btn-glass-primary:active:not(:disabled) {
@@ -576,7 +576,7 @@ body {
   box-shadow:
     inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.32),
     0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 
 .dark .btn-glass-primary {
@@ -598,7 +598,7 @@ body {
     inset 0 0 0 1px rgba(255, 255, 255, 0.16),
     inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
     0 4px 14px -2px rgba(35, 131, 226, 0.35);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .dark .btn-glass-primary:active:not(:disabled) {
@@ -606,7 +606,7 @@ body {
   box-shadow:
     inset 0 2px 4px 0 rgba(0, 0, 0, 0.5),
     0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 
 .btn-glass-utility {
@@ -627,14 +627,14 @@ body {
   box-shadow:
     inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
     0 2px 5px -1px rgba(0, 0, 0, 0.08);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .btn-glass-utility:active:not(:disabled) {
   background: #ebe9e6;
   box-shadow:
     inset 0 1px 2px 0 rgba(0, 0, 0, 0.08);
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 
 .dark .btn-glass-utility {
@@ -655,14 +655,14 @@ body {
     inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.28),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06),
     0 2px 6px 0 rgba(0, 0, 0, 0.4);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .dark .btn-glass-utility:active:not(:disabled) {
   background: #1c1c1c;
   box-shadow:
     inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.45);
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 
 /* Amber Curved-Glass Action Button (e.g. AI Second Opinion) */
@@ -687,7 +687,7 @@ body {
     inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
     0 3px 8px -1px rgba(180, 83, 9, 0.42),
     0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .btn-glass-amber:active:not(:disabled) {
@@ -695,7 +695,7 @@ body {
   box-shadow:
     inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
     0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 
 .dark .btn-glass-amber {
@@ -712,7 +712,7 @@ body {
 
 .dark .btn-glass-amber:hover:not(:disabled) {
   background: linear-gradient(180deg, #c76008 0%, #9e4606 100%);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 /* Emerald Curved-Glass Action Button (e.g. Apply Proposal, Verify) */
@@ -737,7 +737,7 @@ body {
     inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
     0 3px 8px -1px rgba(4, 120, 87, 0.42),
     0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .btn-glass-emerald:active:not(:disabled) {
@@ -745,7 +745,7 @@ body {
   box-shadow:
     inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
     0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 
 .dark .btn-glass-emerald {
@@ -762,7 +762,7 @@ body {
 
 .dark .btn-glass-emerald:hover:not(:disabled) {
   background: linear-gradient(180deg, #059669 0%, #046e50 100%);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 /* Crimson/Danger Curved-Glass Utility Button (e.g. Delete, Wipe, Revoke) */
@@ -785,14 +785,14 @@ body {
     inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
     0 2px 6px -1px rgba(220, 38, 38, 0.18);
   color: #b91c1c;
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .btn-glass-danger-utility:active:not(:disabled) {
   background: #fecaca;
   box-shadow:
     inset 0 1px 2px 0 rgba(185, 28, 28, 0.15);
-  transform: translateY(0.5px) scale(0.98);
+  transform: translateY(1px) scale(0.98);
 }
 
 .dark .btn-glass-danger-utility {
@@ -814,14 +814,14 @@ body {
     inset 0 0 0 1px rgba(239, 68, 68, 0.12),
     0 2px 8px 0 rgba(220, 38, 38, 0.3);
   color: #fca5a5;
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .dark .btn-glass-danger-utility:active:not(:disabled) {
   background: #191213;
   box-shadow:
     inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.5);
-  transform: translateY(0.5px) scale(0.98);
+  transform: translateY(1px) scale(0.98);
 }
 
 /* Crimson Curved-Glass Solid Button (e.g. Confirm Delete Modal) */
@@ -846,7 +846,7 @@ body {
     inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
     0 3px 8px -1px rgba(220, 38, 38, 0.45),
     0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 .btn-glass-danger:active:not(:disabled) {
@@ -854,7 +854,7 @@ body {
   box-shadow:
     inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
     0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(0.5px) scale(0.98);
+  transform: translateY(1px) scale(0.98);
 }
 
 .dark .btn-glass-danger {
@@ -871,7 +871,7 @@ body {
 
 .dark .btn-glass-danger:hover:not(:disabled) {
   background: linear-gradient(180deg, #ef4444 0%, #c81e1e 100%);
-  transform: translateY(-0.5px);
+  transform: translateY(-1px);
 }
 
 /* ==========================================================================
@@ -1261,11 +1261,30 @@ input[type="number"] {
   .btn-glass-amber,
   .btn-glass-emerald,
   .btn-glass-danger-utility,
-  .btn-glass-danger {
+  .btn-glass-danger,
+  .btn-glass-primary:hover,
+  .btn-glass-utility:hover,
+  .btn-glass-amber:hover,
+  .btn-glass-emerald:hover,
+  .btn-glass-danger-utility:hover,
+  .btn-glass-danger:hover,
+  .btn-glass-primary:active,
+  .btn-glass-utility:active,
+  .btn-glass-amber:active,
+  .btn-glass-emerald:active,
+  .btn-glass-danger-utility:active,
+  .btn-glass-danger:active,
+  .btn-glass-primary:focus,
+  .btn-glass-utility:focus,
+  .btn-glass-amber:focus,
+  .btn-glass-emerald:focus,
+  .btn-glass-danger-utility:focus,
+  .btn-glass-danger:focus {
     background-image: none !important;
     box-shadow: none !important;
     text-shadow: none !important;
     transform: none !important;
+    transition: none !important;
   }
 
   .btn-glass-primary { background-color: #0d7ae8 !important; }

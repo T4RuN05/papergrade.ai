@@ -215,6 +215,7 @@ async def login(
         "full_name": user.full_name,
         "institute_id": user.institute_id,
         "branch_id": user.branch_id,
+        "has_changed_password": getattr(user, "has_changed_password", 0),
     }
     user_response = {
         "id": user.id,
@@ -223,6 +224,7 @@ async def login(
         "full_name": user.full_name,
         "institute_id": user.institute_id,
         "branch_id": user.branch_id,
+        "has_changed_password": getattr(user, "has_changed_password", 0),
     }
 
     if student_info:
@@ -256,6 +258,7 @@ def get_profile(
         "full_name": user.full_name,
         "institute_id": user.institute_id,
         "branch_id": user.branch_id,
+        "has_changed_password": getattr(user, "has_changed_password", 0),
         "created_at": user.created_at,
         "last_login_at": user.last_login_at,
     }
@@ -437,6 +440,12 @@ def change_password(
     if not user:
         raise HTTPException(status_code=404, detail="User account not found.")
 
+    if getattr(user, "has_changed_password", 0) == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Initial password has already been changed. Any further password resets must be requested via 'Forgot password' on the login screen and authorized by Root Admin."
+        )
+
     if not verify_password(req.current_password, user.password_hash):
         raise HTTPException(
             status_code=400,
@@ -457,6 +466,7 @@ def change_password(
 
     now = get_iso_now()
     user.password_hash = hash_password(req.new_password)
+    user.has_changed_password = 1
     user.updated_at = now
 
     send_notification(
@@ -959,6 +969,8 @@ def complete_password_reset(req: ResetPasswordSubmission, db: Session = Depends(
     user = db.scalar(select(User).where(User.id == pr.user_id))
     if user:
         user.password_hash = new_hash
+        user.has_changed_password = 1
+        user.updated_at = now
 
     # Mark request COMPLETED and clear reset token
     pr.status = "COMPLETED"

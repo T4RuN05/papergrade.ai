@@ -9,10 +9,11 @@ import { useToast } from "@/lib/ToastContext";
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   userEmail?: string;
 }
 
-export function ChangePasswordModal({ isOpen, onClose, userEmail }: ChangePasswordModalProps) {
+export function ChangePasswordModal({ isOpen, onClose, onSuccess, userEmail }: ChangePasswordModalProps) {
   const { toast } = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -68,6 +69,7 @@ export function ChangePasswordModal({ isOpen, onClose, userEmail }: ChangePasswo
 
       setSuccess(true);
       toast.success("Password changed successfully!", { title: "Updated" });
+      onSuccess?.();
       setTimeout(() => {
         handleClose();
       }, 1400);
@@ -95,7 +97,7 @@ export function ChangePasswordModal({ isOpen, onClose, userEmail }: ChangePasswo
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-ink">Password Updated Successfully</h3>
             <p className="text-xs text-ink-muted">
-              Your new password is now active. Please use it next time you sign in.
+              Your initial password has been successfully set. The one-time setup is now complete.
             </p>
           </div>
         </div>
@@ -111,10 +113,10 @@ export function ChangePasswordModal({ isOpen, onClose, userEmail }: ChangePasswo
           <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-secondary space-y-1">
             <div className="font-semibold text-ink flex items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              <span>Password Security</span>
+              <span>One-Time Initial Password Setup</span>
             </div>
             <p className="text-[11px] text-ink-muted leading-relaxed">
-              Enter your current password to set a new password. You can update your credentials initially after onboarding or anytime in the future.
+              Enter your initial credentials to set your personal password. This direct password change is one-time only. Any subsequent password resets must be requested via &quot;Forgot password&quot; on the login screen and authorized in real time by Root Admin.
             </p>
           </div>
 

@@ -18,7 +18,7 @@ import {
   LifeBuoy,
   KeyRound,
 } from "lucide-react";
-import { api, getAuthToken } from "@/lib/api";
+import { api, getAuthToken, getStoredUser, setStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
@@ -112,6 +112,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
     isBranchManager,
     setInstituteId,
     setBranchId,
+    refreshTenancy,
     logout,
   } = useTenant();
 
@@ -374,14 +375,14 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             </div>
           )}
 
-          {/* Change Password Button */}
-          {mounted && currentUser && (
+          {/* Change Password Button (One-time initial password change only) */}
+          {mounted && currentUser && currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
             <button
               type="button"
               onClick={() => setChangePasswordOpen(true)}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
-              title="Change Password"
-              aria-label="Change password"
+              title="One-Time Initial Password Change"
+              aria-label="One-Time Initial Password Change"
             >
               <KeyRound className="h-4 w-4" />
             </button>
@@ -406,6 +407,15 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
       <ChangePasswordModal
         isOpen={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => {
+          try {
+            const updated = currentUser ? { ...currentUser, has_changed_password: 1 } : null;
+            if (updated) {
+              setStoredUser(updated);
+              refreshTenancy(updated);
+            }
+          } catch {}
+        }}
         userEmail={currentUser?.email}
       />
 

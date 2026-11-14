@@ -270,7 +270,7 @@ export const api = {
     return resData;
   },
 
-  async getMe(): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string }> {
+  async getMe(): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string; has_changed_password?: number }> {
     return fetchWithCache("auth:me", async () => {
       try {
         const res = await fetch(`${API_BASE}/api/v1/auth/me`, {

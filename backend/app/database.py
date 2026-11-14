@@ -303,6 +303,7 @@ def init_db():
             password_hash {text_type} NOT NULL,
             full_name {text_type} NOT NULL,
             is_active {int_type} NOT NULL DEFAULT 1,
+            has_changed_password {int_type} NOT NULL DEFAULT 0,
             last_login_at {text_type},
             created_at {text_type} NOT NULL
         );
@@ -839,6 +840,11 @@ def init_db():
             if "api_key_masked" not in api_cols:
                 cursor.execute("ALTER TABLE api_usage_events ADD COLUMN api_key_masked TEXT")
 
+            cursor.execute("PRAGMA table_info(users)")
+            usr_cols = [row[1] for row in cursor.fetchall()]
+            if "has_changed_password" not in usr_cols:
+                cursor.execute("ALTER TABLE users ADD COLUMN has_changed_password INTEGER NOT NULL DEFAULT 0")
+
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS subjects (
                 id TEXT PRIMARY KEY,
@@ -867,6 +873,7 @@ def init_db():
                 cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS is_deleted INTEGER DEFAULT 0;")
                 cursor.execute("ALTER TABLE institutes ADD COLUMN IF NOT EXISTS deleted_at TEXT;")
                 cursor.execute("ALTER TABLE branches ADD COLUMN IF NOT EXISTS subjects TEXT;")
+                cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_changed_password INTEGER NOT NULL DEFAULT 0;")
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS exam_batches (
                     id TEXT PRIMARY KEY,
