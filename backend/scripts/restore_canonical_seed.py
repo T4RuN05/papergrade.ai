@@ -293,6 +293,19 @@ def restore_canonical_seed():
         )
         session.commit()
 
+        # Ensure test exams have normalized batch scoping and ExamBatch relations
+        from backend.app.db.models.academic import ExamBatch
+        import json
+        test_exams = session.scalars(select(Exam).where(Exam.institute_id == test_inst.id)).all()
+        for ex in test_exams:
+            if ex.batch_scope == "SELECTED" or (ex.batch_ids and ex.batch_ids.startswith("{")):
+                ex.batch_scope = "SPECIFIC"
+                ex.batch_ids = json.dumps([test_batch.id])
+                eb_exists = session.scalar(select(ExamBatch).where(ExamBatch.exam_id == ex.id, ExamBatch.batch_id == test_batch.id))
+                if not eb_exists:
+                    session.add(ExamBatch(id=f"eb_{uuid.uuid4().hex[:12]}", exam_id=ex.id, batch_id=test_batch.id, created_at=now))
+        session.commit()
+
         print("4. Final Verification:")
         inst_count = len(session.scalars(select(Institute)).all())
         branch_count = len(session.scalars(select(Branch)).all())

@@ -13,7 +13,7 @@ import json
 import asyncio
 import threading
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_, func
@@ -104,6 +104,23 @@ def _compute_window_status(window_row: Optional[Dict[str, Any]]) -> Dict[str, An
         "should_display": should_display
     }
 
+def _parse_allowed_batch_ids(raw_bids: Optional[str]) -> Set[str]:
+    """Robustly parse batch IDs from JSON list, Python set str, or comma-separated string."""
+    if not raw_bids:
+        return set()
+    s = str(raw_bids).strip()
+    if not s:
+        return set()
+    try:
+        parsed = json.loads(s)
+        if isinstance(parsed, list):
+            return set(str(b).strip().strip("'\"") for b in parsed if str(b).strip())
+    except Exception:
+        pass
+    cleaned = s.strip("{}[]()").replace("'", "").replace('"', "")
+    return set(b.strip() for b in cleaned.split(",") if b.strip())
+
+
 def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
     now_ts = time.time()
     
@@ -184,23 +201,15 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         ]
 
         # Filter exams by batch scoping:
-        # If batch_scope == 'ALL': visible to all in branch
-        # If batch_scope in ('SPECIFIC', 'BATCHES'): visible only if student's batch_id is in allowed batches
+        # If batch_scope in ('ALL', ''): visible to all in branch
+        # If batch_scope in ('SPECIFIC', 'BATCHES', 'SELECTED'): visible only if student's batch_id is in allowed batches
         exam_rows = []
         for ex in raw_exam_rows:
-            scope = ex.get("batch_scope") or "ALL"
-            if scope == "ALL":
+            scope = (ex.get("batch_scope") or "ALL").upper()
+            if scope in ("ALL", ""):
                 exam_rows.append(ex)
             else:
-                allowed_bids = set()
-                raw_bids = ex.get("batch_ids")
-                if raw_bids:
-                    try:
-                        parsed = json.loads(raw_bids)
-                        if isinstance(parsed, list):
-                            allowed_bids = set(str(b).strip() for b in parsed if str(b).strip())
-                    except Exception:
-                        allowed_bids = set(b.strip() for b in raw_bids.split(",") if b.strip())
+                allowed_bids = _parse_allowed_batch_ids(ex.get("batch_ids"))
                 if not allowed_bids:
                     ex_batches = session.scalars(
                         select(ExamBatch.batch_id).where(ExamBatch.exam_id == ex["id"])
@@ -503,16 +512,41 @@ def _fetch_past_submissions_sync(
         roll_number = student_row.roll_number if student_row else None
         batch_id = student_row.batch_id if student_row else getattr(user_row, "batch_id", None)
 
-        # 1. Fetch exams assigned to the student's batch
+        branch_id = user_row.branch_id
+        if not branch_id and batch_id:
+            b_row = session.scalar(select(Batch).where(Batch.id == batch_id))
+            if b_row:
+                branch_id = b_row.branch_id
+
+        # 1. Fetch exams assigned to the student's batch or scoped to ALL for their branch/institute
         exam_rows: List[Dict[str, Any]] = []
-        if batch_id:
-            exams = session.scalars(
-                select(Exam)
-                .join(ExamBatch, ExamBatch.exam_id == Exam.id)
-                .where(ExamBatch.batch_id == batch_id)
-                .order_by(Exam.created_at.desc())
-            ).all()
-            for ex in exams:
+        exam_stmt = select(Exam)
+        user_inst = user_row.institute_id
+        if user_inst:
+            exam_stmt = exam_stmt.where(Exam.institute_id == user_inst)
+        if branch_id:
+            exam_stmt = exam_stmt.where(Exam.branch_id == branch_id)
+        else:
+            exam_stmt = exam_stmt.where(Exam.branch_id.is_(None))
+        exam_stmt = exam_stmt.order_by(Exam.created_at.desc())
+
+        raw_exams = session.scalars(exam_stmt).all()
+        for ex in raw_exams:
+            scope = (ex.batch_scope or "ALL").upper()
+            is_visible = False
+            if scope in ("ALL", ""):
+                is_visible = True
+            else:
+                allowed_bids = _parse_allowed_batch_ids(ex.batch_ids)
+                if not allowed_bids:
+                    ex_batches = session.scalars(
+                        select(ExamBatch.batch_id).where(ExamBatch.exam_id == ex.id)
+                    ).all()
+                    allowed_bids = set(b_id for b_id in ex_batches if b_id)
+                if batch_id and str(batch_id) in allowed_bids:
+                    is_visible = True
+
+            if is_visible:
                 exam_rows.append({
                     "id": ex.id,
                     "title": ex.title,
