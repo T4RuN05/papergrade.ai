@@ -306,6 +306,28 @@ def restore_canonical_seed():
                     session.add(ExamBatch(id=f"eb_{uuid.uuid4().hex[:12]}", exam_id=ex.id, batch_id=test_batch.id, created_at=now))
         session.commit()
 
+        # Ensure test submissions match the test students' rolls and IDs
+        test_students = session.scalars(select(Student).where(Student.batch_id == test_batch.id)).all()
+        student_by_suffix = {}
+        for s in test_students:
+            try:
+                suffix = int(s.roll_number.split("-")[-1])
+                student_by_suffix[suffix] = s
+            except Exception:
+                pass
+        test_subs = session.scalars(select(Submission).where(Submission.batch_id == test_batch.id)).all()
+        for sub in test_subs:
+            try:
+                suffix = int(sub.roll_number.split("-")[-1])
+                if suffix in student_by_suffix:
+                    st = student_by_suffix[suffix]
+                    sub.roll_number = st.roll_number
+                    sub.student_id = st.id
+                    sub.student_name = st.full_name
+            except Exception:
+                pass
+        session.commit()
+
         print("4. Final Verification:")
         inst_count = len(session.scalars(select(Institute)).all())
         branch_count = len(session.scalars(select(Branch)).all())
