@@ -18,6 +18,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { PdfPageView } from "@/components/PdfPageView";
 
 export interface ArtifactViewerModalProps {
   isOpen: boolean;
@@ -840,11 +841,27 @@ export function ArtifactViewerModal({
                             transition: isSwiping ? "none" : "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)",
                           }}
                         >
-                          <img
-                            src={api.getExamArtifactPageUrl(examId, activeArtifact, p)}
-                            alt={`${activeArtifact} page ${p}`}
-                            className="w-full h-full object-contain pointer-events-none select-none block"
-                            loading={isNearby ? "eager" : "lazy"}
+                          <PdfPageView
+                            pdfUrl={api.getExamArtifactPdfUrl(examId, activeArtifact)}
+                            cacheKey={`exam_${examId}_${activeArtifact}`}
+                            pageNumber={p}
+                            targetWidth={1400}
+                            className="w-full h-full object-contain"
+                            onPageLoaded={(_pageNum, total) => {
+                              if (total > 0 && total !== totalPages) {
+                                setTotalPages(total);
+                              }
+                            }}
+                            onRenderSuccess={() => {
+                              if (p === page) {
+                                setPageImgLoading(false);
+                              }
+                            }}
+                            onError={() => {
+                              if (p === page) {
+                                setPageImgLoading(false);
+                              }
+                            }}
                           />
                         </div>
                       </div>

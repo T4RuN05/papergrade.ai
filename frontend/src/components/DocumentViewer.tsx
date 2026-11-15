@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { GradedAnswer, AnswerRegion } from "@/lib/types";
 import { api } from "@/lib/api";
+import { PdfPageView } from "@/components/PdfPageView";
 
 // Display widths the backend can serve as pre-encoded JPEG variants of the 150 DPI page master.
 const PAGE_IMAGE_SRCSET_WIDTHS = [480, 720, 1200, 1800];
@@ -63,9 +64,10 @@ interface DocumentViewerProps {
   hideScoreStamp?: boolean;
   isDocumentPurged?: boolean;
   initialShowAnnotations?: boolean;
+  pdfUrl?: string;
 }
 
-// Page images are server-rendered; nothing PDF-specific is loaded in the browser.
+// Pattern B: Vector PDF rendered client-side onto HTML5 Canvas; 0 server memory used.
 export function DocumentViewer({
   submissionId,
   pageCount,
@@ -85,6 +87,7 @@ export function DocumentViewer({
   hideScoreStamp = false,
   isDocumentPurged = false,
   initialShowAnnotations = true,
+  pdfUrl,
 }: DocumentViewerProps) {
   const [internalPage, setInternalPage] = useState<number>(1);
   const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
@@ -1330,22 +1333,17 @@ export function DocumentViewer({
                       </div>
                     )}
 
-                    <img
-                      src={api.getPageImageUrl(submissionId, p, 1200, imageRetryNonce || undefined)}
-                      srcSet={PAGE_IMAGE_SRCSET_WIDTHS.map(
-                        (width) =>
-                          `${api.getPageImageUrl(submissionId, p, width, imageRetryNonce || undefined)} ${width}w`
-                      ).join(", ")}
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 65vw, 820px"
-                      alt={`Student Page ${p}`}
-                      className="w-full h-full block rounded-sm select-none pointer-events-none"
-                      loading="eager"
-                      decoding="async"
-                      onLoad={(e) => {
-                        const img = e.currentTarget;
-                        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                          setPageAspect(img.naturalWidth / img.naturalHeight);
+                    <PdfPageView
+                      pdfUrl={pdfUrl || api.getSubmissionPdfUrl(submissionId)}
+                      cacheKey={`submission_${submissionId}`}
+                      pageNumber={p}
+                      targetWidth={1400}
+                      onAspectCalculated={(aspect) => {
+                        if (aspect > 0) {
+                          setPageAspect(aspect);
                         }
+                      }}
+                      onRenderSuccess={() => {
                         loadedPagesRef.current.add(`${submissionId}_p_${p}`);
                         if (p === currentPage) {
                           setIsPageImageLoading(false);

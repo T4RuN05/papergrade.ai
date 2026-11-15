@@ -1167,8 +1167,8 @@ async def get_exam_artifact_meta(
     page_count = len(doc)
     doc.close()
 
-    if not page_1.exists():
-        pdf_service.render_pdf_pages_to_images(pdf_path, render_key)
+    # In Pattern B, the frontend renders pages client-side directly from the PDF.
+    # Eager server-side rasterization is bypassed to preserve server RAM.
 
     return {
         "exam_id": exam_id,
