@@ -424,14 +424,50 @@ class CloudinaryStorageService(StorageService):
     def generate_presigned_upload_url(
         self, key: str, content_type: str = "application/pdf", expires_in: int = 300
     ) -> Dict[str, Any]:
-        endpoint = f"/api/v1/storage/upload?key={key}"
+        import cloudinary.utils
+        clean_key = self._clean_public_id(key)
+        res_type = self._resource_type(clean_key, content_type)
+        pub_id = self._cloudinary_public_id(clean_key, res_type)
+
+        cfg = settings.parsed_cloudinary_config
+        c_name = cfg.get("cloud_name") or settings.CLOUDINARY_CLOUD_NAME
+        api_key = cfg.get("api_key") or settings.CLOUDINARY_API_KEY
+        api_secret = cfg.get("api_secret") or settings.CLOUDINARY_API_SECRET
+
+        if not (c_name and api_key and api_secret):
+            # Fallback to backend proxy route if Cloudinary credentials are missing
+            endpoint = f"/api/v1/storage/upload?key={key}"
+            return {
+                "url": endpoint,
+                "method": "PUT",
+                "key": key,
+                "headers": {"Content-Type": content_type},
+                "expires_in": expires_in,
+                "is_direct_cloud": False,
+            }
+
+        ts = int(time.time())
+        params_to_sign = {
+            "public_id": pub_id,
+            "timestamp": ts,
+        }
+        signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
+        direct_url = f"https://api.cloudinary.com/v1_1/{c_name}/{res_type}/upload"
+
         return {
-            "url": endpoint,
-            "method": "PUT",
-            "key": key,
-            "headers": {"Content-Type": content_type},
+            "url": direct_url,
+            "method": "POST",
+            "key": clean_key,
+            "public_id": pub_id,
+            "fields": {
+                "api_key": api_key,
+                "timestamp": str(ts),
+                "public_id": pub_id,
+                "signature": signature,
+            },
+            "headers": {},
             "expires_in": expires_in,
-            "is_direct_cloud": False,
+            "is_direct_cloud": True,
         }
 
     def generate_presigned_download_url(

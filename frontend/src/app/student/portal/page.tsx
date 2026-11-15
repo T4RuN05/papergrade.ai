@@ -1774,19 +1774,97 @@ export default function StudentPortalPage() {
           scannedPages.map((p) => p.file),
           {
             outputFilename: `answersheet_${roll.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
-            maxPageDimension: 1600,
-            jpegQuality: 0.82,
+            maxPageDimension: 1920,
+            jpegQuality: 0.80,
             onProgress: (p) => setAssemblyProgress(p),
           }
         );
       }
 
-      const formData = new FormData();
-      formData.append("file", finalPdfFile);
-      formData.append("roll_number", roll);
-      formData.append("student_name", studentName);
+      // Direct-to-Storage Cloud Upload (bypasses Render server memory)
+      setAssemblyProgress({
+        currentPage: scannedPages.length,
+        totalPages: scannedPages.length,
+        percent: 92,
+        stage: "finalizing",
+        statusMessage: "Securing upload authorization...",
+      });
 
-      const result = await api.uploadSingleMultipart(activeExam.id, formData);
+      let result: any = null;
+      try {
+        const ticket = await api.requestPresignedUpload(activeExam.id, {
+          roll_number: roll,
+          student_name: studentName,
+          student_id: user?.student_id || user?.student?.student_id || user?.id,
+          batch_id: user?.batch_id || user?.student?.batch_id,
+        });
+
+        setAssemblyProgress({
+          currentPage: scannedPages.length,
+          totalPages: scannedPages.length,
+          percent: 95,
+          stage: "finalizing",
+          statusMessage: "Uploading answer sheet directly to storage...",
+        });
+
+        if (ticket.is_direct_cloud && ticket.fields) {
+          // Direct signed multipart upload to Cloudinary
+          const cloudFormData = new FormData();
+          Object.entries(ticket.fields).forEach(([k, v]) => {
+            cloudFormData.append(k, String(v));
+          });
+          cloudFormData.append("file", finalPdfFile);
+
+          const cloudRes = await fetch(ticket.upload_url, {
+            method: "POST",
+            body: cloudFormData,
+          });
+
+          if (!cloudRes.ok) {
+            const cloudErr = await cloudRes.text().catch(() => "Cloud storage rejected upload");
+            throw new Error(`Direct cloud upload failed: ${cloudErr}`);
+          }
+        } else {
+          // Fallback PUT to pre-signed URL
+          const putRes = await fetch(ticket.upload_url, {
+            method: ticket.method || "PUT",
+            headers: ticket.headers || { "Content-Type": "application/pdf" },
+            body: finalPdfFile,
+          });
+          if (!putRes.ok) {
+            throw new Error("Direct storage PUT upload failed.");
+          }
+        }
+
+        // Lightweight confirmation payload to backend
+        setAssemblyProgress({
+          currentPage: scannedPages.length,
+          totalPages: scannedPages.length,
+          percent: 99,
+          stage: "finalizing",
+          statusMessage: "Registering submission...",
+        });
+
+        result = await api.confirmPresignedUpload(activeExam.id, {
+          roll_number: roll,
+          student_name: studentName,
+          student_id: user?.student_id || user?.student?.student_id || user?.id,
+          batch_id: user?.batch_id || user?.student?.batch_id,
+          storage_key: ticket.destination_key,
+          upload_session_id: ticket.upload_session_id,
+        });
+      } catch (directErr: any) {
+        console.warn("Direct cloud upload failed or unsupported, falling back to server multipart:", directErr);
+        // Fallback: standard multipart to backend
+        const formData = new FormData();
+        formData.append("file", finalPdfFile);
+        formData.append("roll_number", roll);
+        formData.append("student_name", studentName);
+        if (user?.batch_id || user?.student?.batch_id) {
+          formData.append("batch_id", user?.batch_id || user?.student?.batch_id || "");
+        }
+        result = await api.uploadSingleMultipart(activeExam.id, formData);
+      }
       const successMsg = result.is_replacement
         ? "Answer sheet replaced successfully!"
         : "Answer sheet uploaded successfully!";

@@ -732,6 +732,19 @@ export const api = {
     return res.json();
   },
 
+  async extendWindow(examId: string, additionalMinutes: number = 15, reason?: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/extend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ additional_minutes: additionalMinutes, reason: reason || "Extended by teacher" }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to extend window" }));
+      throw new Error(err.detail || "Failed to extend window");
+    }
+    return res.json();
+  },
+
   async closeWindow(examId: string, reason?: string): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/close`, {
       method: "POST",
@@ -800,8 +813,78 @@ export const api = {
   },
 
   // -------------------------------------------------------------
-  // Submissions & Uploads (Single PDF, Atomic Replacement)
+  // Submissions & Uploads (Direct Cloud Storage & Multi-tenant)
   // -------------------------------------------------------------
+  async requestPresignedUpload(
+    examId: string,
+    body: {
+      roll_number: string;
+      student_name?: string;
+      student_id?: string;
+      batch_id?: string;
+    }
+  ): Promise<{
+    status: string;
+    upload_session_id: string;
+    destination_key: string;
+    upload_url: string;
+    method: string;
+    fields?: Record<string, string>;
+    headers?: Record<string, string>;
+    is_direct_cloud: boolean;
+  }> {
+    const res = await fetch(`${API_BASE}/api/v1/submissions/${examId}/request-upload`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to request upload authorization" }));
+      throw new Error(err.detail || "Failed to request upload authorization");
+    }
+    return res.json();
+  },
+
+  async confirmPresignedUpload(
+    examId: string,
+    body: {
+      roll_number: string;
+      student_name?: string;
+      student_id?: string;
+      batch_id?: string;
+      storage_key: string;
+      upload_session_id?: string;
+      sha256_hash?: string;
+    }
+  ): Promise<{
+    status: string;
+    submission_id: string;
+    student_name: string;
+    roll_number: string;
+    page_count: number;
+    file_size_bytes: number;
+    is_replacement: boolean;
+    submitted_at: string;
+    student_status: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/v1/submissions/${examId}/confirm-upload`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to confirm upload" }));
+      throw new Error(err.detail || "Failed to confirm upload");
+    }
+    return res.json();
+  },
+
   async uploadSingleMultipart(examId: string, formData: FormData): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/submissions/${examId}/upload-single`, {
       method: "POST",
