@@ -85,6 +85,13 @@ def restore_canonical_seed():
             c25_branch.last_roll_sequence = 41
             session.commit()
 
+        # Ensure Branch Manager Akshata is assigned to CATCH 25 Borivali
+        akshata = session.scalar(select(User).where(User.email == "billavaakshata@gmail.com"))
+        if akshata:
+            akshata.institute_id = c25.id
+            akshata.branch_id = c25_branch.id
+            session.commit()
+
         # Batches for CATCH 25
         b1 = session.scalar(select(Batch).where(Batch.branch_id == c25_branch.id, Batch.name == "12th CET-1"))
         if not b1:
