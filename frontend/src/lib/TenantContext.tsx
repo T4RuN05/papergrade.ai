@@ -259,13 +259,16 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         if (norm.role === "BRANCH_MANAGER" || norm.role === "INSTITUTE_DIRECTOR") {
           const savedBranchId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_BRANCH_KEY) : null;
           const branchId = norm.branch_id || savedBranchId;
-          if (branchId && !selectedBranch) {
-            setSelectedBranch({
-              id: branchId,
-              institute_id: norm.institute_id || "",
-              name: "Branch",
-              code: "BRANCH",
-              city: "",
+          if (branchId) {
+            setSelectedBranch((prev) => {
+              if (prev) return prev;
+              return {
+                id: branchId,
+                institute_id: norm.institute_id || "",
+                name: "Branch",
+                code: "BRANCH",
+                city: "",
+              };
             });
           }
         }

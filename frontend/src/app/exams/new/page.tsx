@@ -100,8 +100,8 @@ export default function NewExamPage() {
         if (isMounted) {
           const list = Array.isArray(subs) && subs.length > 0 ? subs : ["Physics", "Chemistry", "Maths", "Biology"];
           setAvailableSubjects(list);
-          if (!subject && list.length > 0) {
-            setSubject(list[0]);
+          if (list.length > 0) {
+            setSubject((prev) => prev || list[0]);
           }
         }
       } catch (e) {
@@ -109,7 +109,7 @@ export default function NewExamPage() {
         if (isMounted) {
           const fallback = ["Physics", "Chemistry", "Maths", "Biology"];
           setAvailableSubjects(fallback);
-          if (!subject) setSubject(fallback[0]);
+          setSubject((prev) => prev || fallback[0]);
         }
       } finally {
         if (isMounted) setLoadingSubjects(false);

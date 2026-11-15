@@ -103,7 +103,7 @@ def test_institute_director_branch_and_batch_scoping(tenancy_fixture):
 
         # 2. Director creates a batch in Branch A1 -> Success
         batch1 = create_batch(
-            CreateBatchRequest(branch_id=br_a1, name="Apex NEET 2026 Batch 1", code="APX-N1"),
+            CreateBatchRequest(branch_id=br_a1, name="Apex NEET 2026 Batch 1"),
             current_user=director_user,
             db=session
         )
@@ -112,7 +112,7 @@ def test_institute_director_branch_and_batch_scoping(tenancy_fixture):
 
         # 3. Director switches and creates a batch in Branch A2 -> Success
         batch2 = create_batch(
-            CreateBatchRequest(branch_id=br_a2, name="Apex JEE 2026 Batch 2", code="APX-J2"),
+            CreateBatchRequest(branch_id=br_a2, name="Apex JEE 2026 Batch 2"),
             current_user=director_user,
             db=session
         )
@@ -122,7 +122,7 @@ def test_institute_director_branch_and_batch_scoping(tenancy_fixture):
         # 4. Director attempts to create a batch in Branch B1 (belonging to Institute B) -> 403 Forbidden!
         with pytest.raises(HTTPException) as exc_info:
             create_batch(
-                CreateBatchRequest(branch_id=br_b1, name="Malicious Batch", code="HACK"),
+                CreateBatchRequest(branch_id=br_b1, name="Malicious Batch"),
                 current_user=director_user,
                 db=session
             )

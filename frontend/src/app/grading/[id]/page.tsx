@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -78,11 +78,7 @@ export default function GradingPage() {
     [submission]
   );
 
-  useEffect(() => {
-    loadSubmission();
-  }, [submissionId]);
-
-  const loadSubmission = async () => {
+  const loadSubmission = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -94,7 +90,11 @@ export default function GradingPage() {
       setLoadError(e.message || "Failed to load submission");
       setLoading(false);
     }
-  };
+  }, [submissionId]);
+
+  useEffect(() => {
+    loadSubmission();
+  }, [loadSubmission]);
 
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = true) => {
     const current = submission?.answers?.find((a) => a.id === ans.id) || ans;

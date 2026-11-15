@@ -45,75 +45,76 @@ def test_staff_change_password_when_logged_in():
         "email": test_email,
     }
 
-    with get_session() as session:
-        # 1. Wrong current password -> 400
-        with pytest.raises(HTTPException) as exc_wrong:
-            change_password(
-                ChangePasswordRequest(
-                    current_password="WrongPassword123!",
-                    new_password="BrandNewPass456!",
-                ),
-                current_user=current_user_token_payload,
-                db=session,
-            )
-        assert exc_wrong.value.status_code == 400
+    try:
+        with get_session() as session:
+            # 1. Wrong current password -> 400
+            with pytest.raises(HTTPException) as exc_wrong:
+                change_password(
+                    ChangePasswordRequest(
+                        current_password="WrongPassword123!",
+                        new_password="BrandNewPass456!",
+                    ),
+                    current_user=current_user_token_payload,
+                    db=session,
+                )
+            assert exc_wrong.value.status_code == 400
 
-        # 2. New password too short -> 400
-        with pytest.raises(HTTPException) as exc_short:
-            change_password(
+            # 2. New password too short -> 400
+            with pytest.raises(HTTPException) as exc_short:
+                change_password(
+                    ChangePasswordRequest(
+                        current_password=initial_pass,
+                        new_password="short",
+                    ),
+                    current_user=current_user_token_payload,
+                    db=session,
+                )
+            assert exc_short.value.status_code == 400
+
+            # 3. New password identical to current password -> 400
+            with pytest.raises(HTTPException) as exc_same:
+                change_password(
+                    ChangePasswordRequest(
+                        current_password=initial_pass,
+                        new_password=initial_pass,
+                    ),
+                    current_user=current_user_token_payload,
+                    db=session,
+                )
+            assert exc_same.value.status_code == 400
+
+            # 4. Successful initial password change
+            new_pass = "BrandNewPass789!"
+            res = change_password(
                 ChangePasswordRequest(
                     current_password=initial_pass,
-                    new_password="short",
+                    new_password=new_pass,
                 ),
                 current_user=current_user_token_payload,
                 db=session,
             )
-        assert exc_short.value.status_code == 400
+            assert res["status"] == "success"
 
-        # 3. New password identical to current password -> 400
-        with pytest.raises(HTTPException) as exc_same:
-            change_password(
-                ChangePasswordRequest(
-                    current_password=initial_pass,
-                    new_password=initial_pass,
-                ),
-                current_user=current_user_token_payload,
-                db=session,
-            )
-        assert exc_same.value.status_code == 400
+            # Check has_changed_password is now 1
+            updated_user = session.scalar(select(User).where(User.id == test_user_id))
+            assert updated_user.has_changed_password == 1
 
-        # 4. Successful initial password change
-        new_pass = "BrandNewPass789!"
-        res = change_password(
-            ChangePasswordRequest(
-                current_password=initial_pass,
-                new_password=new_pass,
-            ),
-            current_user=current_user_token_payload,
-            db=session,
-        )
-        assert res["status"] == "success"
-
-        # Check has_changed_password is now 1
-        updated_user = session.scalar(select(User).where(User.id == test_user_id))
-        assert updated_user.has_changed_password == 1
-
-        # 5. Subsequent password change attempt via modal is strictly rejected (one-time only)
-        with pytest.raises(HTTPException) as exc_already_changed:
-            change_password(
-                ChangePasswordRequest(
-                    current_password=new_pass,
-                    new_password="YetAnotherPass999!",
-                ),
-                current_user=current_user_token_payload,
-                db=session,
-            )
-        assert exc_already_changed.value.status_code == 400
-        assert "Initial password has already been changed" in exc_already_changed.value.detail
-
-        # 6. Clean up
-        session.execute(delete(User).where(User.id == test_user_id))
-        session.commit()
+            # 5. Subsequent password change attempt via modal is strictly rejected (one-time only)
+            with pytest.raises(HTTPException) as exc_already_changed:
+                change_password(
+                    ChangePasswordRequest(
+                        current_password=new_pass,
+                        new_password="YetAnotherPass999!",
+                    ),
+                    current_user=current_user_token_payload,
+                    db=session,
+                )
+            assert exc_already_changed.value.status_code == 400
+            assert "Initial password has already been changed" in exc_already_changed.value.detail
+    finally:
+        with get_session() as session:
+            session.execute(delete(User).where(User.id == test_user_id))
+            session.commit()
 
 
 def test_staff_forgot_password_root_admin_approval_lifecycle():
@@ -153,73 +154,76 @@ def test_staff_forgot_password_root_admin_approval_lifecycle():
         session.add(user)
         session.commit()
 
-    with get_session() as session:
-        # 1. Staff requests password reset using their email
-        req_res = request_password_reset(
-            ForgotPasswordRequest(identifier=test_email),
-            db=session,
-        )
-        assert req_res["status"] == "success"
-        assert req_res["is_staff"] is True
-        assert req_res["request_status"] == "PENDING"
-        request_id = req_res["request_id"]
-        session_secret = req_res["session_secret"]
-
-        # 2. Branch Manager attempts to approve staff reset -> MUST BE 403 FORBIDDEN
-        bm_caller = {"sub": "usr_fake_bm", "role": "BRANCH_MANAGER", "branch_id": "br_1"}
-        with pytest.raises(HTTPException) as exc_bm:
-            approve_password_reset(
-                request_id=request_id,
-                current_user=bm_caller,
+    request_id = None
+    try:
+        with get_session() as session:
+            # 1. Staff requests password reset using their email
+            req_res = request_password_reset(
+                ForgotPasswordRequest(identifier=test_email),
                 db=session,
             )
-        assert exc_bm.value.status_code == 403
-        assert "Only Root Administrators" in exc_bm.value.detail
+            assert req_res["status"] == "success"
+            assert req_res["is_staff"] is True
+            assert req_res["request_status"] == "PENDING"
+            request_id = req_res["request_id"]
+            session_secret = req_res["session_secret"]
 
-        # 3. Root Admin lists staff resets
-        root_admin_caller = {"sub": root_admin_id, "role": "ROOT_ADMIN"}
-        staff_resets = list_password_resets(
-            target_type="staff",
-            current_user=root_admin_caller,
-            db=session,
-        )
-        target_pr = next((p for p in staff_resets if p["id"] == request_id), None)
-        assert target_pr is not None
-        assert target_pr["is_staff"] is True
-        assert target_pr["student_name"] == "Prof. Sharma"
+            # 2. Branch Manager attempts to approve staff reset -> MUST BE 403 FORBIDDEN
+            bm_caller = {"sub": "usr_fake_bm", "role": "BRANCH_MANAGER", "branch_id": "br_1"}
+            with pytest.raises(HTTPException) as exc_bm:
+                approve_password_reset(
+                    request_id=request_id,
+                    current_user=bm_caller,
+                    db=session,
+                )
+            assert exc_bm.value.status_code == 403
+            assert "Only Root Administrators" in exc_bm.value.detail
 
-        # 4. Root Admin approves staff reset
-        approve_res = approve_password_reset(
-            request_id=request_id,
-            current_user=root_admin_caller,
-            db=session,
-        )
-        assert approve_res["status"] == "success"
+            # 3. Root Admin lists staff resets
+            root_admin_caller = {"sub": root_admin_id, "role": "ROOT_ADMIN"}
+            staff_resets = list_password_resets(
+                target_type="staff",
+                current_user=root_admin_caller,
+                db=session,
+            )
+            target_pr = next((p for p in staff_resets if p["id"] == request_id), None)
+            assert target_pr is not None
+            assert target_pr["is_staff"] is True
+            assert target_pr["student_name"] == "Prof. Sharma"
 
-        # 5. Polling status returns APPROVED and valid reset_token
-        status_res = get_password_reset_status(
-            request_id=request_id,
-            session_secret=session_secret,
-            db=session,
-        )
-        assert status_res["status"] == "APPROVED"
-        assert status_res["reset_token"] is not None
-        reset_token = status_res["reset_token"]
-
-        # 6. Staff completes reset with their new password
-        final_new_pass = "DirectorSecurePass999!"
-        complete_res = complete_password_reset(
-            ResetPasswordSubmission(
+            # 4. Root Admin approves staff reset
+            approve_res = approve_password_reset(
                 request_id=request_id,
-                reset_token=reset_token,
-                new_password=final_new_pass,
-            ),
-            db=session,
-        )
-        assert complete_res["status"] == "success"
+                current_user=root_admin_caller,
+                db=session,
+            )
+            assert approve_res["status"] == "success"
 
-        # 7. Clean up
-        session.execute(delete(PasswordResetRequest).where(PasswordResetRequest.id == request_id))
-        session.execute(delete(User).where(User.id == test_user_id))
-        session.commit()
+            # 5. Polling status returns APPROVED and valid reset_token
+            status_res = get_password_reset_status(
+                request_id=request_id,
+                session_secret=session_secret,
+                db=session,
+            )
+            assert status_res["status"] == "APPROVED"
+            assert status_res["reset_token"] is not None
+            reset_token = status_res["reset_token"]
+
+            # 6. Staff completes reset with their new password
+            final_new_pass = "DirectorSecurePass999!"
+            complete_res = complete_password_reset(
+                ResetPasswordSubmission(
+                    request_id=request_id,
+                    reset_token=reset_token,
+                    new_password=final_new_pass,
+                ),
+                db=session,
+            )
+            assert complete_res["status"] == "success"
+    finally:
+        with get_session() as session:
+            if request_id:
+                session.execute(delete(PasswordResetRequest).where(PasswordResetRequest.id == request_id))
+            session.execute(delete(User).where(User.id == test_user_id))
+            session.commit()
 

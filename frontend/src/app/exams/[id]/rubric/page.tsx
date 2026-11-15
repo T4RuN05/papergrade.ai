@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle, FileText } from "lucide-react";
@@ -51,11 +51,7 @@ export default function ExamRubricPage() {
     [exam]
   );
 
-  useEffect(() => {
-    loadExam();
-  }, [examId]);
-
-  const loadExam = async () => {
+  const loadExam = useCallback(async () => {
     try {
       const data = await api.getExam(examId, true);
       setExam(data);
@@ -64,7 +60,11 @@ export default function ExamRubricPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [examId]);
+
+  useEffect(() => {
+    loadExam();
+  }, [loadExam]);
 
   const handleApprove = async (approvedRubric: ExamRubric) => {
     try {

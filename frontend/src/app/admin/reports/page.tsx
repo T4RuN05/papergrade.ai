@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -81,7 +81,7 @@ export default function AdminReportsPage() {
     }
   }, [router]);
 
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.listTechnicalReports(
@@ -114,11 +114,11 @@ export default function AdminReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, roleFilter, branchFilter, toast]);
 
   useEffect(() => {
     loadReports();
-  }, [statusFilter, roleFilter, branchFilter]);
+  }, [loadReports]);
 
   const handleUpdateStatus = async (reportId: string, newStatus: string) => {
     try {

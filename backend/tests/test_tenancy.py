@@ -26,51 +26,58 @@ def test_student_creation_and_account_claim():
         exam_id = ex.id
 
     admin_user = {"sub": "usr_test_admin", "role": "ROOT_ADMIN"}
+    batch_id = None
+    claimed_user_id = None
+    student_id_num = None
     
-    with get_session() as session:
-        batch_res = create_batch(
-            CreateBatchRequest(branch_id=branch_id, exam_id=exam_id, name="Grade 10 - Section A", code="G10A"),
-            current_user=admin_user,
-            db=session
-        )
-        batch_id = batch_res["id"]
-        
-        # 2. Add single student
-        stu_res = add_single_student(
-            batch_id,
-            CreateStudentRequest(roll_number="A101_TEST", full_name="Alice Wonder"),
-            current_user=admin_user,
-            db=session
-        )
-        assert stu_res["status"] == "success"
-        student_id_num = stu_res["student_id_num"]
-        assert len(student_id_num) == 6
-        
-        # 3. Claim account without requiring student_id_num
-        claim_res = claim_account(
-            ClaimAccountRequest(
-                roll_number="A101_TEST",
-                password="MySecretPassword123"
-            ),
-            db=session
-        )
-        assert claim_res.access_token is not None
-        assert claim_res.user["role"] == "STUDENT"
-        assert claim_res.user["full_name"] == "Alice Wonder"
-        
-        # 4. Attempt to claim again - must fail
-        with pytest.raises(Exception):
-            claim_account(
+    try:
+        with get_session() as session:
+            batch_res = create_batch(
+                CreateBatchRequest(branch_id=branch_id, exam_id=exam_id, name="Grade 10 - Section A"),
+                current_user=admin_user,
+                db=session
+            )
+            batch_id = batch_res["id"]
+            
+            # 2. Add single student (system-allocated roll number)
+            stu_res = add_single_student(
+                batch_id,
+                CreateStudentRequest(full_name="Alice Wonder"),
+                current_user=admin_user,
+                db=session
+            )
+            assert stu_res["status"] == "success"
+            student_id_num = stu_res["student_id_num"]
+            assert len(student_id_num) == 6
+            allocated_roll = stu_res["roll_number"]
+            
+            # 3. Claim account without requiring student_id_num
+            claim_res = claim_account(
                 ClaimAccountRequest(
-                    roll_number="A101_TEST",
-                    password="AnotherPassword"
+                    roll_number=allocated_roll,
+                    password="MySecretPassword123"
                 ),
                 db=session
             )
-
-        # Cleanup
-        claimed_user_id = claim_res.user["id"]
-        session.execute(delete(User).where(User.id == claimed_user_id))
-        session.execute(delete(Student).where(Student.student_id_num == student_id_num))
-        session.execute(delete(Batch).where(Batch.id == batch_id))
-        session.commit()
+            assert claim_res.access_token is not None
+            assert claim_res.user["role"] == "STUDENT"
+            assert claim_res.user["full_name"] == "Alice Wonder"
+            claimed_user_id = claim_res.user["id"]
+            
+            # 4. Attempt to claim again - must fail
+            with pytest.raises(Exception):
+                claim_account(
+                    ClaimAccountRequest(
+                        roll_number=allocated_roll,
+                        password="AnotherPassword"
+                    ),
+                    db=session
+                )
+    finally:
+        with get_session() as session:
+            if claimed_user_id:
+                session.execute(delete(User).where(User.id == claimed_user_id))
+            if batch_id:
+                session.execute(delete(Student).where(Student.batch_id == batch_id))
+                session.execute(delete(Batch).where(Batch.id == batch_id))
+            session.commit()

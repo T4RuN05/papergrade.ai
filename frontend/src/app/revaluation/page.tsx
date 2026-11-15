@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -214,6 +214,11 @@ export default function RevaluationDeskPage() {
     loadRequests();
   }, [loadRequests, router]);
 
+  const selectedReqRef = useRef(selectedReq);
+  selectedReqRef.current = selectedReq;
+  const selectedGroupRef = useRef(selectedGroup);
+  selectedGroupRef.current = selectedGroup;
+
   // 3. Load the full submission when selected student paper changes
   useEffect(() => {
     if (!selectedGroup?.submission_id) {
@@ -231,8 +236,8 @@ export default function RevaluationDeskPage() {
         setSubmission(data);
         if (data.answers && data.answers.length > 0) {
           // Find first answer that matches the selected request or any challenged question
-          const activeQids = parseQuestionIds(selectedReq?.question_ids_json);
-          const allQids = selectedGroup.allChallengedQids;
+          const activeQids = parseQuestionIds(selectedReqRef.current?.question_ids_json);
+          const allQids = selectedGroupRef.current?.allChallengedQids || [];
           const flaggedAns =
             data.answers.find((a: any) => activeQids.includes(a.question_id)) ||
             data.answers.find((a: any) => allQids.includes(a.question_id));
@@ -255,7 +260,7 @@ export default function RevaluationDeskPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedGroup?.submission_id]);
+  }, [selectedGroup?.submission_id, toast]);
 
   // Handle clicking on an answer (from viewer or sidebar)
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = false) => {

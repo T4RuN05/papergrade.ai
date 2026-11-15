@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -58,11 +58,7 @@ export default function SingleBatchPage() {
     [batch?.name, batchId]
   );
 
-  useEffect(() => {
-    loadBatchData();
-  }, [batchId]);
-
-  const loadBatchData = async () => {
+  const loadBatchData = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getBatch(batchId);
@@ -77,7 +73,11 @@ export default function SingleBatchPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [batchId]);
+
+  useEffect(() => {
+    loadBatchData();
+  }, [loadBatchData]);
 
   const submissions = useMemo(() => batch?.submissions || [], [batch?.submissions]);
 

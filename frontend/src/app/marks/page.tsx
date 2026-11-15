@@ -35,13 +35,14 @@ function ClassMarksPageContent() {
         const examList = Array.isArray(list) ? list : [];
         setExams(examList);
         if (examList.length > 0) {
-          const match = queryExamId ? examList.find((e) => e.id === queryExamId) : null;
-          const chosen = match
-            ? match.id
-            : selectedExamId && examList.some((e) => e.id === selectedExamId)
-            ? selectedExamId
-            : examList[0].id;
-          setSelectedExamId(chosen);
+          setSelectedExamId((prev) => {
+            const match = queryExamId ? examList.find((e) => e.id === queryExamId) : null;
+            return match
+              ? match.id
+              : prev && examList.some((e) => e.id === prev)
+              ? prev
+              : examList[0].id;
+          });
         } else {
           setSelectedExamId("");
           setCurrentExam(null);
@@ -58,16 +59,15 @@ function ClassMarksPageContent() {
 
   // Synchronize when queryExamId changes
   useEffect(() => {
-    if (queryExamId && queryExamId !== selectedExamId) {
+    if (!queryExamId) return;
+    setSelectedExamId((prev) => {
+      if (prev === queryExamId) return prev;
       if (exams.length > 0) {
         const match = exams.find((e) => e.id === queryExamId);
-        if (match) {
-          setSelectedExamId(queryExamId);
-        }
-      } else {
-        setSelectedExamId(queryExamId);
+        return match ? queryExamId : prev;
       }
-    }
+      return queryExamId;
+    });
   }, [queryExamId, exams]);
 
   // Handle dropdown exam change

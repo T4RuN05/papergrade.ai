@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -48,7 +48,7 @@ export default function StudentSubmissionViewerPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [artifactModalOpen, setArtifactModalOpen] = useState(false);
 
-  const loadSubmission = async () => {
+  const loadSubmission = useCallback(async () => {
     try {
       const data = await api.getSubmission(submissionId);
       setSubmission(data);
@@ -63,7 +63,7 @@ export default function StudentSubmissionViewerPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [submissionId, toast]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -72,7 +72,7 @@ export default function StudentSubmissionViewerPage() {
       return;
     }
     loadSubmission();
-  }, [submissionId, router]);
+  }, [submissionId, router, loadSubmission]);
 
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = true) => {
     setSelectedAnswer(ans);

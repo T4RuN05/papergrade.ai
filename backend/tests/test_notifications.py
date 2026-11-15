@@ -20,7 +20,6 @@ def create_dummy_pdf():
     return pdf_bytes
 
 def test_role_scoped_notification_lifecycle():
-    init_db()
     run_id = uuid.uuid4().hex[:6]
 
     # 1. Root Admin Login
@@ -31,6 +30,8 @@ def test_role_scoped_notification_lifecycle():
     assert admin_login.status_code == 200
     admin_headers = {"Authorization": f"Bearer {admin_login.json()['access_token']}"}
     inst_id = None
+    stu_a_user_id = None
+    stu_b_user_id = None
 
     try:
         # 2. Setup Institute and Two Distinct Branches
@@ -38,10 +39,8 @@ def test_role_scoped_notification_lifecycle():
             "name": f"University {run_id}",
             "code": f"UNIV_{run_id}"
         }, headers=admin_headers)
-        inst_id = inst_res.json().get("id")
-        if not inst_id:
-            insts = client.get("/api/v1/tenancy/institutes", headers=admin_headers).json()
-            inst_id = insts[0]["id"]
+        assert inst_res.status_code == 200
+        inst_id = inst_res.json()["id"]
     
         # Create Branch North
         b_north_res = client.post("/api/v1/tenancy/branches", json={
@@ -106,14 +105,13 @@ def test_role_scoped_notification_lifecycle():
         batch_south_id = batch_south_res.json()["id"]
     
         # 5. Add Student A in North, Student B in South, and claim their accounts
-        roll_a = f"N{run_id}".upper()
         stu_a_res = client.post(f"/api/v1/tenancy/batches/{batch_north_id}/students", json={
-            "roll_number": roll_a,
             "full_name": f"Aarav {run_id}",
             "email": f"aarav.{run_id}@ait.edu"
         }, headers=bm_north_headers)
         assert stu_a_res.status_code == 200
         stu_a_num = stu_a_res.json()["student_id_num"]
+        roll_a = stu_a_res.json()["roll_number"]
     
         claim_a = client.post("/api/v1/auth/claim-account", json={
             "student_id_num": stu_a_num,
@@ -122,15 +120,15 @@ def test_role_scoped_notification_lifecycle():
         })
         assert claim_a.status_code == 200
         stu_a_headers = {"Authorization": f"Bearer {claim_a.json()['access_token']}"}
+        stu_a_user_id = claim_a.json()["user"]["id"]
     
-        roll_b = f"S{run_id}".upper()
         stu_b_res = client.post(f"/api/v1/tenancy/batches/{batch_south_id}/students", json={
-            "roll_number": roll_b,
             "full_name": f"Bhavya {run_id}",
             "email": f"bhavya.{run_id}@ait.edu"
         }, headers=bm_south_headers)
         assert stu_b_res.status_code == 200
         stu_b_num = stu_b_res.json()["student_id_num"]
+        roll_b = stu_b_res.json()["roll_number"]
     
         claim_b = client.post("/api/v1/auth/claim-account", json={
             "student_id_num": stu_b_num,
@@ -139,6 +137,7 @@ def test_role_scoped_notification_lifecycle():
         })
         assert claim_b.status_code == 200
         stu_b_headers = {"Authorization": f"Bearer {claim_b.json()['access_token']}"}
+        stu_b_user_id = claim_b.json()["user"]["id"]
     
         # 6. Branch Manager North creates an Exam in North Branch
         exam_res = client.post("/api/v1/exams", data={
@@ -200,6 +199,7 @@ def test_role_scoped_notification_lifecycle():
                 SET status = 'GRADED', total_awarded_marks = 35.0, max_marks = 50.0, percentage = 70.0
                 WHERE id = ?
             """, (sub_id,))
+            conn.commit()
     
         pub_res = client.post(f"/api/v1/exams/{exam_id}/publish", headers=admin_headers)
         assert pub_res.status_code == 200
@@ -258,7 +258,7 @@ def test_role_scoped_notification_lifecycle():
         notifs_a_after = client.get("/api/v1/notifications", headers=stu_a_headers).json()
         assert all(n["is_read"] == 1 for n in notifs_a_after)
     finally:
-        if inst_id:
+        if inst_id and inst_id not in ["inst_e1eeda3473c3", "inst_test_institute"]:
             with get_session() as s:
                 b_ids = [b.id for b in s.query(Branch).filter(Branch.institute_id == inst_id).all()]
                 e_ids = [e.id for e in s.query(Exam).filter(Exam.institute_id == inst_id).all()]
@@ -276,6 +276,9 @@ def test_role_scoped_notification_lifecycle():
                         s.execute(delete(Student).where(Student.batch_id.in_(batch_ids)))
                         s.execute(delete(Batch).where(Batch.id.in_(batch_ids)))
                 target_uids = [u.id for u in s.query(User).filter((User.institute_id == inst_id) | (User.branch_id.in_(b_ids))).all()]
+                for extra_uid in [stu_a_user_id, stu_b_user_id]:
+                    if extra_uid and extra_uid not in target_uids:
+                        target_uids.append(extra_uid)
                 if target_uids:
                     s.execute(delete(Notification).where(Notification.user_id.in_(target_uids)))
                     s.execute(delete(PasswordResetRequest).where(PasswordResetRequest.user_id.in_(target_uids)))

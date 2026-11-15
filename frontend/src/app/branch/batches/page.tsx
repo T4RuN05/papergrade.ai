@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -120,6 +120,29 @@ export default function BranchBatchesPage() {
     }
   };
 
+  const loadBatchesForBranch = useCallback(async (branchId: string, force = false) => {
+    setLoadingBatches(true);
+    try {
+      const batchList = await api.listBatches(branchId, force);
+      setBatches(batchList);
+      if (batchList.length > 0) {
+        // Keep current selected if it still exists in this branch, else pick first
+        setSelectedBatch((prev: any) => {
+          const match = batchList.find((b: any) => b.id === prev?.id);
+          return match || batchList[0];
+        });
+      } else {
+        setSelectedBatch(null);
+        setStudents([]);
+      }
+    } catch (err: any) {
+      console.error("Failed to load batches:", err);
+      toast.error(err.message || "Failed to load batches", { title: "Load Error" });
+    } finally {
+      setLoadingBatches(false);
+    }
+  }, [toast]);
+
   // Load batches whenever active branch changes
   useEffect(() => {
     const token = getAuthToken();
@@ -148,30 +171,7 @@ export default function BranchBatchesPage() {
     }
 
     loadBatchesForBranch(effectiveBranchId);
-  }, [selectedBranch?.id, currentUser?.branch_id, tenantLoading, router, refreshTenancy]);
-
-  const loadBatchesForBranch = async (branchId: string, force = false) => {
-    setLoadingBatches(true);
-    try {
-      const batchList = await api.listBatches(branchId, force);
-      setBatches(batchList);
-      if (batchList.length > 0) {
-        // Keep current selected if it still exists in this branch, else pick first
-        setSelectedBatch((prev: any) => {
-          const match = batchList.find((b: any) => b.id === prev?.id);
-          return match || batchList[0];
-        });
-      } else {
-        setSelectedBatch(null);
-        setStudents([]);
-      }
-    } catch (err: any) {
-      console.error("Failed to load batches:", err);
-      toast.error(err.message || "Failed to load batches", { title: "Load Error" });
-    } finally {
-      setLoadingBatches(false);
-    }
-  };
+  }, [selectedBranch?.id, currentUser?.branch_id, tenantLoading, router, refreshTenancy, loadBatchesForBranch]);
 
   // Load students when selectedBatch changes
   useEffect(() => {

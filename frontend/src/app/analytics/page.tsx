@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
@@ -46,15 +46,7 @@ export default function AnalyticsPage() {
   const [benchNotes, setBenchNotes] = useState("");
   const [isSubmittingBench, setIsSubmittingBench] = useState(false);
 
-  useEffect(() => {
-    if (isBranchManager || isInstituteDirector) {
-      router.replace("/branch/batches");
-      return;
-    }
-    loadAll();
-  }, [isBranchManager, isInstituteDirector]);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -80,7 +72,15 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (isBranchManager || isInstituteDirector) {
+      router.replace("/branch/batches");
+      return;
+    }
+    loadAll();
+  }, [isBranchManager, isInstituteDirector, router, loadAll]);
 
   const handleExamChange = async (examId: string) => {
     setSelectedExamId(examId);

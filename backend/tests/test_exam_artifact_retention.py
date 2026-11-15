@@ -44,117 +44,145 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
     branches = client.get("/api/v1/tenancy/branches", headers=admin_headers).json()
     branch_id = branches[0]["id"]
 
-    # 3. Create exam
-    exam_res = client.post("/api/v1/exams", data={
-        "title": "Quantum Mechanics Final",
-        "subject": "Physics",
-        "branch_id": branch_id
-    }, headers=admin_headers)
-    assert exam_res.status_code == 200
-    exam_id = exam_res.json()["id"]
+    exam_id = None
+    exam_uploads_dir = None
+    try:
+        # 3. Create exam
+        exam_res = client.post("/api/v1/exams", data={
+            "title": "Quantum Mechanics Final",
+            "subject": "Physics",
+            "branch_id": branch_id
+        }, headers=admin_headers)
+        assert exam_res.status_code == 200
+        exam_id = exam_res.json()["id"]
 
-    # 4. Attach Question Paper & Official Answer Key files
-    qp_bytes = create_test_pdf_bytes("Quantum Mechanics Question Paper", 2)
-    ak_bytes = create_test_pdf_bytes("Quantum Mechanics Official Answer Key", 3)
+        # 4. Attach Question Paper & Official Answer Key files
+        qp_bytes = create_test_pdf_bytes("Quantum Mechanics Question Paper", 2)
+        ak_bytes = create_test_pdf_bytes("Quantum Mechanics Official Answer Key", 3)
 
-    exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
-    exam_uploads_dir.mkdir(parents=True, exist_ok=True)
-    qp_pdf = exam_uploads_dir / "question_paper.pdf"
-    qp_pdf.write_bytes(qp_bytes)
-    ak_pdf = exam_uploads_dir / "answer_key.pdf"
-    ak_pdf.write_bytes(ak_bytes)
+        exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
+        exam_uploads_dir.mkdir(parents=True, exist_ok=True)
+        qp_pdf = exam_uploads_dir / "question_paper.pdf"
+        qp_pdf.write_bytes(qp_bytes)
+        ak_pdf = exam_uploads_dir / "answer_key.pdf"
+        ak_pdf.write_bytes(ak_bytes)
 
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE exams 
-            SET question_paper_path = ?, answer_key_path = ?
-            WHERE id = ?
-        """, (str(qp_pdf), str(ak_pdf), exam_id))
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE exams 
+                SET question_paper_path = ?, answer_key_path = ?
+                WHERE id = ?
+            """, (str(qp_pdf), str(ak_pdf), exam_id))
+            conn.commit()
 
-    # 5. Generate Student Token directly
-    stu_token = create_access_token({
-        "sub": "stu_user_retention_test",
-        "role": "STUDENT",
-        "roll_number": "ROLL-RET-999"
-    })
-    stu_headers = {"Authorization": f"Bearer {stu_token}"}
+        # 5. Generate Student Token directly (usr_test prefix matches active test user check)
+        stu_token = create_access_token({
+            "sub": "usr_test_student_retention",
+            "role": "STUDENT",
+            "roll_number": "ROLL-RET-999"
+        })
+        stu_headers = {"Authorization": f"Bearer {stu_token}"}
 
-    # 6. Verify: BEFORE results publication, student receives 403 Forbidden
-    stu_qp_pre = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers)
-    assert stu_qp_pre.status_code == 403
-    assert "published" in stu_qp_pre.json()["detail"].lower()
+        # 6. Verify: BEFORE results publication, student receives 403 Forbidden
+        stu_qp_pre = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers)
+        assert stu_qp_pre.status_code == 403
+        assert "published" in stu_qp_pre.json()["detail"].lower()
 
-    stu_ak_pre = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=stu_headers)
-    assert stu_ak_pre.status_code == 403
-    assert "confidential" in stu_ak_pre.json()["detail"].lower() or "published" in stu_ak_pre.json()["detail"].lower()
+        stu_ak_pre = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=stu_headers)
+        assert stu_ak_pre.status_code == 403
+        assert "confidential" in stu_ak_pre.json()["detail"].lower() or "published" in stu_ak_pre.json()["detail"].lower()
 
-    stu_meta_pre = client.get(f"/api/v1/exams/{exam_id}/answer-key/meta", headers=stu_headers)
-    assert stu_meta_pre.status_code == 403
+        stu_meta_pre = client.get(f"/api/v1/exams/{exam_id}/answer-key/meta", headers=stu_headers)
+        assert stu_meta_pre.status_code == 403
 
-    # Teacher / Admin can access before publication
-    adm_qp = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=admin_headers)
-    assert adm_qp.status_code == 200
-    assert adm_qp.headers["content-type"] == "application/pdf"
+        # Teacher / Admin can access before publication (200 direct or 307 CDN redirect)
+        adm_qp = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=admin_headers, follow_redirects=False)
+        assert adm_qp.status_code in [200, 307]
+        if adm_qp.status_code == 200:
+            assert adm_qp.headers["content-type"] == "application/pdf"
+        else:
+            assert "location" in adm_qp.headers
 
-    # 7. Publish Results
-    pub_res = client.post(f"/api/v1/exams/{exam_id}/publish", headers=admin_headers)
-    assert pub_res.status_code == 200
+        # 7. Publish Results
+        pub_res = client.post(f"/api/v1/exams/{exam_id}/publish", headers=admin_headers)
+        assert pub_res.status_code == 200
 
-    # Verify: retention_expires_at is assigned (15 days post-publication)
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT is_published, retention_expires_at, is_document_purged FROM exams WHERE id = ?", (exam_id,))
-        exam_row = cursor.fetchone()
-        assert exam_row["is_published"] == 1
-        assert exam_row["retention_expires_at"] is not None
-        assert exam_row["is_document_purged"] == 0
+        # Verify: retention_expires_at is assigned (15 days post-publication)
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT is_published, retention_expires_at, is_document_purged FROM exams WHERE id = ?", (exam_id,))
+            exam_row = cursor.fetchone()
+            assert exam_row["is_published"] == 1
+            assert exam_row["retention_expires_at"] is not None
+            assert exam_row["is_document_purged"] == 0
 
-    # 8. Verify: AFTER results publication, student can access Question Paper and Answer Key
-    stu_qp_post = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers)
-    assert stu_qp_post.status_code == 200
-    assert stu_qp_post.headers["content-type"] == "application/pdf"
+        # 8. Verify: AFTER results publication, student can access Question Paper and Answer Key (200 direct or 307 CDN redirect)
+        stu_qp_post = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers, follow_redirects=False)
+        assert stu_qp_post.status_code in [200, 307]
+        if stu_qp_post.status_code == 200:
+            assert stu_qp_post.headers["content-type"] == "application/pdf"
+        else:
+            assert "location" in stu_qp_post.headers
 
-    stu_ak_post = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=stu_headers)
-    assert stu_ak_post.status_code == 200
-    assert stu_ak_post.headers["content-type"] == "application/pdf"
+        stu_ak_post = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=stu_headers, follow_redirects=False)
+        assert stu_ak_post.status_code in [200, 307]
+        if stu_ak_post.status_code == 200:
+            assert stu_ak_post.headers["content-type"] == "application/pdf"
+        else:
+            assert "location" in stu_ak_post.headers
 
-    stu_meta_post = client.get(f"/api/v1/exams/{exam_id}/answer-key/meta", headers=stu_headers)
-    assert stu_meta_post.status_code == 200
-    assert stu_meta_post.json()["has_document"] is True
-    assert stu_meta_post.json()["is_purged"] is False
+        stu_meta_post = client.get(f"/api/v1/exams/{exam_id}/answer-key/meta", headers=stu_headers)
+        assert stu_meta_post.status_code == 200
+        assert stu_meta_post.json()["has_document"] is True
+        assert stu_meta_post.json()["is_purged"] is False
 
-    # Page rendering endpoint works for students
-    stu_page_post = client.get(f"/api/v1/exams/{exam_id}/answer-key/pages/1", headers=stu_headers)
-    assert stu_page_post.status_code == 200
-    assert stu_page_post.headers["content-type"] in ["image/png", "image/jpeg"]
+        # Page rendering endpoint works for students (200 direct or 307 CDN redirect)
+        stu_page_post = client.get(f"/api/v1/exams/{exam_id}/answer-key/pages/1", headers=stu_headers, follow_redirects=False)
+        assert stu_page_post.status_code in [200, 307]
+        if stu_page_post.status_code == 200:
+            assert stu_page_post.headers["content-type"] in ["image/png", "image/jpeg"]
+        else:
+            assert "location" in stu_page_post.headers
 
-    # 9. Simulate 16 days passing (retention expired)
-    now = datetime.now(timezone.utc)
-    past_expiry = (now - timedelta(days=1)).isoformat()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE exams SET retention_expires_at = ? WHERE id = ?", (past_expiry, exam_id))
+        # 9. Simulate 16 days passing (retention expired)
+        now = datetime.now(timezone.utc)
+        past_expiry = (now - timedelta(days=1)).isoformat()
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE exams SET retention_expires_at = ? WHERE id = ?", (past_expiry, exam_id))
+            conn.commit()
 
-    # Trigger automatic background purge scan
-    purge_summary = RetentionService.check_and_purge_expired_submissions()
-    assert purge_summary.get("purged_exams_count", 0) >= 1
+        # Trigger automatic background purge scan
+        purge_summary = RetentionService.check_and_purge_expired_submissions()
+        assert purge_summary.get("purged_exams_count", 0) >= 1
 
-    # 10. Verify: Endpoints now return 410 Gone
-    stu_qp_purged = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers)
-    assert stu_qp_purged.status_code == 410
-    assert "retention policy" in stu_qp_purged.json()["detail"].lower()
+        # 10. Verify: Endpoints now return 410 Gone
+        stu_qp_purged = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers, follow_redirects=False)
+        assert stu_qp_purged.status_code == 410
+        assert "retention policy" in stu_qp_purged.json()["detail"].lower()
 
-    stu_ak_purged = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=stu_headers)
-    assert stu_ak_purged.status_code == 410
-    assert "retention policy" in stu_ak_purged.json()["detail"].lower()
+        stu_ak_purged = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=stu_headers, follow_redirects=False)
+        assert stu_ak_purged.status_code == 410
+        assert "retention policy" in stu_ak_purged.json()["detail"].lower()
 
-    # Meta returns is_purged: True, has_document: False
-    stu_meta_purged = client.get(f"/api/v1/exams/{exam_id}/answer-key/meta", headers=stu_headers)
-    assert stu_meta_purged.status_code == 200
-    assert stu_meta_purged.json()["is_purged"] is True
-    assert stu_meta_purged.json()["has_document"] is False
+        # Meta returns is_purged: True, has_document: False
+        stu_meta_purged = client.get(f"/api/v1/exams/{exam_id}/answer-key/meta", headers=stu_headers)
+        assert stu_meta_purged.status_code == 200
+        assert stu_meta_purged.json()["is_purged"] is True
+        assert stu_meta_purged.json()["has_document"] is False
 
-    # Page rendering endpoint also returns 410 Gone
-    stu_page_purged = client.get(f"/api/v1/exams/{exam_id}/answer-key/pages/1", headers=stu_headers)
-    assert stu_page_purged.status_code == 410
+        # Page rendering endpoint also returns 410 Gone
+        stu_page_purged = client.get(f"/api/v1/exams/{exam_id}/answer-key/pages/1", headers=stu_headers, follow_redirects=False)
+        assert stu_page_purged.status_code == 410
+    finally:
+        if exam_id:
+            with get_db() as conn:
+                conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
+                conn.commit()
+            if exam_uploads_dir and exam_uploads_dir.exists():
+                import shutil
+                shutil.rmtree(exam_uploads_dir, ignore_errors=True)
+            import shutil
+            shutil.rmtree(settings.RENDERS_DIR / f"exam_{exam_id}_question-paper", ignore_errors=True)
+            shutil.rmtree(settings.RENDERS_DIR / f"exam_{exam_id}_answer-key", ignore_errors=True)
