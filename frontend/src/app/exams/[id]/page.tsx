@@ -156,6 +156,7 @@ export default function ExamDetailPage() {
   const [isUploadingAk, setIsUploadingAk] = useState(false);
   const [isOpeningWindow, setIsOpeningWindow] = useState(false);
   const [isClosingWindow, setIsClosingWindow] = useState(false);
+  const [isExtendingWindow, setIsExtendingWindow] = useState(false);
   const [openWindowModalOpen, setOpenWindowModalOpen] = useState(false);
   const [windowDuration, setWindowDuration] = useState("30");
   const [windowReason, setWindowReason] = useState("Scheduled examination upload session");
@@ -221,7 +222,7 @@ export default function ExamDetailPage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadExamData = async (showSkeleton = false, forceRefresh = true) => {
+  const loadExamData = useCallback(async (showSkeleton = false, forceRefresh = true) => {
     if (showSkeleton) setLoading(true);
     else setIsRefreshing(true);
     try {
@@ -269,7 +270,7 @@ export default function ExamDetailPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [examId, isRootAdmin, selectedBranch, switchTenancy, toast]);
 
   useEffect(() => {
     const cachedExam = getCached<Exam>(`exams:detail:${examId}`);
@@ -280,7 +281,7 @@ export default function ExamDetailPage() {
     } else {
       loadExamData(true, true);
     }
-  }, [examId]);
+  }, [examId, loadExamData]);
 
   // Safety fallback: ensure skeleton never hangs indefinitely if network or api stalls
   useEffect(() => {
@@ -329,7 +330,7 @@ export default function ExamDetailPage() {
     } finally {
       isPollingRef.current = false;
     }
-  }, [examId]);
+  }, [examId, loadExamData]);
 
   // Derived states for evaluation activity
   const isQueueActive = submissions.some(
@@ -367,8 +368,11 @@ export default function ExamDetailPage() {
   }, [isWindowActive, examId]);
 
   // Real-time smooth 1-second countdown ticker for active submission window
+  const hasRemainingWindowTime = Boolean(
+    windowStatus?.is_active && windowStatus.seconds_remaining > 0
+  );
   useEffect(() => {
-    if (!windowStatus || !windowStatus.is_active || windowStatus.seconds_remaining <= 0) return;
+    if (!hasRemainingWindowTime) return;
     const ticker = setInterval(() => {
       setWindowStatus((prev: any) => {
         if (!prev || !prev.is_active) return prev;
@@ -380,7 +384,7 @@ export default function ExamDetailPage() {
       });
     }, 1000);
     return () => clearInterval(ticker);
-  }, [windowStatus?.is_active]);
+  }, [hasRemainingWindowTime]);
 
   const formatTimer = (totalSeconds: number) => {
     if (isNaN(totalSeconds) || totalSeconds <= 0) return "00:00";
@@ -655,6 +659,26 @@ export default function ExamDetailPage() {
       });
     } finally {
       setIsClosingWindow(false);
+    }
+  };
+
+  const handleExtendWindow = async () => {
+    if (!exam) return;
+    setIsExtendingWindow(true);
+    try {
+      await api.extendWindow(exam.id, 15, "Extended by teacher from exam dashboard");
+      toast.success("Submission window extended by 15 minutes!", {
+        title: "Window Extended",
+      });
+      const win = await api.getWindowStatus(exam.id);
+      setWindowStatus(win);
+      await loadExamData(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to extend submission window", {
+        title: "Window Extension Failed",
+      });
+    } finally {
+      setIsExtendingWindow(false);
     }
   };
 
@@ -1000,17 +1024,29 @@ export default function ExamDetailPage() {
 
             {/* Window Toggle Action */}
             {isWindowOpen ? (
-              <ButtonUtility
-                variant="danger"
-                size="sm"
-                onClick={handleHardCloseWindow}
-                disabled={isClosingWindow}
-                className="h-9 px-3 rounded-md text-xs font-semibold"
-                title="Immediately terminate student upload window"
-              >
-                <Square className="h-3.5 w-3.5 mr-1.5 text-red-600 fill-red-600" />
-                <span>{isClosingWindow ? "Closing..." : "Close Window"}</span>
-              </ButtonUtility>
+              <div className="flex items-center gap-1.5">
+                <ButtonUtility
+                  size="sm"
+                  onClick={handleExtendWindow}
+                  disabled={isExtendingWindow}
+                  className="h-9 px-3 rounded-md text-xs font-semibold text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  title="Add 15 minutes to active window"
+                >
+                  <Clock className="h-3.5 w-3.5 mr-1.5 text-amber-600 dark:text-amber-400" />
+                  <span>{isExtendingWindow ? "Extending..." : "+15m Extend"}</span>
+                </ButtonUtility>
+                <ButtonUtility
+                  variant="danger"
+                  size="sm"
+                  onClick={handleHardCloseWindow}
+                  disabled={isClosingWindow}
+                  className="h-9 px-3 rounded-md text-xs font-semibold"
+                  title="Immediately terminate student upload window"
+                >
+                  <Square className="h-3.5 w-3.5 mr-1.5 text-red-600 fill-red-600" />
+                  <span>{isClosingWindow ? "Closing..." : "Close Window"}</span>
+                </ButtonUtility>
+              </div>
             ) : !isPublished && (
               <ButtonUtility
                 size="sm"
@@ -1166,16 +1202,28 @@ export default function ExamDetailPage() {
             }
             description={`Students can submit or replace papers until the timer expires. ${submissions.length} submission(s) currently received.`}
             badge={
-              <ButtonUtility
-                variant="danger"
-                size="sm"
-                onClick={handleHardCloseWindow}
-                disabled={isClosingWindow}
-                className="cursor-pointer shadow-2xs"
-              >
-                <Square className="h-3.5 w-3.5 text-red-600 fill-red-600 mr-1" />
-                {isClosingWindow ? "Closing..." : "Close Window"}
-              </ButtonUtility>
+              <div className="flex items-center gap-2">
+                <ButtonUtility
+                  size="sm"
+                  onClick={handleExtendWindow}
+                  disabled={isExtendingWindow}
+                  className="cursor-pointer shadow-2xs text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  title="Add 15 minutes to active window"
+                >
+                  <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mr-1" />
+                  {isExtendingWindow ? "Extending..." : "+15m"}
+                </ButtonUtility>
+                <ButtonUtility
+                  variant="danger"
+                  size="sm"
+                  onClick={handleHardCloseWindow}
+                  disabled={isClosingWindow}
+                  className="cursor-pointer shadow-2xs"
+                >
+                  <Square className="h-3.5 w-3.5 text-red-600 fill-red-600 mr-1" />
+                  {isClosingWindow ? "Closing..." : "Close Window"}
+                </ButtonUtility>
+              </div>
             }
           />
         )}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { IOSInstallBanner } from "@/components/iOSInstallBanner";
 import { Analytics } from "@vercel/analytics/react";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { QueryProvider } from "@/lib/QueryProvider";
@@ -84,6 +85,7 @@ export default function RootLayout({
         <ThemeProvider>
           <QueryProvider>
             <ServiceWorkerRegister />
+            <IOSInstallBanner />
             <AppShell>{children}</AppShell>
             <Analytics />
           </QueryProvider>
