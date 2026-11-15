@@ -276,12 +276,15 @@ def list_submissions(
     user_branch = current_user.get("branch_id")
 
     # Branch Manager & Institute Director isolation
+    user_inst = current_user.get("institute_id")
     if user_role == "BRANCH_MANAGER" and user_branch:
-        stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
-    elif user_role == "INSTITUTE_DIRECTOR":
-        user_inst = current_user.get("institute_id")
         if user_inst:
-            stmt = stmt.where(or_(Exam.institute_id == user_inst, Exam.institute_id.is_(None)))
+            stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == user_branch)
+        else:
+            stmt = stmt.where(Exam.branch_id == user_branch)
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if user_inst:
+            stmt = stmt.where(Exam.institute_id == user_inst)
 
     # Student privacy isolation
     if user_role == "STUDENT":
@@ -716,6 +719,7 @@ def request_presigned_upload(
         "destination_key": destination_key,
         "upload_url": presigned["url"],
         "method": presigned["method"],
+        "fields": presigned.get("fields", {}),
         "headers": presigned.get("headers", {}),
         "is_direct_cloud": presigned.get("is_direct_cloud", False)
     }

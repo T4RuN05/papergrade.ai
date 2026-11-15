@@ -84,18 +84,29 @@ def list_exams(
         .outerjoin(Institute, Exam.institute_id == Institute.id)
     )
 
+    user_inst = current_user.get("institute_id")
     if user_role == "BRANCH_MANAGER" and user_branch:
-        stmt = stmt.where(Exam.branch_id == user_branch)
+        if user_inst:
+            stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == user_branch)
+        else:
+            stmt = stmt.where(Exam.branch_id == user_branch)
     elif user_role == "INSTITUTE_DIRECTOR":
-        user_inst = current_user.get("institute_id")
         if branch_id:
             stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == branch_id)
         else:
             stmt = stmt.where(Exam.institute_id == user_inst)
-    elif user_role == "STUDENT" and user_branch:
-        stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
+    elif user_role == "STUDENT":
+        if user_inst and user_branch:
+            stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == user_branch)
+        elif user_inst:
+            stmt = stmt.where(Exam.institute_id == user_inst)
+        elif user_branch:
+            stmt = stmt.where(Exam.branch_id == user_branch)
     elif branch_id:
-        stmt = stmt.where(Exam.branch_id == branch_id)
+        if user_inst:
+            stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == branch_id)
+        else:
+            stmt = stmt.where(Exam.branch_id == branch_id)
 
     stmt = stmt.order_by(Exam.created_at.desc())
     rows = db.execute(stmt).all()

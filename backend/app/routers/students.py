@@ -154,10 +154,15 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                     branch_id = b_row.branch_id
                     user_dict["branch_id"] = branch_id
 
-        # 2. Fetch Exams visible to this branch
+        # 2. Fetch Exams visible to this student (strict composite multi-tenant scoping)
         exam_stmt = select(Exam)
+        user_inst = u.institute_id or user_dict.get("institute_id")
+        if user_inst:
+            exam_stmt = exam_stmt.where(Exam.institute_id == user_inst)
         if branch_id:
-            exam_stmt = exam_stmt.where(or_(Exam.branch_id == branch_id, Exam.branch_id == None))
+            exam_stmt = exam_stmt.where(Exam.branch_id == branch_id)
+        else:
+            exam_stmt = exam_stmt.where(Exam.branch_id.is_(None))
         exam_stmt = exam_stmt.order_by(Exam.created_at.desc())
 
         raw_exams = session.scalars(exam_stmt).all()

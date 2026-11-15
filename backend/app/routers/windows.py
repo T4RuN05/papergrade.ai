@@ -42,6 +42,11 @@ class CloseWindowRequest(BaseModel):
     reason: Optional[str] = "Manually closed by administrator"
 
 
+class ExtendWindowRequest(BaseModel):
+    additional_minutes: int = 15
+    reason: Optional[str] = "Extended by teacher"
+
+
 def parse_iso(iso_str: str) -> datetime:
     try:
         return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
@@ -162,13 +167,15 @@ def open_submission_window(
         raise HTTPException(status_code=404, detail="Exam not found")
 
     # Tenancy guard (Branch Manager & Institute Director)
+    user_inst = current_user.get("institute_id")
+    user_branch = current_user.get("branch_id")
+    if user_inst and exam.institute_id and exam.institute_id != user_inst:
+        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
     if current_user["role"] == "BRANCH_MANAGER":
-        user_branch = current_user.get("branch_id")
-        if exam.branch_id and exam.branch_id != user_branch:
+        if user_branch and exam.branch_id and exam.branch_id != user_branch:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
     elif current_user["role"] == "INSTITUTE_DIRECTOR":
-        user_inst = current_user.get("institute_id")
-        if exam.institute_id and exam.institute_id != user_inst:
+        if user_inst and exam.institute_id and exam.institute_id != user_inst:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     now_dt = datetime.now(timezone.utc)
@@ -269,8 +276,8 @@ def reopen_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    # Disallow reopening if evaluation has already started
-    if exam.lifecycle_status in ["EVALUATION_READY", "EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+    # Disallow reopening only if evaluation is actively in progress or results are published
+    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
             detail="Cannot reopen submission window: evaluation has already commenced or completed."
@@ -349,6 +356,84 @@ def reopen_submission_window(
     }
 
 
+@router.post("/{exam_id}/extend")
+def extend_submission_window(
+    exam_id: str,
+    req: ExtendWindowRequest = ExtendWindowRequest(),
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
+    """
+    Extends an active submission window by N minutes without forcing closure/reopen.
+    Dynamically extends deadline_at and grace_deadline_at on the existing window.
+    """
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_inst = current_user.get("institute_id")
+    user_branch = current_user.get("branch_id")
+    if user_inst and exam.institute_id and exam.institute_id != user_inst:
+        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
+    if current_user["role"] == "BRANCH_MANAGER":
+        if user_branch and exam.branch_id and exam.branch_id != user_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+
+    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+        raise HTTPException(status_code=400, detail="Cannot extend window: evaluation has already commenced or completed.")
+
+    window = db.scalar(
+        select(SubmissionWindow)
+        .where(SubmissionWindow.exam_id == exam_id)
+        .order_by(SubmissionWindow.window_number.desc())
+        .limit(1)
+    )
+    if not window:
+        raise HTTPException(status_code=400, detail="No submission window exists to extend. Please open a window first.")
+
+    now_dt = datetime.now(timezone.utc)
+    curr_deadline = parse_iso(window.deadline_at)
+    base_dt = max(now_dt, curr_deadline)
+    add_mins = max(1, req.additional_minutes)
+    grace_mins = settings.GRACE_PERIOD_MINUTES
+
+    new_deadline_dt = base_dt + timedelta(minutes=add_mins)
+    new_grace_dt = new_deadline_dt + timedelta(minutes=grace_mins)
+
+    new_deadline_iso = new_deadline_dt.isoformat()
+    new_grace_iso = new_grace_dt.isoformat()
+    now_iso = now_dt.isoformat()
+
+    window.deadline_at = new_deadline_iso
+    window.grace_deadline_at = new_grace_iso
+    window.status = "OPEN"
+
+    exam.lifecycle_status = "SUBMISSION_OPEN"
+    exam.status = "SUBMISSION_OPEN"
+    exam.updated_at = now_iso
+
+    audit = AuditLog(
+        id=f"aud_{uuid.uuid4().hex[:12]}",
+        user_id=current_user["sub"],
+        action="EXTEND_SUBMISSION_WINDOW",
+        resource_type="EXAM",
+        resource_id=exam_id,
+        details_json=f'{{"additional_minutes": {add_mins}, "new_deadline": "{new_deadline_iso}", "reason": "{req.reason}"}}',
+        created_at=now_iso,
+    )
+    db.add(audit)
+    db.commit()
+
+    return {
+        "status": "success",
+        "window_id": window.id,
+        "additional_minutes": add_mins,
+        "deadline_at": new_deadline_iso,
+        "grace_deadline_at": new_grace_iso,
+        "exam_lifecycle": exam.lifecycle_status
+    }
+
+
 @router.post("/{exam_id}/close")
 def close_submission_window(
     exam_id: str,
@@ -366,13 +451,15 @@ def close_submission_window(
         raise HTTPException(status_code=404, detail="Exam not found")
 
     # Tenancy guard (Branch Manager & Institute Director)
+    user_inst = current_user.get("institute_id")
+    user_branch = current_user.get("branch_id")
+    if user_inst and exam.institute_id and exam.institute_id != user_inst:
+        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
     if current_user["role"] == "BRANCH_MANAGER":
-        user_branch = current_user.get("branch_id")
-        if exam.branch_id and exam.branch_id != user_branch:
+        if user_branch and exam.branch_id and exam.branch_id != user_branch:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
     elif current_user["role"] == "INSTITUTE_DIRECTOR":
-        user_inst = current_user.get("institute_id")
-        if exam.institute_id and exam.institute_id != user_inst:
+        if user_inst and exam.institute_id and exam.institute_id != user_inst:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     # Find active open window
