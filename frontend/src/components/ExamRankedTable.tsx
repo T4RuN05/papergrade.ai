@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   BarChart3,
   X,
+  Clock,
+  Lock,
 } from "lucide-react";
 import { BadgePill } from "./ui";
 import { useToast } from "@/lib/ToastContext";
@@ -773,27 +775,58 @@ export function ExamRankedTable({
 
                     {/* Status */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      {item.status === "NEEDS_REVIEW" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800/40">
-                          Needs Review
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                          Finalized
-                        </span>
-                      )}
+                      {(() => {
+                        const sUpper = (item.status || "").toUpperCase();
+                        if (sUpper === "NEEDS_REVIEW") {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800/40">
+                              Needs Review
+                            </span>
+                          );
+                        }
+                        if (["QUEUED", "PROCESSING", "EVALUATING"].includes(sUpper)) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40">
+                              <Clock className="h-3 w-3 animate-spin text-amber-600" />
+                              Evaluating
+                            </span>
+                          );
+                        }
+                        if (sUpper === "UPLOADED" || sUpper === "PENDING") {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-800/40">
+                              Uploaded
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                            Finalized
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Action */}
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <Link
-                        href={`/grading/${item.id}`}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover hover:underline"
-                      >
-                        <span>Inspect Sheet</span>
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
+                      {["QUEUED", "PROCESSING", "EVALUATING"].includes((item.status || "").toUpperCase()) ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-ink-muted opacity-40 cursor-not-allowed select-none"
+                          title="Evaluation in progress. Paper inspection will unlock once evaluation completes."
+                        >
+                          <Lock className="h-3 w-3" />
+                          <span>Evaluating...</span>
+                        </span>
+                      ) : (
+                        <Link
+                          href={`/grading/${item.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover hover:underline"
+                        >
+                          <span>Inspect Sheet</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 );

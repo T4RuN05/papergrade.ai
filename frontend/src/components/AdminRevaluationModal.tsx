@@ -117,12 +117,12 @@ export function AdminRevaluationModal({
       const revisedAnswers =
         decision === "MARKS_REVISED"
           ? [
-              {
-                question_id: answer.question_id,
-                revised_marks: Number(revisedMarks),
-                comment: reviewerNotes.trim(),
-              },
-            ]
+            {
+              question_id: answer.question_id,
+              revised_marks: Number(revisedMarks),
+              comment: reviewerNotes.trim(),
+            },
+          ]
           : undefined;
 
       await api.resolveRevaluation(reval.id, {
@@ -204,11 +204,10 @@ export function AdminRevaluationModal({
               </span>
             ) : isResolved ? (
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${
-                  reval.decision === "MARKS_REVISED"
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : "bg-slate-100 text-slate-700 border border-slate-300"
-                }`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${reval.decision === "MARKS_REVISED"
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : "bg-slate-100 text-slate-700 border border-slate-300"
+                  }`}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {reval.decision === "MARKS_REVISED" ? "Marks Revised" : "Marks Upheld"}
@@ -330,11 +329,10 @@ export function AdminRevaluationModal({
                 <button
                   type="button"
                   onClick={() => setDecision("MARKS_REVISED")}
-                  className={`p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer ${
-                    decision === "MARKS_REVISED"
-                      ? "bg-emerald-50 border-emerald-500 text-emerald-900 shadow-2xs ring-1 ring-emerald-500/30"
-                      : "bg-surface border-hairline text-ink-muted hover:border-[#cccccc]"
-                  }`}
+                  className={`p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer ${decision === "MARKS_REVISED"
+                    ? "bg-emerald-50 border-emerald-500 text-emerald-900 shadow-2xs ring-1 ring-emerald-500/30"
+                    : "bg-surface border-hairline text-ink-muted hover:border-[#cccccc]"
+                    }`}
                 >
                   <div className="font-bold">Revise Marks</div>
                   <div className="text-[10px] font-normal text-emerald-700 mt-0.5">
@@ -345,11 +343,10 @@ export function AdminRevaluationModal({
                 <button
                   type="button"
                   onClick={() => setDecision("MARKS_UPHELD")}
-                  className={`p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer ${
-                    decision === "MARKS_UPHELD"
-                      ? "bg-canvas-soft border-ink text-ink shadow-2xs ring-1 ring-ink/20"
-                      : "bg-surface border-hairline text-ink-muted hover:border-[#cccccc]"
-                  }`}
+                  className={`p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer ${decision === "MARKS_UPHELD"
+                    ? "bg-canvas-soft border-ink text-ink shadow-2xs ring-1 ring-ink/20"
+                    : "bg-surface border-hairline text-ink-muted hover:border-[#cccccc]"
+                    }`}
                 >
                   <div className="font-bold">Uphold Original Score</div>
                   <div className="text-[10px] font-normal text-ink-muted mt-0.5">

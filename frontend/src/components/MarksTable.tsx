@@ -242,43 +242,56 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
                       {sub.percentage}%
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {sub.status === "ABSENT" || (sub as any).is_absent ? (
-                        <BadgePill label="Absent" color="red" />
-                      ) : hasReview ? (
-                        <BadgePill label="Review" color="purple" />
-                      ) : sub.status === "COMPLETED" ? (
-                        <BadgePill label="Completed" color="green" />
-                      ) : (
-                        <BadgePill label={sub.status} color="gray" />
-                      )}
+                      {(() => {
+                        const statusUpper = (sub.status || "").toUpperCase();
+                        const isAbsent = statusUpper === "ABSENT" || Boolean((sub as any).is_absent);
+                        const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
+                        const isUploaded = statusUpper === "UPLOADED" || statusUpper === "PENDING";
+
+                        if (isAbsent) return <BadgePill label="Absent" color="red" />;
+                        if (isProcessing) return <BadgePill label="Evaluating" color="orange" />;
+                        if (isUploaded) return <BadgePill label="Uploaded" color="sky" />;
+                        if (hasReview) return <BadgePill label="Review" color="purple" />;
+                        if (statusUpper === "COMPLETED" || statusUpper === "GRADED") return <BadgePill label="Completed" color="green" />;
+                        return <BadgePill label={sub.status} color="gray" />;
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      {sub.status === "ABSENT" || (sub as any).is_absent ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-[#872323] bg-[#fbf0f0] border border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f]">
-                          No Submission
-                        </span>
-                      ) : Boolean(
-                        sub.status &&
-                          ["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(
-                            sub.status.toUpperCase()
-                          )
-                      ) ? (
-                        <Link
-                          href={`/grading/${sub.id}`}
-                          className="btn-glass-utility inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-primary transition-all"
-                        >
-                          <span>Inspect Paper</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
-                      ) : (
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-ink-muted opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
-                          title="Evaluation in progress. Paper inspection is disabled until status changes to completed or failed."
-                        >
-                          <Lock className="h-3 w-3 text-ink-muted/70" />
-                          <span>Inspect Paper</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const statusUpper = (sub.status || "").toUpperCase();
+                        const isAbsent = statusUpper === "ABSENT" || Boolean((sub as any).is_absent);
+                        const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
+
+                        if (isAbsent) {
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-[#872323] bg-[#fbf0f0] border border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f]">
+                              No Submission
+                            </span>
+                          );
+                        }
+
+                        if (isProcessing) {
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-ink-muted opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
+                              title="Evaluation in progress. Paper inspection will unlock automatically once completed."
+                            >
+                              <Lock className="h-3 w-3 text-ink-muted/70" />
+                              <span>Inspect Paper</span>
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <Link
+                            href={`/grading/${sub.id}`}
+                            className="btn-glass-utility inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-primary transition-all"
+                          >
+                            <span>Inspect Paper</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );

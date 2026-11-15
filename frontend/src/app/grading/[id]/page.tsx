@@ -229,11 +229,11 @@ export default function GradingPage() {
     ? `/batches/${submission.batch_id}`
     : "/branch/batches";
 
-  const isRuntime = !["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(
-    (submission.status || "").toUpperCase()
-  );
+  const statusUpper = (submission.status || "").toUpperCase();
+  const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
+  const isUploaded = statusUpper === "UPLOADED" || statusUpper === "PENDING";
 
-  if (isRuntime) {
+  if (isProcessing) {
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
         <FeatureCard className="p-8 text-center space-y-4">
@@ -242,14 +242,14 @@ export default function GradingPage() {
           </div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
             <Lock className="h-3 w-3" />
-            <span>Runtime Inspection Locked</span>
+            <span>AI Evaluation in Progress</span>
           </div>
-          <h2 className="text-base font-bold text-ink">Sheet Inspection Disabled During Processing</h2>
+          <h2 className="text-base font-bold text-ink">Sheet Inspection Locked During Processing</h2>
           <p className="text-xs text-ink-muted leading-relaxed">
-            The answer sheet for <strong className="text-ink">{submission.student_name}</strong> ({submission.roll_number}) is currently in runtime status:{" "}
+            The answer sheet for <strong className="text-ink">{submission.student_name}</strong> ({submission.roll_number}) is currently undergoing automated evaluation:{" "}
             <code className="font-mono bg-canvas-soft px-1.5 py-0.5 rounded font-semibold text-primary">{submission.status}</code>.
             <br />
-            The Inspect Sheet view is disabled in all runtime statuses and will unlock automatically once evaluation changes to <strong>Completed</strong> or <strong>Failed</strong>.
+            Inspection is temporarily locked to avoid write conflicts and will unlock automatically once evaluation finishes.
           </p>
           <div className="pt-2 flex items-center justify-center gap-3">
             <ButtonUtility href={backHref}>
@@ -276,19 +276,31 @@ export default function GradingPage() {
     <div className="space-y-6 max-w-7xl mx-auto pb-16 cascade-group">
       {/* Page Actions */}
       <div className="flex items-center justify-end pb-1 border-b border-hairline">
-        {/* Annotated PDF Export Download */}
-        <a
-          href={api.getAnnotatedPdfUrl(
-            submission.id,
-            `${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Graded.pdf`
-          )}
-          download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Graded.pdf`}
-          onClick={() => toast.info("Downloading annotated evaluation PDF...", { title: "PDF Export" })}
-          className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-active text-white px-4 py-2 text-xs font-semibold shadow-xs transition-all"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export Annotated PDF (PyMuPDF)
-        </a>
+        {/* Annotated PDF Export Download or Original Uploaded PDF */}
+        {isUploaded ? (
+          <a
+            href={api.getSubmissionPdfUrl(submission.id)}
+            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Original.pdf`}
+            onClick={() => toast.info("Downloading raw uploaded student PDF...", { title: "PDF Export" })}
+            className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-active text-white px-4 py-2 text-xs font-semibold shadow-xs transition-all"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download Original Uploaded PDF
+          </a>
+        ) : (
+          <a
+            href={api.getAnnotatedPdfUrl(
+              submission.id,
+              `${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Graded.pdf`
+            )}
+            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Graded.pdf`}
+            onClick={() => toast.info("Downloading annotated evaluation PDF...", { title: "PDF Export" })}
+            className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-active text-white px-4 py-2 text-xs font-semibold shadow-xs transition-all"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export Annotated PDF (PyMuPDF)
+          </a>
+        )}
       </div>
 
       {/* Student Overview Banner (Notion FeatureCard) */}
@@ -313,32 +325,51 @@ export default function GradingPage() {
 
           {/* Marks Summary Section */}
           <div className="flex flex-wrap items-center justify-start sm:justify-end gap-5 border-t md:border-t-0 md:border-l border-hairline pt-4 md:pt-0 md:pl-6">
-            <div className="text-left sm:text-right">
-              <span className="text-[11px] text-ink-muted block uppercase tracking-wider font-semibold">Total Awarded</span>
-              <span className="font-mono text-2xl font-bold text-ink">
-                {submission.total_awarded_marks != null ? submission.total_awarded_marks.toFixed(1) : "—"}
-                <span className="text-xs text-ink-muted font-normal"> / {submission.max_marks || 25}</span>
-              </span>
-            </div>
+            {isUploaded ? (
+              <>
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] text-ink-muted block uppercase tracking-wider font-semibold">Evaluation Status</span>
+                  <span className="font-semibold text-xs text-primary mt-0.5 block">
+                    Uploaded • Awaiting Grading
+                  </span>
+                </div>
+                <div className="sm:pl-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-800/40 px-3 py-1 text-xs font-semibold">
+                    <Clock className="h-3.5 w-3.5" />
+                    Uploaded (Awaiting Evaluation)
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] text-ink-muted block uppercase tracking-wider font-semibold">Total Awarded</span>
+                  <span className="font-mono text-2xl font-bold text-ink">
+                    {submission.total_awarded_marks != null ? submission.total_awarded_marks.toFixed(1) : "—"}
+                    <span className="text-xs text-ink-muted font-normal"> / {submission.max_marks || 25}</span>
+                  </span>
+                </div>
 
-            <div className="text-left sm:text-right">
-              <span className="text-[11px] text-ink-muted block uppercase tracking-wider font-semibold">Percentage</span>
-              <BadgePill label={`${pct.toFixed(1)}%`} color={scoreBadgeColor} className="text-sm px-3 py-1 font-mono font-bold mt-0.5" />
-            </div>
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] text-ink-muted block uppercase tracking-wider font-semibold">Percentage</span>
+                  <BadgePill label={`${pct.toFixed(1)}%`} color={scoreBadgeColor} className="text-sm px-3 py-1 font-mono font-bold mt-0.5" />
+                </div>
 
-            <div className="sm:pl-2">
-              {submission.status === "NEEDS_REVIEW" || answers.some((a) => a.needs_review) ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 text-xs font-semibold">
-                  <Flag className="h-3.5 w-3.5" />
-                  Needs Review {answers.filter((a) => a.needs_review).length > 0 ? `(${answers.filter((a) => a.needs_review).length})` : ""}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 text-xs font-semibold">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Completed
-                </span>
-              )}
-            </div>
+                <div className="sm:pl-2">
+                  {submission.status === "NEEDS_REVIEW" || answers.some((a) => a.needs_review) ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 text-xs font-semibold">
+                      <Flag className="h-3.5 w-3.5" />
+                      Needs Review {answers.filter((a) => a.needs_review).length > 0 ? `(${answers.filter((a) => a.needs_review).length})` : ""}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 text-xs font-semibold">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Completed
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </FeatureCard>
@@ -374,91 +405,112 @@ export default function GradingPage() {
               <h3 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
                 Detected Answers ({answers.length})
               </h3>
-              <span className="text-[10px] text-primary font-medium">Click to inspect</span>
+              <span className="text-[10px] text-primary font-medium">
+                {isUploaded ? "Uploaded Script" : "Click to inspect"}
+              </span>
             </div>
 
-            {/* Quick unflag callout if any answers have needs_review */}
-            {answers.some((a) => a.needs_review) && (
-              <div className="p-2.5 rounded-md border border-purple-200 bg-purple-50/80 flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-purple-800 flex items-center gap-1.5">
-                  <Flag className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                  <span>{answers.filter((a) => a.needs_review).length} question(s) flagged</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleClearAllReviews}
-                  disabled={isClearingReview}
-                  className="text-[11px] font-bold text-purple-700 hover:text-purple-900 underline cursor-pointer disabled:opacity-50"
-                >
-                  {isClearingReview ? "Clearing..." : "Unflag All"}
-                </button>
+            {isUploaded && answers.length === 0 ? (
+              <div className="p-4 text-center space-y-2.5 rounded-lg bg-canvas-soft border border-hairline">
+                <FileText className="h-6 w-6 text-primary mx-auto opacity-70" />
+                <div className="text-xs font-bold text-ink">Uploaded Script Preview</div>
+                <p className="text-[11px] text-ink-muted leading-relaxed">
+                  This paper is uploaded and saved in storage. Automated AI grading has not been executed yet.
+                </p>
+                <div className="text-[11px] text-ink-muted font-medium pt-1 border-t border-hairline/60">
+                  Total Scanned Pages: <strong className="text-ink font-mono">{submission.page_count}</strong>
+                </div>
               </div>
+            ) : answers.length === 0 ? (
+              <div className="p-4 text-center text-xs text-ink-muted bg-canvas-soft rounded-lg border border-hairline">
+                No question responses detected.
+              </div>
+            ) : (
+              <>
+                {/* Quick unflag callout if any answers have needs_review */}
+                {answers.some((a) => a.needs_review) && (
+                  <div className="p-2.5 rounded-md border border-purple-200 bg-purple-50/80 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-purple-800 flex items-center gap-1.5">
+                      <Flag className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                      <span>{answers.filter((a) => a.needs_review).length} question(s) flagged</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearAllReviews}
+                      disabled={isClearingReview}
+                      className="text-[11px] font-bold text-purple-700 hover:text-purple-900 underline cursor-pointer disabled:opacity-50"
+                    >
+                      {isClearingReview ? "Clearing..." : "Unflag All"}
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+                  {answers.map((ans) => {
+                    const isSelected = selectedAnswer?.id === ans.id;
+                    const scoreColor =
+                      ans.awarded_marks >= ans.max_marks
+                        ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50"
+                        : ans.awarded_marks > 0
+                        ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50"
+                        : "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50";
+
+                    return (
+                      <button
+                        key={ans.id}
+                        onClick={() => handleSelectAnswer(ans, true)}
+                        className={`w-full flex items-center justify-between p-2.5 rounded-md border text-left transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/5 shadow-2xs"
+                            : "border-hairline bg-surface hover:bg-canvas-soft hover:border-[#d0d0d0]"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-xs font-bold text-ink">
+                              {ans.question_id}
+                            </span>
+                            {Boolean(ans.needs_review) && (
+                              <Flag className="h-3 w-3 text-purple-600" />
+                            )}
+                          </div>
+                          <span className="text-[10px] text-ink-muted">
+                            {(ans.regions || []).length > 1
+                              ? `Pages ${Array.from(new Set((ans.regions || []).map((r: any) => r.page_number))).sort((a: any, b: any) => a - b).join(", ")}`
+                              : ans.page_number
+                              ? `Page ${ans.page_number}`
+                              : "Unassigned"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <div className="font-mono text-xs font-bold">
+                            <span className={`px-2 py-0.5 rounded-md border ${scoreColor}`}>
+                              {ans.awarded_marks}
+                              <span className="text-ink-muted font-normal">/{ans.max_marks}</span>
+                            </span>
+                          </div>
+                          {!(ans.regions || []).some((r: any) => r.page_number === currentPage) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedAnswer(ans);
+                                setEditingAnswerId(ans.id);
+                              }}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors shrink-0 shadow-2xs"
+                              title={`Add bounding box for ${ans.question_id} on Page ${currentPage}`}
+                            >
+                              + Sheet {currentPage}
+                            </button>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
-
-            <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
-              {answers.map((ans) => {
-                const isSelected = selectedAnswer?.id === ans.id;
-                const scoreColor =
-                  ans.awarded_marks >= ans.max_marks
-                    ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50"
-                    : ans.awarded_marks > 0
-                    ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50"
-                    : "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50";
-
-                return (
-                  <button
-                    key={ans.id}
-                    onClick={() => handleSelectAnswer(ans, true)}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-md border text-left transition-all ${
-                      isSelected
-                        ? "border-primary bg-primary/5 shadow-2xs"
-                        : "border-hairline bg-surface hover:bg-canvas-soft hover:border-[#d0d0d0]"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs font-bold text-ink">
-                          {ans.question_id}
-                        </span>
-                        {Boolean(ans.needs_review) && (
-                          <Flag className="h-3 w-3 text-purple-600" />
-                        )}
-                      </div>
-                      <span className="text-[10px] text-ink-muted">
-                        {(ans.regions || []).length > 1
-                          ? `Pages ${Array.from(new Set((ans.regions || []).map((r: any) => r.page_number))).sort((a: any, b: any) => a - b).join(", ")}`
-                          : ans.page_number
-                          ? `Page ${ans.page_number}`
-                          : "Unassigned"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <div className="font-mono text-xs font-bold">
-                        <span className={`px-2 py-0.5 rounded-md border ${scoreColor}`}>
-                          {ans.awarded_marks}
-                          <span className="text-ink-muted font-normal">/{ans.max_marks}</span>
-                        </span>
-                      </div>
-                      {!(ans.regions || []).some((r: any) => r.page_number === currentPage) && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAnswer(ans);
-                            setEditingAnswerId(ans.id);
-                          }}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors shrink-0 shadow-2xs"
-                          title={`Add bounding box for ${ans.question_id} on Page ${currentPage}`}
-                        >
-                          + Sheet {currentPage}
-                        </button>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
           </FeatureCard>
 
           {/* Missing Answers List */}
