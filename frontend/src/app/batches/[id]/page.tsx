@@ -470,12 +470,17 @@ export default function SingleBatchPage() {
                         })()}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {Boolean(
-                          sub.status &&
-                          ["COMPLETED", "GRADED", "NEEDS_REVIEW", "FAILED"].includes(
-                            sub.status.toUpperCase()
-                          )
+                        {["QUEUED", "PROCESSING", "EVALUATING"].includes(
+                          (sub.status || "").toUpperCase()
                         ) ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs px-2.5 py-1 rounded-md opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
+                            title="AI evaluation is currently processing this paper. Sheet inspection will unlock once completed."
+                          >
+                            <Lock className="h-3 w-3 text-ink-muted/70" />
+                            <span>Evaluating...</span>
+                          </span>
+                        ) : (
                           <Link
                             href={`/grading/${sub.id}`}
                             className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-active transition-colors text-xs px-2.5 py-1 rounded-md hover:bg-canvas-soft"
@@ -483,20 +488,6 @@ export default function SingleBatchPage() {
                             <span>Inspect Sheet</span>
                             <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                           </Link>
-                        ) : (
-                          <span
-                            className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs px-2.5 py-1 rounded-md opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
-                            title={
-                              sub.status === "PROCESSING"
-                                ? "AI evaluation is currently processing this paper. Inspect Sheet is disabled until status changes to completed or failed."
-                                : sub.status === "QUEUED"
-                                  ? "Paper is queued for evaluation. Inspect Sheet is disabled until status changes to completed or failed."
-                                  : "Evaluation in progress. Inspect Sheet is disabled in all runtime statuses until status changes to completed or failed."
-                            }
-                          >
-                            <Lock className="h-3 w-3 text-ink-muted/70" />
-                            <span>Inspect Sheet</span>
-                          </span>
                         )}
                       </td>
                     </tr>
