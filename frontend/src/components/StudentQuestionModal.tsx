@@ -16,6 +16,7 @@ import {
 import { GradedAnswer } from "@/lib/types";
 import { api } from "@/lib/api";
 import { BadgePill, ButtonPrimary, ButtonUtility, ModalCard, StickerColor, MathText } from "./ui";
+import { ClippedAnswerCrop } from "./ClippedAnswerCrop";
 import { useToast } from "@/lib/ToastContext";
 
 interface StudentQuestionModalProps {
@@ -213,18 +214,14 @@ export function StudentQuestionModal({
               showFullCrop ? "max-h-72 p-2" : "max-h-28 sm:max-h-36 p-1.5"
             }`}
           >
-            {cropUrl ? (
-              <img
-                key={cropUrl}
-                src={cropUrl}
-                alt={`Answer Crop ${answer.question_id}`}
-                className={`w-auto object-contain rounded select-none shadow-2xs ${
-                  showFullCrop ? "max-h-68" : "max-h-24 sm:max-h-32"
-                }`}
-              />
-            ) : (
-              <span className="text-xs text-ink-muted italic">Crop preview not available</span>
-            )}
+            <ClippedAnswerCrop
+              submissionId={submissionId}
+              pageNumber={answer.page_number || 1}
+              region={answer.regions?.[0] || ((answer as any).x !== undefined ? (answer as any) : null)}
+              fallbackCropUrl={cropUrl}
+              alt={`Answer Crop ${answer.question_id}`}
+              maxContainerHeight={showFullCrop ? "280px" : "140px"}
+            />
           </div>
         </div>
 

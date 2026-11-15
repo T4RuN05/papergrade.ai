@@ -20,6 +20,7 @@ import {
 import { GradedAnswer } from "@/lib/types";
 import { api } from "@/lib/api";
 import { BadgePill, ButtonPrimary, ButtonUtility, ModalCard } from "./ui";
+import { ClippedAnswerCrop } from "./ClippedAnswerCrop";
 import { useToast } from "@/lib/ToastContext";
 
 interface AdminRevaluationModalProps {
@@ -279,16 +280,14 @@ export function AdminRevaluationModal({
             <span className="text-[10px]">Crop Region</span>
           </div>
           <div className="rounded-md border border-hairline bg-surface p-2 overflow-hidden flex items-center justify-center max-h-52">
-            {cropUrl ? (
-              <img
-                key={cropUrl}
-                src={cropUrl}
-                alt={`Crop of Question ${answer.question_id}`}
-                className="max-h-48 w-auto object-contain rounded select-none shadow-2xs"
-              />
-            ) : (
-              <span className="text-xs text-ink-muted italic">Crop preview not available</span>
-            )}
+            <ClippedAnswerCrop
+              submissionId={submissionId}
+              pageNumber={answer.page_number || 1}
+              region={answer.regions?.[0] || ((answer as any).x !== undefined ? (answer as any) : null)}
+              fallbackCropUrl={cropUrl}
+              alt={`Crop of Question ${answer.question_id}`}
+              maxContainerHeight="200px"
+            />
           </div>
         </div>
 

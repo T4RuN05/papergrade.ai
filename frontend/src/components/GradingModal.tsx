@@ -25,6 +25,7 @@ import {
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
 import { BadgePill, MathText, hasLatexMath, ButtonPrimary, ButtonUtility, StatusWell } from "./ui";
+import { ClippedAnswerCrop } from "./ClippedAnswerCrop";
 import { useToast } from "@/lib/ToastContext";
 
 interface GradingModalProps {
@@ -506,11 +507,13 @@ export function GradingModal({
 
                         <div className="flex-1 flex flex-col items-center justify-center min-h-[180px] rounded-md bg-canvas-soft border border-hairline p-2 overflow-hidden">
                           {activeCropUrl && !answer.is_missing ? (
-                            <img
-                              key={activeCropUrl}
-                              src={activeCropUrl}
+                            <ClippedAnswerCrop
+                              submissionId={submission.id}
+                              pageNumber={activePage || 1}
+                              region={activeRegion}
+                              fallbackCropUrl={activeCropUrl}
                               alt="Student Handwriting Crop"
-                              className="max-h-[260px] w-auto object-contain rounded shadow-xs"
+                              maxContainerHeight="260px"
                             />
                           ) : (
                             <div className="text-center py-6 px-4">
