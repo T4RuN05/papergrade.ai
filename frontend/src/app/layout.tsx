@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { IOSInstallBanner } from "@/components/iOSInstallBanner";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { QueryProvider } from "@/lib/QueryProvider";
 
@@ -88,6 +89,7 @@ export default function RootLayout({
             <IOSInstallBanner />
             <AppShell>{children}</AppShell>
             <Analytics />
+            <SpeedInsights />
           </QueryProvider>
         </ThemeProvider>
       </body>
