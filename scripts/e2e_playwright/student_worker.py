@@ -8,6 +8,7 @@ Executes 3-phase real-world conduction lifecycle:
 
 import asyncio
 import time
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
