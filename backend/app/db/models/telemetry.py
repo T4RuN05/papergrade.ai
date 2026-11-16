@@ -18,6 +18,8 @@ class Notification(Base, TimestampMixin):
     __tablename__ = "notifications"
     __table_args__ = (
         Index("idx_notif_user", "user_id"),
+        Index("idx_notif_user_created", "user_id", "created_at"),
+        Index("idx_notif_user_unread", "user_id", "is_read"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"notif_{uuid.uuid4().hex[:12]}")

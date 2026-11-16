@@ -234,8 +234,16 @@ def send_notification(
             VALUES (?, ?, ?, ?, ?, ?, 0, ?)
         """, (notif_id, user_id, notif_type, title, message, link_url, now))
 
-    # Keep only the latest 50 notifications for this user
-    prune_user_notifications(cursor, user_id, keep_limit=50)
+    # Offload table pruning to a background thread to keep caller transactions sub-millisecond
+    def _async_prune():
+        try:
+            with get_session() as session:
+                prune_user_notifications(session, user_id, keep_limit=50)
+                session.commit()
+        except Exception as e:
+            logger.debug("Background notification pruning notice: %s", e)
+
+    threading.Thread(target=_async_prune, daemon=True).start()
 
     dispatch_webpush_for_user(user_id, title, message, link_url)
     return notif_id

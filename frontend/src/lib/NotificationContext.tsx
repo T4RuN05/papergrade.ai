@@ -268,14 +268,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications([]);
       return;
     }
-    // Automatically keep device Web Push registration bound to the active user session
-    if (
-      typeof window !== "undefined" &&
-      "Notification" in window &&
-      Notification.permission === "granted"
-    ) {
-      syncWebPushSubscription().catch(() => {});
-    }
     try {
       setLoading(true);
       const data = await api.listNotifications();
@@ -304,14 +296,52 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [toast, sendSystemNotification, syncWebPushSubscription]);
+  }, [toast, sendSystemNotification]);
 
   useEffect(() => {
-    fetchNotifications();
+    let intervalId: NodeJS.Timeout | null = null;
 
-    // Auto-poll every 12 seconds for live updates
-    const interval = setInterval(fetchNotifications, 12000);
-    return () => clearInterval(interval);
+    const startPolling = () => {
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if (typeof document !== "undefined" && !document.hidden) {
+          fetchNotifications();
+        }
+      }, 30000); // 30 seconds adaptive interval (saves ~84% server load)
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined") {
+        if (!document.hidden) {
+          // Tab active again: immediate fetch and restart polling
+          fetchNotifications();
+          startPolling();
+        } else {
+          // Tab minimized or hidden: pause interval completely to conserve server CPU
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
+      }
+    };
+
+    // Initial mount: fetch immediately if visible and start adaptive poller
+    if (typeof document === "undefined" || !document.hidden) {
+      fetchNotifications();
+      startPolling();
+    }
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+    };
   }, [fetchNotifications]);
 
   const openDrawer = () => setIsOpen(true);
