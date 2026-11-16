@@ -1,18 +1,12 @@
-import os
 import shutil
 import io
-from concurrent.futures import ThreadPoolExecutor
+import gc
 from pathlib import Path
 from typing import List, Tuple, Optional
 import fitz  # PyMuPDF
 from PIL import Image, ImageOps
 
 from backend.app.config import settings
-from backend.app.services.storage import (
-    get_storage_service,
-    is_remote_storage,
-    sync_file_to_remote_storage,
-)
 
 class PDFService:
     @staticmethod
@@ -121,65 +115,12 @@ class PDFService:
                 page_img_path = dest_dir / f"page_{page_num + 1}.png"
                 pix.save(str(page_img_path))
                 rendered_paths.append(page_img_path)
+                del pix
         finally:
             doc.close()
-
-        storage = get_storage_service()
-        if rendered_paths and is_remote_storage(storage):
-            def _upload_page(p: Path) -> None:
-                sync_file_to_remote_storage(
-                    p,
-                    f"renders/{submission_id}/{p.name}",
-                    content_type="image/png",
-                    storage=storage,
-                )
-
-            if len(rendered_paths) == 1:
-                _upload_page(rendered_paths[0])
-            else:
-                with ThreadPoolExecutor(max_workers=4) as pool:
-                    list(pool.map(_upload_page, rendered_paths))
+            gc.collect()
 
         return rendered_paths
-
-    @staticmethod
-    def render_page_variant(
-        page_img_path: Path,
-        output_path: Path,
-        target_width: int,
-        quality: int = 80,
-    ) -> Optional[Path]:
-        """
-        Downscales a rendered page PNG into a display-only JPEG variant.
-
-        The 150 DPI master PNG stays the source of truth for crops, exports and
-        the answer-region coordinate space; this only shrinks what the browser
-        has to download and decode on mobile. Pages are already upright (the
-        canonical PDF is normalised), so no orientation handling is needed.
-        """
-        if not page_img_path.exists() or target_width <= 0:
-            return None
-        try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with Image.open(page_img_path) as img:
-                rgb = img.convert("RGB")
-                src_w, src_h = rgb.size
-                if src_w <= target_width:
-                    resized = rgb
-                else:
-                    target_height = max(1, round(src_h * (target_width / src_w)))
-                    resized = rgb.resize((target_width, target_height), Image.LANCZOS)
-                resized.save(
-                    output_path,
-                    format="JPEG",
-                    quality=quality,
-                    optimize=True,
-                    progressive=True,
-                )
-            return output_path
-        except Exception:
-            # A failed optimisation must never break page display; the caller falls back to the master PNG.
-            return None
 
     @staticmethod
     def crop_answer_region(
@@ -195,25 +136,25 @@ class PDFService:
         """
         Crops the exact answer region from the rendered page image using normalized coordinates.
         Adds a slight margin/padding for teacher legibility.
+        Local server operation only: derived crops are NEVER uploaded to remote storage.
         """
         if not page_img_path.exists():
             return None
         output_crop_path.parent.mkdir(parents=True, exist_ok=True)
-        img = Image.open(page_img_path)
-        img_w, img_h = img.size
+        with Image.open(page_img_path) as img:
+            img_w, img_h = img.size
 
-        crop_x = max(0, int((x - padding_pct) * img_w))
-        crop_y = max(0, int((y - padding_pct) * img_h))
-        crop_w = min(img_w - crop_x, int((width + 2 * padding_pct) * img_w))
-        crop_h = min(img_h - crop_y, int((height + 2 * padding_pct) * img_h))
+            crop_x = max(0, int((x - padding_pct) * img_w))
+            crop_y = max(0, int((y - padding_pct) * img_h))
+            crop_w = min(img_w - crop_x, int((width + 2 * padding_pct) * img_w))
+            crop_h = min(img_h - crop_y, int((height + 2 * padding_pct) * img_h))
 
-        if crop_w <= 5 or crop_h <= 5:
-            return None
+            if crop_w <= 5 or crop_h <= 5:
+                return None
 
-        cropped = img.crop((crop_x, crop_y, crop_x + crop_w, crop_y + crop_h))
-        cropped.save(output_crop_path, format="PNG")
-        if upload_key:
-            sync_file_to_remote_storage(output_crop_path, upload_key, content_type="image/png")
+            cropped = img.crop((crop_x, crop_y, crop_x + crop_w, crop_y + crop_h))
+            cropped.save(output_crop_path, format="PNG")
+            del cropped
         return output_crop_path
 
     @staticmethod

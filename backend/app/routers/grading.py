@@ -15,12 +15,7 @@ from backend.app.schemas import (
     SingleAnswerReevaluateRequest,
 )
 from backend.app.services.grading_service import grading_service
-from backend.app.services.storage import (
-    get_storage_service,
-    is_remote_storage,
-    build_remote_redirect_response,
-    sync_file_to_remote_storage,
-)
+from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.auth import get_current_user, require_branch_manager
 
@@ -34,16 +29,6 @@ PAGE_CACHE_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Robots-Tag": "noindex, nofollow",
 }
-
-# Presigned redirects are short-lived (900s), so the redirect itself must not be cached long.
-REDIRECT_CACHE_HEADERS = {
-    "Cache-Control": "private, max-age=600",
-    "Referrer-Policy": "no-referrer",
-    "X-Robots-Tag": "noindex, nofollow",
-}
-
-# Served page-image widths. The 150 DPI master stays the crop canonical source.
-PAGE_VARIANT_WIDTHS = (480, 720, 1200, 1800)
 
 NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
@@ -196,32 +181,6 @@ def _ensure_submission_pages_rendered(
                 continue
 
 
-def _serve_render_image(
-    local_path: Path,
-    storage_key: str,
-    storage,
-    headers: Dict[str, str],
-    cache_buster: Optional[str] = None,
-    content_type: str = "image/png",
-    redirect_headers: Optional[Dict[str, str]] = None,
-):
-    """Redirect to remote object storage when configured; otherwise stream the local image."""
-    if is_remote_storage(storage):
-        synced = True
-        if not storage.file_exists(storage_key):
-            synced = sync_file_to_remote_storage(local_path, storage_key, content_type=content_type, storage=storage)
-        if synced:
-            redirect_resp = build_remote_redirect_response(
-                storage,
-                storage_key,
-                cache_buster=cache_buster,
-                headers=redirect_headers or headers,
-            )
-            if redirect_resp is not None:
-                return redirect_resp
-    return FileResponse(str(local_path), media_type=content_type, headers=headers)
-
-
 @router.get("/page-image/{submission_id}/{page_num}")
 def get_page_image(
     submission_id: str,
@@ -262,81 +221,13 @@ def get_page_image(
             raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's page image.")
 
     storage = get_storage_service()
-
-    # Snap the requested width onto a known variant bucket so HTTP caches stay coherent,
-    # and the same page bitmap is reused across viewers/devices.
-    variant_width: Optional[int] = None
-    if w:
-        variant_width = min(PAGE_VARIANT_WIDTHS, key=lambda candidate: (abs(candidate - w), candidate))
-
-    if variant_width:
-        base_img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
-        base_key = f"renders/{submission_id}/page_{page_num}.png"
-
-        # On a fresh instance, fetch just this page bitmap instead of re-rendering the whole PDF.
-        if not base_img_path.exists() and is_remote_storage(storage) and storage.file_exists(base_key):
-            try:
-                base_img_path.parent.mkdir(parents=True, exist_ok=True)
-                base_img_path.write_bytes(storage.download_file(base_key))
-            except Exception:
-                pass
-
-        _ensure_submission_pages_rendered(submission_id, sub, base_img_path, storage)
-        if not base_img_path.exists():
-            raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
-
-        variant_path = (
-            settings.RENDERS_DIR / submission_id / "variants" / f"w{variant_width}" / f"page_{page_num}.jpg"
-        )
-        variant_key = f"renders/{submission_id}/variants/w{variant_width}/page_{page_num}.jpg"
-
-        # Skip the (cheap) re-encode when a previous instance already produced/uploaded the variant.
-        if not variant_path.exists() and is_remote_storage(storage) and storage.file_exists(variant_key):
-            redirect_resp = build_remote_redirect_response(
-                storage, variant_key, headers=REDIRECT_CACHE_HEADERS
-            )
-            if redirect_resp is not None:
-                return redirect_resp
-
-        pdf_service.render_page_variant(base_img_path, variant_path, variant_width)
-        if not variant_path.exists():
-            # Never fail the viewer over an optimisation: fall back to the master PNG.
-            return _serve_render_image(
-                base_img_path,
-                f"renders/{submission_id}/page_{page_num}.png",
-                storage,
-                PAGE_CACHE_HEADERS,
-                redirect_headers=REDIRECT_CACHE_HEADERS,
-            )
-
-        return _serve_render_image(
-            variant_path,
-            variant_key,
-            storage,
-            PAGE_CACHE_HEADERS,
-            content_type="image/jpeg",
-            redirect_headers=REDIRECT_CACHE_HEADERS,
-        )
-
-    # No width requested: serve the full-resolution 150 DPI master (crop-canonical bitmap).
-    page_storage_key = f"renders/{submission_id}/page_{page_num}.png"
-    if is_remote_storage(storage) and storage.file_exists(page_storage_key):
-        redirect_resp = build_remote_redirect_response(storage, page_storage_key, headers=REDIRECT_CACHE_HEADERS)
-        if redirect_resp is not None:
-            return redirect_resp
-
     img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
     _ensure_submission_pages_rendered(submission_id, sub, img_path, storage)
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
-    return _serve_render_image(
-        img_path,
-        page_storage_key,
-        storage,
-        PAGE_CACHE_HEADERS,
-        redirect_headers=REDIRECT_CACHE_HEADERS,
-    )
+
+    return FileResponse(str(img_path), media_type="image/png", headers=PAGE_CACHE_HEADERS)
 
 
 @router.get("/crop/{submission_id}/{answer_id}")
@@ -366,7 +257,6 @@ def get_answer_crop(
             if not exam or exam.is_published != 1:
                 raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
 
-    storage = get_storage_service()
     crops_dir = settings.RENDERS_DIR / submission_id / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
@@ -374,32 +264,16 @@ def get_answer_crop(
     target_reg = None
 
     if region_id:
-        reg_crop_name = f"crop_{answer_id}_{region_id}.png"
-        reg_crop_path = crops_dir / reg_crop_name
-        reg_crop_key = f"renders/{submission_id}/crops/{reg_crop_name}"
-        if is_remote_storage(storage) and storage.file_exists(reg_crop_key):
-            redirect_resp = build_remote_redirect_response(
-                storage, reg_crop_key, cache_buster=v, headers=NO_CACHE_HEADERS
-            )
-            if redirect_resp is not None:
-                return redirect_resp
+        reg_crop_path = crops_dir / f"crop_{answer_id}_{region_id}.png"
         if reg_crop_path.exists():
-            return _serve_render_image(reg_crop_path, reg_crop_key, storage, NO_CACHE_HEADERS, cache_buster=v)
+            return FileResponse(str(reg_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
         target_crop_path = reg_crop_path
         target_reg = db.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
 
     if not target_crop_path or not target_reg:
-        primary_crop_name = f"crop_{answer_id}.png"
-        primary_crop_path = crops_dir / primary_crop_name
-        primary_crop_key = f"renders/{submission_id}/crops/{primary_crop_name}"
-        if is_remote_storage(storage) and storage.file_exists(primary_crop_key):
-            redirect_resp = build_remote_redirect_response(
-                storage, primary_crop_key, cache_buster=v, headers=NO_CACHE_HEADERS
-            )
-            if redirect_resp is not None:
-                return redirect_resp
+        primary_crop_path = crops_dir / f"crop_{answer_id}.png"
         if primary_crop_path.exists():
-            return _serve_render_image(primary_crop_path, primary_crop_key, storage, NO_CACHE_HEADERS, cache_buster=v)
+            return FileResponse(str(primary_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
         target_crop_path = primary_crop_path
         target_reg = db.scalar(
             select(AnswerRegion)
@@ -408,21 +282,12 @@ def get_answer_crop(
             .limit(1)
         )
 
-    # Dynamic fallback: regenerate crop if missing from disk and object storage
+    # Dynamic fallback: regenerate crop locally from page render if missing from disk
     if target_reg:
         page_num = target_reg.page_number
         page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+        storage = get_storage_service()
         _ensure_submission_pages_rendered(submission_id, sub, page_img, storage)
-
-        if not page_img.exists() and is_remote_storage(storage):
-            page_key = f"renders/{submission_id}/page_{page_num}.png"
-            try:
-                if storage.file_exists(page_key):
-                    cached_page = storage.get_local_path_or_download(page_key)
-                    if cached_page and cached_page.exists():
-                        page_img = cached_page
-            except Exception:
-                pass
 
         if page_img.exists():
             try:
@@ -438,7 +303,6 @@ def get_answer_crop(
                 pass
 
     if target_crop_path and target_crop_path.exists():
-        crop_key = f"renders/{submission_id}/crops/{target_crop_path.name}"
-        return _serve_render_image(target_crop_path, crop_key, storage, NO_CACHE_HEADERS, cache_buster=v)
+        return FileResponse(str(target_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
 
     raise HTTPException(status_code=404, detail="Crop not found.")

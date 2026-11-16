@@ -281,27 +281,29 @@ def test_all_endpoints_offload_to_remote_storage_without_proxying(monkeypatch, t
         assert r.status_code == 307
         assert "attachment=0" in r.headers["location"]
 
-        # 3. /api/v1/exams/{exam_id}/question-paper/pages/1 -> 307 CDN image redirect
-        r = client.get(f"/api/v1/exams/{exam_id}/question-paper/pages/1", headers=headers, follow_redirects=False)
-        assert r.status_code == 307
-        assert r.headers["location"] == f"https://cdn.example.test/img/renders/exam_{exam_id}_question-paper/page_1.png"
-
-        # 4. /api/grading/page-image & /api/grading/crop -> 307 CDN image redirect
-        r = client.get(f"/api/grading/page-image/{sub_id}/1", headers=headers, follow_redirects=False)
-        assert r.status_code == 307
-        assert r.headers["location"] == f"https://cdn.example.test/img/renders/{sub_id}/page_1.png"
-
-        r = client.get(f"/api/grading/crop/{sub_id}/{ans_id}?region_id={reg_id}&v=42", headers=headers, follow_redirects=False)
-        assert r.status_code == 307
-        assert r.headers["location"] == f"https://cdn.example.test/img/renders/{sub_id}/crops/crop_{ans_id}_{reg_id}.png?v=42"
-
-        # 5. /api/exports/pdf/{sub_id} -> 307 attachment redirect
+        # 3. /api/exports/pdf/{sub_id} -> 307 attachment redirect
         r = client.get(f"/api/exports/pdf/{sub_id}/Custom_Graded.pdf", headers=headers, follow_redirects=False)
         assert r.status_code == 307
         assert "attachment=1" in r.headers["location"]
         assert "filename=Custom_Graded.pdf" in r.headers["location"]
 
-        # Verify zero backend byte downloads occurred across all 7 requests!
+        # 4. /api/grading/page-image & /api/grading/crop -> served locally as 200 FileResponse (never offloaded to remote CDN)
+        local_render = settings.RENDERS_DIR / sub_id / "page_1.png"
+        local_render.parent.mkdir(parents=True, exist_ok=True)
+        local_render.write_bytes(png_bytes)
+        local_crop = settings.RENDERS_DIR / sub_id / "crops" / f"crop_{ans_id}_{reg_id}.png"
+        local_crop.parent.mkdir(parents=True, exist_ok=True)
+        local_crop.write_bytes(png_bytes)
+
+        r_page = client.get(f"/api/grading/page-image/{sub_id}/1", headers=headers, follow_redirects=False)
+        assert r_page.status_code == 200
+        assert r_page.headers["content-type"] == "image/png"
+
+        r_crop = client.get(f"/api/grading/crop/{sub_id}/{ans_id}?region_id={reg_id}&v=42", headers=headers, follow_redirects=False)
+        assert r_crop.status_code == 200
+        assert r_crop.headers["content-type"] == "image/png"
+
+        # Verify zero backend byte downloads occurred across all remote storage requests!
         assert mock_storage.download_calls == []
 
         # 6. /api/exports/batch-zip -> downloads individual annotated PDF to assemble ZIP, then offloads ZIP via 307

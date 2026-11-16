@@ -92,10 +92,10 @@ def purge_zombie_crops(apply_changes: bool = False):
                     pub_id = r.get("public_id", "")
                     b = r.get("bytes", 0)
 
-                    # Strictly match crop files inside renders/*/crops/
-                    if "/crops/" in pub_id or pub_id.startswith("crops/"):
-                        # Hard invariant safety check: Never delete page renders or submissions
-                        if "page_" in pub_id or "submissions/" in pub_id or "original_" in pub_id:
+                    # Match all derived assets under renders/ (crops, page PNGs, variants)
+                    if pub_id.startswith("renders/") or "/crops/" in pub_id or pub_id.startswith("crops/"):
+                        # Hard invariant safety check: Never delete canonical PDFs, submissions, or final exports
+                        if "submissions/" in pub_id or "exports/" in pub_id or "original_" in pub_id or pub_id.endswith(".pdf"):
                             print(f"  [SAFETY SKIP] {pub_id} matches protected pattern, skipping!")
                             continue
 

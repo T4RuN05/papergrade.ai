@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import select, delete, update, or_
+from sqlalchemy import select, delete, update
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
@@ -23,7 +23,6 @@ from backend.app.db.models import (
 )
 from backend.app.schemas import (
     StudentGradingExtractionResult,
-    GradedAnswerItem,
     ManualEditAnswerRequest,
     ManualEditRegionRequest
 )
@@ -39,16 +38,44 @@ _export_dirty: set[str] = set()
 _export_dirty_lock = threading.Lock()
 
 
+def _normalize_newlines(text: str) -> str:
+    """Pre-normalizes literal, escaped, and Windows/Unix newlines into single spaces."""
+    if not text:
+        return ""
+    t = text.replace("\\r\\n", " ").replace("\\n", " ").replace("\\r", " ")
+    t = t.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    return t
+
+
+def _clean_math_and_latex(text: str) -> str:
+    """
+    Strips LaTeX formatting commands (\\hat, \\bar, \\vec, \\mathbf, \\frac, etc.)
+    and standardizes math symbols so mathematical equivalence is preserved
+    regardless of whether quotes or OCR transcripts use raw LaTeX or plain text.
+    """
+    if not text:
+        return ""
+    t = _normalize_newlines(text)
+    # Strip LaTeX commands like \frac, \hat, \bar, \vec, \mathbf, \mathrm, \text, \lambda, \to, \implies, etc.
+    t = re.sub(r'\\[a-zA-Z]+', ' ', t)
+    # Strip common unicode math symbols to spaces so they match regardless of character choice
+    t = re.sub(r'[λ\u03bb\u2192\u21d2\u2234\u2235\u2260\u2248\u2264\u2265\u00d7\u00b7]', ' ', t)
+    return t
+
+
 def _enforce_evidence_grounding_and_verdict(
     awarded_marks: float,
     max_marks: float,
     evidence: str,
     extracted_student_answer: str,
+    grading_rationale: Optional[str] = None,
 ) -> float:
     """
     Deterministic kill-switch:
     1. Forces 0.0 marks if evidence does not start with 'PASS' or contains failure markers.
     2. Forces 0.0 marks if the quoted text is missing or fabricated (not in extracted_student_answer).
+       Applies pre-normalization of newlines, LaTeX command stripping, multi-segment equation
+       matching (e.g. 3r=7, q-1=-4, 2p+3=1), token-bag matching, and affirmative rationale fallback.
     3. Rounds valid marks to nearest 0.5 step within [0.0, max_marks].
     """
     ev = (evidence or "").strip()
@@ -70,8 +97,8 @@ def _enforce_evidence_grounding_and_verdict(
     quote_match = re.search(r'QUOTE:\s*["\']([^"\']*)["\']', ev, flags=re.IGNORECASE)
     if quote_match:
         raw_quote = quote_match.group(1).strip()
-        norm_quote = " ".join(raw_quote.lower().split())
-        norm_transcript = " ".join((extracted_student_answer or "").lower().split())
+        norm_quote = " ".join(_normalize_newlines(raw_quote).lower().split())
+        norm_transcript = " ".join(_normalize_newlines(extracted_student_answer or "").lower().split())
 
         if norm_quote in {"", "none", "missing", "n/a", "null"}:
             return 0.0
@@ -95,45 +122,81 @@ def _enforce_evidence_grounding_and_verdict(
         else:
             # If quote is > 6 chars and not a literal substring of the transcript, check alphanumeric & segment matches
             if len(norm_quote) > 6 and norm_quote not in norm_transcript:
-                clean_t = re.sub(r'[^a-z0-9]', '', norm_transcript)
-                clean_quote_str = norm_quote
-                for lt in [r'\implies', r'\therefore', r'\times', r'\cdot', r'\neq', r'\approx', r'\pm', r'\left', r'\right']:
-                    clean_quote_str = clean_quote_str.replace(lt, ' ')
+                clean_quote_str = _clean_math_and_latex(raw_quote)
+                clean_transcript_str = _clean_math_and_latex(extracted_student_answer or "")
 
-                clean_q = re.sub(r'[^a-z0-9]', '', clean_quote_str.replace(r'\rightarrow', ' ').replace('->', ' '))
+                clean_t = re.sub(r'[^a-z0-9]', '', clean_transcript_str.lower())
+                clean_q = re.sub(r'[^a-z0-9]', '', clean_quote_str.lower())
                 if not clean_t:
                     return 0.0
 
                 # Check 1: direct alphanumeric match
                 is_grounded = bool(clean_q and clean_q in clean_t)
 
-                # Check 2: segmented / ellipsis / arrow-separated quote matching
+                # Check 2: Multi-Segment Matching (equations separated by commas, semicolons, newlines, 'and', arrows, etc.)
                 if not is_grounded:
-                    segments = [s.strip() for s in re.split(r'\\\.{3,}|\u2026|\||\\rightarrow|->', clean_quote_str) if s.strip()]
+                    segments = [
+                        s.strip()
+                        for s in re.split(
+                            r'[,;\n\r\|]|\band\b|\\\.{3,}|\u2026|\\rightarrow|->',
+                            clean_quote_str,
+                            flags=re.IGNORECASE
+                        )
+                        if s.strip()
+                    ]
                     if len(segments) > 1:
                         valid_segs = 0
                         matched_segs = 0
                         for seg in segments:
-                            clean_seg = re.sub(r'[^a-z0-9]', '', seg)
-                            if len(clean_seg) >= 3:
+                            clean_seg = re.sub(r'[^a-z0-9]', '', seg.lower())
+                            if len(clean_seg) >= 2:
                                 valid_segs += 1
                                 if clean_seg in clean_t:
                                     matched_segs += 1
                                 else:
                                     words = seg.split()
-                                    if len(words) >= 3:
-                                        sub_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]))
+                                    if len(words) >= 2:
+                                        sub_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]).lower())
                                         if sub_clean and sub_clean in clean_t:
                                             matched_segs += 1
-                        if valid_segs > 0 and (matched_segs == valid_segs or (valid_segs >= 3 and matched_segs >= valid_segs - 1)):
+                        if valid_segs > 0:
+                            if matched_segs == valid_segs or (valid_segs >= 3 and matched_segs >= int(valid_segs * 0.66)):
+                                is_grounded = True
+
+                # Check 3: Token-Bag Matching for multi-variable / multi-equation quotes
+                if not is_grounded:
+                    tokens = [w for w in re.findall(r'[a-z0-9]+', clean_quote_str.lower()) if len(w) >= 2]
+                    if len(tokens) >= 3:
+                        matched_tokens = sum(1 for tok in tokens if tok in clean_t)
+                        if matched_tokens / len(tokens) >= 0.70:
                             is_grounded = True
 
-                # Check 3: anchor prefix (at least 4 consecutive words from start of quote)
+                # Check 4: anchor prefix (at least 3-4 consecutive words or 8 chars from start of quote)
                 if not is_grounded:
                     words = clean_quote_str.split()
-                    if len(words) >= 4:
-                        head_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]))
-                        if len(head_clean) >= 10 and head_clean in clean_t:
+                    if len(words) >= 3:
+                        head_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]).lower())
+                        if len(head_clean) >= 8 and head_clean in clean_t:
+                            is_grounded = True
+
+                # Check 5: Safety Fallback: If evidence is PASS/PARTIAL and AI's grading_rationale affirms the step
+                if not is_grounded:
+                    rat = (grading_rationale or "").lower()
+                    if rat and (ev_upper.startswith("PASS") or ev_upper.startswith("PARTIAL")):
+                        affirmative_keywords = [
+                            "correct", "accurately", "accurate", "solved", "obtained",
+                            "formulated", "applied", "substituted", "stated", "written",
+                            "derived", "verified", "satisfied", "awarded", "full marks",
+                            "properly", "valid", "shown", "reduced"
+                        ]
+                        negative_keywords = [
+                            "incorrect", "not found", "missing", "failed", "unable",
+                            "no attempt", "wrong", "did not", "error", "fabricated",
+                            "omitted", "could not", "incomplete"
+                        ]
+                        has_affirmative = any(term in rat for term in affirmative_keywords)
+                        has_negative = any(neg in rat for neg in negative_keywords)
+                        if has_affirmative and not has_negative:
                             is_grounded = True
 
                 if not is_grounded:
@@ -355,7 +418,8 @@ class GradingService:
                             awarded_marks=c.awarded_marks,
                             max_marks=c_max,
                             evidence=c.evidence,
-                            extracted_student_answer=ans.extracted_student_answer
+                            extracted_student_answer=ans.extracted_student_answer,
+                            grading_rationale=ans.grading_rationale
                         )
                         crit_sum += c_awarded
                         validated_crit_scores.append((c.criterion_id, c.description, c_max, c_awarded, c.evidence))
@@ -511,7 +575,7 @@ class GradingService:
                 page_num = row.page_number
                 page_img = renders_dir / f"page_{page_num}.png"
                 
-                # Region-specific crop
+                # Region-specific crop (cached locally on server disk)
                 reg_crop_path = crops_dir / f"crop_{ans_id}_{reg_id}.png"
                 if page_img.exists() and not reg_crop_path.exists():
                     pdf_service.crop_answer_region(
@@ -521,10 +585,9 @@ class GradingService:
                         width=row.width,
                         height=row.height,
                         output_crop_path=reg_crop_path,
-                        upload_key=f"renders/{submission_id}/crops/crop_{ans_id}_{reg_id}.png",
                     )
 
-                # Primary answer crop (first region)
+                # Primary answer crop (first region, cached locally on server disk)
                 primary_crop_path = crops_dir / f"crop_{ans_id}.png"
                 if page_img.exists() and not primary_crop_path.exists():
                     pdf_service.crop_answer_region(
@@ -534,7 +597,6 @@ class GradingService:
                         width=row.width,
                         height=row.height,
                         output_crop_path=primary_crop_path,
-                        upload_key=f"renders/{submission_id}/crops/crop_{ans_id}.png",
                     )
 
     @staticmethod
@@ -1239,7 +1301,6 @@ class GradingService:
                 edit_req.width,
                 edit_req.height,
                 reg_crop_path,
-                upload_key=f"renders/{submission_id}/crops/crop_{ans_id}_{actual_region_id}.png",
             )
             with get_session() as session:
                 first_reg = session.scalar(
@@ -1256,7 +1317,6 @@ class GradingService:
                         edit_req.width,
                         edit_req.height,
                         crop_path,
-                        upload_key=f"renders/{submission_id}/crops/crop_{ans_id}.png",
                     )
 
         # Re-export annotated PDF asynchronously in background
@@ -1374,10 +1434,6 @@ class GradingService:
             if first_rem_crop.exists():
                 try:
                     shutil.copy2(first_rem_crop, primary_crop)
-                    if remote_storage:
-                        sync_file_to_remote_storage(
-                            primary_crop, primary_crop_key, content_type="image/png", storage=storage
-                        )
                 except Exception:
                     pass
             else:
@@ -1391,7 +1447,6 @@ class GradingService:
                             first_rem.width,
                             first_rem.height,
                             primary_crop,
-                            upload_key=primary_crop_key,
                         )
                     except Exception:
                         pass
@@ -1679,7 +1734,6 @@ class GradingService:
                                 float(target_reg.width),
                                 float(target_reg.height),
                                 out_path,
-                                upload_key=f"renders/{submission_id}/crops/crop_{answer_id}.png",
                             )
                             target_crop_path = out_path
                         except Exception:

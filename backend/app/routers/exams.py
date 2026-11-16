@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, update, delete, or_, and_
 import fitz
@@ -36,7 +36,7 @@ from backend.app.db.models import (
     ApiUsageEvent,
     ExperimentBenchmark,
 )
-from backend.app.schemas import ExamRubricExtractionResult, RubricApproveRequest
+from backend.app.schemas import RubricApproveRequest
 from backend.app.services.exam_service import exam_service
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.storage import (
@@ -1208,14 +1208,7 @@ async def get_exam_artifact_page_image(
     render_key = f"exam_{exam_id}_{clean_art}"
     render_dir = settings.RENDERS_DIR / render_key
     img_path = render_dir / f"page_{page_num}.png"
-    page_storage_key = f"renders/{render_key}/page_{page_num}.png"
     cache_headers = {"Cache-Control": "public, max-age=604800, immutable"}
-    storage = get_storage_service()
-
-    if is_remote_storage(storage) and storage.file_exists(page_storage_key):
-        redirect_resp = build_remote_redirect_response(storage, page_storage_key, headers=cache_headers)
-        if redirect_resp is not None:
-            return redirect_resp
 
     if not img_path.exists():
         pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
@@ -1225,13 +1218,6 @@ async def get_exam_artifact_page_image(
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page {page_num} not found.")
-
-    if is_remote_storage(storage):
-        synced = sync_file_to_remote_storage(img_path, page_storage_key, content_type="image/png", storage=storage)
-        if synced:
-            redirect_resp = build_remote_redirect_response(storage, page_storage_key, headers=cache_headers)
-            if redirect_resp is not None:
-                return redirect_resp
 
     return FileResponse(
         str(img_path),

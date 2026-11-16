@@ -23,17 +23,18 @@ class Settings:
     GEMINI_FALLBACK_MODEL: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.6-flash").strip()
     GEMINI_REEVAL_MODEL: str = os.getenv("GEMINI_REEVAL_MODEL", "gemini-3.5-flash-lite").strip()
     GEMINI_REEVAL_FALLBACK: str = os.getenv("GEMINI_REEVAL_FALLBACK", "gemini-3.5-flash").strip()
-    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "4096"))
+    GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "2048"))
     ENABLE_TWO_STAGE_PIPELINE: bool = False
     GRADING_BATCH_SIZE: int = 1
     MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "2"))
 
-    # Google Cloud Vertex AI Paid Account Settings
+    # Google Cloud Vertex AI & Paid API Key Settings
     GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "project-fe04c36f-bda1-4c99-86b").strip()
     GCP_LOCATION: str = os.getenv("GCP_LOCATION", "global").strip()
     GCP_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL", "1040007059825-compute@developer.gserviceaccount.com").strip()
     GCP_SERVICE_ACCOUNT_PATH: Path = Path(os.getenv("GCP_SERVICE_ACCOUNT_PATH", str(Path(__file__).resolve().parent.parent / "credentials" / "gcp_service_account.json")))
     GCP_SERVICE_ACCOUNT_JSON: str = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "").strip()
+    GCP_PAID_API_KEY: str = os.getenv("GCP_PAID_API_KEY", "AIzaSyBsSY1kKW4DUvThcWG14uZwKZVfHVe2VGc").strip()
 
     # Data & Storage
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
@@ -144,9 +145,8 @@ class Settings:
                 seen.add(clean)
                 valid_keys.append(clean)
 
-        # Temporary safeguard: cap active free-tier pool to initial keys (default 4)
-        # to avoid Google multi-project account-level anti-abuse quota clamps.
-        max_pool = int(os.getenv("MAX_ACTIVE_GEMINI_KEYS", "4"))
+        # Active Gemini key pool (default 5, supports AI Studio keys + GCP Paid Key)
+        max_pool = int(os.getenv("MAX_ACTIVE_GEMINI_KEYS", "5"))
         return valid_keys[:max_pool]
 
     @property

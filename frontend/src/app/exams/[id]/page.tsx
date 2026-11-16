@@ -919,9 +919,9 @@ export default function ExamDetailPage() {
         </div>
 
         {/* Title, Badges, and Action Buttons Toolbar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-3 border-t border-hairline">
+        <div className="flex flex-col gap-3.5 pt-3 border-t border-hairline">
           {/* Title & Context */}
-          <div className="space-y-1.5 max-w-xl">
+          <div className="space-y-1.5 w-full">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
                 {exam.title}
@@ -950,7 +950,7 @@ export default function ExamDetailPage() {
           </div>
 
           {/* Proper Rectangular Action Buttons Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full pt-1 border-t border-hairline/60">
             {/* Primary Action Button */}
             {isEvaluating ? (
               <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-2xs">

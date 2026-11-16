@@ -306,6 +306,13 @@ class GeminiGradingClient:
         except ValueError:
             key_idx = "?"
         masked = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else "***"
+        gcp_paid_target = getattr(settings, "GCP_PAID_API_KEY", "")
+        if (
+            (gcp_paid_target and api_key == gcp_paid_target)
+            or api_key.startswith("AIzaSy")
+            or key_idx == 5
+        ):
+            return f"Key #{key_idx} [GCP Paid] ({masked})"
         return f"Key #{key_idx} ({masked})"
 
     def _record_usage_event(

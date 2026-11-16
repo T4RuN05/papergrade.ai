@@ -31,10 +31,10 @@ KNOWN_FAILURES = {
     "C25-BVI-004": "Mubashir",
     "C25-BVI-005": "Vedant",
     "C25-BVI-007": "Archit",
-    "C25-BVI-012": "Soham V",
+    "C25-BVI-012": "Soham Ujal",
     "C25-BVI-017": "Atharva",
     "C25-BVI-018": "Shaumik",
-    "C25-BVI-020": "Piyush Pathi",
+    "C25-BVI-020": "Piyush Patil",
     "C25-BVI-028": "Sanskriti Suthar",
     "C25-BVI-039": "Vanshika",
 }

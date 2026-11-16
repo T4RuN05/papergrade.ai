@@ -671,6 +671,7 @@ async def import_students_excel(
         else:
             name_idx = 0
 
+    skipped_duplicates = []
     raw_rows = []
     for row in rows[1:]:
         if not row or all(c is None or str(c).strip() == "" for c in row):
@@ -683,20 +684,60 @@ async def import_students_excel(
         if not full_name:
             full_name = "Student"
 
+        # Check if a roll number was provided in the Excel row
+        provided_roll = None
+        if roll_idx is not None and roll_idx < len(row) and row[roll_idx] is not None:
+            cand_roll = str(row[roll_idx]).strip().upper()
+            if cand_roll and cand_roll.lower() != full_name.lower():
+                provided_roll = cand_roll
+
         email = str(row[email_idx]).strip() if email_idx is not None and email_idx < len(row) and row[email_idx] is not None else None
         phone = str(row[phone_idx]).strip() if phone_idx is not None and phone_idx < len(row) and row[phone_idx] is not None else None
-        raw_rows.append({"full_name": full_name, "email": email, "phone": phone})
+        raw_rows.append({"full_name": full_name, "email": email, "phone": phone, "roll_number": provided_roll})
 
     if not raw_rows:
         raise HTTPException(status_code=400, detail="Excel file has no valid student rows.")
 
-    # Atomic allocation of sequential roll numbers for this branch
-    allocated_rolls = allocate_next_roll_numbers(db, batch.branch_id, count=len(raw_rows))
+    # Determine roll numbers: prefer provided roll number if present, otherwise auto-allocate
+    rows_needing_rolls = [r for r in raw_rows if not r["roll_number"]]
+    allocated_rolls = allocate_next_roll_numbers(db, batch.branch_id, count=len(rows_needing_rolls)) if rows_needing_rolls else []
+    alloc_iter = iter(allocated_rolls)
+
+    # Prefix for formatting numeric-only roll numbers
+    branch = db.scalar(select(Branch).where(Branch.id == batch.branch_id))
+    institute = db.scalar(select(Institute).where(Institute.id == branch.institute_id)) if branch else None
+    inst_code = (institute.code if institute else "INST").strip().upper()
+    branch_code = branch.code.strip().upper() if branch else "BR"
+    prefix = f"{inst_code}-{branch_code}-"
 
     imported_students = []
     now = get_iso_now()
+    highest_seq = getattr(branch, "last_roll_sequence", 0) or 0
 
-    for row_data, roll_number in zip(raw_rows, allocated_rolls):
+    for row_data in raw_rows:
+        roll_number = row_data.get("roll_number")
+        if not roll_number:
+            roll_number = next(alloc_iter)
+        else:
+            if roll_number.isdigit():
+                roll_number = f"{prefix}{int(roll_number):03d}"
+            try:
+                num = int(roll_number.split("-")[-1])
+                if num > highest_seq:
+                    highest_seq = num
+            except ValueError:
+                pass
+
+        # Check for existing duplicate roll number
+        existing_student = db.scalar(select(Student).where(Student.roll_number == roll_number))
+        if existing_student:
+            skipped_duplicates.append({
+                "roll_number": roll_number,
+                "full_name": row_data["full_name"],
+                "reason": f"Roll number already exists (Student ID: {existing_student.id})"
+            })
+            continue
+
         student_id = f"stu_{uuid.uuid4().hex[:12]}"
         student_id_num = generate_unique_student_id_num(db)
 
@@ -720,11 +761,11 @@ async def import_students_excel(
             "full_name": row_data["full_name"],
         })
 
-    # Update batch total count
-    batch.total_submissions = (batch.total_submissions or 0) + len(imported_students)
-    batch.updated_at = now
-    db.commit()
+    if branch and highest_seq > (getattr(branch, "last_roll_sequence", 0) or 0):
+        branch.last_roll_sequence = highest_seq
 
+    # Update batch timestamp
+    batch.updated_at = now
     db.commit()
 
     return {

@@ -23,8 +23,9 @@ def test_atomic_roll_allocation():
         assert allocated[2] == f"C25-BVI-{initial_seq + 3:03d}"
         assert c25_branch.last_roll_sequence == initial_seq + 3
 
-        # Rollback so we don't pollute the sequence for production
-        session.rollback()
+        # Restore sequence so we don't pollute the sequence for production
+        c25_branch.last_roll_sequence = initial_seq
+        session.commit()
 
 def test_unique_roll_numbers_across_database():
     with get_session() as session:

@@ -991,8 +991,6 @@ export function DocumentViewer({
     };
   };
 
-  const pageImageUrl = api.getPageImageUrl(submissionId, currentPage);
-
   return (
     <div className="relative flex flex-col h-full rounded-lg border border-hairline bg-surface overflow-hidden shadow-notion-card select-none">
       {/* Top Toolbar - Clean Notion Aesthetic */}
