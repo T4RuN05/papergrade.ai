@@ -1,6 +1,6 @@
 """
 Metrics collection, percentile calculation (P50/P95), and reporting (CSV/JSON/Summary)
-for the Playwright E2E Load Test.
+for the Playwright E2E Load Test (15-Minute 3-Phase Conduction).
 """
 
 import json
@@ -19,17 +19,38 @@ class StudentSessionMetrics:
     student_name: str
     scheduled_offset: float
     actual_start_offset: float
+    group_behavior: str = "A"  # 'A': Screen-on idle, 'B': View script, 'C': Browse & exit
     success: bool = False
     stage_reached: str = "INITIAL"
     login_duration_secs: Optional[float] = None
     exam_loading_duration_secs: Optional[float] = None
+
+    # Phase 1: Pre-Exam Standby & Polling
+    phase1_polls_count: int = 0
+    phase1_304_count: int = 0
+    phase1_200_count: int = 0
+    phase1_duration_secs: Optional[float] = None
+
+    # Phase 2: Ingestion
     pdf_generation_duration_secs: Optional[float] = None
     generated_pdf_size_bytes: Optional[int] = None
     upload_duration_secs: Optional[float] = None
-    total_e2e_duration_secs: Optional[float] = None
-    http_status: int = 0
+    phase2_direct_cloud: bool = False
     submission_confirmed: bool = False
     submission_id: Optional[str] = None
+    http_status: int = 0
+
+    # Phase 3: Post-Upload Activity
+    phase3_viewer_success: bool = False
+    phase3_viewer_latency_secs: Optional[float] = None
+    phase3_polls_count: int = 0
+    phase3_304_count: int = 0
+    phase3_duration_secs: Optional[float] = None
+
+    # E2E Total
+    total_e2e_duration_secs: Optional[float] = None
+
+    # Forensics & Diagnostics
     console_errors: List[str] = field(default_factory=list)
     failed_requests: List[str] = field(default_factory=list)
     error_message: Optional[str] = None
@@ -115,6 +136,21 @@ class LoadTestReportAggregator:
         total_e2e_durations = [s.total_e2e_duration_secs for s in successful if s.total_e2e_duration_secs is not None]
         pdf_sizes_kb = [s.pdf_size_kb for s in successful if s.pdf_size_kb is not None]
 
+        # Phase 1 & 3 Polling Stats
+        total_p1_polls = sum(s.phase1_polls_count for s in self.session_metrics)
+        total_p1_304 = sum(s.phase1_304_count for s in self.session_metrics)
+        total_p3_polls = sum(s.phase3_polls_count for s in self.session_metrics)
+        total_p3_304 = sum(s.phase3_304_count for s in self.session_metrics)
+
+        # Phase 2 Ingestion Stats
+        direct_cloud_count = sum(1 for s in successful if s.phase2_direct_cloud)
+        multipart_fallback_count = len(successful) - direct_cloud_count
+
+        # Phase 3 Viewer Stats
+        viewer_students = [s for s in successful if s.group_behavior == "B"]
+        viewer_successes = [s for s in viewer_students if s.phase3_viewer_success]
+        viewer_latencies = [s.phase3_viewer_latency_secs for s in viewer_successes if s.phase3_viewer_latency_secs is not None]
+
         return {
             "test_metadata": {
                 "exam_title": self.target_exam_title,
@@ -126,6 +162,27 @@ class LoadTestReportAggregator:
                 "successful_uploads": len(successful),
                 "failed_uploads": len(failed),
                 "success_rate_percent": round((len(successful) / len(self.session_metrics) * 100) if self.session_metrics else 0, 1),
+            },
+            "phase_breakdowns": {
+                "phase1_pre_exam": {
+                    "total_polls": total_p1_polls,
+                    "http_304_count": total_p1_304,
+                    "http_304_ratio": round((total_p1_304 / total_p1_polls * 100) if total_p1_polls else 0, 1),
+                },
+                "phase2_ingestion": {
+                    "direct_cloud_uploads": direct_cloud_count,
+                    "multipart_fallbacks": multipart_fallback_count,
+                    "direct_cloud_percent": round((direct_cloud_count / len(successful) * 100) if successful else 0, 1),
+                },
+                "phase3_post_upload": {
+                    "group_a_screen_on_students": len([s for s in self.session_metrics if s.group_behavior == "A"]),
+                    "group_b_viewer_students": len(viewer_students),
+                    "group_b_viewer_successes": len(viewer_successes),
+                    "group_b_viewer_latency": compute_metric_stats(viewer_latencies),
+                    "group_c_exiter_students": len([s for s in self.session_metrics if s.group_behavior == "C"]),
+                    "total_steady_polls": total_p3_polls,
+                    "steady_http_304_count": total_p3_304,
+                }
             },
             "timings": {
                 "login_duration_secs": compute_metric_stats(login_durations),
@@ -155,18 +212,28 @@ class LoadTestReportAggregator:
     def print_summary_report(self):
         summary = self.get_summary_stats()
         meta = summary["test_metadata"]
+        phases = summary["phase_breakdowns"]
         timings = summary["timings"]
         payloads = summary["payloads"]
         failures = summary["failures"]
 
         print("\n" + "=" * 95)
-        print("PLAYWRIGHT MOBILE E2E LOAD TEST — COMPREHENSIVE PERFORMANCE REPORT")
+        print("PLAYWRIGHT MOBILE E2E LOAD TEST — 15-MINUTE 3-PHASE PERFORMANCE REPORT")
         print("=" * 95)
         print(f"Target Exam             : '{meta['exam_title']}' (ID: {meta['exam_id']})")
-        print(f"Total Students Simulated: {meta['total_students']}")
+        print(f"Total Students Simulated: {meta['total_students']} (Cohort: TEST INSTITUTE BVI)")
         print(f"Successful Uploads      : {meta['successful_uploads']} / {meta['total_students']} ({meta['success_rate_percent']}%)")
         print(f"Failed Uploads          : {meta['failed_uploads']}")
         print(f"Total Wall Clock Time   : {meta['total_wall_clock_secs']} seconds ({meta['total_wall_clock_secs']/60:.2f} mins)")
+        print("-" * 95)
+
+        # 3-Phase Highlights
+        p1 = phases["phase1_pre_exam"]
+        p2 = phases["phase2_ingestion"]
+        p3 = phases["phase3_post_upload"]
+        print(f"[*] Phase 1 (Standby Polling) : {p1['total_polls']} polls | {p1['http_304_count']} HTTP 304 ({p1['http_304_ratio']}%)")
+        print(f"[*] Phase 2 (Burst Ingestion) : Direct Cloud: {p2['direct_cloud_uploads']} | Fallback Multipart: {p2['multipart_fallbacks']} ({p2['direct_cloud_percent']}% Direct)")
+        print(f"[*] Phase 3 (Post-Upload)     : Group A (Idle): {p3['group_a_screen_on_students']} | Group B (Viewer): {p3['group_b_viewer_successes']}/{p3['group_b_viewer_students']} OK | Group C (Exited): {p3['group_c_exiter_students']}")
         print("-" * 95)
 
         # Tabular timing percentiles
@@ -199,17 +266,17 @@ class LoadTestReportAggregator:
                 print(f"  - {k}: {v}")
 
         # Detailed per-student breakdown table
-        print("\n" + "=" * 105)
-        print(f"{'Roll':<12} | {'Student Name':<18} | {'Login':<7} | {'ExamLoad':<9} | {'Assemble':<9} | {'Upload':<8} | {'PDF Size':<9} | {'Status'}")
-        print("-" * 105)
+        print("\n" + "=" * 115)
+        print(f"{'Roll':<24} | {'Grp':<3} | {'Login':<7} | {'P1 Polls':<8} | {'Assemble':<8} | {'Upload':<8} | {'DirectCloud':<11} | {'Status'}")
+        print("-" * 115)
         for s in self.session_metrics:
             login_str = f"{s.login_duration_secs:.2f}s" if s.login_duration_secs else "N/A"
-            exam_str = f"{s.exam_loading_duration_secs:.2f}s" if s.exam_loading_duration_secs else "N/A"
+            p1_str = f"{s.phase1_304_count}/{s.phase1_polls_count}"
             pdf_str = f"{s.pdf_generation_duration_secs:.2f}s" if s.pdf_generation_duration_secs else "N/A"
             up_str = f"{s.upload_duration_secs:.2f}s" if s.upload_duration_secs else "N/A"
-            size_str = f"{s.pdf_size_kb:.0f} KB" if s.pdf_size_kb else "N/A"
+            cloud_str = "YES (CDN)" if s.phase2_direct_cloud else "FALLBACK"
             status_str = "SUCCESS" if s.success else f"FAILED ({s.stage_reached})"
-            print(f"{s.roll_number:<12} | {s.student_name:<18} | {login_str:<7} | {exam_str:<9} | {pdf_str:<9} | {up_str:<8} | {size_str:<9} | {status_str}")
+            print(f"{s.roll_number:<24} | {s.group_behavior:<3} | {login_str:<7} | {p1_str:<8} | {pdf_str:<8} | {up_str:<8} | {cloud_str:<11} | {status_str}")
 
         if failures:
             print("\n" + "=" * 95)
@@ -218,45 +285,30 @@ class LoadTestReportAggregator:
             for idx, f in enumerate(failures, 1):
                 print(f"[{idx}] {f['roll']} ({f['name']}) -> Failed at stage: {f['stage_reached']} (HTTP: {f['http_status']})")
                 print(f"    Reason     : {f['error']}")
-                if f['screenshot']:
-                    print(f"    Screenshot : {f['screenshot']}")
-                if f['trace']:
-                    print(f"    Trace      : {f['trace']}")
-            print("=" * 95)
 
-    def export_csv(self, filepath: Path):
-        """Export per-student session metrics to CSV."""
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        fieldnames = [
-            "student_index", "roll_number", "student_name", "scheduled_offset",
-            "actual_start_offset", "success", "stage_reached", "login_duration_secs",
-            "exam_loading_duration_secs", "pdf_generation_duration_secs",
-            "upload_duration_secs", "total_e2e_duration_secs",
-            "generated_pdf_size_bytes", "pdf_size_kb", "http_status",
-            "submission_confirmed", "submission_id", "error_message",
-            "console_errors_count", "failed_requests_count",
-            "screenshot_path", "trace_path"
-        ]
-
-        with open(filepath, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
+    def export_csv(self, file_path: Path):
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "StudentIndex", "RollNumber", "StudentName", "GroupBehavior", "OffsetSecs",
+                "ActualStartSecs", "Success", "StageReached", "HTTPStatus", "LoginDurationSecs",
+                "Phase1Polls", "Phase1_304", "PdfGenDurationSecs", "UploadDurationSecs",
+                "GeneratedPdfSizeBytes", "DirectCloud", "Phase3ViewerSuccess", "Phase3ViewerLatencySecs",
+                "Phase3Polls", "Phase3_304", "TotalE2EDurationSecs", "SubmissionID", "ErrorMessage"
+            ])
             for s in self.session_metrics:
-                row = asdict(s)
-                row["pdf_size_kb"] = s.pdf_size_kb
-                row["console_errors_count"] = len(s.console_errors)
-                row["failed_requests_count"] = len(s.failed_requests)
-                del row["console_errors"]
-                del row["failed_requests"]
-                writer.writerow(row)
+                writer.writerow([
+                    s.student_index, s.roll_number, s.student_name, s.group_behavior, s.scheduled_offset,
+                    s.actual_start_offset, s.success, s.stage_reached, s.http_status, s.login_duration_secs,
+                    s.phase1_polls_count, s.phase1_304_count, s.pdf_generation_duration_secs, s.upload_duration_secs,
+                    s.generated_pdf_size_bytes, s.phase2_direct_cloud, s.phase3_viewer_success, s.phase3_viewer_latency_secs,
+                    s.phase3_polls_count, s.phase3_304_count, s.total_e2e_duration_secs, s.submission_id, s.error_message
+                ])
 
-    def export_json(self, filepath: Path):
-        """Export comprehensive load test report including metadata and telemetry to JSON."""
-        filepath.parent.mkdir(parents=True, exist_ok=True)
-        report_data = {
-            "summary": self.get_summary_stats(),
-            "students": [asdict(s) for s in self.session_metrics]
-        }
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(report_data, f, indent=2, default=str)
-
+    def export_json(self, file_path: Path):
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        summary = self.get_summary_stats()
+        summary["detailed_sessions"] = [asdict(s) for s in self.session_metrics]
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, default=str)

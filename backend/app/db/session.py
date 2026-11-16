@@ -13,6 +13,11 @@ def get_database_url() -> str:
     elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
         url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     
+    # Supabase session mode (:5432) has a strict limit of 15 connections.
+    # Transaction mode (:6543) scales to thousands of concurrent requests through PgBouncer.
+    if "pooler.supabase.com:5432" in url:
+        url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+
     if not url:
         # Fallback to local SQLite data directory
         sqlite_path = settings.DATA_DIR / "papergrade.db"
@@ -30,10 +35,11 @@ engine_kwargs = {
 if is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # Production Postgres / Supabase pooler tuning
-    engine_kwargs["pool_recycle"] = 1800
-    engine_kwargs["pool_size"] = 10
-    engine_kwargs["max_overflow"] = 20
+    # Production Postgres / Supabase PgBouncer transaction pooler tuning
+    engine_kwargs["pool_recycle"] = 300
+    engine_kwargs["pool_size"] = 15
+    engine_kwargs["max_overflow"] = 25
+    engine_kwargs["pool_reset_on_return"] = "rollback"  # Ensures connections never linger in 'idle in transaction'
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 

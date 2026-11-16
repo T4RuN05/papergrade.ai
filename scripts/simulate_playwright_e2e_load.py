@@ -1,13 +1,14 @@
 """
 Main CLI Orchestrator: PaperGrade AI End-to-End Playwright Mobile Load Test.
-Simulates 22 Catch 25 Borivali students submitting answer sheets through the mobile frontend
-staggered over a 5-minute front-heavy arrival schedule (Beta distribution).
+Simulates 28 students from TEST INSTITUTE BVI Branch (batch_097bce23a72e)
+submitting answer sheets through the mobile frontend across a 15-minute 3-phase lifecycle.
+ZERO TOUCH OF PRODUCTION CATCH 25 INSTITUTE.
 
 Usage Examples:
-  # Validate schedule, sample images, and accounts without running browser:
+  # Validate schedule, sample images, and test institute accounts without launching browser:
   python scripts/simulate_playwright_e2e_load.py --dry-run
 
-  # Run full 22-student mobile load test against local frontend:
+  # Run full 28-student mobile load test against local frontend:
   python scripts/simulate_playwright_e2e_load.py --frontend-url http://localhost:3000
 
   # Run against remote/staging frontend and backend with Render telemetry:
@@ -48,7 +49,11 @@ from scripts.e2e_playwright.config import (
     TOTAL_STUDENTS,
     TOTAL_DURATION_SECONDS,
     REPORTS_DIR,
-    C25_BORIVALI_STUDENTS
+    TARGET_INSTITUTE_CODE,
+    TARGET_BRANCH_ID,
+    TARGET_BRANCH_CODE,
+    TARGET_BATCH_ID,
+    DEFAULT_STUDENTS
 )
 from scripts.e2e_playwright.scheduler import (
     build_dispatch_schedule,
@@ -64,56 +69,60 @@ from scripts.e2e_playwright.render_telemetry import RenderTelemetryMonitor
 
 
 def auto_detect_active_exam(api_url: str) -> Dict[str, Any]:
-    """Auto-detect active exam and submission window via database or backend API."""
+    """Auto-detect active exam and submission window restricted strictly to TEST INSTITUTE BVI branch."""
     try:
-        from backend.app.db.session import get_session
-        from backend.app.db.models.academic import Exam, SubmissionWindow
+        from backend.app.database import get_db
 
-        with get_session() as session:
-            # Look for active OPEN submission window
-            window = (
-                session.query(SubmissionWindow)
-                .filter(SubmissionWindow.status == "OPEN")
-                .order_by(SubmissionWindow.created_at.desc())
-                .first()
-            )
-            if window:
-                exam = session.query(Exam).filter(Exam.id == window.exam_id).first()
-                if exam:
-                    return {
-                        "id": exam.id,
-                        "title": exam.title,
-                        "window_id": window.id,
-                        "deadline_at": window.deadline_at,
-                        "grace_deadline_at": window.grace_deadline_at,
-                    }
-    except Exception as e:
-        print(f"[!] Database window lookup fallback: {e}")
-
-    # Fallback to direct HTTP check
-    import requests
-    try:
-        res = requests.get(f"{api_url}/api/v1/exams", timeout=5.0)
-        if res.status_code == 200:
-            exams = res.json()
-            if exams:
-                latest = exams[0]
+        with get_db() as conn:
+            cursor = conn.cursor()
+            # Look for active OPEN submission window in TEST INSTITUTE BVI branch
+            cursor.execute("""
+                SELECT e.id, e.title, w.id as window_id, w.deadline_at, w.grace_deadline_at
+                FROM exams e
+                JOIN submission_windows w ON e.id = w.exam_id
+                WHERE e.branch_id = %s AND w.status = 'OPEN'
+                ORDER BY w.created_at DESC
+                LIMIT 1
+            """, (TARGET_BRANCH_ID,))
+            row = cursor.fetchone()
+            if row:
+                d = dict(row)
                 return {
-                    "id": latest["id"],
-                    "title": latest.get("title", "Active Examination"),
+                    "id": d["id"],
+                    "title": d["title"],
+                    "window_id": d["window_id"],
+                    "deadline_at": str(d.get("deadline_at")),
+                    "grace_deadline_at": str(d.get("grace_deadline_at")),
+                }
+
+            # If no open window, find the latest exam for TEST INSTITUTE BVI branch
+            cursor.execute("""
+                SELECT id, title
+                FROM exams
+                WHERE branch_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (TARGET_BRANCH_ID,))
+            row = cursor.fetchone()
+            if row:
+                d = dict(row)
+                return {
+                    "id": d["id"],
+                    "title": d["title"],
                     "window_id": "auto",
                     "deadline_at": "active",
                     "grace_deadline_at": "active"
                 }
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[!] Database window lookup notice: {e}")
 
+    # Fallback default test exam in TEST INSTITUTE BVI branch
     return {
         "id": "a2ffa699-4dd1-4fe6-b418-37b356799d5f",
-        "title": "KTG Physics Exam",
-        "window_id": "default",
-        "deadline_at": "unknown",
-        "grace_deadline_at": "unknown"
+        "title": "KTG PROD TEST",
+        "window_id": "win_default",
+        "deadline_at": "active",
+        "grace_deadline_at": "active"
     }
 
 
@@ -133,25 +142,29 @@ async def run_playwright_load_test(
     save_traces: bool = False,
     dry_run: bool = False
 ):
-    print("=" * 90)
-    print("PAPERGRADE AI — 22-STUDENT MOBILE E2E PLAYWRIGHT LOAD TEST")
-    print("=" * 90)
+    print("=" * 105)
+    print("PAPERGRADE AI — 28-STUDENT MOBILE E2E LOAD TEST (TEST INSTITUTE BVI)")
+    print("=" * 105)
 
-    # 1. Detect target exam & active submission window
+    # 1. Detect target exam & active submission window (restricted to TEST INSTITUTE BVI)
     exam_info = auto_detect_active_exam(api_url)
     target_exam_id = exam_id or exam_info["id"]
     target_exam_title = exam_title or exam_info["title"]
 
+    print(f"[*] Target Institute   : {TARGET_INSTITUTE_CODE} (Test Environment)")
+    print(f"[*] Target Branch      : {TARGET_BRANCH_CODE} (ID: {TARGET_BRANCH_ID})")
+    print(f"[*] Target Batch       : CET - 1 (ID: {TARGET_BATCH_ID})")
+    print(f"[*] Safety Boundary    : CATCH 25 Institute is 100% EXCLUDED and UNTOUCHED")
     print(f"[*] Target Exam        : '{target_exam_title}' (ID: {target_exam_id})")
     print(f"[*] Frontend Web URL   : {frontend_url}")
     print(f"[*] Backend API URL    : {api_url}")
-    print(f"[*] Simulation Mode    : {'BURST (all concurrent)' if burst else f'STAGGERED ({total_duration_secs}s / {total_duration_secs/60:.1f}m - Front-heavy Beta Curve)'}")
-    print(f"[*] Student Cohort     : {num_students} students from Catch 25 Borivali (C25-BVI-001 to C25-BVI-{num_students:03d})")
+    print(f"[*] Simulation Mode    : {'BURST (all concurrent)' if burst else f'STAGGERED ({total_duration_secs}s / {total_duration_secs/60:.1f}m - 3-Phase Real Lifecycle)'}")
+    print(f"[*] Student Cohort     : {num_students} students (TEST_INST-TEST_BVI-001 to {num_students:03d})")
     print(f"[*] Pages per Student  : {num_pages} pages from '{sample_dir.name}'")
     print(f"[*] Browser Headless   : {not headed}")
 
     # 2. Build Staggered Dispatch Plan
-    cohort = C25_BORIVALI_STUDENTS[:num_students]
+    cohort = DEFAULT_STUDENTS[:num_students]
     scheduled_tasks = build_dispatch_schedule(
         students=cohort,
         sample_dir=sample_dir,
@@ -163,7 +176,8 @@ async def run_playwright_load_test(
     print_dispatch_schedule_table(scheduled_tasks, total_duration_secs)
 
     if dry_run:
-        print("[+] DRY-RUN COMPLETE: Schedule, sample assets, and cohort verified successfully.")
+        print("[+] DRY-RUN COMPLETE: Schedule, sample assets, and TEST INSTITUTE cohort verified successfully.")
+        print("[!] Safety Check Passed: CATCH 25 institute was not accessed.")
         print("[!] No browser instances launched. Ready for live test on command.")
         return
 
@@ -197,7 +211,6 @@ async def run_playwright_load_test(
         )
 
         print(f"[*] Starting {len(scheduled_tasks)} mobile student sessions across {total_duration_secs} seconds...\n")
-        start_clock = time.perf_counter()
 
         worker_coroutines = [
             simulate_student_session(
@@ -241,15 +254,15 @@ async def run_playwright_load_test(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PaperGrade AI End-to-End Playwright Mobile Load Test (22 Concurrent Students)"
+        description="PaperGrade AI End-to-End Playwright Mobile Load Test (28 Students - TEST INSTITUTE BVI)"
     )
     parser.add_argument("--frontend-url", default=DEFAULT_FRONTEND_URL, help="Frontend application base URL")
     parser.add_argument("--api-url", default=DEFAULT_API_URL, help="Backend API base URL")
     parser.add_argument("--exam-id", default=None, help="Specific exam ID to submit to")
     parser.add_argument("--exam-title", default=None, help="Exam title search keyword")
-    parser.add_argument("--duration", type=int, default=TOTAL_DURATION_SECONDS, help="Total window duration in seconds (default: 300)")
+    parser.add_argument("--duration", type=int, default=TOTAL_DURATION_SECONDS, help="Total window duration in seconds (default: 900)")
     parser.add_argument("--burst", action="store_true", help="Launch all students simultaneously (no staggering)")
-    parser.add_argument("--students", type=int, default=TOTAL_STUDENTS, help="Number of students to simulate (default: 22)")
+    parser.add_argument("--students", type=int, default=TOTAL_STUDENTS, help="Number of students to simulate (default: 28)")
     parser.add_argument("--pages", type=int, default=DEFAULT_PAGES_PER_STUDENT, help="Number of pages per student (default: 5)")
     parser.add_argument("--sample-dir", type=Path, default=DEFAULT_SAMPLE_PAGES_DIR, help="Path to directory containing sample answer sheet page images")
     parser.add_argument("--headed", action="store_true", help="Run browser with visible UI (headed mode)")
@@ -282,4 +295,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

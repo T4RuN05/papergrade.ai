@@ -1,5 +1,7 @@
 """
 Configuration constants and environment settings for the Playwright E2E Load Test.
+Target Cohort: Exactly 28 Students belonging strictly to TEST INSTITUTE BVI Branch (batch_097bce23a72e).
+Zero interaction with production CATCH 25 institute.
 """
 
 import os
@@ -11,7 +13,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Base URLs
 DEFAULT_FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://papergrade-ai.vercel.app").rstrip("/")
-DEFAULT_API_URL = os.environ.get("API_BASE_URL", "https://papergrade-ai-backend.onrender.com").rstrip("/")
+DEFAULT_API_URL = os.environ.get("API_BASE_URL", "https://papergrade-ai-al1w.onrender.com").rstrip("/")
+
+# Target Branch & Batch Scope (TEST INSTITUTE ONLY)
+TARGET_INSTITUTE_CODE = "TEST_INST"
+TARGET_BRANCH_ID = "br_28c2a5dfe193"
+TARGET_BRANCH_CODE = "TEST_BVI"
+TARGET_BATCH_ID = "batch_097bce23a72e"
 
 # Authentication
 DEFAULT_STUDENT_PASSWORD = os.environ.get("STUDENT_DEFAULT_PASSWORD", "Student@123")
@@ -29,13 +37,16 @@ DEVICE_SCALE_FACTOR = 2
 IS_MOBILE = True
 HAS_TOUCH = True
 
-# Sample Image Assets for Camera Injection
-DEFAULT_SAMPLE_PAGES_DIR = PROJECT_ROOT / "backend" / "data" / "page_renders" / "3eb3a827-1b44-4105-a7ae-f136607e0eab"
+# Sample Image Assets for Camera Injection (5 high-res handwritten pages)
+DEFAULT_SAMPLE_PAGES_DIR = PROJECT_ROOT / "backend" / "data" / "sample_pages"
 DEFAULT_PAGES_PER_STUDENT = 5
 
-# Test Schedule & Concurrency Defaults
-TOTAL_STUDENTS = 22
-TOTAL_DURATION_SECONDS = 300  # 5 minutes
+# Test Schedule & Concurrency Defaults (15 Minutes Real-World Conduction)
+TOTAL_STUDENTS = 28
+TOTAL_DURATION_SECONDS = 900  # 15 minutes
+PHASE1_PRE_EXAM_WAIT_SECS = 180  # 3 minutes pre-exam standby & polling
+PHASE2_INGESTION_SPAN_SECS = 240  # 4 minutes concurrent ingestion window
+PHASE3_POST_UPLOAD_SECS = 480    # 8 minutes post-upload activity
 RANDOM_SEED = 42
 
 # Timeouts (in milliseconds)
@@ -52,29 +63,40 @@ TRACES_DIR = REPORTS_DIR / "traces"
 for directory in (REPORTS_DIR, SCREENSHOTS_DIR, TRACES_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 
-# 22 Seeded Catch 25 Borivali Students
-C25_BORIVALI_STUDENTS: List[Dict[str, str]] = [
-    {"name": "Aarav Mehta", "roll": "C25-BVI-001", "claim_id": "251001", "email": "aarav.mehta@catch25.edu.in"},
-    {"name": "Diya Sharma", "roll": "C25-BVI-002", "claim_id": "251002", "email": "diya.sharma@catch25.edu.in"},
-    {"name": "Rohan Iyer", "roll": "C25-BVI-003", "claim_id": "251003", "email": "rohan.iyer@catch25.edu.in"},
-    {"name": "Ananya Joshi", "roll": "C25-BVI-004", "claim_id": "251004", "email": "ananya.joshi@catch25.edu.in"},
-    {"name": "Aditya Kulkarni", "roll": "C25-BVI-005", "claim_id": "251005", "email": "aditya.kulkarni@catch25.edu.in"},
-    {"name": "Priya Deshmukh", "roll": "C25-BVI-006", "claim_id": "251006", "email": "priya.deshmukh@catch25.edu.in"},
-    {"name": "Siddharth Patel", "roll": "C25-BVI-007", "claim_id": "251007", "email": "siddharth.patel@catch25.edu.in"},
-    {"name": "Neha Varma", "roll": "C25-BVI-008", "claim_id": "251008", "email": "neha.varma@catch25.edu.in"},
-    {"name": "Kabir Shah", "roll": "C25-BVI-009", "claim_id": "251009", "email": "kabir.shah@catch25.edu.in"},
-    {"name": "Ishaan Rao", "roll": "C25-BVI-010", "claim_id": "251010", "email": "ishaan.rao@catch25.edu.in"},
-    {"name": "Riya Nair", "roll": "C25-BVI-011", "claim_id": "251011", "email": "riya.nair@catch25.edu.in"},
-    {"name": "Varun Bhatia", "roll": "C25-BVI-012", "claim_id": "251012", "email": "varun.bhatia@catch25.edu.in"},
-    {"name": "Tanvi Sawant", "roll": "C25-BVI-013", "claim_id": "251013", "email": "tanvi.sawant@catch25.edu.in"},
-    {"name": "Atharva More", "roll": "C25-BVI-014", "claim_id": "251014", "email": "atharva.more@catch25.edu.in"},
-    {"name": "Pooja Chawla", "roll": "C25-BVI-015", "claim_id": "251015", "email": "pooja.chawla@catch25.edu.in"},
-    {"name": "Manav Malhotra", "roll": "C25-BVI-016", "claim_id": "251016", "email": "manav.malhotra@catch25.edu.in"},
-    {"name": "Sneha Gokhale", "roll": "C25-BVI-017", "claim_id": "251017", "email": "sneha.gokhale@catch25.edu.in"},
-    {"name": "Yash Shinde", "roll": "C25-BVI-018", "claim_id": "251018", "email": "yash.shinde@catch25.edu.in"},
-    {"name": "Shreya Agarwal", "roll": "C25-BVI-019", "claim_id": "251019", "email": "shreya.agarwal@catch25.edu.in"},
-    {"name": "Devendra Parab", "roll": "C25-BVI-020", "claim_id": "251020", "email": "devendra.parab@catch25.edu.in"},
-    {"name": "Kirti Solanki", "roll": "C25-BVI-021", "claim_id": "251021", "email": "kirti.solanki@catch25.edu.in"},
-    {"name": "Aryan Tendulkar", "roll": "C25-BVI-022", "claim_id": "251022", "email": "aryan.tendulkar@catch25.edu.in"},
+# 28 Seeded TEST INSTITUTE BVI Students (Batch: batch_097bce23a72e)
+TEST_INST_BVI_STUDENTS: List[Dict[str, str]] = [
+    {"name": "Aarav Mehta", "roll": "TEST_INST-TEST_BVI-001", "claim_id": "990001", "email": "aarav.mehta@test.edu"},
+    {"name": "Diya Sharma", "roll": "TEST_INST-TEST_BVI-002", "claim_id": "990002", "email": "diya.sharma@test.edu"},
+    {"name": "Rohan Iyer", "roll": "TEST_INST-TEST_BVI-003", "claim_id": "990003", "email": "rohan.iyer@test.edu"},
+    {"name": "Ananya Joshi", "roll": "TEST_INST-TEST_BVI-004", "claim_id": "990004", "email": "ananya.joshi@test.edu"},
+    {"name": "Aditya Kulkarni", "roll": "TEST_INST-TEST_BVI-005", "claim_id": "990005", "email": "aditya.kulkarni@test.edu"},
+    {"name": "Priya Deshmukh", "roll": "TEST_INST-TEST_BVI-006", "claim_id": "990006", "email": "priya.deshmukh@test.edu"},
+    {"name": "Siddharth Patel", "roll": "TEST_INST-TEST_BVI-007", "claim_id": "990007", "email": "siddharth.patel@test.edu"},
+    {"name": "Neha Varma", "roll": "TEST_INST-TEST_BVI-008", "claim_id": "990008", "email": "neha.varma@test.edu"},
+    {"name": "Kabir Shah", "roll": "TEST_INST-TEST_BVI-009", "claim_id": "990009", "email": "kabir.shah@test.edu"},
+    {"name": "Ishaan Rao", "roll": "TEST_INST-TEST_BVI-010", "claim_id": "990010", "email": "ishaan.rao@test.edu"},
+    {"name": "Riya Nair", "roll": "TEST_INST-TEST_BVI-011", "claim_id": "990011", "email": "riya.nair@test.edu"},
+    {"name": "Varun Bhatia", "roll": "TEST_INST-TEST_BVI-012", "claim_id": "990012", "email": "varun.bhatia@test.edu"},
+    {"name": "Tanvi Sawant", "roll": "TEST_INST-TEST_BVI-013", "claim_id": "990013", "email": "tanvi.sawant@test.edu"},
+    {"name": "Atharva More", "roll": "TEST_INST-TEST_BVI-014", "claim_id": "990014", "email": "atharva.more@test.edu"},
+    {"name": "Pooja Chawla", "roll": "TEST_INST-TEST_BVI-015", "claim_id": "990015", "email": "pooja.chawla@test.edu"},
+    {"name": "Manav Malhotra", "roll": "TEST_INST-TEST_BVI-016", "claim_id": "990016", "email": "manav.malhotra@test.edu"},
+    {"name": "Sneha Gokhale", "roll": "TEST_INST-TEST_BVI-017", "claim_id": "990017", "email": "sneha.gokhale@test.edu"},
+    {"name": "Yash Shinde", "roll": "TEST_INST-TEST_BVI-018", "claim_id": "990018", "email": "yash.shinde@test.edu"},
+    {"name": "Shreya Agarwal", "roll": "TEST_INST-TEST_BVI-019", "claim_id": "990019", "email": "shreya.agarwal@test.edu"},
+    {"name": "Devendra Parab", "roll": "TEST_INST-TEST_BVI-020", "claim_id": "990020", "email": "devendra.parab@test.edu"},
+    {"name": "Kirti Solanki", "roll": "TEST_INST-TEST_BVI-021", "claim_id": "990021", "email": "kirti.solanki@test.edu"},
+    {"name": "Aryan Tendulkar", "roll": "TEST_INST-TEST_BVI-022", "claim_id": "990022", "email": "aryan.tendulkar@test.edu"},
+    {"name": "Test Student 23", "roll": "TEST_INST-TEST_BVI-023", "claim_id": "990023", "email": "student_23@test.edu"},
+    {"name": "Test Student 24", "roll": "TEST_INST-TEST_BVI-024", "claim_id": "990024", "email": "student_24@test.edu"},
+    {"name": "Test Student 25", "roll": "TEST_INST-TEST_BVI-025", "claim_id": "990025", "email": "student_25@test.edu"},
+    {"name": "Test Student 26", "roll": "TEST_INST-TEST_BVI-026", "claim_id": "990026", "email": "student_26@test.edu"},
+    {"name": "Test Student 27", "roll": "TEST_INST-TEST_BVI-027", "claim_id": "990027", "email": "student_27@test.edu"},
+    {"name": "Test Student 28", "roll": "TEST_INST-TEST_BVI-028", "claim_id": "990028", "email": "student_28@test.edu"},
 ]
 
+# Primary Cohort for Simulation
+DEFAULT_STUDENTS = TEST_INST_BVI_STUDENTS
+
+# Legacy reference only — NEVER TARGETED DURING THIS LOAD TEST
+C25_BORIVALI_STUDENTS: List[Dict[str, str]] = []
