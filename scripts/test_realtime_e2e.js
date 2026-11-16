@@ -1,8 +1,33 @@
+const fs = require('fs');
+const path = require('path');
 const { createClient } = require('../frontend/node_modules/@supabase/supabase-js');
 const { execSync } = require('child_process');
 
-const url = 'https://wxslwjwlutrcucieossv.supabase.co';
-const key = 'sb_publishable_BTrPRAq5lUFULfPZ8JSWjQ_g_aktYKe';
+// Load environment variables from frontend/.env.local if present
+let url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+let key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!url || !key) {
+  const envPath = path.resolve(__dirname, '../frontend/.env.local');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+        const [k, ...vParts] = trimmed.split('=');
+        const v = vParts.join('=').trim();
+        if (k === 'NEXT_PUBLIC_SUPABASE_URL') url = v;
+        if (k === 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' || k === 'NEXT_PUBLIC_SUPABASE_ANON_KEY') key = v;
+      }
+    });
+  }
+}
+
+if (!url || !key) {
+  console.error('[!] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in environment or frontend/.env.local');
+  process.exit(1);
+}
+
 const supabase = createClient(url, key);
 
 const targetUserId = 'usr_test_bvi_001';
