@@ -693,7 +693,8 @@ function StudentMarksTrajectory({
             {/* Data Nodes with Synchronized Velocity Pop-in Animation */}
             {points.map((p, idx) => {
               const cx = getX(idx);
-              const cy = getY(p.percentage);
+              const pointValue = isCumulative ? p.cumulativeMarks : p.percentage;
+              const cy = getY(pointValue);
               const delay = getPointDelay(idx, count);
 
               return (
