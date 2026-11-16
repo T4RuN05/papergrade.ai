@@ -243,10 +243,12 @@ export function ExamRankedTable({
 
       if (!matchSearch) return false;
 
-      // Bracket
-      if (effectiveBracketFilter === "TOP10") return item.rank <= 10;
-      if (effectiveBracketFilter === "DISTINCTION") return item.effectivePercentage >= 75;
-      if (effectiveBracketFilter === "PASS") return item.effectivePercentage >= 40 && item.effectivePercentage < 75;
+      // Bracket (Faculty only - disabled in student view)
+      if (!isStudentView) {
+        if (effectiveBracketFilter === "TOP10") return item.rank <= 10;
+        if (effectiveBracketFilter === "DISTINCTION") return item.effectivePercentage >= 75;
+        if (effectiveBracketFilter === "PASS") return item.effectivePercentage >= 40 && item.effectivePercentage < 75;
+      }
       return true;
     });
   }, [rankedAll, effectiveSearchTerm, effectiveBracketFilter, isStudentView]);
@@ -487,7 +489,7 @@ export function ExamRankedTable({
 
       {/* SEARCH, BRACKET FILTERS, & TOOLBAR */}
       {!hideToolbar && (
-        <div className="p-2.5 sm:p-3 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
+        <div className={`p-2.5 sm:p-3 rounded-2xl bg-surface border border-hairline shadow-2xs ${!isStudentView ? "space-y-2" : ""}`}>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
             {/* Search Input */}
             <div className="relative flex-1">
@@ -525,58 +527,60 @@ export function ExamRankedTable({
             )}
           </div>
 
-          {/* Quick Filter Pills (Inline and Horizontally Scrollable) */}
-          <div className="flex items-center gap-1.5 text-xs overflow-x-auto no-scrollbar py-0.5 shrink-0 select-none" data-no-swipe="true">
-            <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5 shrink-0">
-              Filter:
-            </span>
-            <button
-              type="button"
-              onClick={() => setInternalBracketFilter("ALL")}
-              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                effectiveBracketFilter === "ALL"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
-              }`}
-            >
-              All Ranked ({rankedAll.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setInternalBracketFilter("TOP10")}
-              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                effectiveBracketFilter === "TOP10"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
-              }`}
-            >
-              Top 10
-            </button>
-            <button
-              type="button"
-              onClick={() => setInternalBracketFilter("DISTINCTION")}
-              className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                effectiveBracketFilter === "DISTINCTION"
-                  ? "bg-emerald-600 text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
-              }`}
-            >
-              Distinction (≥75%)
-            </button>
-
-            {(effectiveSearchTerm || effectiveBracketFilter !== "ALL") && (
+          {/* Quick Filter Pills (Faculty only - removed from student PWA) */}
+          {!isStudentView && (
+            <div className="flex items-center gap-1.5 text-xs overflow-x-auto no-scrollbar py-0.5 shrink-0 select-none" data-no-swipe="true">
+              <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5 shrink-0">
+                Filter:
+              </span>
               <button
                 type="button"
-                onClick={() => {
-                  setInternalSearchTerm("");
-                  setInternalBracketFilter("ALL");
-                }}
-                className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
+                onClick={() => setInternalBracketFilter("ALL")}
+                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                  effectiveBracketFilter === "ALL"
+                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                }`}
               >
-                Reset
+                All Ranked ({rankedAll.length})
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => setInternalBracketFilter("TOP10")}
+                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                  effectiveBracketFilter === "TOP10"
+                    ? "bg-primary text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                }`}
+              >
+                Top 10
+              </button>
+              <button
+                type="button"
+                onClick={() => setInternalBracketFilter("DISTINCTION")}
+                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                  effectiveBracketFilter === "DISTINCTION"
+                    ? "bg-emerald-600 text-white font-semibold shadow-2xs"
+                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                }`}
+              >
+                Distinction (≥75%)
+              </button>
+
+              {(effectiveSearchTerm || effectiveBracketFilter !== "ALL") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInternalSearchTerm("");
+                    setInternalBracketFilter("ALL");
+                  }}
+                  className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -587,11 +591,15 @@ export function ExamRankedTable({
           <h4 className="text-xs sm:text-sm font-semibold text-ink">
             {rankedAll.length === 0
               ? "No evaluated student scores recorded yet."
+              : isStudentView
+              ? "No students match your search."
               : "No students match your filter criteria."}
           </h4>
           <p className="text-xs text-ink-muted max-w-sm mx-auto">
             {rankedAll.length === 0
               ? "Once answer sheets are graded and marks are recorded, the ranked leaderboard will compute automatically."
+              : isStudentView
+              ? `No student found matching "${effectiveSearchTerm}".`
               : `Try clearing "${effectiveSearchTerm || effectiveBracketFilter}" to view all student standings.`}
           </p>
         </div>
