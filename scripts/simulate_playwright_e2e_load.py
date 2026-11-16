@@ -71,44 +71,41 @@ from scripts.e2e_playwright.render_telemetry import RenderTelemetryMonitor
 def auto_detect_active_exam(api_url: str) -> Dict[str, Any]:
     """Auto-detect active exam and submission window restricted strictly to TEST INSTITUTE BVI branch."""
     try:
-        from backend.app.database import get_db
+        from backend.app.db.session import get_session
+        from backend.app.db.models import Exam, SubmissionWindow
+        from sqlalchemy import select
 
-        with get_db() as conn:
-            cursor = conn.cursor()
+        with get_session() as session:
             # Look for active OPEN submission window in TEST INSTITUTE BVI branch
-            cursor.execute("""
-                SELECT e.id, e.title, w.id as window_id, w.deadline_at, w.grace_deadline_at
-                FROM exams e
-                JOIN submission_windows w ON e.id = w.exam_id
-                WHERE e.branch_id = %s AND w.status = 'OPEN'
-                ORDER BY w.created_at DESC
-                LIMIT 1
-            """, (TARGET_BRANCH_ID,))
-            row = cursor.fetchone()
-            if row:
-                d = dict(row)
+            stmt = (
+                select(Exam, SubmissionWindow)
+                .join(SubmissionWindow, Exam.id == SubmissionWindow.exam_id)
+                .where(Exam.branch_id == TARGET_BRANCH_ID, SubmissionWindow.status == "OPEN")
+                .order_by(SubmissionWindow.created_at.desc())
+                .limit(1)
+            )
+            res = session.execute(stmt).first()
+            if res:
+                ex, win = res
                 return {
-                    "id": d["id"],
-                    "title": d["title"],
-                    "window_id": d["window_id"],
-                    "deadline_at": str(d.get("deadline_at")),
-                    "grace_deadline_at": str(d.get("grace_deadline_at")),
+                    "id": ex.id,
+                    "title": ex.title,
+                    "window_id": win.id,
+                    "deadline_at": str(win.deadline_at),
+                    "grace_deadline_at": str(win.grace_deadline_at),
                 }
 
             # If no open window, find the latest exam for TEST INSTITUTE BVI branch
-            cursor.execute("""
-                SELECT id, title
-                FROM exams
-                WHERE branch_id = %s
-                ORDER BY created_at DESC
-                LIMIT 1
-            """, (TARGET_BRANCH_ID,))
-            row = cursor.fetchone()
-            if row:
-                d = dict(row)
+            latest_ex = session.scalar(
+                select(Exam)
+                .where(Exam.branch_id == TARGET_BRANCH_ID)
+                .order_by(Exam.created_at.desc())
+                .limit(1)
+            )
+            if latest_ex:
                 return {
-                    "id": d["id"],
-                    "title": d["title"],
+                    "id": latest_ex.id,
+                    "title": latest_ex.title,
                     "window_id": "auto",
                     "deadline_at": "active",
                     "grace_deadline_at": "active"
