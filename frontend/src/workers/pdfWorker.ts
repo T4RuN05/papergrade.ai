@@ -64,6 +64,9 @@ async function compressImageInWorker(
       });
 
       const ab = await compressedBlob.arrayBuffer();
+      // Explicitly zero out dimensions to release offscreen raster buffers
+      canvas.width = 0;
+      canvas.height = 0;
       return new Uint8Array(ab);
     } else {
       // If OffscreenCanvas is not present in worker context, return original bytes

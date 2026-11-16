@@ -47,6 +47,7 @@ export function removeAuthToken(): void {
   localStorage.removeItem("papergrade_jwt");
   localStorage.removeItem("papergrade_user");
   clearApiCache();
+  clearPortalStateCache();
 }
 
 interface CacheEntry<T> {
@@ -57,6 +58,13 @@ interface CacheEntry<T> {
 const memoryCache = new Map<string, CacheEntry<any>>();
 const inFlightRequests = new Map<string, Promise<any>>();
 let _cachedVapidPublicKey: string | null = null;
+let _cachedPortalEtag: string | null = null;
+let _cachedPortalState: any = null;
+
+export function clearPortalStateCache(): void {
+  _cachedPortalEtag = null;
+  _cachedPortalState = null;
+}
 
 export function getCached<T>(key: string, ttlMs: number = 30000): T | null {
   const entry = memoryCache.get(key);
@@ -769,15 +777,32 @@ export const api = {
     exams: any[];
     submissions: any[];
   }> {
+    const headers = new Headers(getAuthHeaders());
+    if (_cachedPortalEtag) {
+      headers.set("If-None-Match", _cachedPortalEtag);
+    }
+
     const res = await fetch(`${API_BASE}/api/v1/student/portal-state`, {
-      headers: { ...getAuthHeaders() },
+      headers,
       cache: "no-store",
     });
+
+    if (res.status === 304 && _cachedPortalState) {
+      return _cachedPortalState;
+    }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to fetch student portal state" }));
       throw new Error(err.detail || "Failed to fetch student portal state");
     }
-    return res.json();
+
+    const etag = res.headers.get("ETag");
+    if (etag) {
+      _cachedPortalEtag = etag;
+    }
+    const data = await res.json();
+    _cachedPortalState = data;
+    return data;
   },
 
   async getStudentPastSubmissions(params?: {

@@ -46,7 +46,8 @@ def test_multi_image_submission_assembly():
         }, headers=headers)
         assert win_res.status_code == 200
 
-        # 4. Upload 3 photographed pages via 'files' parameter (simulating camera scan)
+        # 4. Upload raw uncompressed photos directly to API (simulating rogue/legacy client)
+        # Should be rejected with 400 Bad Request to protect 0.1 vCPU server from CPU exhaustion
         img1 = create_dummy_image_bytes((255, 200, 200))
         img2 = create_dummy_image_bytes((200, 255, 200))
         img3 = create_dummy_image_bytes((200, 200, 255))
@@ -57,10 +58,29 @@ def test_multi_image_submission_assembly():
             ("files", ("page_3.jpg", io.BytesIO(img3), "image/jpeg")),
         ]
 
-        upload_res = client.post(
+        rejected_res = client.post(
             f"/api/v1/submissions/{exam_id}/upload-single",
             data={"roll_number": "SCAN-001", "student_name": "Scanner Student"},
             files=files,
+            headers=headers
+        )
+        assert rejected_res.status_code == 400
+        assert "single canonical PDF" in rejected_res.json()["detail"]
+
+        # 5. Upload client-assembled canonical PDF
+        doc = fitz.open()
+        for img_bytes in [img1, img2, img3]:
+            img_doc = fitz.open(stream=img_bytes, filetype="jpeg")
+            rect = img_doc[0].rect
+            page = doc.new_page(width=rect.width, height=rect.height)
+            page.insert_image(rect, stream=img_bytes)
+        pdf_bytes = doc.write()
+        doc.close()
+
+        upload_res = client.post(
+            f"/api/v1/submissions/{exam_id}/upload-single",
+            data={"roll_number": "SCAN-001", "student_name": "Scanner Student"},
+            files={"file": ("canonical_answers.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
             headers=headers
         )
         assert upload_res.status_code == 200

@@ -2,6 +2,7 @@ import uuid
 import json
 import shutil
 import logging
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 from backend.app.config import settings
 from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
+from backend.app.services.portal_cache import PortalStateEpochManager
 from backend.app.db.models import (
     Exam,
     ExamBatch,
@@ -369,11 +371,11 @@ async def create_exam(
             saved_qp_paths.append(saved_part)
 
         qp_pdf = exam_uploads_dir / "question_paper.pdf"
-        qp_path = str(pdf_service.files_to_canonical_pdf(saved_qp_paths, qp_pdf))
+        qp_path = str(await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_qp_paths, qp_pdf))
         storage_key = f"exams/{exam_id}/question_paper.pdf"
         try:
             storage = get_storage_service()
-            storage.upload_file(qp_pdf, storage_key)
+            await asyncio.to_thread(storage.upload_file, qp_pdf, storage_key)
             qp_path = storage_key
         except Exception as e:
             logger.warning(f"Failed to sync QP to storage: {e}")
@@ -460,20 +462,21 @@ async def upload_answer_key(
         saved_ak_paths.append(saved_part)
 
     ak_pdf = exam_uploads_dir / "answer_key.pdf"
-    ak_path = pdf_service.files_to_canonical_pdf(saved_ak_paths, ak_pdf)
+    ak_path = await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_ak_paths, ak_pdf)
     storage_key = f"exams/{exam_id}/answer_key.pdf"
     try:
         storage = get_storage_service()
-        storage.upload_file(ak_pdf, storage_key)
+        await asyncio.to_thread(storage.upload_file, ak_pdf, storage_key)
     except Exception as e:
         logger.warning(f"Failed to sync answer key to storage: {e}")
 
-    # Generate draft rubric via AI
+    # Generate draft rubric via AI non-blockingly on worker threadpool
     from backend.app.gemini.client import gemini_client
     qp_raw = exam.question_paper_path
     qp_path = Path(qp_raw) if qp_raw and Path(qp_raw).exists() else ak_pdf
 
-    draft_rubric, _ = gemini_client.extract_exam_rubric(
+    draft_rubric, _ = await asyncio.to_thread(
+        gemini_client.extract_exam_rubric,
         exam_id=exam_id,
         question_paper_path=qp_path,
         answer_key_path=ak_pdf,
@@ -549,12 +552,12 @@ async def upload_question_paper(
         saved_qp_paths.append(saved_part)
 
     qp_pdf = exam_uploads_dir / "question_paper.pdf"
-    qp_path = pdf_service.files_to_canonical_pdf(saved_qp_paths, qp_pdf)
+    qp_path = await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_qp_paths, qp_pdf)
     now = get_iso_now()
     storage_key = f"exams/{exam_id}/question_paper.pdf"
     try:
         storage = get_storage_service()
-        storage.upload_file(qp_pdf, storage_key)
+        await asyncio.to_thread(storage.upload_file, qp_pdf, storage_key)
     except Exception as e:
         logger.warning(f"Failed to sync question paper to storage: {e}")
 
@@ -711,6 +714,8 @@ def approve_rubric(
     db.add(audit)
     db.commit()
 
+    PortalStateEpochManager.bump_branch(exam.branch_id)
+
     return exam_service.get_exam(exam_id)
 
 
@@ -808,6 +813,8 @@ def start_evaluation(
     db.add(audit)
     db.commit()
 
+    PortalStateEpochManager.bump_branch(exam.branch_id)
+
     return {
         "status": "evaluation_started",
         "exam_id": exam_id,
@@ -874,6 +881,8 @@ def publish_results(
     db.add(audit)
     db.commit()
 
+    PortalStateEpochManager.bump_branch(exam.branch_id)
+
     background_tasks.add_task(
         background_dispatch_results_published,
         exam_id=exam_id,
@@ -923,6 +932,8 @@ def unlock_rubric(
     )
     db.add(audit)
     db.commit()
+
+    PortalStateEpochManager.bump_branch(exam.branch_id)
 
     return exam_service.get_exam(exam_id)
 

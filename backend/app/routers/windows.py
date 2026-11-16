@@ -23,6 +23,7 @@ from backend.app.services.auth import (
 from backend.app.services.notification_service import (
     background_dispatch_window_event,
 )
+from backend.app.services.portal_cache import PortalStateEpochManager
 
 router = APIRouter(prefix="/api/v1/windows", tags=["Submission Windows & Lifecycles"])
 
@@ -230,6 +231,7 @@ def open_submission_window(
     )
     db.add(audit)
     db.commit()
+    PortalStateEpochManager.bump_branch(exam.branch_id)
 
     # Dispatch student & manager notifications asynchronously
     background_tasks.add_task(
@@ -330,6 +332,7 @@ def reopen_submission_window(
     )
     db.add(audit)
     db.commit()
+    PortalStateEpochManager.bump_branch(exam.branch_id)
 
     # Dispatch reopen notifications asynchronously
     background_tasks.add_task(
@@ -423,6 +426,7 @@ def extend_submission_window(
     )
     db.add(audit)
     db.commit()
+    PortalStateEpochManager.bump_branch(exam.branch_id)
 
     return {
         "status": "success",
@@ -515,6 +519,7 @@ def close_submission_window(
     )
     db.add(audit)
     db.commit()
+    PortalStateEpochManager.bump_branch(exam.branch_id)
 
     # Dispatch close notifications asynchronously
     background_tasks.add_task(

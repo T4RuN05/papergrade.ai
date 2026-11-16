@@ -26,7 +26,7 @@ class Settings:
     GEMINI_THINKING_BUDGET: int = int(os.getenv("GEMINI_THINKING_BUDGET", "2048"))
     ENABLE_TWO_STAGE_PIPELINE: bool = False
     GRADING_BATCH_SIZE: int = 1
-    MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "2"))
+    MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "1"))
 
     # Google Cloud Vertex AI & Paid API Key Settings
     GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "project-fe04c36f-bda1-4c99-86b").strip()

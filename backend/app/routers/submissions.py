@@ -33,6 +33,7 @@ from backend.app.db.models import (
 )
 from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
+from backend.app.services.portal_cache import PortalStateEpochManager
 from backend.app.services.grading_service import grading_service
 from backend.app.services.auth import (
     get_current_user,
@@ -49,8 +50,6 @@ from backend.app.services.retention_service import RetentionService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Submissions & Uploads"])
-
-_backend_stitching_semaphore = asyncio.Semaphore(1)
 
 
 def _purge_and_replace_previous_submissions(
@@ -1089,55 +1088,19 @@ async def upload_single_multipart(
     if not all_files:
         raise HTTPException(status_code=400, detail="No answer sheet file provided for upload.")
 
-    is_single_pdf = len(all_files) == 1 and Path(all_files[0].filename).suffix.lower() == ".pdf"
+    if len(all_files) != 1 or Path(all_files[0].filename).suffix.lower() != ".pdf":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Submissions must be a single canonical PDF. Multi-image captures must be assembled client-side before upload."
+        )
 
-    if is_single_pdf:
-        content = await all_files[0].read()
-        file_size = len(content)
-        if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-            raise HTTPException(status_code=400, detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB.")
-    else:
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            saved_paths: List[Path] = []
-            total_raw_size = 0
-
-            for idx, uf in enumerate(all_files):
-                raw_bytes = await uf.read()
-                total_raw_size += len(raw_bytes)
-                if total_raw_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024 * 3:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Total uploaded size exceeds allowable limit of {settings.MAX_UPLOAD_SIZE_MB} MB."
-                    )
-
-                ext = Path(uf.filename).suffix.lower() or ".jpg"
-                part_path = tmp_path / f"page_{idx+1:03d}{ext}"
-                with open(part_path, "wb") as f_out:
-                    f_out.write(raw_bytes)
-
-                valid, msg = pdf_service.validate_file(part_path, max_size_mb=settings.MAX_UPLOAD_SIZE_MB)
-                if not valid:
-                    raise HTTPException(status_code=400, detail=f"Invalid page {idx+1} ({uf.filename}): {msg}")
-                saved_paths.append(part_path)
-
-            out_pdf = tmp_path / "canonical_assembled.pdf"
-            try:
-                async with _backend_stitching_semaphore:
-                    await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_paths, out_pdf)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Failed to assemble pages into canonical PDF: {str(e)}")
-
-            with open(out_pdf, "rb") as f_pdf:
-                content = f_pdf.read()
-            file_size = len(content)
-
-            if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Assembled PDF ({file_size / (1024*1024):.1f} MB) exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB."
-                )
+    content = await all_files[0].read()
+    file_size = len(content)
+    if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB."
+        )
 
     current_sub = current_user.get("sub") if current_user else None
     current_role = current_user.get("role") if current_user else None
@@ -1152,6 +1115,9 @@ async def upload_single_multipart(
         current_sub,
         current_role
     )
+
+    if current_sub:
+        PortalStateEpochManager.bump_user(current_sub)
 
     return res_payload
 

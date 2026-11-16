@@ -76,6 +76,10 @@ export async function downscaleImageFile(
 
             canvas.toBlob(
               (blob) => {
+                // Explicitly zero out dimensions to release unmanaged backing GPU/raster buffers immediately
+                canvas.width = 0;
+                canvas.height = 0;
+
                 if (!blob) {
                   reject(new Error("Failed to render canvas to JPEG blob."));
                   return;
@@ -200,6 +204,10 @@ function fallbackCanvasCompress(
 
           canvas.toBlob(
             async (blob) => {
+              // Explicitly zero out dimensions to release backing buffers
+              canvas.width = 0;
+              canvas.height = 0;
+
               if (!blob) {
                 reject(new Error("Failed to render canvas to JPEG blob."));
                 return;

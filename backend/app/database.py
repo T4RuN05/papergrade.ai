@@ -244,6 +244,15 @@ def get_db():
 def init_db():
     """Initialize database tables, indexes, and initial admin seed."""
     settings.ensure_directories()
+
+    # Ensure SQLAlchemy 2.0 ORM Declarative Models are initialized first
+    try:
+        from backend.app.db.base import Base
+        from backend.app.db.session import engine
+        import backend.app.db.models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"SQLAlchemy Base.metadata.create_all notice: {e}")
     
     with get_db() as conn:
         cursor = conn.cursor()

@@ -32,7 +32,7 @@ class PersistentQueueWorker:
     def __init__(self, poll_interval_sec: float = 3.0, max_workers: Optional[int] = None):
         self.poll_interval_sec = poll_interval_sec
         configured_keys = len(settings.configured_api_keys)
-        default_workers = getattr(settings, "MAX_EVALUATION_WORKERS", 2)
+        default_workers = getattr(settings, "MAX_EVALUATION_WORKERS", 1)
         self.num_workers = max(1, min(default_workers, max(1, configured_keys))) if max_workers is None else max(1, max_workers)
         self.running = False
         self._threads: List[threading.Thread] = []
@@ -122,7 +122,8 @@ class PersistentQueueWorker:
             try:
                 processed = self.process_next_job(worker_id=worker_id)
                 if processed:
-                    time.sleep(1.0)
+                    # Enforce guaranteed 4.12s inter-request spacing to stay strictly within Gemini Free 15 RPM limit
+                    time.sleep(4.12)
                 else:
                     time.sleep(self.poll_interval_sec)
             except Exception as e:
@@ -230,7 +231,7 @@ class PersistentQueueWorker:
             self._update_exam_evaluation_status(exam_id)
             return True
 
-        # 3. Single-Pass Multimodal Grading Call
+        # 3. Single-Pass Multimodal Grading Call & Invariant Enforcement
         try:
             grading_result, usage_event_id = gemini_client.grade_student_submission(
                 exam_id=exam_id,
@@ -241,6 +242,30 @@ class PersistentQueueWorker:
                 page_count=job.get("page_count", 1),
                 worker_id=worker_id,
             )
+
+            # 4. Enforce Invariants and Save within the same safe execution boundary
+            grading_service.enforce_invariants_and_save(
+                submission_id=submission_id,
+                exam_id=exam_id,
+                grading_result=grading_result,
+                rubric_data=rubric_data,
+            )
+
+            now_str = get_iso_now()
+            with get_session() as sess:
+                sess.execute(
+                    update(EvaluationQueue)
+                    .where(EvaluationQueue.submission_id == submission_id)
+                    .values(status='COMPLETED', updated_at=now_str)
+                )
+                sess.commit()
+
+            if batch_id:
+                self._update_batch_progress(batch_id)
+
+            self._update_exam_evaluation_status(exam_id)
+            print(f"[QueueWorker-{worker_id}] Successfully evaluated submission {submission_id} (Roll: {job.get('roll_number')}).")
+            return True
         except AllGeminiKeysExhaustedError as quota_err:
             err_msg = str(quota_err)
             print(f"[QueueWorker-{worker_id}] QUOTA LIMIT REACHED across all keys: {err_msg}")
@@ -311,30 +336,6 @@ class PersistentQueueWorker:
                     self._update_batch_progress(batch_id)
                 self._update_exam_evaluation_status(exam_id)
             return True
-
-        # 4. Enforce Invariants and Save
-        grading_service.enforce_invariants_and_save(
-            submission_id=submission_id,
-            exam_id=exam_id,
-            grading_result=grading_result,
-            rubric_data=rubric_data,
-        )
-
-        now_str = get_iso_now()
-        with get_session() as sess:
-            sess.execute(
-                update(EvaluationQueue)
-                .where(EvaluationQueue.submission_id == submission_id)
-                .values(status='COMPLETED', updated_at=now_str)
-            )
-            sess.commit()
-
-        if batch_id:
-            self._update_batch_progress(batch_id)
-
-        self._update_exam_evaluation_status(exam_id)
-        print(f"[QueueWorker-{worker_id}] Successfully evaluated submission {submission_id} (Roll: {job.get('roll_number')}).")
-        return True
 
     def process_next_batch(self, worker_id: int = 0) -> bool:
         """Alias for backward compatibility with single-pass architecture."""

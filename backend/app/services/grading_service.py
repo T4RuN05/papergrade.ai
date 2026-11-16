@@ -607,9 +607,9 @@ class GradingService:
     @staticmethod
     def trigger_background_export_pdf(submission_id: str):
         """
-        Asynchronously regenerates the annotated PDF in the background so that
-        interactive modal saves and edits return to the teacher immediately without lag.
-        Also invalidates the cached PDF file so any concurrent export downloads fetch fresh data.
+        Marks the submission export as dirty and unlinks any stale annotated PDF on disk.
+        The fresh PDF is generated Just-In-Time (JIT) when requested for download.
+        Eliminates unmanaged background threads and CPU saturation during interactive grading.
         """
         with _export_dirty_lock:
             _export_dirty.add(submission_id)
@@ -620,21 +620,6 @@ class GradingService:
                 annotated_path.unlink()
         except Exception:
             pass
-
-        def _run_export(sub_id: str) -> None:
-            try:
-                GradingService.generate_export_pdf_for_submission(sub_id)
-            finally:
-                with _export_dirty_lock:
-                    _export_dirty.discard(sub_id)
-
-        t = threading.Thread(
-            target=_run_export,
-            args=(submission_id,),
-            daemon=True,
-            name=f"pdf-gen-{submission_id}"
-        )
-        t.start()
 
     @staticmethod
     def generate_export_pdf_for_submission(submission_id: str):

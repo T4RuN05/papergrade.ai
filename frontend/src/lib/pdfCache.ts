@@ -5,8 +5,14 @@ if (typeof window !== "undefined") {
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 }
 
+const MAX_DOCS = 2;
+const MAX_PAGE_CANVASES = 6;
+
 class PdfDocumentCache {
+  // Ordered Map for LRU eviction of PDF documents
   private cache = new Map<string, Promise<pdfjsLib.PDFDocumentProxy>>();
+
+  // Ordered Map for LRU eviction of offscreen canvases
   private pageCanvasCache = new Map<
     string,
     Promise<{ canvas: HTMLCanvasElement; width: number; height: number }>
@@ -14,11 +20,25 @@ class PdfDocumentCache {
 
   /**
    * Returns a cached PDFDocumentProxy or fetches and parses it from the given URL.
-   * Concurrent requests for the same key share the exact same promise.
+   * Evicts the oldest document when the cache exceeds MAX_DOCS.
    */
   async getDocument(key: string, url: string): Promise<pdfjsLib.PDFDocumentProxy> {
     if (this.cache.has(key)) {
-      return this.cache.get(key)!;
+      const existing = this.cache.get(key)!;
+      // Refresh LRU order
+      this.cache.delete(key);
+      this.cache.set(key, existing);
+      return existing;
+    }
+
+    // Evict oldest document if over capacity
+    while (this.cache.size >= MAX_DOCS) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) {
+        this.evict(oldestKey);
+      } else {
+        break;
+      }
     }
 
     const loadPromise = (async () => {
@@ -32,7 +52,6 @@ class PdfDocumentCache {
         const doc = await loadingTask.promise;
         return doc;
       } catch (err) {
-        // Remove failed promise so subsequent attempts can retry
         this.cache.delete(key);
         throw err;
       }
@@ -44,7 +63,6 @@ class PdfDocumentCache {
 
   /**
    * Renders a specific page of a PDF document to an offscreen HTMLCanvasElement.
-   * Useful for high-speed client-side cropping and thumbnail generation.
    */
   async renderPageToOffscreenCanvas(
     doc: pdfjsLib.PDFDocumentProxy,
@@ -73,6 +91,8 @@ class PdfDocumentCache {
 
   /**
    * Returns a memoized rendered page canvas across all question crops on the same page.
+   * Automatically enforces LRU bounding to MAX_PAGE_CANVASES, explicitly releasing
+   * unmanaged GPU buffers (canvas.width = 0; canvas.height = 0) upon eviction.
    */
   async getRenderedPageCanvas(
     doc: pdfjsLib.PDFDocumentProxy,
@@ -82,7 +102,21 @@ class PdfDocumentCache {
   ): Promise<{ canvas: HTMLCanvasElement; width: number; height: number }> {
     const pageKey = `${docKey}_p${pageNumber}_s${scale}`;
     if (this.pageCanvasCache.has(pageKey)) {
-      return this.pageCanvasCache.get(pageKey)!;
+      const existing = this.pageCanvasCache.get(pageKey)!;
+      // Refresh LRU order
+      this.pageCanvasCache.delete(pageKey);
+      this.pageCanvasCache.set(pageKey, existing);
+      return existing;
+    }
+
+    // Evict oldest page canvas if over capacity
+    while (this.pageCanvasCache.size >= MAX_PAGE_CANVASES) {
+      const oldestKey = this.pageCanvasCache.keys().next().value;
+      if (oldestKey) {
+        this._evictCanvas(oldestKey);
+      } else {
+        break;
+      }
     }
 
     const renderPromise = this.renderPageToOffscreenCanvas(doc, pageNumber, scale).catch((err) => {
@@ -94,8 +128,24 @@ class PdfDocumentCache {
     return renderPromise;
   }
 
+  private _evictCanvas(key: string): void {
+    const promise = this.pageCanvasCache.get(key);
+    if (promise) {
+      this.pageCanvasCache.delete(key);
+      promise
+        .then((res) => {
+          if (res?.canvas) {
+            // Explicitly zero dimensions to release GPU/raster backing buffer
+            res.canvas.width = 0;
+            res.canvas.height = 0;
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   /**
-   * Destroys and evicts a cached document to reclaim memory.
+   * Destroys and evicts a cached document and all associated page canvases to reclaim memory.
    */
   evict(key: string): void {
     const existing = this.cache.get(key);
@@ -113,13 +163,13 @@ class PdfDocumentCache {
     // Evict all page canvases matching this doc key prefix
     Array.from(this.pageCanvasCache.keys()).forEach((k) => {
       if (k.startsWith(`${key}_`)) {
-        this.pageCanvasCache.delete(k);
+        this._evictCanvas(k);
       }
     });
   }
 
   /**
-   * Clears all cached documents and frees typed array memory.
+   * Clears all cached documents and frees all typed array and GPU backing memory.
    */
   clear(): void {
     this.cache.forEach((promise) => {
@@ -132,6 +182,10 @@ class PdfDocumentCache {
         .catch(() => {});
     });
     this.cache.clear();
+
+    Array.from(this.pageCanvasCache.keys()).forEach((k) => {
+      this._evictCanvas(k);
+    });
     this.pageCanvasCache.clear();
   }
 }

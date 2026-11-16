@@ -14,9 +14,11 @@ import asyncio
 import threading
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_, func
+
+from backend.app.services.portal_cache import PortalStateEpochManager
 
 from backend.app.db.session import get_session
 from backend.app.db.models import (
@@ -477,15 +479,30 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         }
 
 @router.get("/portal-state")
-async def get_student_portal_state(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_student_portal_state(
+    request: Request,
+    response: Response,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
-    Consolidated high-performance student portal endpoint.
+    Consolidated high-performance student portal endpoint with sub-millisecond ETag / 304 fast-path.
     Retrieves student identity, branch exams, active submission windows,
     and submission history in a single non-blocking thread execution.
+    Returns 304 Not Modified immediately with zero database queries when RAM epoch has not changed.
     """
     user_id = current_user.get("sub") or current_user.get("id")
     user_role = current_user.get("role", "STUDENT")
-    return await asyncio.to_thread(_fetch_portal_state_sync, user_id, user_role)
+    branch_id = current_user.get("branch_id")
+
+    current_etag = PortalStateEpochManager.get_etag(branch_id=branch_id, user_id=user_id)
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip() == current_etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+
+    data = await asyncio.to_thread(_fetch_portal_state_sync, user_id, user_role)
+    response.headers["ETag"] = current_etag
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return data
 
 
 def _fetch_past_submissions_sync(

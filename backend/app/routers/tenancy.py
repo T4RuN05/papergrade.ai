@@ -4,6 +4,7 @@ import io
 import json
 import shutil
 import logging
+import asyncio
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Query
 from pydantic import BaseModel
@@ -626,6 +627,14 @@ def add_single_student(
     }
 
 
+def _parse_excel_sheet_rows(content: bytes) -> List[tuple]:
+    workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    sheet = workbook.active
+    rows = list(sheet.iter_rows(values_only=True))
+    workbook.close()
+    return rows
+
+
 @router.post("/batches/{batch_id}/import-students")
 async def import_students_excel(
     batch_id: str,
@@ -643,8 +652,7 @@ async def import_students_excel(
 
     content = await file.read()
     try:
-        workbook = openpyxl.load_workbook(io.BytesIO(content))
-        sheet = workbook.active
+        rows = await asyncio.to_thread(_parse_excel_sheet_rows, content)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not parse Excel spreadsheet: {str(e)}")
 
@@ -654,7 +662,6 @@ async def import_students_excel(
     if not _verify_batch_access(db, current_user, batch):
         raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
-    rows = list(sheet.iter_rows(values_only=True))
     if len(rows) < 2:
         raise HTTPException(status_code=400, detail="Excel file is empty or has no data rows.")
 

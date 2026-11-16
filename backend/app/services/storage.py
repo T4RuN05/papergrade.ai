@@ -318,6 +318,33 @@ class CloudinaryStorageService(StorageService):
         self.cache_dir = settings.DATA_DIR / "cloudinary_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+    def _prune_cache_if_needed(self, max_bytes: int = 400 * 1024 * 1024, target_bytes: int = 250 * 1024 * 1024) -> None:
+        """
+        Enforces high/low watermark disk pruning on the local Cloudinary cache.
+        If total size exceeds 400 MB, removes least-recently-accessed files until below 250 MB.
+        Prevents container disk exhaustion on Render's ephemeral storage.
+        """
+        try:
+            if not self.cache_dir.exists():
+                return
+            files = [f for f in self.cache_dir.rglob("*") if f.is_file()]
+            total_size = sum(f.stat().st_size for f in files)
+            if total_size <= max_bytes:
+                return
+            files.sort(key=lambda f: f.stat().st_atime)
+            current_size = total_size
+            for f in files:
+                if current_size <= target_bytes:
+                    break
+                sz = f.stat().st_size
+                try:
+                    f.unlink(missing_ok=True)
+                    current_size -= sz
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error during storage cache pruning: {e}")
+
     def _clean_public_id(self, key: str) -> str:
         k = str(key).replace("\\", "/").strip().lstrip("/")
         # If absolute path or contains marker folders, extract relative storage key
@@ -419,6 +446,7 @@ class CloudinaryStorageService(StorageService):
             cached_path.parent.mkdir(parents=True, exist_ok=True)
             with open(cached_path, "wb") as f:
                 f.write(data)
+            self._prune_cache_if_needed()
         return data
 
     def generate_presigned_upload_url(

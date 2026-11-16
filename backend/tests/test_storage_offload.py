@@ -140,25 +140,39 @@ def test_cloudinary_resource_types_and_signed_download_url(monkeypatch):
     monkeypatch.setattr(settings, "CLOUDINARY_API_KEY", "123456")
     monkeypatch.setattr(settings, "CLOUDINARY_API_SECRET", "secret_key")
 
-    svc = CloudinaryStorageService()
-    assert svc._resource_type("exams/e1/question_paper.pdf") == "raw"
-    assert svc._resource_type("exports/batch_1_graded_pdfs.zip") == "raw"
-    assert svc._resource_type("renders/sub_1/page_1.png") == "image"
+    try:
+        svc = CloudinaryStorageService()
+        assert svc._resource_type("exams/e1/question_paper.pdf") == "raw"
+        assert svc._resource_type("exports/batch_1_graded_pdfs.zip") == "raw"
+        assert svc._resource_type("renders/sub_1/page_1.png") == "image"
 
-    pdf_url = svc.generate_presigned_download_url(
-        "exports/sub_1_annotated.pdf", expires_in=900, filename="graded.pdf", attachment=True
-    )
-    assert "expires_at=" in pdf_url
-    assert "attachment=1" in pdf_url
+        pdf_url = svc.generate_presigned_download_url(
+            "exports/sub_1_annotated.pdf", expires_in=900, filename="graded.pdf", attachment=True
+        )
+        assert "expires_at=" in pdf_url
+        assert "attachment=1" in pdf_url
 
-    zip_url = svc.generate_presigned_download_url(
-        "exports/batch_1_graded_pdfs.zip", expires_in=900, filename="Batch.zip", attachment=True
-    )
-    assert "raw/download" in zip_url
-    assert "attachment=1" in zip_url
+        zip_url = svc.generate_presigned_download_url(
+            "exports/batch_1_graded_pdfs.zip", expires_in=900, filename="Batch.zip", attachment=True
+        )
+        assert "raw/download" in zip_url
+        assert "attachment=1" in zip_url
 
-    img_url = svc.generate_presigned_download_url("renders/sub_1/page_1.png")
-    assert "res.cloudinary.com" in img_url
+        img_url = svc.generate_presigned_download_url("renders/sub_1/page_1.png")
+        assert "res.cloudinary.com" in img_url
+    finally:
+        import backend.app.services.storage as storage_mod
+        storage_mod._storage_instance = None
+        cfg = settings.parsed_cloudinary_config
+        if cfg.get("cloud_name"):
+            import cloudinary
+            cloudinary.reset_config()
+            cloudinary.config(
+                cloud_name=cfg.get("cloud_name"),
+                api_key=cfg.get("api_key"),
+                api_secret=cfg.get("api_secret"),
+                secure=True,
+            )
 
 
 def test_build_remote_redirect_response_respects_signed_urls(tmp_path):
