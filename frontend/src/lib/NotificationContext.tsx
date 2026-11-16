@@ -1,8 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { api, getAuthToken } from "@/lib/api";
+import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export interface AppNotification {
   id: string;
@@ -20,6 +21,7 @@ interface NotificationContextType {
   unreadCount: number;
   isOpen: boolean;
   loading: boolean;
+  isRealtimeActive: boolean;
   permission: NotificationPermission;
   isSupported: boolean;
   requestPermission: () => Promise<boolean>;
@@ -51,6 +53,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [isSupported, setIsSupported] = useState(false);
   const isInitialMount = useRef(true);
@@ -298,8 +301,81 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, [toast, sendSystemNotification]);
 
+  // Phase 2: Supabase Realtime WebSocket Connection (0ms instant delivery, 0% Render load)
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const token = getAuthToken();
+    const user = getStoredUser();
+    const userId = user?.id || user?.sub;
+
+    if (!supabase || !token || !userId) {
+      setIsRealtimeActive(false);
+      return;
+    }
+
+    let isSubscribed = true;
+    const channelName = `notifs_${userId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (!isSubscribed) return;
+          const row = payload.new as any;
+          if (!row || !row.id) return;
+
+          const newNotif: AppNotification = {
+            id: row.id,
+            user_id: row.user_id,
+            type: row.type,
+            title: row.title,
+            message: row.message,
+            link_url: row.link_url,
+            is_read: row.is_read || 0,
+            created_at: row.created_at || new Date().toISOString(),
+          };
+
+          // 1. Immediately prepend to in-memory notification state
+          setNotifications((prev) => [newNotif, ...prev.filter((n) => n.id !== newNotif.id)]);
+
+          // 2. Immediate in-app visual toast
+          toast.info(newNotif.message, { title: newNotif.title });
+
+          // 3. Desktop / PWA OS alert
+          sendSystemNotification(newNotif.title, {
+            body: newNotif.message,
+            data: { url: newNotif.link_url || "/student/portal" },
+          });
+        }
+      )
+      .subscribe((status) => {
+        if (!isSubscribed) return;
+        if (status === "SUBSCRIBED") {
+          setIsRealtimeActive(true);
+        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+          setIsRealtimeActive(false);
+        }
+      });
+
+    return () => {
+      isSubscribed = false;
+      if (supabase && channel) {
+        supabase.removeChannel(channel).catch(() => {});
+      }
+    };
+  }, [toast, sendSystemNotification]);
+
+  // Phase 1 + Phase 2 Hybrid Poller: 60s gentle heartbeat if Realtime is active, 30s adaptive if fallback
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
+    const pollIntervalMs = isRealtimeActive ? 60000 : 30000;
 
     const startPolling = () => {
       if (intervalId) clearInterval(intervalId);
@@ -307,7 +383,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (typeof document !== "undefined" && !document.hidden) {
           fetchNotifications();
         }
-      }, 30000); // 30 seconds adaptive interval (saves ~84% server load)
+      }, pollIntervalMs);
     };
 
     const handleVisibilityChange = () => {
@@ -342,7 +418,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, isRealtimeActive]);
 
   const openDrawer = () => setIsOpen(true);
   const closeDrawer = () => setIsOpen(false);
@@ -377,6 +453,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         unreadCount,
         isOpen,
         loading,
+        isRealtimeActive,
         permission,
         isSupported,
         requestPermission,

@@ -252,6 +252,7 @@ export function NotificationDrawer() {
     markAllRead,
     refreshNotifications,
     loading,
+    isRealtimeActive,
     permission,
     isSupported,
     requestPermission,
@@ -382,6 +383,12 @@ export function NotificationDrawer() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold tracking-tight text-ink">Notifications</h2>
+                {isRealtimeActive && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-ink-muted">
                 System alerts, grading updates & revaluations
