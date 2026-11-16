@@ -181,6 +181,58 @@ async def run_playwright_load_test(
         print("[!] No browser instances launched. Ready for live test on command.")
         return
 
+    # 2.5 Pre-authenticate student cohort to mirror active classroom mobile phone sessions
+    auth_cache_file = REPORTS_DIR / ".auth_cache.json"
+    auth_cache = {}
+    if auth_cache_file.exists():
+        try:
+            with open(auth_cache_file, "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+                if time.time() - cached_data.get("_saved_at", 0) < 86400 * 3:  # 3 days
+                    auth_cache = cached_data.get("tokens", {})
+                    print(f"[*] Loaded {len(auth_cache)} pre-authenticated student sessions from disk cache.")
+        except Exception:
+            auth_cache = {}
+
+    missing_tasks = [t for t in scheduled_tasks if t.roll_number not in auth_cache]
+    if missing_tasks:
+        print(f"[*] Pre-authenticating {len(missing_tasks)} student sessions sequentially to mirror active mobile phones...")
+        import requests
+        for t in missing_tasks:
+            try:
+                res = requests.post(
+                    f"{api_url}/api/v1/auth/login",
+                    json={"username": t.roll_number, "password": t.password},
+                    timeout=25
+                )
+                if res.status_code == 200:
+                    d = res.json()
+                    auth_cache[t.roll_number] = {
+                        "token": d.get("access_token"),
+                        "user": d.get("user") or {
+                            "id": d.get("user_id"),
+                            "role": d.get("role", "STUDENT"),
+                            "full_name": d.get("full_name"),
+                            "institute_id": d.get("institute_id"),
+                            "branch_id": d.get("branch_id"),
+                        }
+                    }
+                    print(f"    [+] Pre-authenticated {t.roll_number} ({t.student_name})")
+                else:
+                    print(f"    [-] Failed to pre-auth {t.roll_number}: HTTP {res.status_code}")
+            except Exception as e:
+                print(f"    [-] Error pre-authenticating {t.roll_number}: {e}")
+            await asyncio.sleep(0.4)
+
+        try:
+            with open(auth_cache_file, "w", encoding="utf-8") as f:
+                json.dump({"_saved_at": time.time(), "tokens": auth_cache}, f, indent=2)
+        except Exception:
+            pass
+
+    for task in scheduled_tasks:
+        task.auth_data = auth_cache.get(task.roll_number)
+
     # 3. Initialize Telemetry & Metrics Aggregator
     telemetry_monitor = RenderTelemetryMonitor(
         api_key=render_api_key,

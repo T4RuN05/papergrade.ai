@@ -50,10 +50,26 @@ def hash_password(password: str) -> str:
     salt = bcrypt.gensalt(rounds=12)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
+_pwd_verify_cache: Dict[str, tuple[bool, float]] = {}
+_pwd_cache_lock = threading.Lock()
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against bcrypt hash."""
+    """Verify password against bcrypt hash with short-lived LRU/TTL cache to prevent CPU starvation."""
+    import hashlib
+    cache_key = hashlib.sha256((plain_password + ":" + hashed_password).encode("utf-8")).hexdigest()
+    now = time.time()
+    with _pwd_cache_lock:
+        if cache_key in _pwd_verify_cache:
+            valid, exp = _pwd_verify_cache[cache_key]
+            if now < exp:
+                return valid
+
     try:
-        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        is_valid = bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        if is_valid:
+            with _pwd_cache_lock:
+                _pwd_verify_cache[cache_key] = (True, now + 300.0)  # 5 minutes TTL
+        return is_valid
     except Exception:
         return False
 

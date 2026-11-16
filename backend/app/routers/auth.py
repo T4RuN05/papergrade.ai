@@ -102,6 +102,8 @@ def _record_last_login(user_id: str):
         pass
 
 
+_bcrypt_semaphore = asyncio.Semaphore(3)
+
 @router.post("/login", response_model=LoginResponse)
 async def login(
     request: Request,
@@ -191,8 +193,9 @@ async def login(
             detail="Invalid credentials. Use your registered email, roll number, or student ID."
         )
 
-    # 2. Non-blocking bcrypt verification in worker threadpool (prevents event loop freezing)
-    is_password_valid = await asyncio.to_thread(verify_password, password_val, user.password_hash)
+    # 2. Non-blocking bcrypt verification bounded by semaphore (prevents CPU starvation on bursts)
+    async with _bcrypt_semaphore:
+        is_password_valid = await asyncio.to_thread(verify_password, password_val, user.password_hash)
     if not is_password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

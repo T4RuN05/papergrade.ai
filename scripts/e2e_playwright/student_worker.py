@@ -133,26 +133,52 @@ async def simulate_student_session(
         page.on("request", on_request)
         page.on("response", on_response)
 
-        # 3. STEP: LOGIN
-        login_url = f"{frontend_base_url}/auth/login?role=student"
-        await page.goto(login_url, wait_until="domcontentloaded")
-
-        student_tab = page.locator("#tab-role-student")
-        if await student_tab.is_visible():
-            await student_tab.click()
-
-        await page.fill("#login-identifier-input", task.roll_number)
-        await page.fill("#login-password-input", task.password)
-
-        login_submit_btn = page.locator("#btn-login-submit")
+        # 3. STEP: AUTHENTICATION / RESTORE SESSION
         login_start = time.perf_counter()
-        await login_submit_btn.click()
+        if task.auth_data:
+            auth_token = task.auth_data.get("token") or task.auth_data.get("access_token")
+            user_info = task.auth_data.get("user") or {}
+            branch_id = user_info.get("branch_id") or ""
+            inst_id = user_info.get("institute_id") or ""
 
-        # Wait for redirect to student portal
-        await page.wait_for_url("**/student/portal*", timeout=NAVIGATION_TIMEOUT_MS)
-        metrics.login_duration_secs = round(time.perf_counter() - login_start, 3)
-        metrics.stage_reached = "LOGIN_OK"
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] [LOGIN OK] {task.roll_number} authenticated in {metrics.login_duration_secs:.2f}s")
+            await page.add_init_script(f"""
+                try {{
+                    localStorage.setItem("papergrade_jwt", "{auth_token}");
+                    localStorage.setItem("papergrade_user", JSON.stringify({json.dumps(user_info)}));
+                    if ("{branch_id}") {{
+                        localStorage.setItem("papergrade_selected_branch_id", "{branch_id}");
+                    }}
+                    if ("{inst_id}") {{
+                        localStorage.setItem("papergrade_selected_institute_id", "{inst_id}");
+                    }}
+                    sessionStorage.setItem("ios_install_banner_dismissed", "true");
+                }} catch (e) {{}}
+            """)
+
+            portal_url = f"{frontend_base_url}/student/portal"
+            await page.goto(portal_url, wait_until="domcontentloaded")
+            metrics.login_duration_secs = round(time.perf_counter() - login_start, 3)
+            metrics.stage_reached = "LOGIN_OK"
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [SESSION RESTORED] {task.roll_number} ({task.student_name}) entered portal with active token in {metrics.login_duration_secs:.2f}s")
+        else:
+            login_url = f"{frontend_base_url}/auth/login?role=student"
+            await page.goto(login_url, wait_until="domcontentloaded")
+
+            student_tab = page.locator("#tab-role-student")
+            if await student_tab.is_visible():
+                await student_tab.click()
+
+            await page.fill("#login-identifier-input", task.roll_number)
+            await page.fill("#login-password-input", task.password)
+
+            login_submit_btn = page.locator("#btn-login-submit")
+            await login_submit_btn.click()
+
+            # Wait for redirect to student portal
+            await page.wait_for_url("**/student/portal*", timeout=NAVIGATION_TIMEOUT_MS)
+            metrics.login_duration_secs = round(time.perf_counter() - login_start, 3)
+            metrics.stage_reached = "LOGIN_OK"
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [LOGIN OK] {task.roll_number} authenticated in {metrics.login_duration_secs:.2f}s")
 
         # 4. PHASE 1: PRE-EXAM STANDBY & POLLING
         current_phase = 1

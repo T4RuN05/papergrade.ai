@@ -35,6 +35,7 @@ class ScheduledStudentTask:
     phase1_wait_secs: float = 0.0
     post_upload_stay_secs: float = 60.0
     target_start_time: Optional[datetime] = None
+    auth_data: Optional[Dict[str, Any]] = None
 
     @property
     def formatted_offset(self) -> str:
