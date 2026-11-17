@@ -214,14 +214,14 @@ flowchart TB
 
     subgraph DataTier["Database Tier (Supabase PostgreSQL 15)"]
         PG_Pooler["Supavisor / PgBouncer Transaction Pooler (:6543)\n(ThreadedConnectionPool, max 40 connections)"]
-        Tables[("24 Normalized Tables Across 5 Domains:\ninstitutes, branches, subjects, users, batches,\nstudents, exams, exam_batches, submission_windows,\nrubric_versions, submissions, answers, answer_regions,\ncriterion_scores, evaluation_queue, revaluation_requests,\nnotifications, push_subscriptions, password_reset_requests,\ntechnical_reports, audit_logs, api_usage_events,\nuser_quota_settings, experiment_benchmarks")]
+        Tables["24 Normalized Relational Tables Across 5 Domains"]
     end
 
     %% Client Interactions
-    ClientTier <-->|REST API / HTTPS / Bearer JWT| APITier
-    StudentApp -->|Direct Pre-Signed Multipart POST (0 Server RAM)| Cloudinary
-    CanvasApp <-->|HTTP 307 Redirects to Pre-Signed CDN URLs| Cloudinary
-    ClientTier <-->|WebSocket Realtime Events| SupabaseRT
+    ClientTier <-->|"REST API / HTTPS / Bearer JWT"| APITier
+    StudentApp -->|"Direct Pre-Signed Multipart POST (0 Server RAM)"| Cloudinary
+    CanvasApp <-->|"HTTP 307 Redirects to Pre-Signed CDN URLs"| Cloudinary
+    ClientTier <-->|"WebSocket Realtime Events"| SupabaseRT
     
     %% API & Services
     APITier --> ServiceTier
@@ -233,7 +233,7 @@ flowchart TB
     PW_TimeGate --> ServiceTier
     PW_TimeGate --> GeminiClient
     GeminiClient --> PrimaryModel
-    PrimaryModel -.->|429 Resource Exhausted| Fallback1
+    PrimaryModel -.->|"429 Resource Exhausted"| Fallback1
     Fallback1 -.-> Fallback2
     GeminiClient --> StreamHealer
 
@@ -626,7 +626,7 @@ In `backend/app/gemini/prompts.py`:
 ## 9. Deterministic Grading & Invariants Engine
 
 ### 9.1 Score Clamping & Bottom-Up Criterion Summation
-Large language models must never be trusted to calculate arithmetic totals. The [`GradingService`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/grading_service.py) enforces absolute mathematical determinism:
+Large language models must never be trusted to calculate arithmetic totals. The `GradingService` (`backend/app/services/grading_service.py`) enforces absolute mathematical determinism:
 1. Every individual criterion score is clamped:
    $$\text{awarded\_crit}_i = \max(0.0, \; \min(\text{crit}_i.\text{awarded}, \; \text{crit}_i.\text{max}))$$
 2. The question score is summed bottom-up from validated criteria:
@@ -642,7 +642,7 @@ When exams offer optional questions (e.g. *"Section B: Attempt any 4 out of 6 qu
 flowchart TD
     Start(["Section B: Attempt Any 4 of 6 Questions"]) --> GradeAll["Evaluate All 6 Attempted Questions"]
     GradeAll --> SortDesc["Sort Answers Descending by Score: score DESC, confidence DESC"]
-    SortDesc --> SplitTop{"Rank &le; 4?"}
+    SortDesc --> SplitTop{"Rank <= 4"}
     SplitTop -->|"Yes (Top 4 Scores)"| KeepValid["Set is_extra_attempt = 0<br/>Count toward Total Exam Marks"]
     SplitTop -->|"No (Excess 2 Lower Scores)"| FlagExtra["Set is_extra_attempt = 1<br/>Exclude from Total Exam Marks<br/>Tag: 'Optional choice: Best-of-N selected top score'"]
     KeepValid --> SumTotals["Deterministically Recompute Exam Total"]
@@ -699,19 +699,19 @@ To comply with student privacy policies (FERPA/GDPR) and keep cloud storage expe
 sequenceDiagram
     autonumber
     participant Daemon as Scheduled Purge Daemon
-    participant API as POST /api/v1/submissions/purge-expired
-    participant DB as Supabase PostgreSQL (:6543)
-    participant CDN as Cloudinary / Cloudflare R2
+    participant API as Submissions Purge API
+    participant DB as Supabase PostgreSQL
+    participant CDN as Cloud Object Storage (CDN)
     participant Disk as Local SSD Buffer
 
     Daemon->>API: Trigger Expired Purge Sweep
-    API->>DB: SELECT id, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE retention_expires_at <= NOW() AND is_document_purged = 0
+    API->>DB: Scan for expired submissions (retention_expires_at <= NOW)
     DB-->>API: Return Expired Submissions List
     loop For Each Expired Submission
-        API->>Disk: os.remove(cached_pdf)
-        API->>CDN: uploader.destroy(public_id, resource_type='raw')
-        API->>DB: DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = sub.id)
-        API->>DB: UPDATE submissions SET is_document_purged = 1, canonical_pdf_path = NULL, annotated_pdf_path = NULL WHERE id = sub.id
+        API->>Disk: Unlink cached PDF binary
+        API->>CDN: Delete raw and annotated PDFs via Admin API
+        API->>DB: Delete answer bounding box regions
+        API->>DB: Set is_document_purged = 1 and clear storage paths
     end
     API-->>Daemon: Return Purge Summary (Purged Submissions, Reclaimed Bytes)
 ```
