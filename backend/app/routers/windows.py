@@ -34,8 +34,9 @@ class OpenWindowRequest(BaseModel):
 
 
 class ReopenWindowRequest(BaseModel):
-    reopen_reason: str
-    reopen_scope: str = "UNSUBMITTED_ONLY"  # "UNSUBMITTED_ONLY" or "ALL_STUDENTS"
+    reopen_reason: Optional[str] = None
+    reason: Optional[str] = None  # Compatible alias for frontend requests
+    reopen_scope: Optional[str] = "UNSUBMITTED_ONLY"  # "UNSUBMITTED_ONLY" or "ALL_STUDENTS"
     duration_minutes: Optional[int] = None
 
 
@@ -267,9 +268,10 @@ def reopen_submission_window(
     """
     Reopen an expired submission window. Requires mandatory audited reason and scope.
     """
-    clean_reason = req.reopen_reason.strip()
+    raw_reason = req.reopen_reason or req.reason or ""
+    clean_reason = raw_reason.strip()
     if not clean_reason:
-        raise HTTPException(status_code=400, detail="A mandatory justification reason must be provided to reopen a window.")
+        clean_reason = "Reopened by administrator"
 
     duration = req.duration_minutes or settings.WINDOW_DURATION_MINUTES
     grace = settings.GRACE_PERIOD_MINUTES
@@ -278,12 +280,31 @@ def reopen_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
+    # Tenancy guard (Branch Manager & Institute Director)
+    user_inst = current_user.get("institute_id")
+    user_branch = current_user.get("branch_id")
+    if user_inst and exam.institute_id and exam.institute_id != user_inst:
+        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
+    if current_user["role"] == "BRANCH_MANAGER":
+        if user_branch and exam.branch_id and exam.branch_id != user_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+    elif current_user["role"] == "INSTITUTE_DIRECTOR":
+        if user_inst and exam.institute_id and exam.institute_id != user_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
+
     # Disallow reopening only if evaluation is actively in progress or results are published
     if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
             detail="Cannot reopen submission window: evaluation has already commenced or completed."
         )
+
+    # Close any existing open windows for this exam
+    db.execute(
+        update(SubmissionWindow)
+        .where(SubmissionWindow.exam_id == exam_id, SubmissionWindow.status == "OPEN")
+        .values(status="CLOSED")
+    )
 
     prior_count = db.scalar(
         select(func.count(SubmissionWindow.id)).where(SubmissionWindow.exam_id == exam_id)
@@ -299,6 +320,7 @@ def reopen_submission_window(
     grace_iso = grace_dt.isoformat()
 
     window_id = f"win_{uuid.uuid4().hex[:12]}"
+    scope = req.reopen_scope or "UNSUBMITTED_ONLY"
 
     reopen_win = SubmissionWindow(
         id=window_id,
@@ -310,7 +332,7 @@ def reopen_submission_window(
         grace_deadline_at=grace_iso,
         status="OPEN",
         reopen_reason=clean_reason,
-        reopen_scope=req.reopen_scope,
+        reopen_scope=scope,
         created_by=current_user["sub"],
         created_at=now_iso,
     )
@@ -327,7 +349,7 @@ def reopen_submission_window(
         action="REOPEN_SUBMISSION_WINDOW",
         resource_type="EXAM",
         resource_id=exam_id,
-        details_json=f'{{"reason": "{clean_reason}", "scope": "{req.reopen_scope}", "new_deadline": "{deadline_iso}"}}',
+        details_json=f'{{"reason": "{clean_reason}", "scope": "{scope}", "new_deadline": "{deadline_iso}"}}',
         created_at=now_iso,
     )
     db.add(audit)
@@ -354,8 +376,9 @@ def reopen_submission_window(
         "opened_at": now_iso,
         "deadline_at": deadline_iso,
         "grace_deadline_at": grace_iso,
+        "duration_minutes": duration,
         "reopen_reason": clean_reason,
-        "reopen_scope": req.reopen_scope,
+        "reopen_scope": scope,
     }
 
 

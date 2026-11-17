@@ -616,7 +616,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to create batch" }));
-      throw new Error(err.detail || "Failed to create batch");
+      throw new Error(parseErrorDetail(err, "Failed to create batch"));
     }
     clearApiCache("tenancy:batches");
     return res.json();
@@ -630,7 +630,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to add student" }));
-      throw new Error(err.detail || "Failed to add student");
+      throw new Error(parseErrorDetail(err, "Failed to add student"));
     }
     clearApiCache("tenancy:batches");
     return res.json();
@@ -646,7 +646,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to import roster" }));
-      throw new Error(err.detail || "Failed to import roster");
+      throw new Error(parseErrorDetail(err, "Failed to import roster"));
     }
     clearApiCache("tenancy:batches");
     return res.json();
@@ -659,7 +659,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to delete batch" }));
-      throw new Error(err.detail || "Failed to delete batch");
+      throw new Error(parseErrorDetail(err, "Failed to delete batch"));
     }
     clearApiCache("tenancy:batches");
     return res.json();
@@ -672,7 +672,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to delete student" }));
-      throw new Error(err.detail || "Failed to delete student");
+      throw new Error(parseErrorDetail(err, "Failed to delete student"));
     }
     clearApiCache("tenancy:batches");
     return res.json();
@@ -694,11 +694,11 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({ duration_minutes: durationMinutes, grace_minutes: graceMinutes }),
+      body: JSON.stringify({ duration_minutes: Number(durationMinutes), grace_minutes: Number(graceMinutes) }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to open window" }));
-      throw new Error(err.detail || "Failed to open window");
+      throw new Error(parseErrorDetail(err, "Failed to open window"));
     }
     return res.json();
   },
@@ -727,15 +727,22 @@ export const api = {
     return res.json();
   },
 
-  async reopenWindow(examId: string, data: { duration_minutes: number; reason: string; reopen_scope?: string }): Promise<any> {
+  async reopenWindow(examId: string, data: { duration_minutes?: number; reason?: string; reopen_reason?: string; reopen_scope?: string }): Promise<any> {
+    const reasonText = (data.reopen_reason || data.reason || "").trim() || "Reopened by administrator";
+    const payload = {
+      duration_minutes: data.duration_minutes ? Number(data.duration_minutes) : 30,
+      reopen_reason: reasonText,
+      reason: reasonText,
+      reopen_scope: data.reopen_scope || "UNSUBMITTED_ONLY",
+    };
     const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/reopen`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to reopen window" }));
-      throw new Error(err.detail || "Failed to reopen window");
+      throw new Error(parseErrorDetail(err, "Failed to reopen window"));
     }
     return res.json();
   },
@@ -744,11 +751,11 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/extend`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({ additional_minutes: additionalMinutes, reason: reason || "Extended by teacher" }),
+      body: JSON.stringify({ additional_minutes: Number(additionalMinutes), reason: reason || "Extended by teacher" }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to extend window" }));
-      throw new Error(err.detail || "Failed to extend window");
+      throw new Error(parseErrorDetail(err, "Failed to extend window"));
     }
     return res.json();
   },
@@ -761,7 +768,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to close window" }));
-      throw new Error(err.detail || "Failed to close window");
+      throw new Error(parseErrorDetail(err, "Failed to close window"));
     }
     return res.json();
   },
@@ -793,7 +800,7 @@ export const api = {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to fetch student portal state" }));
-      throw new Error(err.detail || "Failed to fetch student portal state");
+      throw new Error(parseErrorDetail(err, "Failed to fetch student portal state"));
     }
 
     const etag = res.headers.get("ETag");
@@ -832,7 +839,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to fetch past exam submissions" }));
-      throw new Error(err.detail || "Failed to fetch past exam submissions");
+      throw new Error(parseErrorDetail(err, "Failed to fetch past exam submissions"));
     }
     return res.json();
   },
@@ -868,7 +875,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to request upload authorization" }));
-      throw new Error(err.detail || "Failed to request upload authorization");
+      throw new Error(parseErrorDetail(err, "Failed to request upload authorization"));
     }
     return res.json();
   },
@@ -905,7 +912,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to confirm upload" }));
-      throw new Error(err.detail || "Failed to confirm upload");
+      throw new Error(parseErrorDetail(err, "Failed to confirm upload"));
     }
     return res.json();
   },
@@ -918,7 +925,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to upload answer sheet" }));
-      throw new Error(err.detail || "Failed to upload answer sheet");
+      throw new Error(parseErrorDetail(err, "Failed to upload answer sheet"));
     }
     return res.json();
   },
@@ -930,7 +937,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to fetch exam submissions" }));
-      throw new Error(err.detail || "Failed to fetch exam submissions");
+      throw new Error(parseErrorDetail(err, "Failed to fetch exam submissions"));
     }
     return res.json();
   },
@@ -1025,7 +1032,7 @@ export const api = {
       });
       if (!fallback.ok) {
         const err = await fallback.json().catch(() => ({}));
-        throw new Error(err.detail || "Failed to fetch exam standings");
+        throw new Error(parseErrorDetail(err, "Failed to fetch exam standings"));
       }
       return fallback.json();
     }
@@ -1040,7 +1047,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to create exam" }));
-      throw new Error(err.detail || "Failed to create exam");
+      throw new Error(parseErrorDetail(err, "Failed to create exam"));
     }
     return res.json();
   },
@@ -1053,7 +1060,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to upload question paper" }));
-      throw new Error(err.detail || "Failed to upload question paper");
+      throw new Error(parseErrorDetail(err, "Failed to upload question paper"));
     }
     clearApiCache("exams:");
     return res.json();
@@ -1067,7 +1074,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to upload answer key" }));
-      throw new Error(err.detail || "Failed to upload answer key");
+      throw new Error(parseErrorDetail(err, "Failed to upload answer key"));
     }
     clearApiCache("exams:");
     clearApiCache("submissions:");
@@ -1096,7 +1103,7 @@ export const api = {
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to fetch document metadata" }));
-      throw new Error(err.detail || "Failed to fetch document metadata");
+      throw new Error(parseErrorDetail(err, "Failed to fetch document metadata"));
     }
     return res.json();
   },
@@ -1138,7 +1145,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to generate rubric" }));
-      throw new Error(err.detail || "Failed to generate rubric");
+      throw new Error(parseErrorDetail(err, "Failed to generate rubric"));
     }
     clearApiCache("exams:");
     return res.json();
@@ -1152,7 +1159,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to approve rubric" }));
-      throw new Error(err.detail || "Failed to approve rubric");
+      throw new Error(parseErrorDetail(err, "Failed to approve rubric"));
     }
     clearApiCache("exams:");
     return res.json();
@@ -1199,7 +1206,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to start evaluation" }));
-      throw new Error(err.detail || "Failed to start evaluation");
+      throw new Error(parseErrorDetail(err, "Failed to start evaluation"));
     }
     const data = await res.json();
     clearApiCache(`exams:detail:${examId}`);
@@ -1216,7 +1223,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to publish results" }));
-      throw new Error(err.detail || "Failed to publish results");
+      throw new Error(parseErrorDetail(err, "Failed to publish results"));
     }
     const data = await res.json();
     clearApiCache(`exams:detail:${examId}`);
@@ -1237,7 +1244,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to submit revaluation request" }));
-      throw new Error(err.detail || "Failed to submit revaluation request");
+      throw new Error(parseErrorDetail(err, "Failed to submit revaluation request"));
     }
     return res.json();
   },
@@ -1276,7 +1283,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to resolve revaluation" }));
-      throw new Error(err.detail || "Failed to resolve revaluation");
+      throw new Error(parseErrorDetail(err, "Failed to resolve revaluation"));
     }
     return res.json();
   },
@@ -1447,7 +1454,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to re-evaluate answer" }));
-      throw new Error(err.detail || "Failed to re-evaluate answer");
+      throw new Error(parseErrorDetail(err, "Failed to re-evaluate answer"));
     }
     return await res.json();
   },
@@ -1459,7 +1466,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to clear review flag" }));
-      throw new Error(err.detail || "Failed to clear review flag");
+      throw new Error(parseErrorDetail(err, "Failed to clear review flag"));
     }
     const resData = await res.json();
     clearApiCache(`submissions:detail:${submissionId}`);
@@ -1474,7 +1481,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to bulk clear exam review flags" }));
-      throw new Error(err.detail || "Failed to bulk clear exam review flags");
+      throw new Error(parseErrorDetail(err, "Failed to bulk clear exam review flags"));
     }
     const resData = await res.json();
     clearApiCache(`submissions:list:${examId}`);
@@ -1519,7 +1526,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to update bounding box region" }));
-      throw new Error(err.detail || "Failed to update bounding box region");
+      throw new Error(parseErrorDetail(err, "Failed to update bounding box region"));
     }
     const resData = await res.json();
     clearApiCache(`submissions:detail:${submissionId}`);
@@ -1534,7 +1541,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Failed to delete bounding box region" }));
-      throw new Error(err.detail || "Failed to delete bounding box region");
+      throw new Error(parseErrorDetail(err, "Failed to delete bounding box region"));
     }
     const resData = await res.json();
     clearApiCache(`submissions:detail:${submissionId}`);
@@ -1584,7 +1591,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "GCP connection test failed" }));
-      throw new Error(err.detail || "GCP connection test failed");
+      throw new Error(parseErrorDetail(err, "GCP connection test failed"));
     }
     return res.json();
   },

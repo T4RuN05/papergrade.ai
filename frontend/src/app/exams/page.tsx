@@ -239,6 +239,7 @@ export default function ExamsPage() {
         await api.reopenWindow(examId, {
           duration_minutes: durationNum,
           reason: reasonText,
+          reopen_reason: reasonText,
           reopen_scope: reopenScope,
         });
       } else {
