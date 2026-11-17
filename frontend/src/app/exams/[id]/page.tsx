@@ -95,22 +95,13 @@ export default function ExamDetailPage() {
   const examId = params.id as string;
   const { selectedInstitute, selectedBranch, institutes, allBranches, isRootAdmin, isInstituteDirector, isBranchManager, currentUser, switchTenancy } = useTenant();
 
-  const [exam, setExam] = useState<Exam | null>(() => {
-    if (typeof window === "undefined" || !examId) return null;
-    return getCached<Exam>(`exams:detail:${examId}`);
-  });
-  const [submissions, setSubmissions] = useState<SubmissionRow[]>(() => {
-    if (typeof window === "undefined" || !examId) return [];
-    return getCached<SubmissionRow[]>(`submissions:list:${examId}`) || [];
-  });
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
   const [batchInfo, setBatchInfo] = useState<any>(null);
   const [loadedBranches, setLoadedBranches] = useState<any[]>([]);
   const [loadedInstitutes, setLoadedInstitutes] = useState<any[]>([]);
   const [windowStatus, setWindowStatus] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !examId) return true;
-    return !getCached<Exam>(`exams:detail:${examId}`);
-  });
+  const [loading, setLoading] = useState<boolean>(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isStartingEval, setIsStartingEval] = useState(false);
   const [deleteExamModalOpen, setDeleteExamModalOpen] = useState(false);
@@ -274,6 +265,10 @@ export default function ExamDetailPage() {
 
   useEffect(() => {
     const cachedExam = getCached<Exam>(`exams:detail:${examId}`);
+    const cachedSubs = getCached<SubmissionRow[]>(`submissions:list:${examId}`);
+    if (cachedSubs && cachedSubs.length > 0) {
+      setSubmissions(cachedSubs);
+    }
     if (cachedExam) {
       setExam(cachedExam);
       setLoading(false);

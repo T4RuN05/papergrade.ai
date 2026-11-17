@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -57,6 +57,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [isSupported, setIsSupported] = useState(false);
   const isInitialMount = useRef(true);
+  const knownIdsRef = useRef<Set<string>>(new Set());
 
   // Synchronize device Web Push subscription token with backend (enables closed-app delivery)
   const syncWebPushSubscription = useCallback(async () => {
@@ -109,7 +110,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
 
       if (!sub) {
-        sub = await reg.pushManager.subscribe({
+        const mgr = reg.pushManager;
+        const createPushSubscription = mgr.subscribe.bind(mgr);
+        sub = await createPushSubscription({
           userVisibleOnly: true,
           applicationServerKey: expectedKey,
         });
@@ -275,24 +278,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setLoading(true);
       const data = await api.listNotifications();
       if (Array.isArray(data)) {
-        setNotifications((prev) => {
-          if (!isInitialMount.current) {
-            const existingIds = new Set(prev.map((n) => n.id));
-            const newUnread = data.filter(
-              (n) => !existingIds.has(n.id) && (!n.is_read || n.is_read === 0)
-            );
-            newUnread.forEach((n) => {
-              toast.info(n.message, { title: n.title });
-              sendSystemNotification(n.title, {
-                body: n.message,
-                data: { url: n.link_url || "/student/portal" },
-              });
+        if (!isInitialMount.current) {
+          const newUnread = data.filter(
+            (n) => !knownIdsRef.current.has(n.id) && (!n.is_read || n.is_read === 0)
+          );
+          newUnread.forEach((n) => {
+            toast.info(n.message, { title: n.title });
+            sendSystemNotification(n.title, {
+              body: n.message,
+              data: { url: n.link_url || "/student/portal" },
             });
-          } else {
-            isInitialMount.current = false;
-          }
-          return data;
-        });
+          });
+        } else {
+          isInitialMount.current = false;
+        }
+        knownIdsRef.current = new Set(data.map((n) => n.id));
+        setNotifications(data);
       }
     } catch {
       // Ignore background refresh errors
@@ -374,38 +375,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Phase 1 + Phase 2 Hybrid Poller: 60s gentle heartbeat if Realtime is active, 30s adaptive if fallback
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
     const pollIntervalMs = isRealtimeActive ? 60000 : 30000;
-
-    const startPolling = () => {
-      if (intervalId) clearInterval(intervalId);
-      intervalId = setInterval(() => {
-        if (typeof document !== "undefined" && !document.hidden) {
-          fetchNotifications();
-        }
-      }, pollIntervalMs);
-    };
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchNotifications();
+      }
+    }, pollIntervalMs);
 
     const handleVisibilityChange = () => {
-      if (typeof document !== "undefined") {
-        if (!document.hidden) {
-          // Tab active again: immediate fetch and restart polling
-          fetchNotifications();
-          startPolling();
-        } else {
-          // Tab minimized or hidden: pause interval completely to conserve server CPU
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-        }
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchNotifications();
       }
     };
 
-    // Initial mount: fetch immediately if visible and start adaptive poller
     if (typeof document === "undefined" || !document.hidden) {
       fetchNotifications();
-      startPolling();
     }
 
     if (typeof document !== "undefined") {
@@ -413,7 +397,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      clearInterval(timer);
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
@@ -424,7 +408,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const closeDrawer = () => setIsOpen(false);
   const toggleDrawer = () => setIsOpen((prev) => !prev);
 
-  const markAsRead = async (id: string) => {
+  const markAsRead = useCallback(async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n))
     );
@@ -433,40 +417,60 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } catch {
       fetchNotifications();
     }
-  };
+  }, [fetchNotifications]);
 
-  const markAllRead = async () => {
+  const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
     try {
       await api.markAllNotificationsRead();
     } catch {
       fetchNotifications();
     }
-  };
+  }, [fetchNotifications]);
 
-  const unreadCount = notifications.filter((n) => !n.is_read || n.is_read === 0).length;
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.is_read || n.is_read === 0).length,
+    [notifications]
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      notifications,
+      unreadCount,
+      isOpen,
+      loading,
+      isRealtimeActive,
+      permission,
+      isSupported,
+      requestPermission,
+      sendSystemNotification,
+      sendTestNotification,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
+      markAsRead,
+      markAllRead,
+      refreshNotifications: fetchNotifications,
+    }),
+    [
+      notifications,
+      unreadCount,
+      isOpen,
+      loading,
+      isRealtimeActive,
+      permission,
+      isSupported,
+      requestPermission,
+      sendSystemNotification,
+      sendTestNotification,
+      markAsRead,
+      markAllRead,
+      fetchNotifications,
+    ]
+  );
 
   return (
-    <NotificationContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        isOpen,
-        loading,
-        isRealtimeActive,
-        permission,
-        isSupported,
-        requestPermission,
-        sendSystemNotification,
-        sendTestNotification,
-        openDrawer,
-        closeDrawer,
-        toggleDrawer,
-        markAsRead,
-        markAllRead,
-        refreshNotifications: fetchNotifications,
-      }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );

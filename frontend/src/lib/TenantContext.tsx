@@ -285,7 +285,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [refreshTenancy]);
 
-  const setInstituteId = (id: string) => {
+  const setInstituteId = useCallback((id: string) => {
     if (!isRootAdmin) return;
     const inst = institutes.find((i) => i.id === id) || null;
     setSelectedInstitute(inst);
@@ -300,9 +300,9 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(STORAGE_BRANCH_KEY);
       }
     }
-  };
+  }, [isRootAdmin, institutes, allBranches]);
 
-  const setBranchId = (id: string) => {
+  const setBranchId = useCallback((id: string) => {
     if (!isRootAdmin && !isInstituteDirector) return;
     const branch = allBranches.find((b) => b.id === id) || null;
     if (!branch) return;
@@ -318,9 +318,9 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         if (matchingInst) localStorage.setItem(STORAGE_INST_KEY, matchingInst.id);
       }
     }
-  };
+  }, [isRootAdmin, isInstituteDirector, allBranches, selectedInstitute, institutes]);
 
-  const switchTenancy = (
+  const switchTenancy = useCallback((
     targetInstituteId?: string | null,
     targetBranchId?: string | null,
     targetInstituteName?: string | null,
@@ -377,7 +377,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       branchName: selectedBranch?.name,
       switched: false,
     };
-  };
+  }, [isRootAdmin, isInstituteDirector, selectedInstitute, allBranches, institutes, selectedBranch]);
 
   const branches = useMemo(() => {
     if (isBranchManager && selectedBranch) {
@@ -395,28 +395,49 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       : allBranches;
   }, [allBranches, selectedInstitute, isBranchManager, isInstituteDirector, selectedBranch]);
 
+  const contextValue = useMemo(
+    () => ({
+      currentUser,
+      selectedInstitute,
+      selectedBranch,
+      institutes,
+      branches,
+      allBranches,
+      loading,
+      isMounted,
+      isRootAdmin,
+      isInstituteDirector,
+      isBranchManager,
+      isLoggingOut,
+      setInstituteId,
+      setBranchId,
+      switchTenancy,
+      refreshTenancy,
+      logout,
+    }),
+    [
+      currentUser,
+      selectedInstitute,
+      selectedBranch,
+      institutes,
+      branches,
+      allBranches,
+      loading,
+      isMounted,
+      isRootAdmin,
+      isInstituteDirector,
+      isBranchManager,
+      isLoggingOut,
+      setInstituteId,
+      setBranchId,
+      switchTenancy,
+      refreshTenancy,
+      logout,
+    ]
+  );
+
   return (
-    <TenantContext.Provider
-      value={{
-        currentUser,
-        selectedInstitute,
-        selectedBranch,
-        institutes,
-        branches,
-        allBranches,
-        loading,
-        isMounted,
-        isRootAdmin,
-        isInstituteDirector,
-        isBranchManager,
-        isLoggingOut,
-        setInstituteId,
-        setBranchId,
-        switchTenancy,
-        refreshTenancy,
-        logout,
-      }}
-    >
+    <TenantContext.Provider value={contextValue}>
       {children}
     </TenantContext.Provider>
   );

@@ -94,11 +94,9 @@ export function DocumentViewer({
   const [pageAspect, setPageAspect] = useState<number>(0.707); // Default A4 ratio (1 / 1.414)
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  panRef.current = pan;
 
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const zoomScaleRef = useRef(zoomScale);
-  zoomScaleRef.current = zoomScale;
 
   // Counter-scaling factor: keeps annotations, badges, borders and tools crisp and constant in screen size
   const invScale = useMemo(() => {
@@ -145,13 +143,8 @@ export function DocumentViewer({
   };
 
   const currentPageRef = useRef(currentPage);
-  currentPageRef.current = currentPage;
-
   const totalPagesRef = useRef(totalPages);
-  totalPagesRef.current = totalPages;
-
   const setCurrentPageRef = useRef(setCurrentPage);
-  setCurrentPageRef.current = setCurrentPage;
 
   // Draft coordinates for locally dragged/resized regions
   const [draftCoords, setDraftCoords] = useState<Record<string, DraftRegionCoord>>({});
@@ -287,13 +280,11 @@ export function DocumentViewer({
   };
 
   const handleZoomOut = () => {
-    setZoomScale((z) => {
-      const next = Math.max(1.0, Number((z - 0.25).toFixed(2)));
-      if (next <= 1.05) {
-        setPan({ x: 0, y: 0 });
-      }
-      return next;
-    });
+    const next = Math.max(1.0, Number((zoomScale - 0.25).toFixed(2)));
+    setZoomScale(next);
+    if (next <= 1.05) {
+      setPan({ x: 0, y: 0 });
+    }
   };
 
   const handleResetZoom = useCallback(() => {
@@ -314,9 +305,17 @@ export function DocumentViewer({
   const initialZoomRef = useRef<number>(1);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isSwipingRef = useRef<boolean>(false);
-  isSwipingRef.current = isSwiping;
   const touchOffsetRef = useRef<number>(0);
-  touchOffsetRef.current = touchOffset;
+
+  useEffect(() => {
+    panRef.current = pan;
+    zoomScaleRef.current = zoomScale;
+    currentPageRef.current = currentPage;
+    totalPagesRef.current = totalPages;
+    setCurrentPageRef.current = setCurrentPage;
+    isSwipingRef.current = isSwiping;
+    touchOffsetRef.current = touchOffset;
+  });
 
   // Native non-passive touch listeners on viewportRef to guarantee e.preventDefault() blocks browser page scrolling when zoomed in
   useEffect(() => {

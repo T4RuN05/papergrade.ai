@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { Sun, Moon, Monitor } from "lucide-react";
 
 export type Theme = "light" | "dark" | "system";
@@ -130,15 +130,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme(nextTheme);
   }, [resolvedTheme, setTheme]);
 
+  const contextValue = useMemo(
+    () => ({
+      theme,
+      resolvedTheme: mounted ? resolvedTheme : "light",
+      setTheme,
+      toggleTheme,
+    }),
+    [theme, mounted, resolvedTheme, setTheme, toggleTheme]
+  );
+
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        resolvedTheme: mounted ? resolvedTheme : "light",
-        setTheme,
-        toggleTheme,
-      }}
-    >
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

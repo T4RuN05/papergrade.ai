@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
@@ -130,6 +131,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 
   const pathname = usePathname();
+  const queuedToastTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const processQueuedToast = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -142,13 +144,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(QUEUED_TOAST_KEY);
         const parsed = JSON.parse(queued);
         if (parsed && parsed.message) {
-          setTimeout(() => {
+          if (queuedToastTimerRef.current) clearTimeout(queuedToastTimerRef.current);
+          queuedToastTimerRef.current = setTimeout(() => {
             showToast(parsed.type || "info", parsed.message, {
               title: parsed.title,
               duration: parsed.duration || 4500,
               reverse: parsed.reverse,
               origin: parsed.origin,
             });
+            queuedToastTimerRef.current = null;
           }, 80);
         }
       }
@@ -156,6 +160,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       // Ignore parse error
     }
   }, [showToast]);
+
+  // Cleanup queued toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (queuedToastTimerRef.current) {
+        clearTimeout(queuedToastTimerRef.current);
+      }
+    };
+  }, []);
 
   // Check for queued toast on initial mount, route change, and storage events
   useEffect(() => {
@@ -173,69 +186,75 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("storage", handleStorage);
   }, [processQueuedToast]);
 
-  const toast = {
-    success: (message: string, options?: ToastOptions) =>
-      showToast("success", message, options),
-    error: (message: string, options?: ToastOptions) =>
-      showToast("error", message, options),
-    warning: (message: string, options?: ToastOptions) =>
-      showToast("warning", message, options),
-    info: (message: string, options?: ToastOptions) =>
-      showToast("info", message, options),
-    loading: (message: string, options?: ToastOptions) =>
-      showToast("loading", message, options),
-    dismiss: dismissToast,
-    dismissAll,
-    promise: async <T,>(
-      promise: Promise<T>,
-      messages: {
-        loading: string;
-        success: string | ((data: T) => string);
-        error: string | ((err: any) => string);
-      },
-      options?: ToastOptions
-    ): Promise<T> => {
-      const toastId = showToast("loading", messages.loading, {
-        ...options,
-        duration: 0,
-      });
+  const toast = useMemo(
+    () => ({
+      success: (message: string, options?: ToastOptions) =>
+        showToast("success", message, options),
+      error: (message: string, options?: ToastOptions) =>
+        showToast("error", message, options),
+      warning: (message: string, options?: ToastOptions) =>
+        showToast("warning", message, options),
+      info: (message: string, options?: ToastOptions) =>
+        showToast("info", message, options),
+      loading: (message: string, options?: ToastOptions) =>
+        showToast("loading", message, options),
+      dismiss: dismissToast,
+      dismissAll,
+      promise: async <T,>(
+        promise: Promise<T>,
+        messages: {
+          loading: string;
+          success: string | ((data: T) => string);
+          error: string | ((err: any) => string);
+        },
+        options?: ToastOptions
+      ): Promise<T> => {
+        const toastId = showToast("loading", messages.loading, {
+          ...options,
+          duration: 0,
+        });
 
-      try {
-        const result = await promise;
-        dismissToast(toastId);
-        const successMsg =
-          typeof messages.success === "function"
-            ? messages.success(result)
-            : messages.success;
-        showToast("success", successMsg, options);
-        return result;
-      } catch (err: any) {
-        dismissToast(toastId);
-        const errorMsg =
-          typeof messages.error === "function"
-            ? messages.error(err)
-            : messages.error || err?.message || "Operation failed";
-        showToast("error", errorMsg, options);
-        throw err;
-      }
-    },
-  };
+        try {
+          const result = await promise;
+          dismissToast(toastId);
+          const successMsg =
+            typeof messages.success === "function"
+              ? messages.success(result)
+              : messages.success;
+          showToast("success", successMsg, options);
+          return result;
+        } catch (err: any) {
+          dismissToast(toastId);
+          const errorMsg =
+            typeof messages.error === "function"
+              ? messages.error(err)
+              : messages.error || err?.message || "Operation failed";
+          showToast("error", errorMsg, options);
+          throw err;
+        }
+      },
+    }),
+    [showToast, dismissToast, dismissAll]
+  );
 
   const [isClientMounted, setIsClientMounted] = useState(false);
   useEffect(() => {
     setIsClientMounted(true);
   }, []);
 
+  const contextValue = useMemo(
+    () => ({
+      toasts,
+      showToast,
+      dismissToast,
+      dismissAll,
+      toast,
+    }),
+    [toasts, showToast, dismissToast, dismissAll, toast]
+  );
+
   return (
-    <ToastContext.Provider
-      value={{
-        toasts,
-        showToast,
-        dismissToast,
-        dismissAll,
-        toast,
-      }}
-    >
+    <ToastContext.Provider value={contextValue}>
       {children}
       {isClientMounted && typeof document !== "undefined"
         ? createPortal(

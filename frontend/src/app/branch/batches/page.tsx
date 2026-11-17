@@ -51,6 +51,11 @@ export default function BranchBatchesPage() {
   const [loadingStudents, setLoadingStudents] = useState<boolean>(false);
   const [loadingBatches, setLoadingBatches] = useState<boolean>(true);
   const [studentSearch, setStudentSearch] = useState<string>("");
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Modals
   const [createBatchOpen, setCreateBatchOpen] = useState(false);
@@ -295,15 +300,13 @@ export default function BranchBatchesPage() {
       toast.success(`Batch "${batchName}" deleted.`, { title: "Batch Removed" });
 
       // Optimistically remove batch from UI immediately
-      setBatches((prev) => {
-        const remaining = prev.filter((b) => b.id !== batchId);
-        if (selectedBatch?.id === batchId) {
-          const nextSelected = remaining.length > 0 ? remaining[0] : null;
-          setSelectedBatch(nextSelected);
-          if (!nextSelected) setStudents([]);
-        }
-        return remaining;
-      });
+      const remaining = batches.filter((b) => b.id !== batchId);
+      setBatches(remaining);
+      if (selectedBatch?.id === batchId) {
+        const nextSelected = remaining.length > 0 ? remaining[0] : null;
+        setSelectedBatch(nextSelected);
+        if (!nextSelected) setStudents([]);
+      }
 
       if (selectedBranch) {
         await loadBatchesForBranch(selectedBranch.id, true);
@@ -359,8 +362,8 @@ export default function BranchBatchesPage() {
     return students.some((s) => !s.account_claimed);
   }, [students]);
 
-  const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
-  if ((loadingBatches && batches.length === 0) || !hasToken) {
+  const hasToken = mounted ? Boolean(getAuthToken()) : true;
+  if (!mounted || (loadingBatches && batches.length === 0) || !hasToken) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto pb-16">
         <BatchesRosterSkeleton />

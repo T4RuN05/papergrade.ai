@@ -46,12 +46,13 @@ export default function LandingPage() {
 
     handleResize();
 
-    // Use ResizeObserver for responsive re-measurement on font load, wrap, orientation change
-    let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined" && footerRef.current) {
-      observer = new ResizeObserver(() => {
-        handleResize();
-      });
+    const observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => {
+          handleResize();
+        })
+      : null;
+
+    if (observer && footerRef.current) {
       observer.observe(footerRef.current);
     }
 
@@ -59,7 +60,7 @@ export default function LandingPage() {
     const timer = setTimeout(handleResize, 300);
 
     return () => {
-      if (observer) observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener("resize", handleResize);
       clearTimeout(timer);
     };

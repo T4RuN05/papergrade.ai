@@ -53,10 +53,8 @@ export function ArtifactViewerModal({
   const [totalPages, setTotalPages] = useState<number>(1);
   const [zoom, setZoom] = useState<number>(1.0);
   const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const panRef = useRef(pan);
-  panRef.current = pan;
 
   const [loadingMeta, setLoadingMeta] = useState<boolean>(true);
   const [pageImgLoading, setPageImgLoading] = useState<boolean>(true);
@@ -122,13 +120,11 @@ export function ArtifactViewerModal({
   };
 
   const handleZoomOut = () => {
-    setZoom((z) => {
-      const next = Math.max(1.0, Number((z - 0.25).toFixed(2)));
-      if (next <= 1.05) {
-        setPan({ x: 0, y: 0 });
-      }
-      return next;
-    });
+    const next = Math.max(1.0, Number((zoom - 0.25).toFixed(2)));
+    setZoom(next);
+    if (next <= 1.05) {
+      setPan({ x: 0, y: 0 });
+    }
   };
 
   const handleResetZoom = useCallback(() => {
@@ -151,13 +147,18 @@ export function ArtifactViewerModal({
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const isSwipingRef = useRef<boolean>(false);
-  isSwipingRef.current = isSwiping;
   const touchOffsetRef = useRef<number>(0);
-  touchOffsetRef.current = touchOffset;
   const pageRef = useRef<number>(page);
-  pageRef.current = page;
   const totalPagesRef = useRef<number>(totalPages);
-  totalPagesRef.current = totalPages;
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    panRef.current = pan;
+    isSwipingRef.current = isSwiping;
+    touchOffsetRef.current = touchOffset;
+    pageRef.current = page;
+    totalPagesRef.current = totalPages;
+  });
 
   // Native non-passive touch listeners on viewportRef to prevent page / backdrop scrolling when zoomed in
   useEffect(() => {
@@ -811,10 +812,11 @@ export function ArtifactViewerModal({
                 }}
               >
                 <div
-                  className="flex items-center h-full will-change-transform"
+                  className="flex items-center h-full"
                   style={{
                     width: `${totalPages * 100}%`,
                     transform: `translateX(calc(-${((page - 1) / totalPages) * 100}% + ${touchOffset}px))`,
+                    willChange: isSwiping ? "transform" : "auto",
                     transition: isSwiping ? "none" : "transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1)",
                   }}
                 >
@@ -837,7 +839,7 @@ export function ArtifactViewerModal({
                             width: "auto",
                             transform: p === page && zoom > 1.05 ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` : "none",
                             transformOrigin: "center center",
-                            willChange: "transform",
+                            willChange: zoom > 1.05 || isSwiping ? "transform" : "auto",
                             transition: isSwiping ? "none" : "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)",
                           }}
                         >

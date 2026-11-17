@@ -45,6 +45,9 @@ export function ServiceWorkerRegister() {
       registerSW();
     } else {
       window.addEventListener("load", registerSW, { once: true });
+      return () => {
+        window.removeEventListener("load", registerSW);
+      };
     }
   }, []);
 

@@ -2012,13 +2012,15 @@ export default function StudentPortalPage() {
   // Refs to avoid tearing down observers or triggering infinite loops on countdowns/polling
   const isLoadingMoreRef = useRef<boolean>(false);
   const isInitialLoadingRef = useRef<boolean>(false);
-  const pastExamsPageRef = useRef<number>(1);
-  pastExamsPageRef.current = pastExamsPage;
-  const hasMorePastExamsRef = useRef<boolean>(true);
-  hasMorePastExamsRef.current = hasMorePastExams;
-
+  const pastExamsPageRef = useRef<number>(pastExamsPage);
+  const hasMorePastExamsRef = useRef<boolean>(hasMorePastExams);
   const filteredPastSubmissionsRef = useRef<any[]>(filteredPastSubmissions);
-  filteredPastSubmissionsRef.current = filteredPastSubmissions;
+
+  useEffect(() => {
+    pastExamsPageRef.current = pastExamsPage;
+    hasMorePastExamsRef.current = hasMorePastExams;
+    filteredPastSubmissionsRef.current = filteredPastSubmissions;
+  });
 
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const activeFilterKeyRef = useRef<string>("");
@@ -2121,35 +2123,33 @@ export default function StudentPortalPage() {
     };
   }, [activeTab, searchQuery, examSubjectFilter, examStatusFilter, fetchPastExamsPage, paginatedPastExams.length]);
 
-  // Callback ref: immediately attaches IntersectionObserver the moment sentinel mounts into the DOM
-  const sentinelObserverRef = useRef<IntersectionObserver | null>(null);
-  const sentinelCallbackRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (sentinelObserverRef.current) {
-        sentinelObserverRef.current.disconnect();
-        sentinelObserverRef.current = null;
-      }
-      if (node && activeTab === "exams") {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            const first = entries[0];
-            if (
-              first.isIntersecting &&
-              hasMorePastExamsRef.current &&
-              !isLoadingMoreRef.current &&
-              !isInitialLoadingRef.current
-            ) {
-              fetchPastExamsPage(pastExamsPageRef.current + 1, false);
-            }
-          },
-          { root: null, rootMargin: "400px", threshold: 0 }
-        );
-        observer.observe(node);
-        sentinelObserverRef.current = observer;
-      }
-    },
-    [activeTab, fetchPastExamsPage]
-  );
+  // IntersectionObserver effect for infinite scroll sentinel
+  useEffect(() => {
+    if (activeTab !== "exams") return;
+    const node = loadMoreSentinelRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (
+          first.isIntersecting &&
+          hasMorePastExamsRef.current &&
+          !isLoadingMoreRef.current &&
+          !isInitialLoadingRef.current
+        ) {
+          fetchPastExamsPage(pastExamsPageRef.current + 1, false);
+        }
+      },
+      { root: null, rootMargin: "400px", threshold: 0 }
+    );
+
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeTab, fetchPastExamsPage, paginatedPastExams.length]);
 
   // Window scroll fallback to guarantee detection even on touch devices / fast scrolling
   useEffect(() => {
@@ -3674,7 +3674,7 @@ export default function StudentPortalPage() {
 
           {/* Infinite Scroll Sentinel & Inline Loader */}
           <div
-            ref={sentinelCallbackRef}
+            ref={loadMoreSentinelRef}
             className="py-4 flex flex-col items-center justify-center min-h-[50px]"
           >
             {isLoadingMorePastExams ? (
@@ -3839,7 +3839,7 @@ export default function StudentPortalPage() {
                   return (
                     <div
                       key={qKey}
-                      className="p-3 rounded-lg border border-hairline bg-surface space-y-2.5 transition-all shadow-2xs animate-cascade-row will-change-transform"
+                      className="p-3 rounded-lg border border-hairline bg-surface space-y-2.5 transition-colors shadow-2xs animate-cascade-row"
                       style={{ animationDelay: `${Math.min(idx * 25, 300)}ms` }}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">

@@ -5,6 +5,7 @@ import React, {
   useContext,
   useState,
   useCallback,
+  useMemo,
   useRef,
   useEffect,
 } from "react";
@@ -136,8 +137,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     confirmBtnClass = "bg-primary hover:bg-primary-active text-white";
   }
 
+  const contextValue = useMemo(() => ({ confirm }), [confirm]);
+
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={contextValue}>
       {children}
       {mounted &&
         isRendered &&

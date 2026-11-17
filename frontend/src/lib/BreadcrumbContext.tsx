@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 
 export interface BreadcrumbSegment {
   label: string;
@@ -22,8 +22,10 @@ const BreadcrumbContext = createContext<BreadcrumbContextType | undefined>(undef
 export function BreadcrumbProvider({ children }: { children: React.ReactNode }) {
   const [trail, setTrail] = useState<BreadcrumbTrail | null>(null);
 
+  const contextValue = useMemo(() => ({ trail, setTrail }), [trail, setTrail]);
+
   return (
-    <BreadcrumbContext.Provider value={{ trail, setTrail }}>
+    <BreadcrumbContext.Provider value={contextValue}>
       {children}
     </BreadcrumbContext.Provider>
   );

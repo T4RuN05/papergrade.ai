@@ -19,14 +19,8 @@ export default function ExamRubricPage() {
   const { currentUser } = useTenant();
   const examId = params.id as string;
 
-  const [exam, setExam] = useState<Exam | null>(() => {
-    if (typeof window === "undefined" || !examId) return null;
-    return getCached<Exam>(`exams:detail:${examId}`);
-  });
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !examId) return true;
-    return !getCached<Exam>(`exams:detail:${examId}`);
-  });
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Safety fallback: ensure skeleton never hangs indefinitely
   useEffect(() => {
@@ -53,6 +47,11 @@ export default function ExamRubricPage() {
 
   const loadExam = useCallback(async () => {
     try {
+      const cached = getCached<Exam>(`exams:detail:${examId}`);
+      if (cached) {
+        setExam(cached);
+        setLoading(false);
+      }
       const data = await api.getExam(examId, true);
       setExam(data);
     } catch (e) {

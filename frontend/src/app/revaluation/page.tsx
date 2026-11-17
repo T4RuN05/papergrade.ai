@@ -215,9 +215,12 @@ export default function RevaluationDeskPage() {
   }, [loadRequests, router]);
 
   const selectedReqRef = useRef(selectedReq);
-  selectedReqRef.current = selectedReq;
   const selectedGroupRef = useRef(selectedGroup);
-  selectedGroupRef.current = selectedGroup;
+
+  useEffect(() => {
+    selectedReqRef.current = selectedReq;
+    selectedGroupRef.current = selectedGroup;
+  });
 
   // 3. Load the full submission when selected student paper changes
   useEffect(() => {

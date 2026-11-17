@@ -20,29 +20,41 @@ export function NavigationProgressBar() {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const finishTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const start = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (finishTimeoutRef.current) {
+      clearTimeout(finishTimeoutRef.current);
+      finishTimeoutRef.current = null;
+    }
     setVisible(true);
     setProgress(25);
 
     timerRef.current = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 85) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          return 85;
-        }
+        if (prev >= 85) return 85;
         return prev + (prev < 50 ? 20 : 5);
       });
     }, 200);
   };
 
   const finish = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (finishTimeoutRef.current) {
+      clearTimeout(finishTimeoutRef.current);
+    }
     setProgress(100);
-    setTimeout(() => {
+    finishTimeoutRef.current = setTimeout(() => {
       setVisible(false);
       setProgress(0);
+      finishTimeoutRef.current = null;
     }, 300);
   };
 
@@ -52,6 +64,8 @@ export function NavigationProgressBar() {
     return () => {
       globalStartNav = null;
       globalFinishNav = null;
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (finishTimeoutRef.current) clearTimeout(finishTimeoutRef.current);
     };
   }, []);
 

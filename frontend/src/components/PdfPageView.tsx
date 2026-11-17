@@ -32,16 +32,16 @@ export function PdfPageView({
   const [renderError, setRenderError] = useState<string | null>(null);
 
   const onAspectCalculatedRef = useRef(onAspectCalculated);
-  onAspectCalculatedRef.current = onAspectCalculated;
-
   const onPageLoadedRef = useRef(onPageLoaded);
-  onPageLoadedRef.current = onPageLoaded;
-
   const onRenderSuccessRef = useRef(onRenderSuccess);
-  onRenderSuccessRef.current = onRenderSuccess;
-
   const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
+
+  useEffect(() => {
+    onAspectCalculatedRef.current = onAspectCalculated;
+    onPageLoadedRef.current = onPageLoaded;
+    onRenderSuccessRef.current = onRenderSuccess;
+    onErrorRef.current = onError;
+  });
 
   useEffect(() => {
     let isCancelled = false;
