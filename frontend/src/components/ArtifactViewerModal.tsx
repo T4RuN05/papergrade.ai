@@ -426,52 +426,108 @@ export function ArtifactViewerModal({
     return () => container.removeEventListener("wheel", onWheel);
   }, [clampPan]);
 
-  // Sync initial tab when modal opens or initialArtifact changes
+  // Track modal open transitions to cleanly set active tab only on open
+  const wasOpenRef = useRef(false);
+  const activeArtifactRef = useRef(activeArtifact);
+  activeArtifactRef.current = activeArtifact;
+  const fetchIdRef = useRef(0);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
-    if (isOpen) {
-      if (!hasQuestionPaper && hasAnswerKey) {
-        setActiveArtifact("answer-key");
-      } else if (hasQuestionPaper && !hasAnswerKey) {
-        setActiveArtifact("question-paper");
-      } else {
-        setActiveArtifact(initialArtifact);
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
       }
+    };
+  }, []);
+
+  // Sync initial tab when modal opens or examId changes
+  useEffect(() => {
+    if (isOpen && (!wasOpenRef.current || !activeArtifactRef.current)) {
+      wasOpenRef.current = true;
+      let target: "question-paper" | "answer-key" = initialArtifact;
+      if (!hasQuestionPaper && hasAnswerKey) {
+        target = "answer-key";
+      } else if (hasQuestionPaper && !hasAnswerKey) {
+        target = "question-paper";
+      } else if (initialArtifact) {
+        target = initialArtifact;
+      }
+      setActiveArtifact(target);
       setPage(1);
       setZoom(1.0);
+      setPan({ x: 0, y: 0 });
+    } else if (!isOpen && wasOpenRef.current) {
+      wasOpenRef.current = false;
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
     }
-  }, [isOpen, initialArtifact, hasQuestionPaper, hasAnswerKey]);
+  }, [isOpen, examId, initialArtifact, hasQuestionPaper, hasAnswerKey]);
 
   // Load artifact metadata whenever examId or activeArtifact changes
-  const fetchMetadata = useCallback(async () => {
-    if (!isOpen || !examId) return;
-    setLoadingMeta(true);
-    setErrorNotice(null);
-    setPage(1);
-    setPageImgLoading(true);
+  const fetchMetadata = useCallback(
+    async (targetArtifact?: "question-paper" | "answer-key", isRetry: boolean = false) => {
+      if (!isOpen || !examId) return;
+      const artifact = targetArtifact || activeArtifact;
+      const fetchId = ++fetchIdRef.current;
 
-    try {
-      const meta = await api.getExamArtifactMeta(examId, activeArtifact);
-      setHasDoc(Boolean(meta.has_document));
-      setTotalPages(Math.max(1, meta.page_count || 1));
-      setIsPurged(Boolean(meta.is_purged || isExamDocumentPurged));
-      if (meta.is_purged) {
-        setErrorNotice("Document unavailable: This document is no longer accessible.");
+      setLoadingMeta(true);
+      setErrorNotice(null);
+      setPage(1);
+      setPageImgLoading(true);
+
+      try {
+        const meta = await api.getExamArtifactMeta(examId, artifact);
+        if (fetchId !== fetchIdRef.current) return;
+
+        // Auto-retry once if backend reports synchronizing or if parent indicated document exists
+        const isExpectedToHaveDoc = artifact === "question-paper" ? hasQuestionPaper : hasAnswerKey;
+        const isSyncing = meta.notice?.toLowerCase().includes("synchroniz");
+
+        if (!meta.has_document && (isExpectedToHaveDoc || isSyncing) && !isRetry) {
+          retryTimerRef.current = setTimeout(() => {
+            if (fetchIdRef.current === fetchId) {
+              fetchMetadata(artifact, true);
+            }
+          }, 900);
+          return;
+        }
+
+        setHasDoc(Boolean(meta.has_document));
+        setTotalPages(Math.max(1, meta.page_count || 1));
+        setIsPurged(Boolean(meta.is_purged || isExamDocumentPurged));
+        if (meta.is_purged) {
+          setErrorNotice("Document unavailable: This document is no longer accessible.");
+        } else if (!meta.has_document && meta.notice) {
+          setErrorNotice(meta.notice);
+        }
+      } catch (err: any) {
+        if (fetchId !== fetchIdRef.current) return;
+        console.warn("Failed to fetch document metadata:", err);
+        if (err?.message?.includes("410") || err?.message?.toLowerCase().includes("purged")) {
+          setIsPurged(true);
+          setHasDoc(false);
+          setErrorNotice("Document unavailable: This document is no longer accessible.");
+        } else if (!isRetry) {
+          retryTimerRef.current = setTimeout(() => {
+            if (fetchIdRef.current === fetchId) {
+              fetchMetadata(artifact, true);
+            }
+          }, 900);
+          return;
+        } else {
+          setHasDoc(false);
+          setErrorNotice(err.message || "Failed to load document preview. Please check connection.");
+        }
+      } finally {
+        if (fetchId === fetchIdRef.current) {
+          setLoadingMeta(false);
+        }
       }
-    } catch (err: any) {
-      console.warn("Failed to fetch document metadata:", err);
-      // If 410 Gone, it was purged
-      if (err?.message?.includes("410") || err?.message?.toLowerCase().includes("purged")) {
-        setIsPurged(true);
-        setHasDoc(false);
-        setErrorNotice("Document unavailable: This document is no longer accessible.");
-      } else {
-        setHasDoc(false);
-        setErrorNotice(err.message || "Failed to load document preview.");
-      }
-    } finally {
-      setLoadingMeta(false);
-    }
-  }, [isOpen, examId, activeArtifact, isExamDocumentPurged]);
+    },
+    [isOpen, examId, activeArtifact, isExamDocumentPurged, hasQuestionPaper, hasAnswerKey]
+  );
 
   useEffect(() => {
     fetchMetadata();
@@ -790,12 +846,29 @@ export function ArtifactViewerModal({
                 <HelpCircle className="h-6 w-6" />
               </div>
               <h4 className="text-sm font-bold text-ink">
-                {activeArtifact === "question-paper" ? "Question Paper Not Uploaded" : "Answer Key Not Uploaded"}
+                {errorNotice && !errorNotice.toLowerCase().includes("not uploaded")
+                  ? "Unable to Load Document"
+                  : activeArtifact === "question-paper"
+                  ? "Question Paper Not Uploaded"
+                  : "Answer Key Not Uploaded"}
               </h4>
               <p className="text-xs text-ink-muted leading-relaxed">
-                Faculty has not uploaded a digital copy of the{" "}
-                {activeArtifact === "question-paper" ? "question paper" : "answer key"} for this examination.
+                {errorNotice && !errorNotice.toLowerCase().includes("not uploaded")
+                  ? errorNotice
+                  : `Faculty has not uploaded a digital copy of the ${
+                      activeArtifact === "question-paper" ? "question paper" : "answer key"
+                    } for this examination.`}
               </p>
+              {errorNotice && !errorNotice.toLowerCase().includes("not uploaded") && (
+                <button
+                  type="button"
+                  onClick={() => fetchMetadata(activeArtifact, false)}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md btn-glass-primary cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Retry Loading</span>
+                </button>
+              )}
             </div>
           ) : (
             <>

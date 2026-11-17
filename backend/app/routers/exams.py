@@ -1019,6 +1019,16 @@ def _resolve_exam_artifact_pdf(exam_id: str, artifact_type: str) -> Optional[Pat
     storage = get_storage_service()
     storage_keys = _build_exam_artifact_storage_keys(exam_id, raw_path, is_qp)
 
+    # First attempt direct local resolution or download if raw_path is known
+    if raw_path:
+        try:
+            clean_raw = str(raw_path).replace("\\", "/").strip().lstrip("/")
+            local_path = storage.get_local_path_or_download(clean_raw)
+            if local_path and local_path.exists() and local_path.is_file() and local_path.stat().st_size > 0:
+                return local_path
+        except Exception as e:
+            logger.debug(f"Direct download attempt for {raw_path} failed: {e}")
+
     for key in storage_keys:
         try:
             if storage.file_exists(key):
@@ -1160,6 +1170,20 @@ async def get_exam_artifact_meta(
     pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
     if not pdf_path or not pdf_path.exists():
         art_label = "Question paper" if clean_art == "question-paper" else "Official answer key"
+        is_qp = clean_art == "question-paper"
+        raw_path = exam.get("question_paper_path") if is_qp else exam.get("answer_key_path")
+
+        if raw_path:
+            return {
+                "exam_id": exam_id,
+                "artifact_type": clean_art,
+                "has_document": False,
+                "is_purged": False,
+                "page_count": 0,
+                "title": exam.get("title", ""),
+                "notice": f"{art_label} is synchronizing. Please retry in a moment."
+            }
+
         return {
             "exam_id": exam_id,
             "artifact_type": clean_art,

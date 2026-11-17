@@ -560,8 +560,8 @@ export default function StudentSubmissionViewerPage() {
           examTitle={submission.exam?.title || submission.exam_title || "Examination Paper"}
           examSubject={submission.exam?.subject || submission.exam_subject}
           initialArtifact="question-paper"
-          hasQuestionPaper={Boolean(submission.exam?.has_question_paper ?? submission.has_question_paper)}
-          hasAnswerKey={Boolean(submission.exam?.has_answer_key ?? submission.has_answer_key)}
+          hasQuestionPaper={Boolean(submission.exam?.has_question_paper ?? submission.exam?.question_paper_path ?? submission.has_question_paper)}
+          hasAnswerKey={Boolean(submission.exam?.has_answer_key ?? submission.exam?.answer_key_path ?? submission.has_answer_key)}
           isExamDocumentPurged={submission.exam?.is_document_purged ?? false}
         />
       )}

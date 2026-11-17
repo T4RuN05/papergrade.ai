@@ -1945,8 +1945,8 @@ export default function ExamDetailPage() {
           examTitle={exam.title}
           examSubject={exam.subject}
           initialArtifact={viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}
-          hasQuestionPaper={Boolean(exam.question_paper_path)}
-          hasAnswerKey={Boolean(exam.answer_key_path)}
+          hasQuestionPaper={Boolean(exam.question_paper_path || (exam as any).has_question_paper)}
+          hasAnswerKey={Boolean(exam.answer_key_path || (exam as any).has_answer_key)}
           isExamDocumentPurged={Boolean((exam as any).is_document_purged)}
         />
       )}

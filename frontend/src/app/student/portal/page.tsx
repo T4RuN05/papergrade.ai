@@ -2305,11 +2305,13 @@ export default function StudentPortalPage() {
       id: sub.exam_id,
       title: sub.exam_title,
       subject: sub.exam_subject || sub.subject,
-      has_question_paper: sub.has_question_paper,
-      has_answer_key: sub.has_answer_key,
+      has_question_paper: Boolean(sub.has_question_paper ?? sub.question_paper_path ?? sub.exam_question_paper_path),
+      has_answer_key: Boolean(sub.has_answer_key ?? sub.answer_key_path ?? sub.exam_answer_key_path),
       is_document_purged: sub.exam_is_document_purged,
     });
-    setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
+    const hasQP = Boolean(sub.has_question_paper ?? sub.question_paper_path ?? sub.exam_question_paper_path);
+    const hasAK = Boolean(sub.has_answer_key ?? sub.answer_key_path ?? sub.exam_answer_key_path);
+    setArtifactModalInitialTab(hasQP ? "question-paper" : (hasAK ? "answer-key" : "question-paper"));
     setArtifactModalOpen(true);
   }, []);
 
@@ -3444,15 +3446,17 @@ export default function StudentPortalPage() {
                         <button
                           type="button"
                           onClick={() => {
+                            const hasQP = Boolean(sub.has_question_paper ?? sub.question_paper_path ?? sub.exam_question_paper_path);
+                            const hasAK = Boolean(sub.has_answer_key ?? sub.answer_key_path ?? sub.exam_answer_key_path);
                             setArtifactModalExam({
                               id: sub.exam_id,
                               title: sub.exam_title,
                               subject: sub.exam_subject,
-                              has_question_paper: sub.has_question_paper,
-                              has_answer_key: sub.has_answer_key,
+                              has_question_paper: hasQP,
+                              has_answer_key: hasAK,
                               is_document_purged: sub.exam_is_document_purged,
                             });
-                            setArtifactModalInitialTab(sub.has_answer_key ? "answer-key" : "question-paper");
+                            setArtifactModalInitialTab(hasQP ? "question-paper" : (hasAK ? "answer-key" : "question-paper"));
                             setArtifactModalOpen(true);
                           }}
                           className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium rounded-md btn-glass-utility px-3.5 cursor-pointer text-center whitespace-nowrap shrink-0"
