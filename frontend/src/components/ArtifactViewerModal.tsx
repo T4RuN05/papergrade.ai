@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Download,
   X,
-  Loader2,
   HelpCircle,
   BookOpen,
 } from "lucide-react";
@@ -850,6 +849,7 @@ export function ArtifactViewerModal({
                             pageNumber={p}
                             targetWidth={1400}
                             className="w-full h-full object-contain"
+                            hideLoader={true}
                             onPageLoaded={(_pageNum, total) => {
                               if (total > 0 && total !== totalPages) {
                                 setTotalPages(total);

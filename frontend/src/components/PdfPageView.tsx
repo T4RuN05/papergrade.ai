@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { pdfCache, pdfjsLib } from "@/lib/pdfCache";
-import { Loader2 } from "lucide-react";
 
 interface PdfPageViewProps {
   pdfUrl: string;
@@ -10,6 +9,7 @@ interface PdfPageViewProps {
   pageNumber: number;
   className?: string;
   targetWidth?: number;
+  hideLoader?: boolean;
   onAspectCalculated?: (aspect: number) => void;
   onPageLoaded?: (pageNumber: number, totalPages: number) => void;
   onRenderSuccess?: () => void;
@@ -22,6 +22,7 @@ export function PdfPageView({
   pageNumber,
   className = "",
   targetWidth = 1400,
+  hideLoader = false,
   onAspectCalculated,
   onPageLoaded,
   onRenderSuccess,
@@ -126,9 +127,9 @@ export function PdfPageView({
 
   return (
     <div className={`relative w-full h-full flex items-center justify-center ${className}`}>
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 z-10 backdrop-blur-[1px]">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      {isLoading && !hideLoader && (
+        <div className="absolute inset-0 flex items-center justify-center bg-canvas-soft/40 dark:bg-zinc-950/40 z-10">
+          <div className="w-full h-full skeleton rounded-sm" />
         </div>
       )}
 
