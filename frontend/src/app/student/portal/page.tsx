@@ -494,7 +494,7 @@ function StudentMarksTrajectory({
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                   isSelected
-                    ? "bg-white/20 text-white font-bold"
+                    ? "bg-surface/25 text-surface dark:bg-zinc-900/20 dark:text-zinc-900 font-bold"
                     : pCount > 0
                     ? "bg-primary/10 text-primary font-bold"
                     : "bg-surface text-ink-muted"
@@ -1330,9 +1330,19 @@ export default function StudentPortalPage() {
     if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
       if (deltaX < 0 && activeTab === "dashboard") {
         // Swiping left: slide to Past Exams
+        if (typeof window !== "undefined" && "vibrate" in navigator) {
+          try {
+            navigator.vibrate(10);
+          } catch (_) {}
+        }
         handleTabSwitch("exams", true);
       } else if (deltaX > 0 && activeTab === "exams") {
         // Swiping right: slide to Dashboard
+        if (typeof window !== "undefined" && "vibrate" in navigator) {
+          try {
+            navigator.vibrate(10);
+          } catch (_) {}
+        }
         handleTabSwitch("dashboard", true);
       }
     }
@@ -2359,18 +2369,26 @@ export default function StudentPortalPage() {
         </div>
       </div>
 
-      {/* Portal Top Navigation Switcher (Instant Animated Segmented Control) */}
-      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto">
+      {/* Portal Top Navigation Switcher (Connected Sliding Indicator Segmented Control) */}
+      <div className="relative grid grid-cols-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-80 select-none">
+        {/* Hardware-accelerated sliding indicator pill */}
+        <span
+          aria-hidden="true"
+          className={`absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-surface shadow-xs border border-hairline/60 transition-transform duration-200 ease-out pointer-events-none will-change-transform ${
+            activeTab === "dashboard" ? "translate-x-0" : "translate-x-full"
+          }`}
+        />
+
         <button
           type="button"
           onClick={() => handleTabSwitch("dashboard")}
-          className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
+          className={`relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer ${
             activeTab === "dashboard"
-              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
-              : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
+              ? "font-bold text-ink"
+              : "font-semibold text-ink-muted hover:text-ink"
           }`}
         >
-          <Layers className={`h-3.5 w-3.5 ${activeTab === "dashboard" ? "text-primary" : "text-ink-muted"}`} />
+          <Layers className={`h-3.5 w-3.5 transition-colors ${activeTab === "dashboard" ? "text-primary" : "text-ink-muted"}`} />
           <span>Dashboard</span>
           {activeWindows.length > 0 && (
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -2380,15 +2398,21 @@ export default function StudentPortalPage() {
         <button
           type="button"
           onClick={() => handleTabSwitch("exams")}
-          className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
+          className={`relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer ${
             activeTab === "exams"
-              ? "font-bold text-ink bg-surface shadow-2xs border border-hairline/60"
-              : "font-semibold text-ink-muted hover:text-ink hover:bg-surface/50 border border-transparent"
+              ? "font-bold text-ink"
+              : "font-semibold text-ink-muted hover:text-ink"
           }`}
         >
-          <BookOpen className={`h-3.5 w-3.5 ${activeTab === "exams" ? "text-primary" : "text-ink-muted"}`} />
+          <BookOpen className={`h-3.5 w-3.5 transition-colors ${activeTab === "exams" ? "text-primary" : "text-ink-muted"}`} />
           <span>Past Exams</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-canvas-soft border border-hairline/60 text-ink-muted">
+          <span
+            className={`text-[10px] font-mono px-1.5 py-0.2 rounded border transition-colors ${
+              activeTab === "exams"
+                ? "bg-canvas-soft border-hairline/60 text-ink font-semibold"
+                : "bg-surface/50 border-hairline/40 text-ink-muted"
+            }`}
+          >
             {pastSubmissionsList.length}
           </span>
         </button>
