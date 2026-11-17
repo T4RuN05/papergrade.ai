@@ -35,10 +35,10 @@ const TRACE_ORDER = ['ribbon', 'bowl', 'leaf', 'l1', 'l2', 'l3'] as const;
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(' ');
 
 export default function LogoLoader({
-  size = 120,
+  size = 44,
   fullscreen = false,
   label = 'Loading',
-  duration = 2.4,
+  duration = 1.3,
   grayscale = false,
   className,
 }: LogoLoaderProps) {

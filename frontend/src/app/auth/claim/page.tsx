@@ -12,8 +12,8 @@ export default function ClaimAccountPage() {
   }, [router]);
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4">
-      <LogoLoader size={76} duration={1.8} label="Redirecting to account activation" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-3">
+      <LogoLoader size={38} duration={1.3} label="Redirecting to account activation" />
       <p className="text-xs font-medium text-ink-muted animate-pulse">Redirecting to account activation...</p>
     </div>
   );

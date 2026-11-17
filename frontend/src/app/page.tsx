@@ -121,8 +121,8 @@ export default function LandingPage() {
 
   if (isRedirectingStudent) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[75vh] space-y-4 bg-canvas-soft">
-        <LogoLoader size={92} duration={2.0} label="Opening Student Portal" />
+      <div className="flex flex-col items-center justify-center min-h-[75vh] space-y-3 bg-canvas-soft">
+        <LogoLoader size={46} duration={1.3} label="Opening Student Portal" />
         <p className="text-xs font-semibold tracking-wide text-ink-muted animate-pulse">
           Opening Student Portal...
         </p>

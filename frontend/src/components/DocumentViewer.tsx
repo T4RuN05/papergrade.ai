@@ -1317,7 +1317,7 @@ export function DocumentViewer({
                     {/* Paper Fetching Loading Screen */}
                     {p === currentPage && isPageImageLoading && !loadedPagesRef.current.has(`${submissionId}_p_${p}`) && (
                       <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-white/95 rounded-sm shadow-2xs">
-                        <LogoLoader size={68} duration={1.8} label="Rendering Examination Sheet" />
+                        <LogoLoader size={42} duration={1.3} label="Rendering Examination Sheet" />
                         <div className="space-y-1 max-w-xs">
                           <h3 className="text-xs sm:text-sm font-bold text-ink">
                             Fetching Examination Sheet...
