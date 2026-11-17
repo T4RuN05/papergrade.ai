@@ -27,6 +27,7 @@ import {
 import { GradedAnswer, AnswerRegion } from "@/lib/types";
 import { api } from "@/lib/api";
 import { PdfPageView } from "@/components/PdfPageView";
+import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
 // Display widths the backend can serve as pre-encoded JPEG variants of the 150 DPI page master.
 const PAGE_IMAGE_SRCSET_WIDTHS = [480, 720, 1200, 1800];
@@ -1316,9 +1317,7 @@ export function DocumentViewer({
                     {/* Paper Fetching Loading Screen */}
                     {p === currentPage && isPageImageLoading && !loadedPagesRef.current.has(`${submissionId}_p_${p}`) && (
                       <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-white/95 rounded-sm shadow-2xs">
-                        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-xs animate-pulse">
-                          <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin text-primary" />
-                        </div>
+                        <LogoLoader size={68} duration={1.8} label="Rendering Examination Sheet" />
                         <div className="space-y-1 max-w-xs">
                           <h3 className="text-xs sm:text-sm font-bold text-ink">
                             Fetching Examination Sheet...

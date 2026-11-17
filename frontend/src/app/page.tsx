@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -121,13 +122,10 @@ export default function LandingPage() {
   if (isRedirectingStudent) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[75vh] space-y-4 bg-canvas-soft">
-        <div className="h-10 w-10 rounded-md border border-hairline bg-surface flex items-center justify-center text-ink shadow-xs">
-          <BookOpen className="h-5 w-5 text-primary" />
-        </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-ink-muted">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-          <span>Opening Student Portal...</span>
-        </div>
+        <LogoLoader size={92} duration={2.0} label="Opening Student Portal" />
+        <p className="text-xs font-semibold tracking-wide text-ink-muted animate-pulse">
+          Opening Student Portal...
+        </p>
       </div>
     );
   }

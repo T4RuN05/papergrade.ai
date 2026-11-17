@@ -33,6 +33,7 @@ import {
   AppleSelect,
 } from "@/components/ui";
 import { useToast, queueToast } from "@/lib/ToastContext";
+import LogoLoader from "@/components/LogoLoader/LogoLoader";
 import { useTenant } from "@/lib/TenantContext";
 
 function formatFileSize(bytes: number): string {
@@ -487,12 +488,7 @@ export default function NewExamPage() {
             ) : (
               /* Fast, Clean Minimalist Loader for Branch Manager & No-Rubric Creation */
               <div className="relative w-full max-w-md rounded-2xl bg-surface border border-hairline shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
-                <div className="relative mb-4 flex items-center justify-center">
-                  <div className="absolute h-16 w-16 rounded-full bg-primary/10 animate-ping opacity-50" />
-                  <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs relative">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                </div>
+                <LogoLoader size={84} duration={2.0} label="Creating Examination" className="mb-4" />
 
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hairline text-ink-muted text-[11px] font-medium mb-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />

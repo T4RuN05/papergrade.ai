@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { PdfPageView } from "@/components/PdfPageView";
+import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
 export interface ArtifactViewerModalProps {
   isOpen: boolean;
@@ -769,8 +770,8 @@ export function ArtifactViewerModal({
         <div className="relative flex-1 w-full overflow-hidden bg-canvas-soft flex flex-col items-center justify-center select-none">
           {loadingMeta ? (
             <div className="flex flex-col items-center justify-center m-auto py-16 gap-3">
-              <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-xs font-medium text-ink-secondary">
+              <LogoLoader size={72} duration={1.8} label="Loading examination document" />
+              <p className="text-xs font-medium text-ink-secondary animate-pulse">
                 Loading {activeArtifact === "question-paper" ? "question paper" : "answer key"}...
               </p>
             </div>

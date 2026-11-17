@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
 export default function ClaimAccountPage() {
   const router = useRouter();
@@ -12,9 +12,9 @@ export default function ClaimAccountPage() {
   }, [router]);
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-3">
-      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      <p className="text-xs text-ink-muted">Redirecting to account activation...</p>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-4">
+      <LogoLoader size={76} duration={1.8} label="Redirecting to account activation" />
+      <p className="text-xs font-medium text-ink-muted animate-pulse">Redirecting to account activation...</p>
     </div>
   );
 }

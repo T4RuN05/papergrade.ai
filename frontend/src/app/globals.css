@@ -1297,15 +1297,24 @@ input[type="number"] {
   .dark .btn-glass-utility { background-color: #222222 !important; }
   .dark .btn-glass-danger-utility { background-color: #1c1818 !important; }
 
-  /* Skeleton shimmer animates `background-position`, which forces a full
-     repaint of every skeleton block on every frame. On touch we serve a flat
-     tint instead — same silhouette, no per-frame rasterisation. */
+  @keyframes mobile-skeleton-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  /* Skeleton shimmer on mobile/touch: instead of freezing to a static dead block,
+     we use hardware-accelerated compositor opacity pulse.
+     Zero per-frame background re-rasterisation, fluid 60fps shimmer effect. */
   .animate-shimmer,
   .dark .animate-shimmer {
     background-image: none !important;
     background-color: var(--shimmer-base) !important;
-    animation: none !important;
-    will-change: auto !important;
+    animation: mobile-skeleton-pulse 1.8s ease-in-out infinite !important;
+    will-change: opacity !important;
   }
 
   .toast-bar-primary,
