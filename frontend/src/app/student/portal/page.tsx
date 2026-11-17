@@ -1266,8 +1266,9 @@ export default function StudentPortalPage() {
   const tabTrackRef = useRef<HTMLDivElement>(null);
   const tabIndicatorPillRef = useRef<HTMLSpanElement>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
-  const [isDraggingTabs, setIsDraggingTabs] = useState(false);
-  const isDraggingTabsRef = useRef(false);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const isTouchDraggingRef = useRef(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const touchStartXRef = useRef<number>(0);
   const touchStartYRef = useRef<number>(0);
   const touchGestureLockedRef = useRef<"horizontal" | "vertical" | null>(null);
@@ -1286,46 +1287,49 @@ export default function StudentPortalPage() {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get("tab") === "exams" ? "exams" : "dashboard";
-        setActiveTab(tab);
-        if (tabTrackRef.current) {
-          tabTrackRef.current.style.transform = tab === "exams" ? "translate3d(-50%, 0, 0)" : "translate3d(0%, 0, 0)";
-        }
-        if (tabIndicatorPillRef.current) {
-          tabIndicatorPillRef.current.style.transform = tab === "exams" ? "translate3d(100%, 0, 0)" : "translate3d(0%, 0, 0)";
+        if (tab !== activeTab) {
+          setIsTransitioning(true);
+          setActiveTab(tab);
+          if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
+          tabTransitionTimerRef.current = setTimeout(() => {
+            setIsTransitioning(false);
+          }, 300);
         }
       }
     };
     handleUrlTab();
     window.addEventListener("popstate", handleUrlTab);
     return () => window.removeEventListener("popstate", handleUrlTab);
-  }, []);
+  }, [activeTab]);
 
-  const handleTabSwitch = useCallback((newTab: "dashboard" | "exams", scrollToTop = true) => {
+  const handleTabSwitch = useCallback((newTab: "dashboard" | "exams", scrollToTop = false) => {
     if (newTab === activeTab) return;
     if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
 
-    setIsDraggingTabs(true);
+    // Keep both panes visible during the slide transition
+    setIsTransitioning(true);
     setActiveTab(newTab);
 
     if (tabTrackRef.current) {
-      tabTrackRef.current.style.transition = "transform 260ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      tabTrackRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
       tabTrackRef.current.style.transform = newTab === "exams" ? "translate3d(-50%, 0, 0)" : "translate3d(0%, 0, 0)";
     }
     if (tabIndicatorPillRef.current) {
-      tabIndicatorPillRef.current.style.transition = "transform 260ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      tabIndicatorPillRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
       tabIndicatorPillRef.current.style.transform = newTab === "exams" ? "translate3d(100%, 0, 0)" : "translate3d(0%, 0, 0)";
     }
 
     const newUrl = newTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
     window.history.replaceState(null, "", newUrl);
 
-    if (scrollToTop && typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "instant" });
+    // Smooth scroll to top when switching from bottom of dashboard to avoid jarring jump
+    if (scrollToTop && typeof window !== "undefined" && window.scrollY > 100) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     tabTransitionTimerRef.current = setTimeout(() => {
-      setIsDraggingTabs(false);
-    }, 280);
+      setIsTransitioning(false);
+    }, 300);
   }, [activeTab]);
 
   const handlePortalTouchStart = (e: React.TouchEvent) => {
@@ -1347,7 +1351,7 @@ export default function StudentPortalPage() {
     touchStartXRef.current = e.touches[0].clientX;
     touchStartYRef.current = e.touches[0].clientY;
     touchGestureLockedRef.current = null;
-    isDraggingTabsRef.current = false;
+    isTouchDraggingRef.current = false;
     touchContainerWidthRef.current = tabContainerRef.current?.offsetWidth || window.innerWidth || 360;
   };
 
@@ -1368,8 +1372,9 @@ export default function StudentPortalPage() {
       }
       if (Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
         touchGestureLockedRef.current = "horizontal";
-        isDraggingTabsRef.current = true;
-        setIsDraggingTabs(true);
+        isTouchDraggingRef.current = true;
+        setIsTouchDragging(true);
+        setIsTransitioning(true);
 
         if (tabTrackRef.current) tabTrackRef.current.style.transition = "none";
         if (tabIndicatorPillRef.current) tabIndicatorPillRef.current.style.transition = "none";
@@ -1404,14 +1409,16 @@ export default function StudentPortalPage() {
   };
 
   const handlePortalTouchEnd = (e: React.TouchEvent) => {
-    if (touchGestureLockedRef.current !== "horizontal" || !isDraggingTabsRef.current) {
+    if (touchGestureLockedRef.current !== "horizontal" || !isTouchDraggingRef.current) {
       touchGestureLockedRef.current = null;
-      isDraggingTabsRef.current = false;
+      isTouchDraggingRef.current = false;
+      setIsTouchDragging(false);
       return;
     }
 
     touchGestureLockedRef.current = null;
-    isDraggingTabsRef.current = false;
+    isTouchDraggingRef.current = false;
+    setIsTouchDragging(false);
 
     const touch = e.changedTouches[0];
     const dx = touch.clientX - touchStartXRef.current;
@@ -1434,12 +1441,13 @@ export default function StudentPortalPage() {
     }
 
     // Smoothly animate track and pill to the target tab position
+    setIsTransitioning(true);
     if (tabTrackRef.current) {
-      tabTrackRef.current.style.transition = "transform 250ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      tabTrackRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
       tabTrackRef.current.style.transform = targetTab === "dashboard" ? "translate3d(0%, 0, 0)" : "translate3d(-50%, 0, 0)";
     }
     if (tabIndicatorPillRef.current) {
-      tabIndicatorPillRef.current.style.transition = "transform 250ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      tabIndicatorPillRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
       tabIndicatorPillRef.current.style.transform = targetTab === "dashboard" ? "translate3d(0%, 0, 0)" : "translate3d(100%, 0, 0)";
     }
 
@@ -1447,16 +1455,12 @@ export default function StudentPortalPage() {
       setActiveTab(targetTab);
       const newUrl = targetTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
       window.history.replaceState(null, "", newUrl);
-
-      if (targetTab === "dashboard" && typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "instant" });
-      }
     }
 
     if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
     tabTransitionTimerRef.current = setTimeout(() => {
-      setIsDraggingTabs(false);
-    }, 260);
+      setIsTransitioning(false);
+    }, 300);
   };
 
   // Derived current active exam and window status
@@ -2491,7 +2495,7 @@ export default function StudentPortalPage() {
           className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-surface shadow-xs border border-hairline/60 pointer-events-none will-change-transform"
           style={{
             transform: activeTab === "dashboard" ? "translate3d(0%, 0, 0)" : "translate3d(100%, 0, 0)",
-            transition: isDraggingTabs ? "none" : "transform 260ms cubic-bezier(0.2, 0.8, 0.25, 1)",
+            transition: isTouchDragging ? "none" : "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)",
           }}
         />
 
@@ -2549,7 +2553,7 @@ export default function StudentPortalPage() {
           className="flex items-start w-[200%] will-change-transform"
           style={{
             transform: activeTab === "dashboard" ? "translate3d(0%, 0, 0)" : "translate3d(-50%, 0, 0)",
-            transition: isDraggingTabs ? "none" : "transform 260ms cubic-bezier(0.2, 0.8, 0.25, 1)",
+            transition: isTouchDragging ? "none" : "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)",
           }}
         >
           {/* Pane 0: Dashboard */}
@@ -2557,7 +2561,7 @@ export default function StudentPortalPage() {
             className={`w-1/2 shrink-0 min-w-0 space-y-6 px-0.5 ${
               activeTab === "dashboard"
                 ? "block opacity-100"
-                : isDraggingTabs
+                : isTouchDragging || isTransitioning
                 ? "block opacity-100"
                 : "h-0 max-h-0 overflow-hidden opacity-0 pointer-events-none"
             }`}
@@ -3585,7 +3589,7 @@ export default function StudentPortalPage() {
       className={`w-1/2 shrink-0 min-w-0 space-y-4 px-0.5 ${
         activeTab === "exams"
           ? "block opacity-100"
-          : isDraggingTabs
+          : isTouchDragging || isTransitioning
           ? "block opacity-100"
           : "h-0 max-h-0 overflow-hidden opacity-0 pointer-events-none"
       }`}
