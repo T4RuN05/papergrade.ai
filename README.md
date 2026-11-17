@@ -1,890 +1,805 @@
 # PaperGrade AI — Enterprise Autonomous Evaluation & Assessment Integrity Platform
 
 > **The Definitive Technical Bible & Comprehensive Architectural Specification**  
-> *Version 2.0.0-PROD | Revision 2026.10 | Engineering Reference Manual*  
-> PaperGrade AI is an enterprise-grade, multi-tenant automated examination evaluation platform. It leverages Google Gemini's multimodal reasoning to perform cursive handwriting transcription, question-to-answer mapping, spatial bounding-box localization, criteria-based rubric grading, and evidence quotation in a single multimodal pass—guaranteed by deterministic backend invariant mathematical enforcement, vector-annotated PDF exports via PyMuPDF, and multi-key quota management.
+> *Version 2.5.0-PROD | Revision 2026.11 | Engineering Reference Manual*  
+> PaperGrade AI is an enterprise-grade, multi-tenant automated examination evaluation and assessment integrity platform. Engineered for coaching institutes, universities, and academic boards, it harnesses Google Gemini's multimodal reasoning to perform cursive handwriting transcription, question-to-answer mapping, spatial bounding-box localization, criteria-based rubric grading, and verbatim evidence extraction in a single multimodal pass. The platform guarantees pedagogical fairness through deterministic backend mathematical invariants, vector-annotated PDF exports, client-side canvas streaming, direct-to-CDN signed ingestion, a 100-key failover ring, and a time-decoupled batch grading daemon.
 
 ---
 
 ## 📑 Master Table of Contents
-1. [Executive Product Overview & Core Philosophy](#1-executive-product-overview--core-philosophy)
+
+1. [Permanent Operational Directives & Core Invariants](#1-permanent-operational-directives--core-invariants)
+   - 1.1 Invariant 1: Strict Two-Phase Time-Decoupled Evaluation Window
+   - 1.2 Invariant 2: 24/7 External Keep-Alive Infrastructure Directive
+   - 1.3 Invariant 3: Pre-Authenticated Conduction Protocol
+   - 1.4 Invariant 4: Tenancy & Production Safety Boundaries
 2. [Global System Architecture & Distributed Block Diagram](#2-global-system-architecture--distributed-block-diagram)
+   - 2.1 Macro Topology Overview
+   - 2.2 Distributed Block Diagram
+   - 2.3 System Component Matrix
 3. [Multi-Tenant Hierarchy & Strict RBAC Security Matrix](#3-multi-tenant-hierarchy--strict-rbac-security-matrix)
-4. [End-to-End Operational Lifecycle & Flowcharts](#4-end-to-end-operational-lifecycle--flowcharts)
-   - 4.1 Exam Setup & Agentic Rubric Extraction
-   - 4.2 Timed Submission Windows, Hard-Close Workflow & Published Exam Lifecycle Locks
-   - 4.3 Student Ingestion, EXIF Auto-Orientation & Canonical PDF Assembly
-   - 4.4 Autonomous Queue Worker Execution & Fallback Ring
-   - 4.5 Teacher Audit, Manual Overrides & Spatial Bounding Box Adjustment
-   - 4.6 Student Revaluation & Dispute Lifecycle
-   - 4.7 15-Day Storage Retention (TTL) & Cloud Purge Lifecycle
-5. [Database Architecture & The Dual-Dialect Engine](#5-database-architecture--the-dual-dialect-engine)
-   - 5.1 Rationale: Dual-Dialect (PostgreSQL + SQLite WAL)
-   - 5.2 The `PostgresCursorWrapper` & Parameter Sanitization Engine
-   - 5.3 The PostgreSQL NUL Byte (`0x00`) Sanitizer (`UntranslatableCharacter` Fix)
-   - 5.4 Complete Data Dictionary & Schema Specification (24 Tables Across 5 Domains)
-   - 5.5 Master Entity-Relationship (ER) Diagram
-6. [The AI Engine & Google Gemini Multimodal Pipeline](#6-the-ai-engine--google-gemini-multimodal-pipeline)
-   - 6.1 Multimodal Vision vs OCR Chaining Tradeoff
-   - 6.2 The Multi-Key Failover Ring (4-Key Round Robin)
-   - 6.3 3-Tier Full-Flash Model Cascade (3.8 -> 3.6 -> 3.5)
-   - 6.4 The 8,192 vs 65,536 Output Token Ceiling Forensic Analysis
-   - 6.5 The Self-Healing JSON Stream Buffer (`_repair_truncated_json`)
-   - 6.6 Prompt Engineering & Pedagogical Invariants
-     - Requirement-First Rubric Decomposition
-     - The Discrete 0.5-Mark Step Rule
-     - The MCQ Single-Criterion Invariant
-     - Normalized Bounding Box Coordinate Mapping ($[0, 1000] \to [0, 1]$)
-   - 6.7 Telemetry Architecture & Post-Validation Logging
+   - 3.1 Four-Tier Tenancy Scoping (`Institute` $\to$ `Branch` $\to$ `Batch` $\to$ `Student`)
+   - 3.2 Role Separation Matrix & Responsibilities
+   - 3.3 Institute Director & Multi-Branch Campus Switching
+   - 3.4 Exhaustive Access Control Matrix
+4. [Client-Side Ingestion & Direct Cloud CDN Signed Upload Pipeline](#4-client-side-ingestion--direct-cloud-cdn-signed-upload-pipeline)
+   - 4.1 Mobile Photo Capture & Web Worker Document Pipeline
+   - 4.2 Adaptive 1920px Canvas Downscaling & Explicit GPU Texture Reclamation
+   - 4.3 Canonical PDF Assembly via `pdf-lib` (Zero-Copy Buffer Transfers)
+   - 4.4 The 3-Step Direct Cloud CDN Signed Upload Protocol (HMAC-SHA Handshake)
+   - 4.5 Server OOM Elimination & Mathematical Memory Proofs
+   - 4.6 Fallback Multipart Ingestion Path
+5. [Pattern B: Client-Side PDF.js Canvas Streaming & Dynamic CSS Clipping](#5-pattern-b-client-side-pdfjs-canvas-streaming--dynamic-css-clipping)
+   - 5.1 Zero-RAM PDF Delivery via HTTP 307 Temporary Redirects
+   - 5.2 High-DPI Canvas Rendering Pipeline & Retina Display Scaling
+   - 5.3 Bounded LRU Document & Page Canvas Cache (`pdfCache.ts`)
+   - 5.4 Client-Side Question Crop Rendering (`ClippedAnswerCrop.tsx`)
+6. [Sub-Millisecond ETag 304 Fast-Path & Realtime Architecture](#6-sub-millisecond-etag-304-fast-path--realtime-architecture)
+   - 6.1 The Polling Load Challenge & Connection Starvation
+   - 6.2 `PortalStateEpochManager` RAM Version Vectors & Weak ETags
+   - 6.3 Sub-0.2ms Conditional Evaluation Flow
+   - 6.4 Supabase Realtime Logical Replication WebSockets
+   - 6.5 Page Visibility Adaptive Polling & W3C WebPush Integration
 7. [Autonomous Persistent Background Worker Engine](#7-autonomous-persistent-background-worker-engine)
-   - 7.1 Architecture & Multi-Threaded Daemon Pool
-   - 7.2 Atomic Row Locking & Roll-Number FIFO Claim Strategy
-   - 7.3 The 5-Minute Watchdog Thread (Stale Job Rescue)
-   - 7.4 429 Quota Exhaustion & 30-Second Backoff Cooldown
-   - 7.5 Non-Quota Error Retry Circuit Breaker (Max 3 Retries $\to$ `FAILED`)
-8. [Deterministic Grading & Invariants Engine](#8-deterministic-grading--invariants-engine)
-   - 8.1 Philosophy: Trust, but Deterministically Verify
-   - 8.2 Score Clamping & Bottom-Up Criterion Summation
-   - 8.3 The "Best-of-N" Section Option Limit Algorithm
-   - 8.4 Vector PDF Overlays via PyMuPDF (`fitz`)
-   - 8.5 150 DPI Answer Region Extraction & Image Crop Pipeline
-   - 8.6 Immutable Teacher Audit Trail Engine
-9. [Unified Hybrid Storage Tier & 15-Day TTL Lifecycle](#9-unified-hybrid-storage-tier--15-day-ttl-lifecycle)
-   - 9.1 Storage Abstraction (`StorageService` Hierarchy: Local, Cloudinary, R2/S3)
-   - 9.2 Mobile Photo EXIF Normalization & Multi-Image PDF Assembly
-   - 9.3 15-Day Retention Policy (TTL) & Privacy Compliance (FERPA/GDPR)
-   - 9.4 Cascade Exam Deletion & CDN Purge Engine
-10. [Web Push Notification & Real-Time Alert Engine](#10-web-push-notification--real-time-alert-engine)
-    - 10.1 W3C Standard Web Push via VAPID Cryptographic Keys
-    - 10.2 Closed-App PWA Background Delivery
-    - 10.3 In-App Notification Center, Context-Appropriate Icon Taxonomy & Audio Chimes
-11. [Exhaustive Backend API Router Catalog](#11-exhaustive-backend-api-router-catalog)
-    - Complete Reference of All 13 Routers & 32+ Endpoints
-12. [Frontend Architecture & Next.js 14 App Router](#12-frontend-architecture--nextjs-14-app-router)
-    - 12.1 Directory Structure & Layout Hierarchy
-    - 12.2 Client-Side Context Mesh
-    - 12.3 Role-Based Dynamic Routing & Zero-Flicker SSR Auth Check
-    - 12.4 Spatial Document Viewer Canvas (`DocumentViewer.tsx`)
-    - 12.5 One-Click Verification & Override Studio (`GradingModal.tsx`)
-    - 12.6 TanStack React Query Caching Tier (`@tanstack/react-query`)
-    - 12.7 Apple-Style Curved-Glass Micro-Tactility Design System
-    - 12.8 Student PWA Mobile Portal Architecture & Past Exams Subsystem
-13. [Observability, Telemetry & Quota Feasibility](#13-observability-telemetry--quota-feasibility)
-    - 13.1 Real-Time Token Telemetry & Paid-Equivalent Cost Tracking
-    - 13.2 Latency Percentiles ($P_{50}, P_{95}$)
-    - 13.3 Quota Feasibility Modeling (40 & 50 Paper Batches)
-14. [DevOps, Deployment & Operations Runbook](#14-devops-deployment--operations-runbook)
-    - 14.1 Environment Configuration Matrix (`.env`)
-    - 14.2 Production Deployment Setup (Render + Vercel + Supabase)
-    - 14.3 Emergency Troubleshooting Playbooks
-15. [Master Data Architecture & Business Intelligence (BI) Retention Specification](#15-master-data-architecture--business-intelligence-bi-retention-specification)
-    - 15.1 Storage Tier Partitioning & Structural Invariants
-    - 15.2 15-Day TTL Cascade Purge Engine Mechanics
-    - 15.3 Historical Grade & Analytics Retention for Academic BI
-    - 15.4 Multi-Tenant Data Isolation & Compliance Guarantees
+   - 7.1 Multi-Threaded Daemon Architecture (`PersistentQueueWorker`)
+   - 7.2 Atomic Row Locking via PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`
+   - 7.3 The 60-Second Watchdog Thread (Stale Job Auto-Recovery)
+   - 7.4 429 Quota Exhaustion Circuit Breaker & Exponential Backoff
+   - 7.5 Lifespan Management & Memory Bounds (Render vs. VPS Sizing)
+   - 7.6 Asynchronous Background Notification & Audit Pruning
+8. [The AI Engine & Google Gemini Multimodal Pipeline](#8-the-ai-engine--google-gemini-multimodal-pipeline)
+   - 8.1 Zero-OCR Multimodal Vision Paradigm
+   - 8.2 The 100-Key Scanning Failover Ring & Active Pool Rotation
+   - 8.3 3-Tier Full-Flash Model Cascade (3.8 $\to$ 3.6 $\to$ 3.5)
+   - 8.4 The 65,536 Output Token Ceiling & Thinking Budget Allocation
+   - 8.5 The Self-Healing JSON Stream Buffer (`_repair_truncated_json`)
+   - 8.6 Anti-Parametric Invariant & Prompt Engineering Standards
+   - 8.7 Deterministic Evidence Kill-Switch & Discrete 0.5-Mark Allocation Rule
+9. [Deterministic Grading & Invariants Engine](#9-deterministic-grading--invariants-engine)
+   - 9.1 Score Clamping & Bottom-Up Criterion Summation
+   - 9.2 The "Best-of-N" Section Option Limit Algorithm
+   - 9.3 PyMuPDF Vector Annotation Overlay Engine
+   - 9.4 Immutable Teacher Audit Trail Engine
+   - 9.5 7-Day Revaluation Dispute Lifecycle (100% Zero-AI Human Resolution)
+10. [Unified Hybrid Storage Tier & 15-Day TTL Lifecycle](#10-unified-hybrid-storage-tier--15-day-ttl-lifecycle)
+    - 10.1 Storage Abstraction Hierarchy (`LocalStorage`, `Cloudinary`, `Cloudflare R2`)
+    - 10.2 15-Day Retention Policy (TTL) Architecture & FERPA/GDPR Compliance
+    - 10.3 Scheduled Storage Purge Daemon Mechanics
+    - 10.4 Permanent Academic Grade & Longitudinal BI Archiving
+11. [Database Architecture & Schema Specification](#11-database-architecture--schema-specification)
+    - 11.1 Supabase PostgreSQL 15 & PgBouncer Transaction Mode (`:6543`)
+    - 11.2 SQLAlchemy 2.0 ORM Configuration & Health Verification
+    - 11.3 Atomic Sequence Roll Number Generation (`C25-BVI-001`)
+    - 11.4 Complete Schema Inventory (24 Verified Database Tables)
+    - 11.5 Performance Index Inventory & N+1 Query Elimination
+    - 11.6 Master Entity-Relationship (ER) Diagram
+12. [Exhaustive Backend API Router Catalog](#12-exhaustive-backend-api-router-catalog)
+    - Complete Reference of All 13 Routers & 50+ Endpoints
+13. [Frontend Architecture & Next.js 14 App Router](#13-frontend-architecture--nextjs-14-app-router)
+    - 13.1 Directory Topology & Layout Hierarchy
+    - 13.2 Client-Side Context Mesh
+    - 13.3 Notion-Grade Design System & Apple Micro-Tactility
+    - 13.4 Spatial Document Canvas (`DocumentViewer.tsx`) & Verification Studio
+    - 13.5 Student Mobile PWA & iOS Safari Banner Integration
+    - 13.6 Academic Grace-Mark 404 Experience
+14. [Observability, Telemetry & Quota Feasibility](#14-observability-telemetry--quota-feasibility)
+    - 14.1 Real-Time Token Telemetry & Paid-Equivalent Cost Tracking
+    - 14.2 Latency Percentiles ($P_{50}, P_{95}$)
+    - 14.3 Mathematical Batch Concurrency & Capacity Modeling
+15. [DevOps, Deployment & Operations Runbook](#15-devops-deployment--operations-runbook)
+    - 15.1 Environment Configuration Matrix (`.env`)
+    - 15.2 Production Deployment Setup (Render + Vercel + Supabase)
+    - 15.3 Emergency Troubleshooting Playbooks
 
 ---
 
-## 1. Executive Product Overview & Core Philosophy
+## 1. Permanent Operational Directives & Core Invariants
 
-### 1.1 The Fundamental Problem of Physical & OMR Grading
-Traditional examination grading across educational boards, universities, and coaching institutes presents severe operational bottlenecks:
-1. **High Operational Latency**: Grading thousands of physical examination scripts takes weeks, delaying academic feedback loops and scorecard releases.
-2. **Human Grader Fatigue & Subjectivity**: Evaluators experience cognitive fatigue when grading hundreds of repetitive subjective answers, resulting in inconsistent marking standards between morning and evening grading sessions.
-3. **OMR Limitations**: Optical Mark Recognition (OMR) can only evaluate simple bubble multiple-choice sheets. It cannot read mathematical derivations, cursive handwriting, circuit diagrams, physics formulas, or step-by-step logic.
-4. **Traditional OCR Failure Modes**: Generic OCR pipelines (e.g., Tesseract, standard Vision OCR) split an image into raw text chunks. When presented with cursive student handwriting, crossed-out lines, fraction bars, superscripts/subscripts, and margin notes, traditional OCR introduces catastrophic transcription errors that garble formulas before an evaluation algorithm ever sees them.
+The following operational directives are permanently codified into the PaperGrade AI architecture. They govern all runtime execution, infrastructure configuration, and testing boundaries.
 
-```mermaid
-flowchart LR
-    subgraph Traditional["Traditional Fragile Pipeline"]
-        direction LR
-        P_Scan["Handwritten Scan"] --> P_OCR["Generic OCR Engine"]
-        P_OCR -->|"Garbled Math & Cursive"| P_LLM["Text-Only LLM Prompt"]
-        P_LLM -->|"Hallucinated Sums"| P_Score["Faulty Total Score"]
-    end
+### 1.1 Invariant 1: Strict Two-Phase Time-Decoupled Evaluation Window
+PaperGrade AI strictly decouples the high-concurrency student ingestion window from the computationally intensive AI grading window:
 
-    subgraph PaperGrade["PaperGrade AI Single-Pass Multimodal Pipeline"]
-        direction LR
-        PG_Scan["High-Res Scanned PDF"] --> PG_Gemini["Gemini Multimodal Reasoning"]
-        PG_Gemini -->|"Transcriptions, BBoxes & Evidence"| PG_Invariants["Backend Invariants Engine"]
-        PG_Invariants -->|"Deterministic Bounding & Best-of-N"| PG_Final["Verified Score & Vector PDF"]
-    end
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                  24-HOUR OPERATIONAL CYCLE                             │
+├──────────────────────────────────────────┬─────────────────────────────────────────────┤
+│   PHASE 1: DAYTIME (< 8:00 PM IST)       │     PHASE 2: OVERNIGHT (>= 8:00 PM IST)     │
+│   EXAM INGESTION & PORTAL BROWSING ONLY  │     BATCH EVALUATION & AI GRADING ONLY      │
+├──────────────────────────────────────────┼─────────────────────────────────────────────┤
+│ • Classes, tests, and student uploads.   │ • Classes finished; portal traffic near 0.  │
+│ • Cloud CDN direct PDF uploads.          │ • Background daemon grades queued scripts.  │
+│ • AI grading is STRICTLY FORBIDDEN.      │ • 100% CPU, RAM, & API quota dedicated.     │
+│ • 100% server CPU dedicated to HTTP/auth.│ • SLA: Results published next/next-to-next day│
+└──────────────────────────────────────────┴─────────────────────────────────────────────┘
 ```
 
-### 1.2 The Zero-OCR, Single-Pass Multimodal Paradigm
-PaperGrade AI abandons the fragile OCR-to-text pipeline entirely. Instead, it utilizes **Single-Pass Multimodal Evaluation**:
-- High-resolution multi-page PDF scans of student answer sheets are fed directly into **Google Gemini Multimodal Vision Models** alongside the official Question Paper and Approved Rubric.
-- In a **single multimodal inference pass**, the model simultaneously:
-  1. Transcribes cursive handwriting and mathematical derivations with visual context.
-  2. Disregards crossed-out scratch work and reads margin annotations accurately.
-  3. Maps answer content directly to question IDs and sub-questions.
-  4. Localizes work using normalized $[0, 1]$ bounding box coordinates $(x, y, w, h)$.
-  5. Evaluates work against atomic rubric criteria and quotes verbatim text evidence for every awarded mark.
-  6. Flags grading uncertainty or illegible handwriting for human review.
+- **Daytime Window (< 8:00 PM IST):** All student exams, scanning, pre-signed upload handshakes, and portal queries execute during this period. Background AI grading workers are suspended. Server CPU, memory, and database connection pools are dedicated entirely to servicing student submissions without resource contention.
+- **Overnight Window ($\ge$ 8:00 PM IST):** Background grading daemons (`PersistentQueueWorker`) activate to process all queued answer sheets in batch mode overnight.
+- **Client Commitment SLA:** Results are officially published the **next day or next-to-next day** (never instant same-day results). This eliminates pressure on daytime API quotas and ensures thorough human audit capability.
 
-### 1.3 Core Architectural Tenets
-1. **LLMs Are Evaluators, Never Calculators**: Language models must never be trusted to calculate arithmetic totals, sum sub-scores, or enforce section attempt limits. The backend Python invariants engine deterministically calculates all totals from validated criteria sub-scores and clamps marks within strict $[0, \text{max}]$ ranges.
-2. **Zero-Trust Role Isolation**: Academic integrity requires physical separation of duties. Branch Managers can upload student scans and trigger grading, but they **cannot view or upload official answer keys**. Answer keys and rubric approvals are restricted exclusively to Root Administrators.
-3. **Audit Trail Immutability**: Any modification made by a human teacher—whether adjusting a criterion mark, correcting transcription text, or dragging a bounding box—is logged with the user ID, timestamp, prior value, and explicit justification in an immutable audit table.
-4. **Resilience Over Perfection**: Evaluation must never crash due to network drops, transient 429 quota exhaustion, or malformed JSON. The system features a multi-key round-robin ring (up to 4 active free-tier keys or Vertex AI paid service account), a 3-tier full-Flash model cascade (3.8 -> 3.6 -> 3.5), self-healing stream repair, and a persistent watchdog background worker pool.
+### 1.2 Invariant 2: 24/7 External Keep-Alive Infrastructure Directive
+- **Continuous External Monitoring:** The production backend API is continuously monitored and pinged 24/7 by an external uptime monitoring bot (UptimeRobot) at 5-minute intervals.
+- **Zero Cold-Start Latency:** The production application container remains permanently warm. Memory buffers, database connection pools, and background daemons (`PersistentQueueWorker`, notification pruners, stale-job watchdogs) remain continuously active in RAM.
+
+### 1.3 Invariant 3: Pre-Authenticated Conduction Protocol
+- **7-Day Persistent Sessions:** Authentication tokens utilize 7-day expiration windows (`ACCESS_TOKEN_EXPIRE_MINUTES = 10080`) persisted in client browser `localStorage`.
+- **Pre-Exam Login Policy:** Students log in prior to arriving at the examination hall or upon entering the classroom.
+- **Bcrypt Storm Elimination:** By enforcing pre-authentication, concurrent 12-round bcrypt password hashing operations are eliminated when the submission window opens. Incoming requests only perform microsecond JWT cryptographic signature verifications, preventing CPU throttling during burst uploads.
+
+### 1.4 Invariant 4: Tenancy & Production Safety Boundaries
+- **CATCH 25 Institute (`inst_e1eeda3473c3`, `br_c25_acbdd4d8`):** Real-world coaching institute production data is strictly read-only for system inspection. It is **100% excluded** from synthetic tests, mock scripts, automated end-to-end runs, or load testing pipelines.
+- **Synthetic Test Boundary:** All synthetic tests, automated stress runs, mock student submissions, and load simulations must target `TEST INSTITUTE` (`inst_test_institute`, `br_test_bvi`, `usr_test_bvi_001`) exclusively.
 
 ---
 
 ## 2. Global System Architecture & Distributed Block Diagram
 
+### 2.1 Macro Topology Overview
+PaperGrade AI separates concerns across three primary network tiers:
+1. **Client Tier (Vercel Edge):** Next.js 14 App Router, Web Workers for client-side PDF downscaling and assembly, PDF.js HTML5 Canvas streaming, and Supabase Realtime WebSocket listeners.
+2. **Application & Ingestion Tier (Render Cloud):** FastAPI running on Python 3.11, orchestrating HMAC pre-signed direct upload handshakes, sub-millisecond ETag conditional caching, PyMuPDF structural bounds validation, and background worker threads.
+3. **Data & Storage Tier (Supabase & Cloudflare R2 / Cloudinary):** PostgreSQL 15 accessed via PgBouncer transaction pooling (:6543) for relational state; Cloud CDN object storage for zero-RAM binary PDF and vector asset delivery.
+
+### 2.2 Distributed Block Diagram
+
 ```mermaid
 flowchart TB
-    subgraph ClientTier["Client Tier (Next.js 14 App Router / React 18 / Tailwind CSS)"]
+    subgraph ClientTier["Client Tier (Next.js 14 App Router / Vercel Edge)"]
         direction TB
         AdminApp["Root Admin Dashboard\n(/admin/tenancy, /admin/reports)"]
-        ManagerApp["Branch Workspace\n(/exams, /batches, /grading)"]
-        StudentApp["Student PWA Portal\n(/student/portal, /student/exams)"]
-        CanvasApp["Spatial Document Canvas\n(/grading/[id], /student/submissions/[id])"]
+        ManagerApp["Branch Workspace & Studio\n(/exams, /batches, /grading)"]
+        StudentApp["Student PWA Mobile Portal\n(/student/portal, /student/exams)"]
+        CanvasApp["Spatial Document Canvas\n(Pattern B Canvas Streaming & CSS Clipping)"]
+        WebWorker["Web Worker PDF Pipeline\n(Adaptive 1920px Canvas Downscaling)"]
     end
 
-    subgraph EdgeCDN["Storage & Edge Delivery Tier"]
-        Cloudinary["Cloudinary CDN / R2 / S3 Storage\n(Signed Canonical PDFs, 150 DPI Crops, Annotated Vectors)"]
+    subgraph EdgeCDN["Edge & Direct-to-Cloud Storage Tier"]
+        Cloudinary["Cloudinary CDN / Cloudflare R2\n(Direct HMAC-SHA Ingestion & Signed Streaming)"]
+        SupabaseRT["Supabase Realtime Cluster\n(Logical Replication WebSockets :443)"]
         VAPID["W3C Web Push Gateway\n(Google FCM / Apple APNs / Mozilla)"]
     end
 
-    subgraph APITier["FastAPI Backend Application Cluster (:8000)"]
+    subgraph APITier["FastAPI Application Cluster (:8000)"]
         direction TB
         MW_CORS["CORS & Request Profiling Middleware"]
-        MW_Auth["JWT & Role Authorization Guard"]
+        MW_Auth["JWT & Role Authorization Guard (7-Day Sessions)"]
         
         subgraph Routers["FastAPI Routers (13 Dedicated Domains)"]
             R_Auth["auth.py (JWT, Account Claim, Password Resets)"]
             R_Tenancy["tenancy.py (Institutes, Branches, Subjects, Batches)"]
             R_Exams["exams.py (Exams, Key Upload, Rubric Approval, Publishing)"]
-            R_Subs["submissions.py (Uploads, Single Ingestion, Purge Expired)"]
-            R_Grading["grading.py (Teacher Overrides, Bbox Edits, Reevaluations)"]
-            R_Reval["revaluation.py (7-Day Student Disputes & Resolution)"]
-            R_Windows["windows.py (Timed Windows, Hard-Close & Grace)"]
+            R_Subs["submissions.py (Direct CDN Upload, Validation, Purge)"]
+            R_Grading["grading.py (Overrides, Bbox Edits, Re-evaluations)"]
+            R_Reval["revaluation.py (7-Day Disputes & Zero-AI Resolution)"]
+            R_Windows["windows.py (Timed Windows, Hard-Close, Grace)"]
             R_Reports["reports.py (Issue Tickets & Screenshots)"]
             R_Exports["exports.py (CSV, Vector Graded PDF, Batch ZIP)"]
-            R_Notifs["notifications.py (Push & In-App Drawer)"]
-            R_Students["students.py (Unified Portal State & Past Submissions)"]
-            R_Analytics["analytics.py (Telemetry, Quotas & Feasibility)"]
-            R_Storage["storage.py (Signed Upload/Download URLs)"]
+            R_Notifs["notifications.py (Push & In-App Center)"]
+            R_Students["students.py (Unified ETag 304 Portal State)"]
+            R_Analytics["analytics.py (Telemetry, Quotas, Feasibility)"]
+            R_Storage["storage.py (Pre-Signed GET/PUT URLs & 307 Redirects)"]
         end
     end
 
-    subgraph ServiceTier["Core Business Logic & Service Domain"]
+    subgraph ServiceTier["Core Business Logic Domain"]
         direction TB
-        S_Grading["GradingService\n(Invariants, Best-of-N, Audit Trail)"]
-        S_Exam["ExamService\n(Lifecycle State Machine & Cascade Delete)"]
-        S_PDF["PDFService\n(EXIF Auto-Orientation, PyMuPDF Vector Overlays, 150 DPI)"]
-        S_Storage["StorageService\n(LocalStorageService, Cloudinary, Cloudflare R2)"]
-        S_Retention["RetentionService\n(15-Day TTL Post-Grading Purge Engine)"]
-        S_Notif["NotificationService\n(VAPID Encrypted Push & Web Audio Chimes)"]
-        S_Usage["UsageService\n(P50/P95 Latency & Cost Analytics)"]
+        S_Grading["GradingService (Invariants, Best-of-N, Audit Trail)"]
+        S_Exam["ExamService (Lifecycle State Machine & Cascade Delete)"]
+        S_PDF["PDFService (PyMuPDF Vector Overlays, Bounds Check)"]
+        S_Storage["StorageService (Cloudinary, Cloudflare R2, Local)"]
+        S_Retention["RetentionService (15-Day TTL Post-Grading Purge Engine)"]
+        S_Notif["NotificationService (WebPush, In-App Drawer, Daemon Pruning)"]
+        S_Portal["PortalStateEpochManager (Sub-0.2ms RAM Version Vectors)"]
     end
 
-    subgraph WorkerPool["Autonomous Persistent Worker Pool"]
+    subgraph WorkerPool["Autonomous Persistent Daemon Pool"]
         direction TB
-        PW_Master["PersistentQueueWorker Pool\n(N Worker Daemon Threads)"]
-        PW_Lock["Atomic DB Row-Level Claiming\n(ORDER BY roll_number ASC)"]
-        PW_Watchdog["Watchdog Thread (60s Sweep)\n(5-Minute Stale Job Rescue)"]
-        PW_Cooldown["Quota Backoff Manager\n(30s Sleep on 429 Exhaustion)"]
+        PW_Master["PersistentQueueWorker (Daemon Thread Pool)"]
+        PW_Lock["Atomic DB Row-Level Claiming (SKIP LOCKED)"]
+        PW_Watchdog["60s Watchdog Thread (5-Minute Stale Job Recovery)"]
+        PW_Cooldown["Quota Backoff Manager (30s Cooldown on 429)"]
+        PW_TimeGate["Two-Phase Time Gate (Grades only >= 8:00 PM IST)"]
     end
 
     subgraph AIEngine["AI Inference Cluster (Google GenAI Python SDK)"]
         direction TB
-        GeminiClient["GeminiGradingClient\n(4-Key Round-Robin Ring & GCP Vertex AI)"]
+        GeminiClient["GeminiGradingClient (100-Key Scanning Failover Ring)"]
         PrimaryModel["gemini-3.8-flash (Primary, 65,536 Output Tokens)"]
         Fallback1["gemini-3.6-flash (Tier 1 Fallback)"]
         Fallback2["gemini-3.5-flash (Tier 2 Fallback)"]
         ReevalModel["gemini-3.5-flash-lite (Targeted Single-Answer Re-eval)"]
-        StreamHealer["_repair_truncated_json\n(Bracket/Quote Recovery Engine)"]
+        StreamHealer["_repair_truncated_json (Structural Buffer Repair)"]
     end
 
-    subgraph DataTier["Database Tier (Dual-Dialect Engine)"]
-        PG_Pool["Supabase Transaction Pooler (:6543)\nThreadedConnectionPool (max 25 conn)"]
-        SQLite_WAL["SQLite 3 (WAL Mode + Foreign Keys)\n(Local Development & Offline Testing)"]
-        CursorWrapper["PostgresCursorWrapper\n(? to %s Rewriter + NUL 0x00 Byte Filter)"]
-        Tables[("24 Normalized Tables across 5 Domains:\ninstitutes, branches, subjects, users, batches,\nstudents, exams, exam_batches, submission_windows,\nrubric_versions, submissions, answers, answer_regions,\ncriterion_scores, evaluation_queue, revaluation_requests,\nnotifications, push_subscriptions, password_reset_requests,\ntechnical_reports, audit_logs, api_usage_events,\nuser_quota_settings, experiment_benchmarks")]
+    subgraph DataTier["Database Tier (Supabase PostgreSQL 15)"]
+        PG_Pooler["Supavisor / PgBouncer Transaction Pooler (:6543)\n(ThreadedConnectionPool, max 40 connections)"]
+        Tables[("24 Normalized Tables Across 5 Domains:\ninstitutes, branches, subjects, users, batches,\nstudents, exams, exam_batches, submission_windows,\nrubric_versions, submissions, answers, answer_regions,\ncriterion_scores, evaluation_queue, revaluation_requests,\nnotifications, push_subscriptions, password_reset_requests,\ntechnical_reports, audit_logs, api_usage_events,\nuser_quota_settings, experiment_benchmarks")]
     end
 
     %% Client Interactions
     ClientTier <-->|REST API / HTTPS / Bearer JWT| APITier
-    ClientTier <-->|Direct Asset Retrieval| EdgeCDN
+    StudentApp -->|Direct Pre-Signed Multipart POST (0 Server RAM)| Cloudinary
+    CanvasApp <-->|HTTP 307 Redirects to Pre-Signed CDN URLs| Cloudinary
+    ClientTier <-->|WebSocket Realtime Events| SupabaseRT
+    
+    %% API & Services
     APITier --> ServiceTier
     ServiceTier --> DataTier
     ServiceTier <--> EdgeCDN
     
-    %% Worker & AI Interactions
-    WorkerPool --> ServiceTier
-    WorkerPool --> GeminiClient
+    %% Workers & AI Engine
+    WorkerPool --> PW_TimeGate
+    PW_TimeGate --> ServiceTier
+    PW_TimeGate --> GeminiClient
     GeminiClient --> PrimaryModel
     PrimaryModel -.->|429 Resource Exhausted| Fallback1
     Fallback1 -.-> Fallback2
     GeminiClient --> StreamHealer
 
     %% Database Connections
-    CursorWrapper --> PG_Pool
-    CursorWrapper --> SQLite_WAL
-    PG_Pool --> Tables
-    SQLite_WAL --> Tables
-
-    %% Web Push & Storage
-    S_Notif --> VAPID
-    S_Storage <--> Cloudinary
+    PG_Pooler --> Tables
+    ServiceTier --> PG_Pooler
 ```
+
+### 2.3 System Component Matrix
+
+| Subsystem | Primary Technologies | Operational Mandate |
+| :--- | :--- | :--- |
+| **Frontend UI** | Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons | Responsive spatial inspection canvas, mobile PWA student portal, Notion-grade warm/obsidian theme context. |
+| **Document Engine** | Web Worker, `OffscreenCanvas`, `pdf-lib`, PDF.js, PyMuPDF (`fitz`) | Client-side 1920px image downscaling, upright PDF compilation, client-side canvas streaming, vector annotations. |
+| **Backend API** | Python 3.11, FastAPI, Pydantic v2, Uvicorn | High-throughput async REST endpoints, HMAC-SHA upload signing, role authorization, ETag 304 fast paths. |
+| **Database** | PostgreSQL 15 (Supabase), PgBouncer (:6543), SQLAlchemy 2.0 | Transaction connection pooling, atomic roll numbers via row locks, composite B-tree indexing, 24 normalized tables. |
+| **Background Daemons**| Python `threading.Thread`, daemon pools, watchdog timer | Two-phase time-decoupled batch evaluation, 60s stale job recovery, async notification and audit table pruning. |
+| **AI Inference** | Google GenAI SDK (`google-genai`), Gemini 3.8/3.6/3.5 Flash | Single-pass multimodal grading, 100-key failover ring, 65,536 output token buffer, anti-parametric verification. |
+| **Storage Tier** | Cloudinary CDN, Cloudflare R2, Local SSD buffer | Pre-signed upload/download streaming, zero-server-RAM document delivery, automated 15-day TTL purge engine. |
 
 ---
 
 ## 3. Multi-Tenant Hierarchy & Strict RBAC Security Matrix
 
-### 3.1 Four-Tier Tenancy Model
-PaperGrade AI enforces strict logical data isolation across a four-tier educational hierarchy:
+### 3.1 Four-Tier Tenancy Scoping
+PaperGrade AI enforces strict logical data isolation across an enterprise educational hierarchy:
 $$\text{Institutes} \longrightarrow \text{Branches} \longrightarrow \text{Batches} \longrightarrow \text{Students}$$
 
 ```mermaid
 graph TD
-    Inst["Institute: Apex Educational Entity"]
-    Inst --> BranchA["Branch 1: North Campus"]
-    Inst --> BranchB["Branch 2: South Campus"]
-    BranchA --> BatchA1["Batch: Grade 12 - Science A"]
-    BranchA --> BatchA2["Batch: Grade 12 - Science B"]
-    BatchA1 --> Student1["Student 101"]
-    BatchA1 --> Student2["Student 102"]
+    Inst["Institute (Root Tenant)\ne.g. Apex Coaching Institute"]
+    Inst --> BranchA["Branch: North Campus (BVI)"]
+    Inst --> BranchB["Branch: South Campus (THN)"]
+    BranchA --> BatchA1["Batch: 12th CET - Engineering"]
+    BranchA --> BatchA2["Batch: 12th JEE - Advanced"]
+    BranchB --> BatchB1["Batch: 11th Foundation"]
+    BatchA1 --> Student1["Student: C25-BVI-001"]
+    BatchA1 --> Student2["Student: C25-BVI-002"]
 ```
 
-1. **Institutes**: The top-level customer organization (e.g., *"Apex Academy of Science"*).
-2. **Branches**: Physical campuses or franchise locations (e.g., *"North Campus"*). Each branch has its own managers, students, and operational exam schedules.
-3. **Batches**: Academic cohorts grouped by year and curriculum (e.g., *"Grade 12 Physics - Batch A 2026"*).
-4. **Students**: Enrolled learners associated with roll numbers, student identification numbers, and individual submission histories.
+1. **Institutes (`institutes`):** The top-level institutional customer entity (e.g. *"CATCH 25"*). Scopes all branches, curricula, staff, and student accounts.
+2. **Branches (`branches`):** Physical campuses or regional centers. Each campus maintains isolated classrooms, physical roll sequence numbers, and localized manager accounts.
+3. **Batches (`batches`):** Academic cohorts grouped by year and target examination (e.g. *"12th CET-1"*).
+4. **Students (`students`):** Enrolled learners with system-generated atomic roll numbers, unique 6-digit claim IDs, and individual submission histories.
 
-### 3.2 Role Separation Matrix
-Academic assessment integrity requires strict operational separation:
-- **ROOT_ADMIN**: Global system administrators and academic board leads. They possess exclusive authority to upload official answer keys, trigger agentic rubric extraction, lock/unlock rubric versions, and perform cascade deletions.
-- **BRANCH_MANAGER**: Operational campus heads. They schedule exams, open submission windows, upload batches of student answer scripts, monitor live grading queues, review flagged papers, and publish finalized results. **Branch Managers cannot view or upload official answer keys**, preventing advance question-key leaks.
-- **STUDENT**: End learners. They access a mobile-optimized PWA portal to track exam submission windows with real-time countdown timers, upload handwritten answer sheets, view vector-annotated graded PDFs (only after official publication), and file revaluation disputes within a 7-day statutory window.
+### 3.2 Role Separation Matrix & Responsibilities
 
-### 3.3 Authorization & Access Control Matrix
+| Role Key | Real-World Identity | Operational Scope | Core Responsibilities |
+| :--- | :--- | :--- | :--- |
+| **`ROOT_ADMIN`** | System Architect / Board Director | Global (All Tenants) | Provisions institutes, uploads official answer keys, approves immutable rubrics, manages global Gemini API keys, triggers cascade purges. |
+| **`INSTITUTE_DIRECTOR`** | Academic Managing Director | Institute-Wide | Exercises administrative oversight across all branches under their institute. Uses the dynamic Branch Switcher to inspect campus performance without cross-tenant leakage. |
+| **`BRANCH_MANAGER`** | Campus Principal / Head Proctor | Branch-Scoped | Schedules local exams, opens timed submission windows, monitors batch queues, reviews flagged papers, performs manual score overrides, resolves revaluation appeals. **Strictly forbidden from viewing or uploading official answer keys.** |
+| **`STUDENT`** | Enrolled Learner | Personal Records Only | Tracks exam windows via real-time PWA countdown timers, captures and submits answer sheets directly to CDN, views vector-annotated graded PDFs post-publication, files 7-day revaluation appeals. |
 
-| System Domain / Action | Root Admin | Branch Manager | Student | Enforcement Mechanism |
-| :--- | :---: | :---: | :---: | :--- |
-| **Provision Institutes & Branches** |  | ❌ | ❌ | `require_root_admin` dependency |
-| **Upload Question Papers** |  |  | ❌ | Branch-scoped query validation |
-| **Upload Official Answer Keys** |  | ❌ | ❌ | Restricted endpoint (`/api/v1/exams/{exam_id}/answer-key`) |
-| **Approve / Unlock Rubrics** |  | ❌ | ❌ | Enforces immutable evaluation contract |
-| **Open / Reopen Submission Windows** |  |  | ❌ | `require_branch_manager` dependency |
-| **Batch Upload Student Papers** |  |  | ❌ | File format & EXIF orientation pipeline |
-| **Student Self-Upload (Windowed)** | ❌ | ❌ |  | Timed check against `submission_windows` |
-| **Trigger Batch AI Evaluation** |  |  | ❌ | Requires approved rubric (`is_approved = 1`) |
-| **Manual Teacher Override** |  |  | ❌ | Mandatory audit trail logging |
-| **Publish Exam Results** |  |  | ❌ | Toggles `is_published = 1` |
-| **Download Vector Graded PDF** |  |  |  | Blocked for students until exam published |
-| **File 7-Day Revaluation Dispute** | ❌ | ❌ |  | Validates `now <= requested_at + 7 days` |
-| **Approve / Reject Revaluation** |  |  | ❌ | Manual review requirement |
-| **Trigger 15-Day Storage Purge** |  | ❌ | ❌ | Automated background service (`/api/v1/submissions/purge-expired`) |
-| **Permanent Cascade Exam Deletion** |  | ❌ | ❌ | Purges DB records & Cloudinary CDN assets |
+### 3.3 Institute Director & Multi-Branch Campus Switching
+In enterprise coaching networks, educational directors oversee multiple physical branches. 
+- **Compound Scoping:** In `backend/app/routers/tenancy.py` and `backend/app/routers/exams.py`, user authentication tokens verify both `institute_id` and `branch_id`.
+- **Dynamic Context Switching:** An `INSTITUTE_DIRECTOR` possesses an explicit `institute_id` with an optional `branch_id`. The frontend header renders a high-speed branch switcher (`TenantContext.tsx`). Directors can switch between campuses seamlessly; the backend verifies that the requested campus belongs to their authorized `institute_id` before yielding data.
+
+### 3.4 Exhaustive Access Control Matrix
+
+| System Domain / Action | Root Admin | Institute Director | Branch Manager | Student | Backend Enforcement Dependency |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Provision Institutes & Branches** |  | ❌ | ❌ | ❌ | `require_root_admin` |
+| **Switch Active Branch Context** |  |  | ❌ | ❌ | Validates `branch.institute_id == user.institute_id` |
+| **Upload Question Papers** |  |  |  | ❌ | Branch-scoped query validation |
+| **Upload Official Answer Keys** |  | ❌ | ❌ | ❌ | Restricted endpoint (`require_root_admin`) |
+| **Approve / Unlock Rubrics** |  | ❌ | ❌ | ❌ | Immutable evaluation lock (`require_root_admin`) |
+| **Open / Close Submission Windows** |  |  |  | ❌ | `require_branch_manager` |
+| **Direct CDN Student Ingestion** | ❌ | ❌ | ❌ |  | Timed check against active window & BOLA roll validation |
+| **Trigger Batch AI Grading** |  |  |  | ❌ | Requires approved rubric (`is_approved = 1`) |
+| **Execute Manual Teacher Override** |  |  |  | ❌ | Mandatory immutable entry in `audit_logs` |
+| **Publish Exam Results** |  |  |  | ❌ | Toggles `is_published = 1`, triggers notifications |
+| **View Graded Vector PDF** |  |  |  |  | Blocked for students until `is_published == 1` |
+| **File 7-Day Revaluation Appeal** | ❌ | ❌ | ❌ |  | Validates `now <= published_at + 7 days` |
+| **Resolve Revaluation Dispute** |  |  |  | ❌ | Zero-AI human teacher review requirement |
+| **Trigger 15-Day Storage Purge** |  | ❌ | ❌ | ❌ | Automated background service (`retention_service.py`) |
+| **Cascade Tenant Deletion** |  | ❌ | ❌ | ❌ | Multi-table cascade scrub with 7-day recovery grace |
 
 ---
 
-## 4. End-to-End Operational Lifecycle & Flowcharts
+## 4. Client-Side Ingestion & Direct Cloud CDN Signed Upload Pipeline
 
-### 4.1 Flow 1: Exam Provisioning & Agentic Rubric Extraction
-The official rubric defines the immutable contract against which every student paper is evaluated. The rubric extraction process converts raw unstructured PDFs (question paper + answer key) into a structured Pydantic schema using Gemini Multimodal reasoning.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Admin as Root Admin
-    participant UI as Next.js Exam Studio
-    participant API as FastAPI Backend
-    participant Storage as StorageService (Disk/CDN)
-    participant AI as Gemini Multimodal Client
-    participant DB as Dual-Dialect Database
-
-    Admin->>UI: Uploads Question Paper PDF & Official Answer Key PDF
-    UI->>API: POST /api/v1/exams (multipart/form-data)
-    API->>Storage: Store Question Paper (calculate SHA256)
-    API->>DB: INSERT INTO exams (status='DRAFT', lifecycle_status='DRAFT')
-    API-->>UI: Exam Created (ID generated)
-
-    Admin->>UI: Triggers "Extract Rubric"
-    UI->>API: POST /api/v1/exams/{id}/answer-key
-    API->>Storage: Store Official Answer Key
-    UI->>API: POST /api/v1/exams/{id}/generate-rubric
-    API->>AI: extract_exam_rubric(question_pdf, key_pdf, notes)
-    Note over AI: Multi-key ring routes to gemini-3.8-flash<br/>max_output_tokens=65536<br/>Enforces MCQ Single-Criterion & 0.5-step rules
-    AI-->>API: Returns ExamRubricExtractionResult JSON
-    API->>DB: INSERT INTO rubric_versions (version_num=1, is_approved=0, rubric_data)
-    API-->>UI: Draft Rubric Ready for Human Review
-
-    Admin->>UI: Inspects criteria points, edits descriptions, adjusts weights
-    Admin->>UI: Clicks "Approve & Lock Rubric"
-    UI->>API: POST /api/v1/exams/{id}/rubric/approve
-    API->>DB: UPDATE rubric_versions SET is_approved=1
-    API->>DB: UPDATE exams SET status='RUBRIC_APPROVED'
-    API-->>UI: Rubric Immutable & Locked
-```
-
----
-
-### 4.2 Flow 2: Timed Submission Windows, Hard-Close Workflow & Published Exam Lifecycle Locks
-To simulate real-world testing environments, PaperGrade AI provides synchronized, timed submission windows with a strict deadline, automated grace periods, instant administrative cutoff controls, and strict post-publication lifecycle locking.
-
-```mermaid
-flowchart TD
-    Manager(["Branch Manager"]) --> CheckPub{"Is Exam Published?<br/>(is_published == 1)"}
-    CheckPub -->|"Yes (Finalized)"| LockUI["Suppress 'Open Window'<br/>Render Permanent 'Finalized' Badge<br/>Window Ingestion Permanently Locked"]
-    CheckPub -->|"No (Open Lifecycle)"| OpenWin["POST /api/v1/windows/open<br/>Duration: 30 mins, Grace: 2 mins"]
-    OpenWin --> DB_Win["INSERT INTO submission_windows<br/>status='OPEN', deadline_at, grace_deadline_at"]
-    DB_Win --> NotifDispatch["NotificationService.notify_branch_students"]
-    NotifDispatch --> WebPush["VAPID Encrypted Web Push to Phones"]
-    
-    subgraph StudentApp["Student PWA Client"]
-        PortalState["GET /api/v1/student/portal-state<br/>(Cached via TanStack Query)"] --> TimerCalc{"Check Window Timestamps"}
-        TimerCalc -->|"Within Deadline (Active)"| ActiveState["Display Green Countdown Timer<br/>Submissions Allowed"]
-        TimerCalc -->|"Grace Period (2 mins)"| GraceState["Display Amber Grace Period Timer<br/>Submissions Allowed with Warning"]
-        TimerCalc -->|"Window Expired"| ExpiredState["Display Closed State<br/>Upload Blocked with 403 Forbidden"]
-    end
-
-    ActiveState --> UploadReq["Student Submits Answer PDF"]
-    GraceState --> UploadReq
-
-    subgraph AdminCutoff["Administrative Hard-Close Workflow"]
-        ManagerOverride(["Branch Manager Trigger"]) --> ForceClose["POST /api/v1/windows/{exam_id}/close"]
-        ForceClose --> CloseDB["UPDATE submission_windows<br/>status='CLOSED', closed_at=NOW()"]
-        CloseDB --> DropGrace["Immediate Grace Invalidation<br/>Instant 403 Block on In-Flight Uploads"]
-    end
-```
-
-#### Administrative Hard-Close Workflow
-In proctored or unannounced testing environments, branch managers require the capability to abort or prematurely terminate an active submission window. Calling `POST /api/v1/windows/{exam_id}/close`:
-1. Sets `submission_windows.status = 'CLOSED'` and stamps `closed_at = NOW()`.
-2. Truncates all remaining grace periods to zero milliseconds.
-3. Immediately invalidates client upload tokens; any in-flight multipart PDF uploads reaching the server after the cutoff timestamp are rejected with `403 Forbidden ("Submission window has been closed by proctor")`.
-4. Emits a real-time notification to active student PWA clients to update their UI to the closed state.
-
-#### Published Exam Lifecycle Window Lock (`isExamPublished` Invariant)
-Once an examination has been evaluated, audited by instructors, and officially published (`exams.is_published = 1`):
-- **Integrity Invariant**: No further student submissions, window extensions, or re-evaluations can be scheduled for that exam. Allowing a submission window to reopen on a published exam would corrupt class rankings, tamper with finalized scorecards, and create un-evaluated orphan submissions.
-- **UI Guardrail**: The exam dashboard dynamically inspects `isExamPublished`:
-  ```tsx
-  const isExamPublished = exam.is_published === 1 || exam.is_published === true;
-  // If published, suppress the interactive "Open Window" button and render a static "Finalized" badge
-  {isExamPublished ? (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-neutral-400 cursor-not-allowed">
-      <Lock className="w-3.5 h-3.5 text-neutral-500" />
-      Finalized
-    </span>
-  ) : (
-    <button onClick={handleOpenWindow} className="btn-glass-primary h-8 px-3 text-xs">
-      <Clock className="w-3.5 h-3.5" />
-      Open Window
-    </button>
-  )}
+### 4.1 Mobile Photo Capture & Web Worker Document Pipeline
+Students frequently capture handwritten answer scripts using mobile cameras under poor lighting or varying angles. In `frontend/src/app/student/portal/page.tsx`:
+- **Fast Path:** If a student selects a single pre-existing PDF, compilation is bypassed entirely, and the document is prepared for immediate upload.
+- **Multi-Page Image Path:** When students capture 2 to 15 camera photos, processing is offloaded to a dedicated background Web Worker (`frontend/src/workers/pdfWorker.ts`) via `assembleFilesToCanonicalPdf()`.
+- **Zero-Copy Memory Transfer:** Files are converted into `ArrayBuffer` objects and passed via the postMessage transfer list:
+  ```typescript
+  const transferables = files.map((f) => f.buffer);
+  worker.postMessage({ type: "ASSEMBLE", payload: { files, options } }, transferables);
   ```
-- **Backend Rejection**: The submission window creation endpoint verifies `exams.is_published == 0`; if true, it aborts with `HTTP 409 Conflict ("Cannot open submission window for an exam whose results are published")`.
+  Transferring buffer ownership guarantees zero memory duplication on the main JavaScript thread, keeping the UI at 60 FPS and preventing timer freezes.
 
----
+### 4.2 Adaptive 1920px Canvas Downscaling & Explicit GPU Texture Reclamation
+Raw smartphone camera photos range from 12MP to 48MP (6MB–12MB each). Uploading 5 uncompressed photos requires 30MB–60MB of mobile data.
+In `pdfWorker.ts` (`compressImageInWorker`):
+1. **Asynchronous Decoding:** `createImageBitmap(blob)` rapidly decodes raw image bytes off the main thread.
+2. **Proportional Resizing:** Constrains dimensions so that neither width nor height exceeds `maxDimension = 1920px`:
+   $$\text{scale} = \min\left(1.0, \; \frac{1920}{\max(\text{width}, \text{height})}\right)$$
+   *Pedagogical Rationale:* A 1920px vertical height corresponds to ~200 DPI for standard A4 answer sheets—sufficient for intricate handwriting strokes, subscript/superscript recognition, and diagram grading, while shrinking raw file size by 85–95%.
+3. **OffscreenCanvas JPEG Blit:** An `OffscreenCanvas` is filled with pure white (`#ffffff`) to prevent black alpha-channel artifacts, and the bitmap is drawn scaled. Encoded via `canvas.convertToBlob({ type: "image/jpeg", quality: 0.80 })`.
+4. **Explicit GPU Buffer Reclamation:** Unmanaged textures are freed immediately:
+   ```typescript
+   canvas.width = 0;
+   canvas.height = 0;
+   bitmap.close();
+   ```
+   This prevents mobile Safari and Android WebViews from exceeding browser tab memory allocations.
 
-### 4.3 Flow 3: Student Ingestion, EXIF Auto-Orientation & Canonical PDF Assembly
-Students frequently upload photos of exam papers taken via mobile cameras. These images often suffer from incorrect EXIF orientation tags (e.g., portrait photos showing sideways) or are submitted as separate image files. The [`PDFService`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/pdf_service.py) normalizes every upload into a single upright multi-page PDF.
+### 4.3 Canonical PDF Assembly via `pdf-lib`
+In `pdfWorker.ts`:
+- A new document is initialized via `PDFDocument.create()`.
+- Downscaled JPEG byte streams are embedded via `pdfDoc.embedJpg(jpegBytes)` and attached to pages matching the exact image aspect ratio.
+- Object streams are packed via `pdfDoc.save({ useObjectStreams: true })`, producing a canonical PDF between 1.1MB and 1.6MB for a typical 5-page submission.
+- The compiled buffer is transferred back to the main thread via zero-copy transfer.
 
-```mermaid
-flowchart TD
-    Upload(["Student / Manager Uploads Files"]) --> TypeCheck{"File Types?"}
-    TypeCheck -->|"Single PDF"| VerifySize["Validate Size max 7MB and Pages max 15"]
-    TypeCheck -->|"Multiple Images / Scans"| TransposeLoop["Iterate Images: ImageOps.exif_transpose"]
-    
-    TransposeLoop --> ConvertRGB["Convert RGBA/P to RGB"]
-    TransposeLoop --> RenderPDFBytes["Convert to 150 DPI PDF Page Streams"]
-    RenderPDFBytes --> AssembleDoc["PyMuPDF: doc.insert_pdf"]
-    AssembleDoc --> SaveCanonical["Save Canonical Multi-Page PDF"]
-    VerifySize --> SaveCanonical
-    
-    SaveCanonical --> CalcHash["Calculate SHA256 & Page Count"]
-    CalcHash --> LocalCache["Write to backend/data/uploads/"]
-    LocalCache --> CloudBackup["Async Upload to Cloudinary CDN / R2"]
-    CloudBackup --> DB_Sub["INSERT INTO submissions<br/>status='QUEUED', submission_status='SUBMITTED'"]
+### 4.4 The 3-Step Direct Cloud CDN Signed Upload Protocol
+
+```
++---------------+              +--------------------+              +------------------------+
+| Student Client|              |  FastAPI Backend   |              | Cloudinary CDN / R2    |
++---------------+              +--------------------+              +------------------------+
+        |                                |                                     |
+        | 1. POST /request-upload        |                                     |
+        |------------------------------->| (Validate window, BOLA, batch)      |
+        |                                | (Generate HMAC-SHA signature)       |
+        | 2. Signed upload ticket        |                                     |
+        |<-------------------------------|                                     |
+        |                                                                      |
+        | 3. Direct Multipart POST (File binary + HMAC parameters)             |
+        |--------------------------------------------------------------------->|
+        | 4. 200 OK Response (Public ID, ETag, Asset URL)                      |
+        |<---------------------------------------------------------------------|
+        |                                |                                     |
+        | 5. POST /confirm-upload        |                                     |
+        |------------------------------->| (Verify asset via HEAD request)     |
+        |                                | (PyMuPDF bounds: <=15p, <=7MB)      |
+        |                                | (Atomic supersede & bump epoch)     |
+        | 6. Confirmation & 200 OK       |                                     |
+        |<-------------------------------|                                     |
 ```
 
----
-
-### 4.4 Flow 4: Autonomous Queue Worker Execution & Fallback Ring
-Grading is executed asynchronously by a multi-threaded daemon worker pool. The worker guarantees atomic job claims, pacing against API rate limits, and watchdog recovery of orphaned tasks.
-
-```mermaid
-flowchart TD
-    Boot(["Worker Pool Initialized"]) --> LaunchWatchdog["Spawn 60s Watchdog Thread"]
-    Boot --> LaunchWorkers["Spawn Worker Threads 0..N-1"]
-
-    subgraph WorkerLoop["Worker Thread Loop"]
-        ClaimLock["Acquire Claim Mutex"] --> AtomicQuery["SELECT * FROM evaluation_queue<br/>WHERE status='QUEUED'<br/>ORDER BY roll_number ASC LIMIT 1"]
-        AtomicQuery --> JobFound{"Job Exists?"}
-        JobFound -->|"No"| SleepPoll["Sleep poll_interval: 3s"] --> ClaimLock
-        JobFound -->|"Yes"| LockRecord["UPDATE submissions SET status='PROCESSING'<br/>UPDATE evaluation_queue SET status='PROCESSING'"]
-        LockRecord --> ReleaseLock["Release Claim Mutex"]
-        
-        ReleaseLock --> FetchRubric["Fetch Approved Rubric JSON from DB"]
-        FetchRubric --> ResolveDoc["Resolve Canonical PDF from Disk or Cloudinary"]
-        ResolveDoc --> AICall["Execute gemini_client.grade_student_submission"]
-        
-        AICall --> EvalOutcome{"Inference Result?"}
-        
-        EvalOutcome -->|"Success"| ApplyInvariants["GradingService.enforce_invariants_and_save<br/>1. Bounds marks: 0 to max<br/>2. Applies Best-of-N rules<br/>3. Strips NUL 0x00 bytes<br/>4. Generates crops & vector PDF"]
-        ApplyInvariants --> CompleteJob["UPDATE submissions SET status='COMPLETED'<br/>UPDATE evaluation_queue SET status='COMPLETED'"]
-        CompleteJob --> Pacing["Pacing Delay: 1.5s"] --> ClaimLock
-
-        EvalOutcome -->|"429 Quota Exhausted"| Backoff["UPDATE submissions SET status='QUEUED', retry_count=0<br/>Sleep 30s Quota Cooldown"] --> ClaimLock
-
-        EvalOutcome -->|"Schema / Parse Error"| CheckAttempts{"retry_count &lt; 3?"}
-        CheckAttempts -->|"Yes"| ReQueue["UPDATE submissions SET status='QUEUED', retry_count++<br/>Exponential Jitter Backoff"] --> ClaimLock
-        CheckAttempts -->|"No"| FailJob["UPDATE submissions SET status='FAILED', error_message"] --> ClaimLock
-    end
-
-    subgraph WatchdogLoop["Watchdog Rescue Thread (Every 60s)"]
-        W_Sleep["Sleep 60s"] --> W_Find["SELECT * FROM submissions<br/>WHERE status='PROCESSING'<br/>AND updated_at &lt; now - 5 mins"]
-        W_Find --> W_Reset["UPDATE submissions SET status='QUEUED', retry_count++<br/>UPDATE evaluation_queue SET status='QUEUED'"]
-        W_Reset --> W_Sleep
-    end
-```
-
----
-
-### 4.5 Flow 5: Teacher Audit, Manual Overrides & Spatial BBox Adjustment
-Evaluated papers display confidence flags and review triggers. Teachers can inspect evidence, adjust marks, and drag bounding boxes directly on the spatial document canvas.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Teacher as Teacher / Evaluator
-    participant Canvas as Spatial Canvas (DocumentViewer)
-    participant Modal as GradingModal Studio
-    participant API as FastAPI Backend
-    participant Invariants as GradingService
-    participant DB as Dual-Dialect Database
-
-    Teacher->>Canvas: Clicks Bounding Box or Question Card
-    Canvas->>Modal: Opens Question Verification Studio
-    Note over Modal: Displays transcribed text, rubric criteria,<br/>awarded marks, and evidence quote
-    Teacher->>Modal: Adjusts Criterion Marks & Enters Edit Reason
-    Modal->>API: POST /api/v1/grading/override (question_id, marks, reason)
-    API->>Invariants: recalculate_submission_scores(submission_id)
-    Invariants->>DB: INSERT INTO audit_logs (old_marks, new_marks, reason, edited_by)
-    Invariants->>DB: UPDATE criterion_scores & answers
-    Invariants->>DB: UPDATE submissions (recomputed total_awarded_marks & percentage)
-    API-->>Modal: 200 OK (Updated Score Record)
-    Modal-->>Canvas: Re-renders with Violet/Green Override Badge
-```
-
----
-
-### 4.6 Flow 6: Student Revaluation & Dispute Lifecycle
-To ensure transparency and academic fairness, students can file disputes on specific graded questions within 7 days of result publication.
-
-```mermaid
-stateDiagram-v2
-    [*] --> DRAFT : Exam Created
-    DRAFT --> EVALUATING : Evaluation Triggered
-    EVALUATING --> EVALUATED : All Submissions Graded
-    EVALUATED --> PUBLISHED : Results Released to Students
-    
-    state PUBLISHED {
-        [*] --> ViewMarks : Vector Graded PDF Visible
-        ViewMarks --> DisputeFiled : Student Files 7-Day Revaluation
-        DisputeFiled --> TeacherReview : Under Evaluator Review
-        TeacherReview --> DisputeApproved : Marks Adjusted & Audited
-        TeacherReview --> DisputeRejected : Original Marks Upheld
-    }
-```
-
----
-
-### 4.7 Flow 7: 15-Day Storage Retention (TTL) & Cloud Purge Lifecycle
-To minimize cloud storage expenditure and comply with student data privacy standards (FERPA/GDPR), original scanned PDFs and vector exports are automatically purged after 15 days, while numerical marks and audit logs are preserved permanently.
-
-```mermaid
-flowchart TD
-    Graded(["Submission Graded"]) --> StampTTL["Stamp retention_expires_at = graded_at + 15 days<br/>is_document_purged = 0"]
-    StampTTL --> ActiveWindow["15-Day Retrieval Window<br/>Full PDF Downloads Allowed"]
-    
-    ActiveWindow --> PurgeSweep["Nightly Cron / API: POST /api/v1/submissions/purge-expired"]
-    PurgeSweep --> ScanDB["SELECT * FROM submissions<br/>WHERE now &gt; retention_expires_at<br/>AND is_document_purged = 0"]
-    
-    ScanDB --> CloudPurge["Cloudinary Admin API: Delete Raw & Annotated PDFs"]
-    ScanDB --> DiskPurge["Local Disk: Unlink uploads/ and exports/ PDFs"]
-    
-    CloudPurge --> UpdateDB["UPDATE submissions SET is_document_purged=1, purged_at=now()<br/>Keep all answers, criterion_scores, and totals intact"]
-    DiskPurge --> UpdateDB
-    
-    UpdateDB --> FutureReq["Student Later Requests PDF Download"]
-    FutureReq --> Return410["HTTP 410 Gone:<br/>Document purged per 15-day TTL policy.<br/>Numerical marks permanently retained."]
-```
-
----
-
-## 5. Database Architecture & The Dual-Dialect Engine
-
-PaperGrade AI features an enterprise **Dual-Dialect Database Abstraction Layer** ([`backend/app/database.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/database.py)) that provides zero-overhead interoperability across:
-1. **Local Development / Offline Testing**: SQLite with Write-Ahead Logging (`PRAGMA journal_mode=WAL`) and foreign keys (`PRAGMA foreign_keys=ON`).
-2. **Production High-Concurrency**: Supabase / PostgreSQL over connection pooling in **Transaction Mode (:6543)** via `psycopg2.pool.ThreadedConnectionPool`.
-
-### 5.1 Rationale: Dual-Dialect Design
-- **Eliminating ORM Latency**: Traditional heavyweight ORMs (e.g. SQLAlchemy, Tortoise) introduce 15–35% serialization latency and complex session management that interferes with high-throughput multi-threaded worker pools.
-- **Identical SQL Codebase**: By implementing a lightweight dialect wrapper, identical SQL queries execute seamlessly on local developer laptops without requiring a running Docker PostgreSQL container, while running at maximum throughput on Supabase in production.
-
-### 5.2 The `PostgresCursorWrapper` Engine
-The `PostgresCursorWrapper` intercepts raw database calls and performs real-time SQL and parameter translation:
-- **Parameter Marker Rewriting**: Automatically converts SQLite standard `?` positional parameters into PostgreSQL `%s` markers at runtime.
-- **Timestamp Rewriting**: Rewrites SQLite `datetime('now')` expressions into ANSI PostgreSQL `TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`.
-- **Dict-Like Row Access (`RowDict`)**: Wraps psycopg2 tuple results in a dictionary interface supporting both key lookups (`row["roll_number"]`) and case-insensitive index access, mirroring SQLite's `sqlite3.Row`.
-
-### 5.3 The PostgreSQL NUL Byte (`0x00`) Sanitizer
-A critical failure mode in LLM-assisted multimodal evaluation is the spontaneous generation of C-style null bytes (`\x00` or `\u0000`). When Gemini extracts complex mathematical expressions (e.g., integrals, Greek letters, physics formulas), these characters occasionally leak into transcription or rationale text fields.
-- While SQLite permits raw `\x00` characters in text columns, **PostgreSQL strictly rejects them**, raising `psycopg2.errors.UntranslatableCharacter: unsupported Unicode escape sequence`.
-- The `PostgresCursorWrapper._sanitize_params` algorithm intercepts all query parameters recursively:
+#### Step 1: Pre-Authorization & HMAC Signature Handshake
+- **Route:** `POST /api/v1/submissions/{exam_id}/request-upload` (`backend/app/routers/submissions.py`).
+- **Enforcements:**
+  1. **BOLA Check:** Verifies student role ownership (`clean_roll == current_user.roll_number`).
+  2. **Active Window Check:** Verifies submission window is currently `OPEN` and not expired.
+  3. **Batch Restriction:** Confirms student enrollment in assigned batches when `batch_scope != 'ALL'`.
+- **HMAC Signature Generation (`storage.py`):**
+  Generates an authorization payload signed with the cloud storage API secret:
   ```python
-  def _sanitize_params(params):
-      if isinstance(params, str):
-          return params.replace("\x00", "")
-      elif isinstance(params, (list, tuple)):
-          return type(params)(_sanitize_params(v) for v in params)
-      elif isinstance(params, dict):
-          return {k: _sanitize_params(v) for k, v in params.items()}
-      return params
+  params_to_sign = {"public_id": destination_key, "timestamp": timestamp}
+  signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
   ```
-- This permanently eliminates `UntranslatableCharacter` crashes across the entire platform.
+  Returns the signed endpoint URL, public ID, API key, and HMAC signature (`is_direct_cloud: True`).
+
+#### Step 2: Direct Client POST to Cloud CDN (Zero Server RAM)
+- The browser constructs a `FormData` object containing the HMAC parameters and the compiled canonical PDF.
+- The browser dispatches the binary payload directly to `https://api.cloudinary.com/v1_1/{cloud_name}/raw/upload` (or directly via S3v4 signed PUT to Cloudflare R2).
+- **RAM Impact:** **0 bytes** of binary stream pass through the FastAPI backend process.
+
+#### Step 3: Registration & PyMuPDF Structural Validation
+- **Route:** `POST /api/v1/submissions/{exam_id}/confirm-upload` (`backend/app/routers/submissions.py`).
+- **Validation Pipeline:**
+  1. Probes cloud storage via an HTTP `HEAD` request (`storage.file_exists(storage_key)`).
+  2. Downloads the file header to verify size ($\le 7\text{ MB}$).
+  3. Validates document integrity via PyMuPDF (`fitz.open()`) and verifies page count ($\le 15\text{ pages}$).
+  4. **Atomic Replacement (`_purge_and_replace_previous_submissions`):** If a student re-submits within the window, previous raw and annotated PDFs are deleted from cloud storage, older database records are superseded, and the new record is marked `UPLOADED`.
+  5. Bumps user epoch via `PortalStateEpochManager.bump_user(student_id)`.
+
+### 4.5 Server OOM Elimination & Mathematical Memory Proofs
+
+```
+TRADITIONAL PROXY ARCHITECTURE (Catastrophic Server OOM Crash):
+250 concurrent uploads * 12 MB raw photos = 3,000 MB buffer in FastAPI RAM
+Result: Linux kernel OOM killer terminates backend process (SIGKILL 137).
+
+PAPERGRADE AI DIRECT CDN ARCHITECTURE (Guaranteed Stability):
+250 concurrent uploads * 0 bytes in server RAM = 0 MB buffer in FastAPI RAM
+Result: Backend processes only two 1 KB JSON handshake tickets. RAM remains flat (< 180 MB).
+```
+
+$$\text{Traditional Memory Consumption} = N \times S_{\text{upload}} \times M_{\text{buffer}}$$
+- With $N = 250$ students uploading 12MB scans with multipart chunk buffering ($M = 2$), required server memory is:
+  $$250 \times 12\text{ MB} \times 2 = 6,000\text{ MB (6 GB RAM)}$$
+  On a 512MB–1GB cloud container, this causes an immediate OS Out-Of-Memory kill (`SIGKILL 137`).
+- **PaperGrade AI Architecture:**
+  $$250 \times 0\text{ bytes} = 0\text{ MB}$$
+  The backend handles only lightweight JSON metadata requests ($< 1\text{ KB}$ each). Server memory stays constant at steady-state baseline (~178MB), completely eliminating OOM risks.
+
+### 4.6 Fallback Multipart Ingestion Path
+If an adblocker, strict firewall, or network proxy blocks direct CDN uploads, the client automatically falls back to `POST /api/v1/submissions/{exam_id}/upload-single`. The backend validates that the payload is a pre-compiled canonical PDF ($\le 15$ pages, $\le 7$MB) and processes it safely through the local SSD buffer.
 
 ---
 
-### 5.4 Complete Data Dictionary & Schema Specification (24 Tables Across 5 Domains)
+## 5. Pattern B: Client-Side PDF.js Canvas Streaming & Dynamic CSS Clipping
 
-#### 1. `institutes`
-The root tenant organization.
-- `id` (TEXT, PK): Unique institute identifier (e.g., `inst_01j7...`).
-- `name` (TEXT, NOT NULL): Full legal institution name.
-- `code` (TEXT, NOT NULL, UNIQUE): Alphanumeric code (e.g., `APEX_ACADEMY`).
-- `created_at` (TEXT, NOT NULL): ISO 8601 UTC creation timestamp.
+### 5.1 Zero-RAM PDF Delivery via HTTP 307 Temporary Redirects
+When viewing graded scripts or answer sheets in the spatial document viewer:
+- The client requests `GET /api/v1/submissions/{id}/pdf`.
+- The backend verifies role permissions and document retention status.
+- Instead of downloading the PDF into backend RAM and streaming bytes to the client, the backend returns an **HTTP 307 Temporary Redirect** pointing directly to a signed Cloud CDN URL:
+  ```python
+  return RedirectResponse(url=presigned_cdn_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+  ```
+- The client browser streams the PDF directly from CDN edge caches. Zero PDF bytes buffer in server memory.
 
-#### 2. `branches`
-Physical campus or operating division under an institute.
-- `id` (TEXT, PK): Unique branch identifier (`branch_01j7...`).
-- `institute_id` (TEXT, NOT NULL, FK $\to$ `institutes.id` ON DELETE CASCADE).
-- `name` (TEXT, NOT NULL): Branch campus name (e.g., *"North Campus"*).
-- `code` (TEXT, NOT NULL): Unique branch code within institute.
-- `city` (TEXT, NOT NULL): Geographical city.
-- `created_at` (TEXT, NOT NULL): ISO 8601 UTC timestamp.
+### 5.2 High-DPI Canvas Rendering Pipeline
+In `frontend/src/components/PdfPageView.tsx`:
+1. **Document Loading:** `pdfCache.getDocument(key, url)` loads the document using PDF.js.
+2. **Device Pixel Ratio Scaling:** Calculates high-resolution dimensions for crisp retina text:
+   ```typescript
+   const pixelRatio = window.devicePixelRatio || 1;
+   const renderWidth = Math.max(800, targetWidth) * Math.min(2, pixelRatio);
+   const scale = renderWidth / unscaledViewport.width;
+   const viewport = page.getViewport({ scale });
+   ```
+   Internal canvas pixels match the physical screen display, while CSS styles scale responsively (`w-full h-full`), ensuring crystal-clear cursive handwriting rendering.
+3. **Cancellation Safety:** Rapid page flipping cancels active render tasks via `currentRenderTask.cancel()`, cleanly suppressing `RenderingCancelledException` to avoid GPU memory leaks.
 
-#### 3. `subjects`
-Academic course and subject definitions scoped to an institutional campus.
-- `id` (TEXT, PK): Unique subject identifier (`sub_01j7...`).
-- `branch_id` (TEXT, FK $\to$ `branches.id` ON DELETE CASCADE).
-- `name` (TEXT, NOT NULL): Subject name (e.g., *"Physics"*).
-- `code` (TEXT): Subject code (e.g., `"PHY-101"`).
-- `description` (TEXT): Syllabus summary or description.
-- `created_at` (TEXT, NOT NULL): ISO 8601 UTC timestamp.
+### 5.3 Bounded LRU Document & Page Canvas Cache (`pdfCache.ts`)
+- **Document Cache Limit:** Caches a maximum of 2 documents (`MAX_DOCS = 2`). Opening a third evicts the oldest via `doc.destroy()`.
+- **Page Canvas Cache Limit:** Caches a maximum of 6 rendered canvases (`MAX_PAGE_CANVASES = 6`).
+- **Explicit Memory Zeroing:** Evicted canvases have their dimensions set to 0 (`canvas.width = 0; canvas.height = 0;`), forcing browser rendering engines (WebKit/Blink) to immediately drop backing GPU raster buffers.
 
-#### 4. `users`
-System user accounts for Root Admins, Branch Managers, and Students.
-- `id` (TEXT, PK): User identifier (`usr_01j7...`).
-- `institute_id` (TEXT, FK $\to$ `institutes.id` ON DELETE SET NULL).
-- `branch_id` (TEXT, FK $\to$ `branches.id` ON DELETE SET NULL).
-- `email` (TEXT, UNIQUE): Login email address.
-- `role` (TEXT, NOT NULL): Role enum (`ROOT_ADMIN`, `BRANCH_MANAGER`, `STUDENT`). Evaluator and grading workflows are executed under `BRANCH_MANAGER` / `ROOT_ADMIN` access levels.
-- `password_hash` (TEXT, NOT NULL): Bcrypt hashed credentials.
-- `full_name` (TEXT, NOT NULL): Display name.
-- `is_active` (INTEGER, DEFAULT 1): Account status flag.
-- `last_login_at` (TEXT): Last successful login timestamp.
-- `created_at` (TEXT, NOT NULL): ISO 8601 UTC timestamp.
-
-#### 5. `batches`
-Academic cohort grouping within a branch.
-- `id` (TEXT, PK): Batch identifier (`batch_01j7...`).
-- `branch_id` (TEXT, FK $\to$ `branches.id` ON DELETE CASCADE).
-- `exam_id` (TEXT): Associated exam identifier.
-- `name` (TEXT, NOT NULL): Cohort title (e.g., *"Grade 12 Science A"*).
-- `academic_year` (TEXT, DEFAULT '2026').
-- `status` (TEXT, DEFAULT 'QUEUED'): Operational state enum.
-- `total_submissions` (INTEGER, DEFAULT 0).
-- `completed_submissions` (INTEGER, DEFAULT 0).
-- `failed_submissions` (INTEGER, DEFAULT 0).
-
-#### 6. `students`
-Student demographic profiles and account claim state.
-- `id` (TEXT, PK): Unique student record ID (`stu_01j7...`).
-- `batch_id` (TEXT, FK $\to$ `batches.id` ON DELETE CASCADE).
-- `user_id` (TEXT, FK $\to$ `users.id` ON DELETE SET NULL): Linked auth user account.
-- `student_id_num` (TEXT, NOT NULL, UNIQUE): Official institutional roll/ID number.
-- `roll_number` (TEXT, NOT NULL): Exam desk roll identifier.
-- `full_name` (TEXT, NOT NULL): Full legal student name.
-- `email` (TEXT): Contact email.
-- `account_claimed` (INTEGER, DEFAULT 0): Whether student has activated login.
-
-#### 7. `exams`
-The central examination definition entity.
-- `id` (TEXT, PK): Exam identifier (`exam_01j7...`).
-- `institute_id` (TEXT, FK $\to$ `institutes.id`).
-- `branch_id` (TEXT, FK $\to$ `branches.id`).
-- `title` (TEXT, NOT NULL): Exam title (e.g., *"Midterm Physics 2026"*).
-- `subject` (TEXT, NOT NULL): Subject area.
-- `total_marks` (REAL, DEFAULT 0.0): Calculated sum of required question marks.
-- `question_paper_path` (TEXT): Canonical path to question paper PDF.
-- `answer_key_path` (TEXT): Canonical path to official answer key PDF.
-- `current_rubric_version_id` (TEXT): Pointer to active locked rubric.
-- `lifecycle_status` (TEXT, DEFAULT 'DRAFT'): `DRAFT`, `RUBRIC_APPROVED`, `EVALUATING`, `EVALUATED`, `PUBLISHED`.
-- `is_published` (INTEGER, DEFAULT 0): Visibility flag for student portal.
-- `published_at` (TEXT): Publication timestamp.
-
-#### 8. `exam_batches`
-Many-to-many relationship mapping examinations to assigned student cohort batches.
-- `exam_id` (TEXT, PK, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `batch_id` (TEXT, PK, FK $\to$ `batches.id` ON DELETE CASCADE).
-
-#### 9. `submission_windows`
-Timed submission windows with deadline and grace period.
-- `id` (TEXT, PK): Window ID (`win_01j7...`).
-- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `branch_id` (TEXT, FK $\to$ `branches.id`).
-- `window_number` (INTEGER, DEFAULT 1): Reopen sequence index.
-- `opened_at` (TEXT, NOT NULL): Window start timestamp.
-- `deadline_at` (TEXT, NOT NULL): Official submission deadline.
-- `grace_deadline_at` (TEXT, NOT NULL): Grace period expiration (+2 mins).
-- `status` (TEXT, DEFAULT 'OPEN'): `OPEN` or `CLOSED`.
-- `reopen_reason` (TEXT): Justification if window was reopened.
-- `reopen_scope` (TEXT, DEFAULT 'UNSUBMITTED_ONLY').
-
-#### 10. `rubric_versions`
-Historical revisions of grading rubrics with approval locking.
-- `id` (TEXT, PK): Rubric version ID (`rub_01j7...`).
-- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `version_num` (INTEGER, NOT NULL): Sequential version index.
-- `is_approved` (INTEGER, DEFAULT 0): Immutable lock flag (1 = Approved).
-- `approved_by` (TEXT): User ID of Root Admin who signed off.
-- `approved_at` (TEXT): Approval timestamp.
-- `rubric_data` (TEXT, NOT NULL): JSON serialized `ExamRubricExtractionResult`.
-
-#### 11. `submissions`
-Individual student answer script records.
-- `id` (TEXT, PK): Submission identifier (`sub_01j7...`).
-- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `batch_id` (TEXT, FK $\to$ `batches.id`).
-- `student_id` (TEXT, FK $\to$ `students.id`).
-- `student_name` (TEXT, NOT NULL): Name extracted or provided.
-- `roll_number` (TEXT, NOT NULL): Student roll number.
-- `canonical_pdf_path` (TEXT, NOT NULL): Normalized multi-page PDF path.
-- `annotated_pdf_path` (TEXT): Vector PyMuPDF annotated PDF path.
-- `page_count` (INTEGER, DEFAULT 1): Number of evaluated pages.
-- `status` (TEXT, DEFAULT 'QUEUED'): `QUEUED`, `PROCESSING`, `COMPLETED`, `NEEDS_REVIEW`, `FAILED`.
-- `total_awarded_marks` (REAL, DEFAULT 0.0): Recalculated total score.
-- `max_marks` (REAL, DEFAULT 0.0): Maximum obtainable marks.
-- `percentage` (REAL, DEFAULT 0.0): Percentage score $[0.0, 100.0]$.
-- `is_manual_override` (INTEGER, DEFAULT 0): Teacher modification flag.
-- `retry_count` (INTEGER, DEFAULT 0): Worker retry attempts.
-- `ttl_days` (INTEGER, DEFAULT 15): Document retention lifecycle duration.
-- `graded_at` (TEXT): Timestamp when AI evaluation completed (starts 15-day TTL).
-- `retention_expires_at` (TEXT): Purge timestamp ($t_{\text{graded}} + 15\text{d}$).
-- `is_document_purged` (INTEGER, DEFAULT 0): Purge status flag.
-
-#### 12. `answers`
-Evaluated answers mapped to questions.
-- `id` (TEXT, PK): Answer identifier (`ans_01j7...`).
-- `submission_id` (TEXT, FK $\to$ `submissions.id` ON DELETE CASCADE).
-- `question_id` (TEXT, NOT NULL): Question number/code (e.g., `"Q1"`).
-- `subquestion_id` (TEXT): Sub-part identifier (e.g., `"Q1.a"`).
-- `section_id` (TEXT): Section identifier (e.g., `"Section B"`).
-- `is_extra_attempt` (INTEGER, DEFAULT 0): Best-of-N exclusion flag.
-- `page_number` (INTEGER, NOT NULL): Primary page where work appears.
-- `extracted_text` (TEXT, NOT NULL): Transcribed student handwriting.
-- `max_marks` (REAL, NOT NULL): Maximum marks for this question.
-- `awarded_marks` (REAL, NOT NULL): Clamped awarded marks.
-- `grading_rationale` (TEXT, NOT NULL): Pedagogical justification.
-- `needs_review` (INTEGER, DEFAULT 0): Low-confidence human review flag.
-- `is_manual_override` (INTEGER, DEFAULT 0): Teacher edit indicator.
-
-#### 13. `answer_regions`
-Normalized spatial bounding boxes for visual localization.
-- `id` (TEXT, PK): Region identifier (`reg_01j7...`).
-- `answer_id` (TEXT, FK $\to$ `answers.id` ON DELETE CASCADE).
-- `page_number` (INTEGER, NOT NULL): 1-indexed page index.
-- `x` (REAL, NOT NULL): Left coordinate $\in [0.0, 1.0]$.
-- `y` (REAL, NOT NULL): Top coordinate $\in [0.0, 1.0]$.
-- `width` (REAL, NOT NULL): Box width $\in [0.0, 1.0]$.
-- `height` (REAL, NOT NULL): Box height $\in [0.0, 1.0]$.
-- `is_manual_override` (INTEGER, DEFAULT 0): Flag if box was dragged by teacher.
-
-#### 14. `criterion_scores`
-Atomic sub-criteria breakdowns for each evaluated question.
-- `id` (TEXT, PK): Criterion score ID (`crit_01j7...`).
-- `answer_id` (TEXT, FK $\to$ `answers.id` ON DELETE CASCADE).
-- `criterion_id` (TEXT, NOT NULL): Rubric criterion key.
-- `description` (TEXT, NOT NULL): Criterion description.
-- `max_marks` (REAL, NOT NULL): Criterion point value.
-- `awarded_marks` (REAL, NOT NULL): Awarded points $\in [0, \text{max}]$.
-- `evidence` (TEXT, NOT NULL): Verbatim textual quote from student work.
-- `is_manual_override` (INTEGER, DEFAULT 0).
-
-#### 15. `evaluation_queue`
-FIFO queue supporting atomic row-level claiming for background workers.
-- `id` (TEXT, PK): Queue item ID (`q_01j7...`).
-- `submission_id` (TEXT, FK $\to$ `submissions.id` ON DELETE CASCADE).
-- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `priority` (INTEGER, DEFAULT 100): Lower number = higher priority.
-- `status` (TEXT, DEFAULT 'QUEUED'): `QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`.
-- `attempt_count` (INTEGER, DEFAULT 0).
-- `claimed_by_worker` (TEXT): Worker thread identifier.
-- `claimed_at` (TEXT): Claim lease timestamp.
-
-#### 16. `revaluation_requests`
-Formal student grade disputes.
-- `id` (TEXT, PK): Revaluation ID (`rev_01j7...`).
-- `submission_id` (TEXT, FK $\to$ `submissions.id` ON DELETE CASCADE).
-- `student_id` (TEXT, FK $\to$ `students.id` ON DELETE CASCADE).
-- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `status` (TEXT, DEFAULT 'SUBMITTED'): `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`.
-- `question_ids_json` (TEXT, NOT NULL): Array of disputed question IDs.
-- `student_reason` (TEXT, NOT NULL): Student rationale.
-- `reviewer_notes` (TEXT): Evaluator comments.
-- `expires_at` (TEXT, NOT NULL): Statutory 7-day expiration timestamp.
-
-#### 17. `notifications`
-In-app user notifications.
-- `id` (TEXT, PK): Notification ID (`notif_01j7...`).
-- `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
-- `type` (TEXT, NOT NULL): Notification category.
-- `title` (TEXT, NOT NULL): Notification heading.
-- `message` (TEXT, NOT NULL): Notification body.
-- `link_url` (TEXT): Navigation route.
-- `is_read` (INTEGER, DEFAULT 0): Read receipt flag.
-
-#### 18. `push_subscriptions`
-VAPID Web Push client device subscriptions.
-- `id` (TEXT, PK): Subscription ID (`psub_01j7...`).
-- `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
-- `endpoint` (TEXT, NOT NULL, UNIQUE): Browser push gateway URL.
-- `p256dh` (TEXT, NOT NULL): Client public cryptographic key.
-- `auth` (TEXT, NOT NULL): Shared auth secret.
-- `user_agent` (TEXT): Device metadata.
-
-#### 19. `password_reset_requests`
-Two-tier password reset approval workflow for students.
-- `id` (TEXT, PK): Request ID (`pwd_01j7...`).
-- `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
-- `student_id` (TEXT, FK $\to$ `students.id`).
-- `branch_id` (TEXT, FK $\to`branches.id`).
-- `status` (TEXT, DEFAULT 'PENDING'): `PENDING`, `APPROVED`, `COMPLETED`, `EXPIRED`.
-- `reset_token` (TEXT): Cryptographic reset token.
-- `approved_by` (TEXT): Branch manager who authorized reset.
-
-#### 20. `technical_reports`
-In-app bug and technical issue ticket management.
-- `id` (TEXT, PK): Report ID (`rep_01j7...`).
-- `user_id` (TEXT, FK $\to$ `users.id` ON DELETE CASCADE).
-- `category` (TEXT, NOT NULL): `BUG`, `UI_ISSUE`, `ACCURACY`, `OTHER`.
-- `subject` (TEXT, NOT NULL): Ticket title.
-- `description` (TEXT, NOT NULL): Issue details (max 1,000 chars).
-- `screenshots_json` (TEXT, DEFAULT '[]'): Array of Cloudinary/storage URLs.
-- `status` (TEXT, DEFAULT 'OPEN'): `OPEN`, `IN_PROGRESS`, `RESOLVED`.
-- `admin_notes` (TEXT): Root Admin resolution notes.
-
-#### 21. `audit_logs`
-Immutable compliance audit trail for all human teacher adjustments.
-- `id` (TEXT, PK): Log entry ID (`aud_01j7...`).
-- `user_id` (TEXT): Actor who initiated action.
-- `submission_id` (TEXT): Target submission.
-- `answer_id` (TEXT): Target answer.
-- `field_name` (TEXT): Modified field (e.g., `"awarded_marks"`).
-- `old_value` (TEXT): Pre-edit value.
-- `new_value` (TEXT): Post-edit value.
-- `reason` (TEXT): Mandatory teacher explanation.
-- `action` (TEXT, DEFAULT 'MANUAL_EDIT').
-- `created_at` (TEXT, NOT NULL): Immutable timestamp.
-
-#### 22. `api_usage_events`
-Detailed telemetry for every Google Gemini API call.
-- `id` (TEXT, PK): Event ID (`evt_01j7...`).
-- `timestamp` (TEXT, NOT NULL): Request start timestamp.
-- `exam_id` (TEXT): Associated exam.
-- `submission_id` (TEXT): Evaluated submission.
-- `request_purpose` (TEXT, NOT NULL): `"RUBRIC_EXTRACTION"` or `"STUDENT_GRADING"`.
-- `model_name` (TEXT, NOT NULL): Model ID (e.g., `"gemini-3.8-flash"`).
-- `input_tokens` (INTEGER): Prompt tokens.
-- `output_tokens` (INTEGER): Response tokens.
-- `thinking_tokens` (INTEGER): Reasoning tokens.
-- `cached_tokens` (INTEGER): Context cache tokens.
-- `duration_ms` (INTEGER, NOT NULL): Inference round-trip latency.
-- `success` (INTEGER, NOT NULL): 1 = Success, 0 = Failed.
-- `http_status` (INTEGER): HTTP status code (200, 429, 500).
-
-#### 23. `user_quota_settings`
-Custom user/admin Google AI Studio rate-limit allocations and custom quotas.
-- `user_id` (TEXT, PK, FK $\to$ `users.id` ON DELETE CASCADE).
-- `custom_rpm` (INTEGER): Custom requests per minute limit.
-- `custom_tpm` (INTEGER): Custom tokens per minute limit.
-- `custom_rpd` (INTEGER): Custom requests per day limit.
-- `updated_at` (TEXT, NOT NULL): Last quota update timestamp.
-
-#### 24. `experiment_benchmarks`
-In-app benchmarking records evaluating accuracy, latency, and token consumption across model versions.
-- `id` (TEXT, PK): Benchmark identifier (`bmk_01j7...`).
-- `exam_id` (TEXT, FK $\to$ `exams.id` ON DELETE CASCADE).
-- `model_name` (TEXT, NOT NULL): Evaluated model (e.g., `"gemini-3.8-flash"`).
-- `paper_count` (INTEGER, NOT NULL): Number of test papers graded.
-- `avg_duration_sec` (REAL, NOT NULL): Average latency per paper.
-- `total_cost` (REAL, NOT NULL): Paid-equivalent API cost in USD.
-- `accuracy_score` (REAL): Benchmark score against ground-truth rubrics.
-- `created_at` (TEXT, NOT NULL): Benchmark execution timestamp.
+### 5.4 Client-Side Question Crop Rendering (`ClippedAnswerCrop.tsx`)
+Rather than slicing answer bounding boxes on the server with PyMuPDF, saving PNG crops to disk, and uploading thousands of crop files to Cloudinary (which caused the Nov 15 OOM crash):
+- **Pattern B Execution:** Zero crop files are generated on the server.
+- **Client Canvas Blit:** For any evaluated question with normalized bounding box $\{x, y, w, h\} \in [0.0, 1.0]$:
+  ```typescript
+  const s_x = Math.floor(x * pageCanvas.width);
+  const s_y = Math.floor(y * pageCanvas.height);
+  const s_w = Math.floor(w * pageCanvas.width);
+  const s_h = Math.floor(h * pageCanvas.height);
+  destCanvas.width = s_w;
+  destCanvas.height = s_h;
+  ctx.drawImage(pageCanvas, s_x, s_y, s_w, s_h, 0, 0, s_w, s_h);
+  ```
+- **Performance:** **0 ms network latency**, 0 bytes cloud storage, 0 server CPU.
+- **CSS Clipping Fallback:** If canvas extraction is unsupported, the component renders the parent page inside an overflow-hidden container with negative CSS margins, letting the browser GPU clip to the exact bounding box.
 
 ---
 
-### 5.5 Master Entity-Relationship (ER) Diagram
+## 6. Sub-Millisecond ETag 304 Fast-Path & Realtime Architecture
+
+### 6.1 The Polling Load Challenge & Connection Starvation
+During live exams, 300+ students on the portal poll for window status updates every 20 seconds. In standard architectures, 900 queries per minute executing multi-table joins quickly exhaust database connection pools.
+
+### 6.2 `PortalStateEpochManager` RAM Version Vectors & Weak ETags
+In `backend/app/services/portal_cache.py`, the backend maintains thread-safe in-memory version vectors:
+- `_global_epoch`: Incremented on system-wide updates.
+- `_branch_epochs: Dict[str, int]`: Incremented whenever an exam is created, published, or a window opens/closes in a specific branch.
+- `_user_epochs: Dict[str, int]`: Incremented when an individual student submits or appeals.
+- **Weak ETag Format:**
+  $$\text{ETag} = W/"\{global\}-\{branch\}-\{user\}"$$
+
+### 6.3 Sub-0.2ms Conditional Evaluation Flow
+1. Client polls `GET /api/v1/student/portal-state` with `If-None-Match: W/"..."`.
+2. In `backend/app/routers/students.py`:
+   ```python
+   current_etag = PortalStateEpochManager.get_etag(branch_id=branch_id, user_id=user_id)
+   if if_none_match and if_none_match.strip() == current_etag:
+       return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+   ```
+3. **Performance:** Returns HTTP 304 in **$< 0.2\text{ ms}$** without querying the database or checking out a connection pool slot.
+4. **Client Zero-Parse Return:** When receiving HTTP 304, `frontend/src/lib/api.ts` immediately returns its in-memory cached state object, bypassing JSON parsing and redundant React re-renders.
+
+### 6.4 Supabase Realtime Logical Replication WebSockets
+For instantaneous alert delivery without polling latency:
+- In `supabase_schema.sql`, the `notifications` table is registered in the Supabase logical replication publication:
+  ```sql
+  ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+  ALTER TABLE notifications REPLICA IDENTITY FULL;
+  ```
+- The frontend client (`NotificationContext.tsx`) establishes a persistent WebSocket connection to `@supabase/supabase-js`, listening on channel `notifs_{userId}`.
+- Alerts (window openings, grade releases) arrive over WebSockets in **$< 50\text{ ms}$**.
+
+### 6.5 Page Visibility Adaptive Polling & W3C WebPush Integration
+- **Adaptive Heartbeat:** When the WebSocket is active, HTTP polling interval relaxes to a 60-second gentle heartbeat. If the WebSocket drops, it adapts to 30 seconds.
+- **Page Visibility API:** If the user minimizes the browser tab or locks their phone screen (`document.visibilityState === 'hidden'`), polling pauses completely, reducing background server requests by ~84%.
+- **W3C Web Push (Closed-App Alerts):** Dispatches VAPID-encrypted push packets via `pywebpush` directly to Google FCM, Apple APNs, or Mozilla gateways, waking mobile PWA devices even when the browser is completely closed.
+
+---
+
+## 7. Autonomous Persistent Background Worker Engine
+
+### 7.1 Multi-Threaded Daemon Architecture (`PersistentQueueWorker`)
+The grading engine operates as an autonomous daemon pool in `backend/app/worker/queue_worker.py`:
+- Spawns $N$ worker daemon threads (`MAX_EVALUATION_WORKERS`, default 1 on Render 512MB, up to 4–6 on 2GB+ VPS).
+- Runs in an infinite execution loop, continuously querying `evaluation_queue` for jobs with `status = 'QUEUED'`.
+- Enforces the **Two-Phase Time-Decoupled Rule**: worker threads sleep during daytime hours (< 8:00 PM IST) and activate automatically at 8:00 PM IST for overnight batch grading.
+
+### 7.2 Atomic Row Locking via PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`
+To prevent race conditions where multiple worker threads claim the same student paper:
+```sql
+SELECT id, submission_id, exam_id 
+FROM evaluation_queue 
+WHERE status = 'QUEUED' 
+ORDER BY priority ASC, created_at ASC 
+LIMIT 1 
+FOR UPDATE SKIP LOCKED;
+```
+Concurrent worker threads immediately skip rows locked by sibling workers, guaranteeing zero lock contention and strict FIFO order.
+
+### 7.3 The 60-Second Watchdog Thread (Stale Job Auto-Recovery)
+If a container restarts, crashes, or deploys while an evaluation is in progress:
+- A dedicated daemon watchdog thread wakes every 60 seconds.
+- Scans for jobs stuck in `PROCESSING` whose `updated_at` timestamp is older than 5 minutes:
+  ```sql
+  SELECT submission_id FROM evaluation_queue 
+  WHERE status = 'PROCESSING' AND updated_at < NOW() - INTERVAL '5 minutes';
+  ```
+- Recovers stranded jobs back to `QUEUED`, increments `retry_count`, and logs an administrative alert.
+
+### 7.4 429 Quota Exhaustion Circuit Breaker & Exponential Backoff
+When Google Gemini returns HTTP 429 across all configured API keys:
+- The worker does **not** fail the job.
+- Resets submission status to `QUEUED` with `retry_count = 0`.
+- Enforces a mandatory **30-second cooldown period** before resuming polling, allowing remote API rate-limit windows to reset without burning retry allowances.
+
+### 7.5 Lifespan Management & Memory Bounds (Render vs. VPS Sizing)
+
+| Deployment Environment | RAM Allocation | CPU Allocation | Max Worker Threads | Concurrency Ceiling | Operational Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Render Free / Starter** | 512 MB | 0.1–0.5 vCPU | **1 Worker** | ~30 Concurrent Students | Base memory ~178MB. Single PyMuPDF rasterization adds ~120MB. Safe from OOM with 1 worker thread. |
+| **GigaNodes EPYC VPS** | 2,048 MB (2 GB) | 1.0 Dedicated EPYC | **4 Workers** | 100+ Concurrent Students | Ample RAM runway. 4 parallel workers grade ~60–80 papers/hour overnight. |
+| **Dedicated Node** | 4,096 MB (4 GB) | 2.0 Dedicated EPYC | **6 Workers** | 250+ Concurrent Students | Enterprise campus capacity. Simultaneous batch evaluation across multiple exams. |
+
+### 7.6 Asynchronous Background Notification & Audit Pruning
+- **Table Size Maintenance:** Whenever notifications are generated, an asynchronous background thread runs `prune_all_notifications(keep_limit=50)`.
+- Using SQL window functions, it deletes notifications older than the top 50 per user, preventing bloated auth tables.
+- Expired password reset tokens and 7-day soft-deleted institutes past recovery windows are swept and purged automatically.
+
+---
+
+## 8. The AI Engine & Google Gemini Multimodal Pipeline
+
+### 8.1 Zero-OCR Multimodal Vision Paradigm
+Traditional evaluation architectures run images through OCR engines (Tesseract, cloud vision APIs) and send extracted raw text to an LLM. This leads to severe errors: cursive handwriting is garbled, mathematical formulas ($x^2, \int, \frac{a}{b}$) lose formatting, diagrams are lost, and crossed-out work is treated as valid text.
+- **PaperGrade AI Paradigm:** The raw multi-page scanned PDF is passed directly to Google Gemini's multimodal vision encoder alongside the official Question Paper and Approved Rubric.
+- The model evaluates handwriting, crossed-out attempts, margin calculations, and circuit/geometry diagrams simultaneously with full visual context.
+
+### 8.2 The 100-Key Scanning Failover Ring & Active Pool Rotation
+Google AI Studio free and Tier-1 developer tiers enforce strict RPM and RPD limits. To ensure uninterrupted batch grading:
+- **100-Key Scanning:** At startup, `backend/app/gemini/client.py` scans environment variables for up to 100 API keys:
+  `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, ..., `GEMINI_API_KEY_100`, plus comma-separated `GEMINI_API_KEYS`.
+- **5-Key Active Pool:** Populates an active pool of up to 5 concurrent keys.
+- **Pacing Delay:** Enforces a minimum **4.12-second inter-request delay** between calls on the same key to respect per-minute quotas.
+- **Two-Tier Cooldown Tracking:**
+  1. *Key-Model Cooldown (120 seconds):* If Key A hits 429 on `gemini-3.8-flash`, it enters a 120s cooldown for that specific model while remaining eligible for fallback models.
+  2. *Global Model Cooldown (180 seconds):* If all active keys hit 429 on a model, that model enters a 180s global backoff.
+- **GCP Paid Service Account Cascade:** If configured, enterprise service account credentials (`GOOGLE_APPLICATION_CREDENTIALS`) act as the final failover tier.
+
+### 8.3 3-Tier Full-Flash Model Cascade (3.8 $\to$ 3.6 $\to$ 3.5)
+If the primary model exhausts quota across all keys, evaluation cascades down a strict 3-tier full-Flash hierarchy:
+$$\text{gemini-3.8-flash (Primary)} \longrightarrow \text{gemini-3.6-flash (Tier 1 Fallback)} \longrightarrow \text{gemini-3.5-flash (Tier 2 Fallback)}$$
+
+- **Strict Exclusion of Lite/1.5 Models for Primary Grading:** Lightweight models (`gemini-3.5-flash-lite`, `gemini-1.5-flash`) are **strictly prohibited** from full paper evaluation. Empirical tests proved they suffer from hallucinated arithmetic, missed cursive derivations, and 8,192 token truncation.
+- **Targeted Single-Answer Re-eval:** For isolated question re-evaluations (`POST /api/grading/answers/{sub_id}/{ans_id}/reevaluate`), where the payload is small, the client uses `gemini-3.5-flash-lite` (falling back to `gemini-3.5-flash`) with `max_output_tokens = 8192`.
+
+### 8.4 The 65,536 Output Token Ceiling & Thinking Budget Allocation
+- **Thinking Budget:** Configured with `thinking_budget = 2048` tokens (`GEMINI_THINKING_BUDGET`), providing sufficient reasoning capacity for multi-step physics and mathematics derivations without exhausting token windows.
+- **The 65,536 Token Ceiling:** Full-paper multimodal evaluations evaluating 15–20 questions across 8–10 pages require 9,000 to 14,000 output tokens. Standard 8,192 token ceilings cause silent mid-JSON truncation. The grading engine enforces `max_output_tokens = 65536` with `temperature = 0.0`.
+
+### 8.5 The Self-Healing JSON Stream Buffer (`_repair_truncated_json`)
+If a network interruption truncates a JSON response stream, the client repairs it before Pydantic parsing:
+```python
+def _repair_truncated_json(json_str: str) -> str:
+    # Tracks quotation marks, ignores escaped quotes, auto-closes unclosed brackets and braces
+```
+This self-healing buffer prevents discarding already-evaluated questions if a network drop clips trailing closing braces.
+
+### 8.6 Anti-Parametric Invariant & Prompt Engineering Standards
+In `backend/app/gemini/prompts.py`:
+- **Anti-Parametric Rule:** The AI is strictly forbidden from completing equations, balancing chemical reactions, or quoting literature from its pre-trained parametric memory. Every mark awarded must be explicitly grounded in the student's physical handwriting.
+- **Diagram Serialization:** Diagrams are transcribed into structured semantic tags:
+  `[DIAGRAM: TITLE | SKETCH_QUALITY | COMPONENTS_DRAWN | LABELS_PRESENT]`
+- **Cursive Disambiguation:** Ambiguous characters (e.g. $v$ vs. $\nu$, $u$ vs. $\mu$, $5$ vs. $S$) are resolved using surrounding dimensional analysis and context.
+
+### 8.7 Deterministic Evidence Kill-Switch & Discrete 0.5-Mark Allocation Rule
+- **Deterministic Evidence Kill-Switch:** If the model outputs an ungrounded evidence quote or prefixes an evaluation with `FAIL:`, the backend invariants engine automatically overrides awarded marks to **0.0**, regardless of LLM rationale.
+- **Discrete 0.5-Mark Step Rule:** Criteria marks must strictly follow clean 0.5 increments:
+  $$\text{Criterion Marks} \in \{0.5, \; 1.0, \; 1.5, \; 2.0, \; 2.5, \; \dots\}$$
+  Arbitrary decimals ($0.33, 0.75$) are prohibited.
+- **MCQ Single-Criterion Rule:** Multiple Choice Questions evaluate exactly ONE criterion worth full marks: *"Correct option selection"*. Intermediate solving steps are never graded for MCQs, protecting students who solve mentally.
+
+---
+
+## 9. Deterministic Grading & Invariants Engine
+
+### 9.1 Score Clamping & Bottom-Up Criterion Summation
+Large language models must never be trusted to calculate arithmetic totals. The [`GradingService`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/grading_service.py) enforces absolute mathematical determinism:
+1. Every individual criterion score is clamped:
+   $$\text{awarded\_crit}_i = \max(0.0, \; \min(\text{crit}_i.\text{awarded}, \; \text{crit}_i.\text{max}))$$
+2. The question score is summed bottom-up from validated criteria:
+   $$\text{raw\_question\_score} = \sum_{i=1}^{M} \text{awarded\_crit}_i$$
+3. The question score is clamped against question maximum marks:
+   $$\text{final\_question\_score} = \min(\text{raw\_question\_score}, \; \text{question}.\text{max\_marks})$$
+4. The exam total is computed strictly by summing validated, non-extra question scores.
+
+### 9.2 The "Best-of-N" Section Option Limit Algorithm
+When exams offer optional questions (e.g. *"Section B: Attempt any 4 out of 6 questions"*):
+
+```mermaid
+flowchart TD
+    Start(["Section B: Attempt Any 4 of 6 Questions"]) --> GradeAll["Evaluate All 6 Attempted Questions"]
+    GradeAll --> SortDesc["Sort Answers Descending by Score: score DESC, confidence DESC"]
+    SortDesc --> SplitTop{"Rank &le; 4?"}
+    SplitTop -->|"Yes (Top 4 Scores)"| KeepValid["Set is_extra_attempt = 0<br/>Count toward Total Exam Marks"]
+    SplitTop -->|"No (Excess 2 Lower Scores)"| FlagExtra["Set is_extra_attempt = 1<br/>Exclude from Total Exam Marks<br/>Tag: 'Optional choice: Best-of-N selected top score'"]
+    KeepValid --> SumTotals["Deterministically Recompute Exam Total"]
+    FlagExtra --> SumTotals
+```
+
+1. All attempted questions in the section are graded independently.
+2. Answers are sorted descending by awarded score, then by grading confidence.
+3. The top $K$ questions ($K = \text{section.attempt\_limit}$) are flagged `is_extra_attempt = 0` and included in the total.
+4. Excess lower-scoring attempts are flagged `is_extra_attempt = 1` and excluded from the total, with explanatory notes displayed on the student report card.
+
+### 9.3 PyMuPDF Vector Annotation Overlay Engine
+Rather than rasterizing PDF pages into images and drawing pixels (which balloons file sizes and blurs text), PaperGrade AI applies native **vector annotations**:
+- Coordinates $[0, 1]$ are scaled to PDF 72 DPI point dimensions:
+  $$\text{rect} = \text{fitz.Rect}(x \cdot W, \; y \cdot H, \; (x + w) \cdot W, \; (y + h) \cdot H)$$
+- Vector bounding rectangles are drawn with semantic color coding:
+  - 🟢 **Full Marks:** Emerald (`#10B981`)
+  - 🟡 **Partial Marks:** Amber (`#F59E0B`)
+  - 🔴 **Zero Marks:** Rose (`#EF4444`)
+  - 🟣 **Needs Review:** Violet (`#8B5CF6`)
+- Vector score badges (e.g. `[Q3: 4.5/5.0]`) and verification stamps are injected directly into the PDF vector layer.
+
+### 9.4 Immutable Teacher Audit Trail Engine
+Whenever a teacher modifies marks or adjusts bounding box coordinates:
+- The backend writes an immutable entry into `audit_logs` recording:
+  $$\{\text{user\_id}, \; \text{submission\_id}, \; \text{question\_id}, \; \text{old\_value}, \; \text{new\_value}, \; \text{reason}, \; \text{timestamp}\}$$
+- Sets `submissions.is_manual_override = 1`.
+- Total marks and percentages are recomputed deterministically.
+
+### 9.5 7-Day Revaluation Dispute Lifecycle (100% Zero-AI Human Resolution)
+- **7-Day Window:** Students can file revaluation disputes on specific questions within 7 calendar days of results publication (`now <= published_at + 7 days`).
+- **100% Zero-AI Human Resolution:** Revaluation appeals are resolved exclusively by human teachers and branch managers. AI models are strictly prohibited from resolving student disputes, ensuring pedagogical fairness and accountability.
+
+---
+
+## 10. Unified Hybrid Storage Tier & 15-Day TTL Lifecycle
+
+### 10.1 Storage Abstraction Hierarchy (`storage.py`)
+Exposes an abstract interface `StorageService` with runtime implementations:
+- **`LocalStorageService`:** Saves assets to `backend/data/` for local development and offline environments.
+- **`CloudinaryStorageService`:** Production CDN for direct HMAC signed uploads, asset storage, and pre-signed download streaming.
+- **`CloudflareR2StorageService`:** High-throughput S3-compatible object storage via Cloudflare R2 credentials.
+
+### 10.2 15-Day Retention Policy (TTL) Architecture & FERPA/GDPR Compliance
+To comply with student privacy policies (FERPA/GDPR) and keep cloud storage expenditure near zero:
+- **Retention Clock:** `retention_expires_at = graded_at + 15 days`. Unassessed submissions in queue do not decay.
+- **Purge Scope:** After 15 days post-grading, raw scanned PDFs, canonical PDFs, and vector-annotated PDFs are unlinked from disk and permanently destroyed in Cloudinary / R2 via Admin APIs.
+- **Database Space Recovery:** Bounding box coordinates in `answer_regions` are deleted.
+- **Tombstone Flag:** `submissions.is_document_purged` is set to `1`, and path columns are nulled.
+
+### 10.3 Scheduled Storage Purge Daemon Mechanics
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Daemon as Scheduled Purge Daemon
+    participant API as POST /api/v1/submissions/purge-expired
+    participant DB as Supabase PostgreSQL (:6543)
+    participant CDN as Cloudinary / Cloudflare R2
+    participant Disk as Local SSD Buffer
+
+    Daemon->>API: Trigger Expired Purge Sweep
+    API->>DB: SELECT id, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE retention_expires_at <= NOW() AND is_document_purged = 0
+    DB-->>API: Return Expired Submissions List
+    loop For Each Expired Submission
+        API->>Disk: os.remove(cached_pdf)
+        API->>CDN: uploader.destroy(public_id, resource_type='raw')
+        API->>DB: DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = sub.id)
+        API->>DB: UPDATE submissions SET is_document_purged = 1, canonical_pdf_path = NULL, annotated_pdf_path = NULL WHERE id = sub.id
+    end
+    API-->>Daemon: Return Purge Summary (Purged Submissions, Reclaimed Bytes)
+```
+
+### 10.4 Permanent Academic Grade & Longitudinal BI Archiving
+Document purge does **not** equal data loss. Numerical scores, criteria breakdowns, and audit trails remain permanently archived:
+
+| Data Entity | Storage Tier | Retention Lifespan | Academic & BI Purpose |
+| :--- | :--- | :--- | :--- |
+| **Raw Scanned PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Temporary grading evidence & student review. |
+| **Annotated Graded PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Downloadable vector report card during verification window. |
+| **Numerical Marks & Totals** | PostgreSQL (`submissions`) | **Permanent ($\infty$)** | Official student academic records, GPA calculation, transcripts. |
+| **Question-by-Question Breakdown**| PostgreSQL (`answers`) | **Permanent ($\infty$)** | Item difficulty analysis, curriculum defect identification. |
+| **Criteria Breakdown & Rubrics** | PostgreSQL (`criterion_scores`)| **Permanent ($\infty$)** | Pedagogical scoring distribution, rubric fairness auditing. |
+| **Teacher Override Trail** | PostgreSQL (`audit_logs`) | **Permanent ($\infty$)** | Immutable accountability audit logs for institutional compliance. |
+| **LLM Inference Telemetry** | PostgreSQL (`api_usage_events`)| **Permanent ($\infty$)** | Historical cost tracking, latency percentiles, quota planning. |
+
+---
+
+## 11. Database Architecture & Schema Specification
+
+### 11.1 Supabase PostgreSQL 15 & PgBouncer Transaction Mode (`:6543`)
+PaperGrade AI runs on Supabase PostgreSQL 15 accessed via PgBouncer / Supavisor connection pooling in **Transaction Mode (:6543)**:
+- **Port Rewriting:** Connection strings pointing to port `:5432` are automatically rewritten to `:6543` in `config.py` and `session.py`.
+- **Transaction Mode Rationale:** Physical database connections are held only for the microsecond duration of an active transaction, preventing connection pool exhaustion during concurrent student traffic bursts.
+
+### 11.2 SQLAlchemy 2.0 ORM Configuration & Health Verification
+In `backend/app/db/session.py`:
+```python
+engine_kwargs = {
+    "pool_pre_ping": True,         # Heartbeat query before checkout prevents stale connection errors
+    "pool_recycle": 300,          # Recycles connections every 5 minutes to prevent remote drops
+    "pool_size": 15,              # Base steady-state connection pool
+    "max_overflow": 25,           # Burst capacity up to 40 concurrent checked-out connections
+    "pool_reset_on_return": "rollback",  # Guarantees no connections linger in idle in transaction
+}
+```
+
+### 11.3 Atomic Sequence Roll Number Generation (`C25-BVI-001`)
+Roll numbers follow an immutable institutional format:
+$$\text{Roll Number} = \{\text{INSTITUTE\_CODE}\}-\{\text{BRANCH\_CODE}\}-\{\text{SEQUENCE:03d}\}$$
+- **Row-Lock Allocation:** In `backend/app/routers/tenancy.py`, sequences are allocated using PostgreSQL row locks (`SELECT ... FOR UPDATE` on `branches`).
+- **Batch Code Deprecation:** The redundant manual `code` column was removed from `batches` via migration, eliminating human entry errors.
+
+### 11.4 Complete Schema Inventory (24 Verified Database Tables)
 
 ```mermaid
 erDiagram
     institutes ||--o{ branches : "operates"
-    branches ||--o{ subjects : "offers"
-    branches ||--o{ users : "employs"
+    institutes ||--o{ subjects : "defines"
     branches ||--o{ batches : "manages"
+    branches ||--o{ users : "employs"
     batches ||--o{ students : "enrolls"
     users ||--o| students : "claims identity"
-    users ||--o| user_quota_settings : "configures"
     branches ||--o{ exams : "schedules"
-    exams ||--o{ exam_batches : "maps"
+    exams ||--o{ exam_batches : "scopes"
     batches ||--o{ exam_batches : "assigned"
+    exams ||--o{ submission_windows : "opens"
     exams ||--o{ rubric_versions : "revises"
-    exams ||--o{ submission_windows : "defines"
     exams ||--o{ submissions : "receives"
-    exams ||--o{ evaluation_queue : "enqueues"
-    exams ||--o{ experiment_benchmarks : "benchmarks"
     submissions ||--o{ answers : "contains"
     answers ||--o{ criterion_scores : "evaluates"
     answers ||--o{ answer_regions : "localizes"
-    submissions ||--o{ revaluation_requests : "contested by"
+    submissions ||--o{ evaluation_queue : "enqueues"
+    submissions ||--o{ revaluation_requests : "appeals"
     users ||--o{ notifications : "receives"
     users ||--o{ push_subscriptions : "registers"
     users ||--o{ password_reset_requests : "submits"
     users ||--o{ technical_reports : "files"
     users ||--o{ audit_logs : "records"
     exams ||--o{ api_usage_events : "tracks"
-    answers ||--o{ criterion_scores : "evaluates"
-    answers ||--o{ answer_regions : "localizes"
-    submissions ||--o{ revaluation_requests : "contested by"
-    users ||--o{ notifications : "receives"
-    users ||--o{ push_subscriptions : "registers"
-    users ||--o{ password_reset_requests : "submits"
-    users ||--o{ technical_reports : "files"
-    users ||--o{ audit_logs : "records"
-    exams ||--o{ api_usage_events : "tracks"
+    users ||--o| user_quota_settings : "configures"
+    exams ||--o{ experiment_benchmarks : "benchmarks"
 
     institutes {
         string id PK
         string name
         string code UK
+        json subjects
+        int is_deleted
     }
-
     branches {
         string id PK
         string institute_id FK
         string name
         string code
-        string city
+        int last_roll_sequence
     }
-
     users {
         string id PK
         string institute_id FK
@@ -893,33 +808,25 @@ erDiagram
         string role
         string password_hash
     }
-
+    students {
+        string id PK
+        string batch_id FK
+        string user_id FK
+        string student_id_num UK
+        string roll_number UK
+        int account_claimed
+    }
     exams {
         string id PK
+        string institute_id FK
         string branch_id FK
         string title
         string subject
         float total_marks
         string lifecycle_status
-        boolean is_published
+        int is_published
+        timestamp retention_expires_at
     }
-
-    submission_windows {
-        string id PK
-        string exam_id FK
-        string status
-        timestamp deadline_at
-        timestamp grace_deadline_at
-    }
-
-    rubric_versions {
-        string id PK
-        string exam_id FK
-        int version_num
-        boolean is_approved
-        json rubric_data
-    }
-
     submissions {
         string id PK
         string exam_id FK
@@ -927,29 +834,24 @@ erDiagram
         string roll_number
         string status
         float total_awarded_marks
+        int is_document_purged
         timestamp retention_expires_at
-        boolean is_document_purged
     }
-
     answers {
         string id PK
         string submission_id FK
         string question_id
         float awarded_marks
         float max_marks
-        string extracted_text
-        boolean needs_review
+        int is_extra_attempt
     }
-
     criterion_scores {
         string id PK
         string answer_id FK
         string criterion_id
         float awarded_marks
-        float max_marks
         string evidence
     }
-
     answer_regions {
         string id PK
         string answer_id FK
@@ -959,393 +861,120 @@ erDiagram
         float width
         float height
     }
-
-    evaluation_queue {
-        string id PK
-        string submission_id FK
-        string status
-        int attempt_count
-        timestamp claimed_at
-    }
 ```
 
----
+### 11.5 Performance Index Inventory & N+1 Query Elimination
 
-## 6. The AI Engine & Google Gemini Multimodal Pipeline
+#### Index Master Reference Table
 
-PaperGrade AI interfaces directly with Google's latest multimodal models using the official Google GenAI Python SDK (`google-genai`).
+| Index Identifier | Target Table | Target Columns | Optimized Query Pattern |
+| :--- | :--- | :--- | :--- |
+| `idx_notif_user_unread` | `notifications` | `user_id, is_read` | Realtime unread badge counts (`WHERE user_id = :u AND is_read = 0`) |
+| `idx_notif_user_created` | `notifications` | `user_id, created_at` | Notification drawer chronological sorting (`ORDER BY created_at DESC`) |
+| `idx_audit_resource` | `audit_logs` | `resource_type, resource_id` | Audit trail lookup on human grading overrides |
+| `idx_submissions_retention`| `submissions` | `is_document_purged, retention_expires_at` | Retention daemon scans for expired submissions |
+| `idx_exams_retention` | `exams` | `is_document_purged, retention_expires_at` | Retention daemon scans for expired exam papers |
+| `idx_queue_status` | `evaluation_queue` | `status` | Worker FIFO claim query (`WHERE status = 'QUEUED'`) |
+| `idx_submissions_exam` | `submissions` | `exam_id` | Marks Ledger batch retrieval (`WHERE exam_id = :e`) |
+| `idx_answers_sub` | `answers` | `submission_id` | Fetching all evaluated questions for a paper |
+| `idx_regions_ans` | `answer_regions` | `answer_id` | Fetching page coordinate bounding boxes |
+| `idx_students_roll_unique`| `students` | `roll_number` (UNIQUE) | Roll number lookup and claim verification |
+| `idx_students_batch` | `students` | `batch_id` | Roster queries within a specific batch |
+| `idx_pwd_reset_status` | `password_reset_requests` | `status` | Branch Manager pending reset requests |
+| `idx_pwd_reset_branch` | `password_reset_requests` | `branch_id` | Filtering resets by campus |
+| `idx_tech_rep_status` | `technical_reports` | `status` | Open bug reports dashboard |
 
-### 6.1 Multimodal Vision vs OCR Chaining Tradeoff
-Traditional architectures pass images through an OCR library, convert the output to text, and pass that text to an LLM. This causes severe information loss:
-- **Spatial Relationship Destruction**: Handwriting written adjacent to a diagram or formula is severed from its visual anchor.
-- **Math Symbol Corruption**: Square roots, summations, fraction bars, and exponents are frequently garbled into meaningless ASCII characters.
-- **Strikethrough Confusion**: Students cross out incorrect attempts. OCR transcribes both the crossed-out work and the real answer as valid text, confusing the grading prompt.
-- **Multimodal Advantage**: By passing the raw image/PDF directly to Gemini, the neural network evaluates the full visual context simultaneously—detecting crossed-out work, reading margin derivations, and understanding geometry/physics sketches.
-
-### 6.2 The Multi-Key Failover Ring
-Google AI Studio enforces Requests Per Minute (RPM) and Requests Per Day (RPD) ceilings on free and Tier-1 developer accounts. To provide continuous enterprise grading throughput, the [`GeminiGradingClient`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/client.py) implements a **Rotating Multi-Key Ring**:
-- API keys are supplied via environment variables: `GEMINI_API_KEY`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`, `GEMINI_API_KEY_4`.
-- On every outgoing call, keys rotate round-robin:
-  $$\text{key\_index} = (\text{key\_index} + 1) \pmod{N}$$
-- If an HTTP `429 RESOURCE_EXHAUSTED` error is encountered, the client immediately switches to the next key in the ring, applying jittered exponential backoff:
-  $$t_{\text{sleep}} = 1.5^{\text{attempt}} + \text{Uniform}(0.1, 0.5)$$
-
-### 6.3 3-Tier Full-Flash Model Cascade (3.8 -> 3.6 -> 3.5)
-If all configured keys exhaust their quota on the primary model, the client cascades gracefully down a 3-tier full-Flash hierarchy:
-$$\text{gemini-3.8-flash (Primary)} \longrightarrow \text{gemini-3.6-flash (Tier 1 Fallback)} \longrightarrow \text{gemini-3.5-flash (Tier 2 Fallback)}$$
-
-- **Strict Exclusion of Lite/1.5 Models for Answer Sheet Grading**: In earlier iterations, lightweight models (`gemini-3.5-flash-lite`, `gemini-1.5-flash`) were tested as fallbacks. However, forensic analysis revealed that lite models suffered severe cursive handwriting transcription errors, hallucinated mathematical signs, and enforced hard 8,192 token output ceilings. In [`backend/app/gemini/client.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/client.py#L61), all `-lite` and `1.5` models are strictly filtered out of the full grading cascade.
-- **Targeted Single-Answer Re-Evaluation**: For re-evaluating an isolated disputed question crop (`POST /api/grading/answers/{sub_id}/{ans_id}/reevaluate`), where the payload is small and focused, the client utilizes `GEMINI_REEVAL_MODEL = "gemini-3.5-flash-lite"` (with fallback to `gemini-3.5-flash`) with a compact `max_output_tokens = 8192`.
-
----
-
-### 6.4 The 8,192 vs 65,536 Output Token Ceiling Forensic Analysis
-During large-scale production testing on complex board examinations (e.g., 16 questions, ~50 criteria evaluated across 7–10 handwritten pages), evaluations repeatedly experienced a critical failure mode:
-1. **The 8,192 Token Barrier**: Standard LLM generation configs default `max_output_tokens=8192`.
-2. **Token Inflation Under Vision Reasoning**: When Gemini processes multiple high-resolution PDF pages with `thinking_budget=4096`, transcribes full student handwriting, quotes evidence for 50 criteria, and generates 4 floating-point coordinates for each bounding box, the required JSON response payload reaches **9,000 to 14,000 output tokens**.
-3. **The Silent Truncation Trap**: At token 8,192, Google's API terminates the output stream cleanly with `finish_reason='MAX_TOKENS'`. The stream ends abruptly mid-JSON (typically around question 12 or 13), causing Pydantic schema validation to fail with `ValidationError: EOF while parsing a value at line 742 column 15`.
-4. **The Resolution**: In [`backend/app/gemini/client.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/client.py#L694), the student grading configuration enforces:
-   ```python
-   config = types.GenerateContentConfig(
-       max_output_tokens=65536,
-       temperature=0.0,
-       response_mime_type="application/json",
-       response_schema=StudentGradingExtractionResult,
-       thinking_config=types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET),
-   )
-   ```
-   Expanding to 65,536 tokens provides ample runway for even the most extensive 20-page examination answer scripts, while `temperature=0.0` guarantees deterministic evaluation repeatability.
-
----
-
-### 6.5 The Self-Healing JSON Stream Buffer (`_repair_truncated_json`)
-In the event of an unavoidable network interruption or edge truncation, the client executes an automated structural repair algorithm before attempting schema deserialization:
+#### N+1 Query Elimination in Marks Ledger
+In `backend/app/routers/submissions.py` and `backend/app/routers/exams.py`, N+1 queries were replaced with batch array lookups:
 ```python
-def _repair_truncated_json(json_str: str) -> str:
-    """
-    Repairs structurally truncated JSON by tracking quotation states
-    and auto-closing open brackets and braces.
-    """
-    json_str = json_str.strip()
-    in_string = False
-    escape = False
-    stack = []
-    
-    for char in json_str:
-        if char == '"' and not escape:
-            in_string = not in_string
-        elif char == '\\' and in_string:
-            escape = not escape
-            continue
-        elif not in_string:
-            if char in '{[':
-                stack.append('}' if char == '{' else ']')
-            elif char in '}]':
-                if stack and stack[-1] == char:
-                    stack.pop()
-        escape = False
-
-    if in_string:
-        json_str += '"'
-    while stack:
-        json_str += stack.pop()
-    return json_str
+sub_ids = [s.id for s in submissions]
+if include_answers and sub_ids:
+    answers = db.scalars(
+        select(Answer).where(Answer.submission_id.in_(sub_ids)).order_by(Answer.question_id.asc())
+    ).all()
 ```
-This self-healing buffer prevents discarding already-evaluated questions if a network hiccup truncates the closing braces of a response.
+Reduces database round-trips from $N + 1$ queries down to **2 queries for $N$ submissions**.
 
 ---
 
-### 6.6 Prompt Engineering & Pedagogical Invariants
-In [`backend/app/gemini/prompts.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/prompts.py), rubric extraction and grading are governed by four strict pedagogical rules:
+## 12. Exhaustive Backend API Router Catalog
 
-#### 1. Requirement-First Rubric Decomposition
-Rubrics are generated by breaking each question down into atomic, objective components:
-- Formula definition & state assumptions
-- Numerical substitution & unit conversion
-- Step-by-step intermediate algebraic derivation
-- Diagram clarity, labels, and axes
-- Final numerical value with correct SI units
-
-#### 2. The Discrete 0.5-Mark Step Rule
-Criteria mark allocations must strictly follow **clean increments of 0.5**:
-$$\text{Criterion Marks} \in \{0.5, \; 1.0, \; 1.5, \; 2.0, \; 2.5, \; 3.0, \; \dots\}$$
-Arbitrary decimal values such as $0.25, 0.33, 0.75$ are explicitly prohibited by prompt rules. This ensures that a 3-mark question decomposes naturally into two 1.5-mark criteria or three 1.0-mark criteria, avoiding grading friction and rounding anomalies.
-
-#### 3. The MCQ Single-Criterion Invariant
-For Multiple Choice Questions (MCQs), intermediate solving steps or scratchpad derivations are **never graded**. Students frequently solve MCQs mentally or on rough scratch sheets not submitted with the paper.
-- The prompt enforces: *"For Multiple Choice Questions (MCQs), generate exactly ONE criterion worth full marks: 'Correct option selection'. Do NOT generate criteria for solving steps."*
-- This prevents the model from deducting marks when a student writes only *"Option (C)"* without intermediate algebra.
-
-#### 4. Normalized Bounding Box Coordinate Mapping ($[0, 1000] \to [0, 1]$)
-Gemini vision models perform spatial localization using an integer coordinate space $[0, 1000]$. The client automatically normalizes these into floating-point ratios $[0.0, 1.0]$:
-$$x = \frac{\text{box}[1]}{1000.0}, \quad y = \frac{\text{box}[0]}{1000.0}, \quad w = \frac{\text{box}[3] - \text{box}[1]}{1000.0}, \quad h = \frac{\text{box}[2] - \text{box}[0]}{1000.0}$$
-These normalized coordinates are resolution-independent and map directly to CSS percentage overlays in the browser and 72 DPI points in PyMuPDF.
-
----
-
-### 6.7 Telemetry Architecture & Post-Validation Logging
-Telemetry records are written to `api_usage_events`. To ensure operational metrics reflect reality:
-- Telemetry events log `success=True` **only after Pydantic schema validation succeeds**.
-- If Gemini returns HTTP 200 but the response payload fails Pydantic deserialization, the event is recorded with `success=False` and the specific validation error. This prevents false-positive "100% success" metrics in observability dashboards when papers are failing validation downstream.
-
----
-
-## 7. Autonomous Persistent Background Worker Engine
-
-Grading is executed by a multi-threaded daemon worker engine ([`backend/app/worker/queue_worker.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/worker/queue_worker.py)).
-
-### 7.1 Architecture & Multi-Threaded Daemon Pool
-- Upon backend startup (FastAPI lifespan), the `PersistentQueueWorker` spawns $N$ worker daemon threads (configurable via `MAX_EVALUATION_WORKERS`, default 3).
-- Daemon threads operate autonomously in an infinite execution loop, querying the database for jobs with `status = 'QUEUED'`.
-
-### 7.2 Atomic Row Locking & Roll-Number FIFO Claim Strategy
-To prevent race conditions where multiple workers grab the same student paper:
-1. Workers acquire a thread-level mutex lock before querying the queue.
-2. In PostgreSQL, the claim executes:
-   ```sql
-   SELECT id, submission_id FROM evaluation_queue
-   WHERE status = 'QUEUED'
-   ORDER BY priority ASC, created_at ASC
-   LIMIT 1
-   FOR UPDATE SKIP LOCKED;
-   ```
-3. In SQLite, the worker immediately updates the status to `PROCESSING` within an active transaction before releasing the claim lock:
-   ```sql
-   UPDATE evaluation_queue SET status = 'PROCESSING', claimed_at = ? WHERE id = ?;
-   UPDATE submissions SET status = 'PROCESSING' WHERE id = ?;
-   ```
-4. Papers are processed in **strict roll-number order** within each exam batch, ensuring that alphabetical/numerical rosters grade sequentially.
-
-### 7.3 The 5-Minute Watchdog Thread (Stale Job Rescue)
-If a backend container restarts, crashes, or is redeployed while a worker thread is evaluating a paper, the submission would remain stranded in `status = 'PROCESSING'` forever.
-- A dedicated daemon **Watchdog Thread** wakes up every 60 seconds.
-- The watchdog scans for jobs stuck in `PROCESSING` whose `updated_at` timestamp is older than 5 minutes:
-  ```sql
-  SELECT submission_id FROM evaluation_queue
-  WHERE status = 'PROCESSING' AND updated_at < datetime('now', '-5 minutes');
-  ```
-- Any stranded jobs are automatically recovered back to `QUEUED`, and their `retry_count` is incremented.
-
-### 7.4 429 Quota Exhaustion & Dynamic Backoff
-When Google AI Studio returns HTTP 429 across all keys:
-- The worker does **not** fail the job.
-- The submission status is reset to `QUEUED` with `retry_count = 0`.
-- The worker thread pauses for a **30-second cooldown period** before resuming polling. This allows the API quota window to reset without burning through retry allowances.
-
-### 7.5 Non-Quota Error Retry Circuit Breaker
-For non-quota errors (e.g., corrupt PDF stream, repeated Pydantic parsing failures):
-- The worker increments `retry_count`.
-- If `retry_count < 3`, the paper is requeued with exponential jittered delay.
-- If `retry_count >= 3`, the submission is marked `FAILED` with a descriptive `error_message`, and the worker immediately moves on to the next student in the queue. This prevents a single corrupt document from deadlocking the entire campus grading pipeline.
-
----
-
-## 8. Deterministic Grading & Invariants Engine
-
-The [`GradingService`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/grading_service.py) enforces absolute mathematical and pedagogical invariants.
-
-### 8.1 Philosophy: Trust, but Deterministically Verify
-Large language models are probabilistic text generators. They frequently make basic arithmetic errors when summing decimal values. **PaperGrade AI never uses the model's self-reported question or exam totals.**
-
-### 8.2 Score Clamping & Bottom-Up Criterion Summation
-Scores are computed deterministically from the bottom up:
-1. Every individual criterion mark is clamped strictly to its defined range:
-   $$\text{awarded\_crit}_i = \max(0.0, \; \min(\text{crit}_i.\text{awarded}, \; \text{crit}_i.\text{max}))$$
-2. The question score is computed by summing the validated criteria:
-   $$\text{raw\_question\_score} = \sum_{i=1}^{M} \text{awarded\_crit}_i$$
-3. The question score is clamped against the question's maximum allowed marks:
-   $$\text{final\_question\_score} = \min(\text{raw\_question\_score}, \; \text{question}.\text{max\_marks})$$
-
----
-
-### 8.3 The "Best-of-N" Section Option Limit Algorithm
-Many examinations provide optional choices (e.g., *"Section B: Attempt any 4 out of 6 questions, 5 marks each"*). If an ambitious student attempts all 6 questions, standard academic policy dictates evaluating all attempts but counting only the **highest-scoring questions** toward the total:
-
-```mermaid
-flowchart TD
-    Start(["Section B: Attempt Any 4 of 6"]) --> GradeAll["Evaluate All 6 Attempted Questions"]
-    GradeAll --> SortDesc["Sort Answers Descending by Score: score desc, confidence desc"]
-    
-    SortDesc --> SplitTop{"Index &le; 4?"}
-    SplitTop -->|"Yes (Top 4 Highest Scores)"| MarkValid["Set is_extra_attempt = 0<br/>Count toward Total Marks"]
-    SplitTop -->|"No (Excess 2 Lower Scores)"| MarkExtra["Set is_extra_attempt = 1<br/>Exclude from Total Marks<br/>Rationale: 'Optional choice: Best-of-N selected top score'"]
-    
-    MarkValid --> RecomputeExamTotal["Recompute Exam Total Score"]
-    MarkExtra --> RecomputeExamTotal
-```
-
-1. All questions in the section are graded independently.
-2. Questions are sorted descending: $\text{score} \downarrow$, then $\text{confidence} \downarrow$.
-3. The top $K$ questions (where $K = \text{section}.\text{attempt\_limit}$) are flagged `is_extra_attempt = 0` and included in the total.
-4. The remaining excess attempts are flagged `is_extra_attempt = 1` and excluded from the total, with an explanatory note displayed on the student's report card.
-
----
-
-### 8.4 Vector PDF Overlays via PyMuPDF (`fitz`)
-Rather than converting PDF pages into raster images, drawing on them, and re-encoding (which inflates file sizes by 10x and degrades text sharpness), PaperGrade AI uses **PyMuPDF vector annotations**:
-- Coordinates $[0, 1]$ are mapped to PDF point units ($1 \text{ point} = \frac{1}{72} \text{ inch}$):
-  $$\text{rect} = \text{fitz.Rect}(x \cdot W, \; y \cdot H, \; (x + w) \cdot W, \; (y + h) \cdot H)$$
-- Rectangles are drawn as native vector shapes with semantic color coding:
-  - 🟢 **Full Marks**: Green (`#10B981`)
-  - 🟡 **Partial Marks**: Amber (`#F59E0B`)
-  - 🔴 **Zero Marks**: Rose (`#EF4444`)
-  - 🟣 **Needs Review**: Violet (`#8B5CF6`)
-- Score badges (e.g., `[Q3: 4.5/5.0]`) and official verification stamps are injected into the vector layer without altering the underlying student handwriting.
-
-### 8.5 150 DPI Answer Region Extraction & Image Crop Pipeline
-To power the side-by-side inspection studio in the frontend:
-- For every identified answer region, PyMuPDF extracts a **150 DPI PNG crop** of the specific bounding box.
-- Crops are saved to `backend/data/page_renders/{submission_id}/crops/{question_id}_crop.png` or uploaded to Cloudinary.
-- In the frontend audit modal, teachers can inspect the exact snippet of handwriting without panning through a 10-page document.
-
-### 8.6 Immutable Teacher Audit Trail Engine
-Whenever a teacher adjusts marks or edits transcription text:
-- The backend writes an immutable entry into `audit_logs` capturing:
-  $$\{\text{user\_id}, \; \text{submission\_id}, \; \text{question\_id}, \; \text{old\_value}, \; \text{new\_value}, \; \text{reason}, \; \text{timestamp}\}$$
-- The submission's `is_manual_override` flag is set to `1`.
-- The exam total and percentage are recomputed deterministically.
-
----
-
-## 9. Unified Hybrid Storage Tier & 15-Day TTL Lifecycle
-
-The storage subsystem ([`backend/app/services/storage.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/storage.py)) provides a resilient hybrid storage tier.
-
-### 9.1 Storage Abstraction (`StorageService` Hierarchy)
-The storage subsystem exposes an abstract interface [`StorageService`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/storage.py#L9) with runtime implementations resolved via `get_storage_service()`:
-- **`LocalStorageService`**: Files uploaded or generated are stored locally under `backend/data/` for local development and offline environments.
-- **`CloudinaryStorageService`**: In production cloud deployments (Render/Vercel), assets are synced to Cloudinary under structured folders (`papergrade/submissions/{exam_id}/{roll_number}/`).
-- **`CloudflareR2StorageService`**: High-throughput S3-compatible object storage configured via `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
-
-### 9.2 Mobile Photo EXIF Normalization
-When mobile cameras capture answer sheets, EXIF orientation metadata often causes raw image bytes to display rotated $90^\circ$ or $180^\circ$.
-- [`PDFService._image_to_upright_pdf_bytes`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/pdf_service.py#L25) applies `PIL.ImageOps.exif_transpose` to physically rotate pixel arrays upright before conversion to PDF.
-- Multiple images uploaded by a student are seamlessly merged into a single upright canonical PDF.
-
-### 9.3 15-Day Retention Policy (TTL) Architecture
-To comply with student privacy policies (FERPA/GDPR) and keep cloud storage costs near zero:
-- Submissions are stamped with `retention_expires_at = graded_at + 15 days` (the retention clock starts strictly when grading completes; un-evaluated submissions waiting in queue do not decay).
-- The scheduled retention purge engine (`POST /api/v1/submissions/purge-expired`) scans for expired submissions where `is_document_purged = 0`.
-- The engine unlinks the raw scanned PDF and annotated PDF from disk and deletes them from Cloudinary / R2 via Admin API credentials.
-- Rendered page images, crop previews, and bounding box coordinates (`answer_regions`) are deleted to conserve disk and database space.
-- `is_document_purged` is set to `1`, and path columns are nulled.
-- **All numerical marks, question-by-question criteria breakdowns, and teacher audit logs are permanently preserved** in the database.
-
----
-
-## 10. Web Push Notification & Real-Time Alert Engine
-
-PaperGrade AI integrates an enterprise W3C-standard **Web Push Notification Engine** ([`backend/app/services/notification_service.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/services/notification_service.py)) that delivers alerts directly to student and teacher mobile devices even when the PWA is completely closed.
-
-### 10.1 W3C Standard Web Push via VAPID Cryptographic Keys
-- Uses Voluntary Application Server Identification (VAPID) with elliptic curve P-256 keys (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`).
-- When a student installs the PWA and grants notification permissions, the browser generates an endpoint URL and cryptographic auth secret stored in `push_subscriptions`.
-- Alerts are encrypted using ECDH and dispatched directly to Google FCM, Apple APNs, or Mozilla push gateways without third-party subscription fees.
-
-### 10.2 Closed-App PWA Background Delivery
-- When a submission window opens, a deadline approaches (5-minute warning), or results are officially published, the backend dispatches Web Push packets asynchronously via background daemon threads.
-- The service worker (`ServiceWorkerRegister.tsx`) intercepts the push event, waking the operating system notification center on Android and iOS devices.
-
-### 10.3 In-App Notification Center, Context-Appropriate Icon Taxonomy & Audio Chimes
-Beyond external OS push notifications, PaperGrade AI provides an interactive In-App Notification Drawer ([`frontend/src/components/NotificationDrawer.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/NotificationDrawer.tsx)) supporting real-time visual, badge, and audible feedback for active users.
-
-#### Context-Appropriate Semantic Icon Taxonomy
-Earlier notification systems frequently used ambiguous icons (such as generic sparkles or identical bell symbols) across completely disparate events. PaperGrade AI enforces a strict, domain-specific icon taxonomy that immediately communicates the nature, urgency, and domain of each notification:
-
-| Notification Category | Event Type / Key | Semantic Icon | Visual Accent | Contextual Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| **Evaluations & Grades** | `evaluation_completed`, `paper_graded` | `CheckCircle2` / `Sparkles` | Emerald / Green | Confirms successful automated AI grading or scorecard release. |
-| **Rubric Actions** | `rubric_generated`, `rubric_approved` | `Scroll` / `FileCheck` | Blue / Indigo | Signals rubric extraction readiness or supervisor approval. |
-| **Timed Windows** | `window_opened`, `window_closing_soon` | `Clock` / `Timer` | Sky / Cyan | Informs students that submission portal is live or countdown is active. |
-| **Grace Periods** | `window_grace_period` | `Hourglass` / `AlertCircle` | Amber / Rose | Warns student that standard deadline passed and final grace countdown is ticking. |
-| **Disputes & Revaluation** | `revaluation_requested`, `dispute_resolved` | `Scale` / `MessageSquare` | Purple / Violet | Alerts teachers to student grade challenges or informs student of outcome. |
-| **Deletions & Purge** | `exam_deleted`, `document_purged` | `Trash2` / `Archive` | Red / Slate | Confirms destructive purge of underlying PDF binaries under 15-day TTL. |
-| **System & Security** | `password_reset`, `auth_warning` | `ShieldAlert` / `KeyRound` | Orange | Security tokens and administrative reset approvals. |
-
-#### Synthesized Web Audio Chimes Engine
-To alert active users without bundling heavy audio asset files (MP3/WAV) or triggering network latency, the platform features a zero-dependency Web Audio API harmonic chime synthesizer:
-- **Zero Asset Overhead**: Waveforms are synthesized on the client via `window.AudioContext` or `window.webkitAudioContext`.
-- **Harmonic Sine-Wave Envelope**: Synthesizes a subtle, pleasant two-tone chord (frequency progression $F_1 = 587.33\,\text{Hz}\;[D_5] \to F_2 = 880.00\,\text{Hz}\;[A_5]$) with an exponential decay gain envelope ($T_{\text{decay}} = 0.4\text{s}$) to avoid acoustic distortion or harsh transients.
-- **User Preference Persistence**: Users can toggle notification audio on or off via the drawer header switch. The boolean preference is persisted in `localStorage` under key `pg_notifications_sound` and respected across all tabs and routes.
-- **Autoplay Compliance**: The `AudioContext` initializes lazily on first user interaction, complying with modern browser autoplay safety policies.
-
----
-
-## 11. Exhaustive Backend API Router Catalog
-
-The backend exposes 50+ endpoints across 13 dedicated routers plus root utility routes:
+The backend exposes 50+ endpoints across 13 dedicated routers plus root routes:
 
 | Router | Method | Endpoint Path | Access Level | Description & Architectural Rationale |
 | :--- | :--- | :--- | :--- | :--- |
-| **Auth** | `POST` | `/api/v1/auth/login` | Public | Authenticates root admins, branch managers, and students; returns signed JWT. |
-| | `POST` | `/api/v1/auth/claim-account` | Public | Student claims pre-seeded roster account using roll-number and PIN. |
-| | `GET` | `/api/v1/auth/me` | Authenticated | Fetches current user profile, branch affiliation, and role permissions. |
-| | `POST` | `/api/v1/auth/forgot-password/request`| Public | Initiates student password reset request for branch manager review. |
-| | `GET` | `/api/v1/auth/password-resets` | Branch Manager | Lists pending student password reset requests within manager's branch. |
-| | `POST` | `/api/v1/auth/password-resets/{id}/approve` | Branch Manager | Approves reset request and generates one-time cryptographic token. |
-| | `POST` | `/api/v1/auth/password-resets/{id}/reject` | Branch Manager | Rejects reset request with audit comment. |
-| | `POST` | `/api/v1/auth/create-user` | Root Admin | Manually provisions a new administrative or manager account. |
-| | `GET` | `/api/v1/auth/users` | Root/Manager | Lists registered users filtered by branch and role. |
+| **Auth** | `POST` | `/api/v1/auth/login` | Public | Authenticates root admins, directors, managers, students; returns signed 7-day JWT. |
+| | `POST` | `/api/v1/auth/claim-account` | Public | Student claims roster account using roll-number and PIN. |
+| | `GET` | `/api/v1/auth/me` | Authenticated | Fetches user profile, branch affiliation, and role permissions. |
+| | `POST` | `/api/v1/auth/forgot-password/request`| Public | Initiates student password reset request for manager review. |
+| | `GET` | `/api/v1/auth/password-resets` | Manager/Director| Lists pending student password reset requests within branch. |
+| | `POST` | `/api/v1/auth/password-resets/{id}/approve` | Manager/Director| Approves reset request and generates one-time cryptographic token. |
+| | `POST` | `/api/v1/auth/password-resets/{id}/reject` | Manager/Director| Rejects reset request with audit comment. |
+| | `POST` | `/api/v1/auth/create-user` | Root Admin | Provisions staff or director account. |
+| | `GET` | `/api/v1/auth/users` | Admin/Director | Lists registered users filtered by branch and role. |
 | **Tenancy** | `GET` | `/api/v1/tenancy/institutes` | Root Admin | Lists all enrolled educational institutions. |
 | | `POST` | `/api/v1/tenancy/institutes` | Root Admin | Provisions a new institutional tenant. |
+| | `DELETE`| `/api/v1/tenancy/institutes/{id}` | Root Admin | Soft-deletes institute with 7-day recovery grace period. |
+| | `POST` | `/api/v1/tenancy/institutes/{id}/restore` | Root Admin | Restores soft-deleted institute within 7-day grace window. |
 | | `GET` | `/api/v1/tenancy/branches` | Authenticated | Lists campuses (scoped by institute or user permissions). |
-| | `POST` | `/api/v1/tenancy/branches` | Root Admin | Provisions a new campus with unique code and geographical location. |
+| | `POST` | `/api/v1/tenancy/branches` | Root Admin | Provisions a new campus with unique code and geographical city. |
 | | `GET` | `/api/v1/tenancy/subjects` | Authenticated | Lists academic courses and subjects scoped to branch. |
 | | `POST` | `/api/v1/tenancy/institutes/{id}/subjects` | Root Admin | Adds an official course/subject definition. |
-| | `GET` | `/api/v1/tenancy/batches` | Manager/Admin | Lists academic student batches. |
+| | `GET` | `/api/v1/tenancy/batches` | Manager/Director| Lists academic student cohorts within branch. |
 | | `POST` | `/api/v1/tenancy/batches` | Branch Manager | Provisions an academic cohort/batch within a branch. |
-| | `GET` | `/api/v1/tenancy/batches/{id}/students` | Manager/Admin | Roster lookup of enrolled students in a cohort. |
-| | `POST` | `/api/v1/tenancy/batches/{id}/students` | Branch Manager | Enrolls a student with official roll-number and PIN. |
-| | `POST` | `/api/v1/tenancy/batches/{id}/import-students`| Branch Manager | Bulk CSV ingestion of class rosters with roll-number deduplication. |
-| **Exams** | `GET` | `/api/v1/exams` | Manager/Admin | Lists exams scoped to user branch; batch-loads window status in 1 query. |
-| | `POST` | `/api/v1/exams` | Manager/Admin | Creates exam record; uploads question paper. |
-| | `GET` | `/api/v1/exams/{id}` | Manager/Admin | Fetches exam details, rubric versions, section rules, and evaluation stats. |
-| | `DELETE`| `/api/v1/exams/{id}` | Root Admin | **Cascade Deletion**: Permanently purges exam, rubrics, submissions, and CDN assets. |
+| | `DELETE`| `/api/v1/tenancy/batches/{id}` | Branch Manager | Deletes academic batch. |
+| | `GET` | `/api/v1/tenancy/batches/{id}/students` | Manager/Director| Roster lookup of enrolled students in a cohort. |
+| | `POST` | `/api/v1/tenancy/batches/{id}/students` | Branch Manager | Enrolls a student with atomic roll sequence. |
+| | `POST` | `/api/v1/tenancy/batches/{id}/import-students`| Branch Manager | Bulk Excel roster ingestion with atomic row-locked sequence allocation. |
+| **Exams** | `GET` | `/api/v1/exams` | Manager/Director| Lists exams scoped to user branch; batch-loads window status. |
+| | `POST` | `/api/v1/exams` | Manager/Director| Creates exam record; uploads question paper. |
+| | `GET` | `/api/v1/exams/{id}` | Manager/Director| Fetches exam details, rubric versions, and evaluation stats. |
+| | `DELETE`| `/api/v1/exams/{id}` | Root Admin | **Cascade Deletion:** Permanently purges exam, rubrics, submissions, and CDN assets. |
 | | `POST` | `/api/v1/exams/{id}/answer-key` | Root Admin | Uploads official answer key PDF. |
-| | `POST` | `/api/v1/exams/{id}/question-paper` | Manager/Admin | Uploads or replaces master question paper PDF. |
+| | `POST` | `/api/v1/exams/{id}/question-paper` | Manager/Director| Replaces master question paper PDF. |
 | | `POST` | `/api/v1/exams/{id}/generate-rubric` | Root Admin | Executes agentic Gemini multimodal rubric extraction. |
 | | `POST` | `/api/v1/exams/{id}/rubric/approve` | Root Admin | Locks approved rubric version as immutable evaluation contract. |
 | | `POST` | `/api/v1/exams/{id}/rubric/unlock` | Root Admin | Unlocks rubric back to draft state for modifications. |
-| | `POST` | `/api/v1/exams/{id}/start-evaluation` | Manager/Admin | Enqueues all active submissions into the background evaluation queue. |
-| | `POST` | `/api/v1/exams/{id}/publish` | Manager/Admin | Publishes finalized results to student portal. |
-| | `GET` | `/api/v1/exams/{id}/evaluation-status` | Manager/Admin | High-speed (<5ms) polling endpoint for real-time evaluation progress bar. |
-| | `GET` | `/api/v1/exams/{id}/rankings` | Manager/Admin | Calculates and returns class rankings and score distribution. |
-| **Submissions** | `GET` | `/api/v1/submissions` | Authenticated | Lists submissions with role-based filtering (students see only own records). |
-| | `POST` | `/api/v1/submissions/{exam_id}/upload-single` | Authenticated | Ingests student answer sheet (single PDF or multiple images); merges upright. |
-| | `POST` | `/api/v1/submissions/{exam_id}/request-upload` | Authenticated | Initiates chunked/presigned upload session for heavy PDFs. |
-| | `POST` | `/api/v1/submissions/{exam_id}/confirm-upload` | Authenticated | Verifies uploaded asset and creates queued submission. |
+| | `POST` | `/api/v1/exams/{id}/start-evaluation` | Manager/Director| Enqueues submissions for batch grading (enforces window closed & approved rubric). |
+| | `POST` | `/api/v1/exams/{id}/publish` | Manager/Director| Publishes finalized results to student portal. |
+| | `GET` | `/api/v1/exams/{id}/evaluation-status` | Manager/Director| High-speed (<5ms) polling endpoint for real-time progress bar. |
+| | `GET` | `/api/v1/exams/{id}/rankings` | Manager/Director| Calculates and returns class rankings and score distribution. |
+| **Submissions** | `GET` | `/api/v1/submissions` | Authenticated | Lists submissions with role-based filtering. |
+| | `POST` | `/api/v1/submissions/{exam_id}/request-upload` | Student | Step 1 of direct upload: verifies window, returns HMAC signed CDN ticket. |
+| | `POST` | `/api/v1/submissions/{exam_id}/confirm-upload` | Student | Step 3 of direct upload: validates PDF bounds via PyMuPDF, registers submission. |
+| | `POST` | `/api/v1/submissions/{exam_id}/upload-single` | Authenticated | Fallback multipart upload path for restricted firewalls. |
 | | `GET` | `/api/v1/submissions/{id}` | Authenticated | Returns detailed evaluation breakdown with criteria, bboxes, and transcripts. |
-| | `GET` | `/api/v1/submissions/exam/{exam_id}` | Manager/Admin | Lists all student submissions enrolled under an exam. |
-| | `POST` | `/api/v1/submissions/purge-expired` | Root Admin | Triggers scheduled or manual sweep of the 15-day storage retention purge engine. |
-| **Grading** | `POST` | `/api/grading/answers/{sub_id}/{ans_id}/edit` | Teacher/Admin | Records manual teacher override, updates scores, and logs immutable audit trail. |
-| | `POST` | `/api/grading/answers/{sub_id}/{ans_id}/reevaluate` | Teacher/Admin | Targeted second-opinion re-evaluation of an answer crop via Gemini Flash-Lite. |
-| | `POST` | `/api/grading/regions/{sub_id}/{reg_id}/edit` | Teacher/Admin | Updates bounding box coordinates after instructor drags handles on canvas. |
-| | `POST` | `/api/grading/regions/{sub_id}/add` | Teacher/Admin | Manually draws and registers a new answer region bounding box. |
-| | `DELETE`| `/api/grading/regions/{sub_id}/{reg_id}` | Teacher/Admin | Deletes an invalid or false-positive bounding box region. |
-| | `GET` | `/api/grading/crop/{sub_id}/{ans_id}` | Authenticated | Serves 150 DPI cropped image of student handwriting for side-by-side modal. |
+| | `GET` | `/api/v1/submissions/{id}/pdf` | Authenticated | Returns HTTP 307 redirect to pre-signed CDN download URL (0 server RAM). |
+| | `GET` | `/api/v1/submissions/exam/{exam_id}` | Manager/Director| Lists all student submissions enrolled under an exam. |
+| | `POST` | `/api/v1/submissions/purge-expired` | Root Admin | Triggers scheduled sweep of the 15-day storage retention purge engine. |
+| **Grading** | `POST` | `/api/grading/answers/{sub_id}/{ans_id}/edit` | Teacher/Manager | Records manual override, updates scores, and logs immutable audit trail. |
+| | `POST` | `/api/grading/answers/{sub_id}/{ans_id}/reevaluate` | Teacher/Manager | Targeted second-opinion re-evaluation of answer crop via Gemini Flash-Lite. |
+| | `POST` | `/api/grading/regions/{sub_id}/{reg_id}/edit` | Teacher/Manager | Updates bounding box coordinates after dragging handles on canvas. |
+| | `POST` | `/api/grading/regions/{sub_id}/add` | Teacher/Manager | Manually registers a new answer bounding box. |
+| | `DELETE`| `/api/grading/regions/{sub_id}/{reg_id}` | Teacher/Manager | Deletes an invalid bounding box region. |
 | | `GET` | `/api/grading/page-image/{sub_id}/{page_num}`| Authenticated | Serves full 150 DPI raster image of a student answer page. |
-| **Windows** | `POST` | `/api/v1/windows/{exam_id}/open` | Branch Manager | Opens timed submission window with defined duration (e.g. 30m) and grace period. |
+| **Windows** | `POST` | `/api/v1/windows/{exam_id}/open` | Branch Manager | Opens timed submission window with defined duration and grace period. |
 | | `GET` | `/api/v1/windows/{exam_id}/status` | Authenticated | Returns exact seconds remaining for real-time PWA countdown timers. |
-| | `POST` | `/api/v1/windows/{exam_id}/close` | Branch Manager | Administratively hard-closes active window, cutting off student uploads. |
+| | `POST` | `/api/v1/windows/{exam_id}/close` | Branch Manager | Administratively hard-closes window, cutting off student uploads. |
 | | `POST` | `/api/v1/windows/{exam_id}/reopen` | Branch Manager | Reopens window for unsubmitted students with audit justification. |
-| **Revaluation** | `POST` | `/api/v1/revaluation/{sub_id}/request` | Student | Files 7-day student revaluation dispute on specific questions with rationale. |
+| **Revaluation** | `POST` | `/api/v1/revaluation/{sub_id}/request` | Student | Files 7-day student revaluation dispute on specific questions. |
 | | `GET` | `/api/v1/revaluation/my-requests` | Student | Lists student's own filed revaluation disputes and statuses. |
-| | `GET` | `/api/v1/revaluation/requests` | Manager/Admin | Lists pending revaluation requests across campus for teacher review. |
-| | `POST` | `/api/v1/revaluation/{request_id}/resolve` | Manager/Admin | Approves or rejects dispute, adjusting awarded marks and notifying student. |
-| **Exports** | `GET` | `/api/exports/pdf/{sub_id}` | Authenticated | Streams PyMuPDF vector-annotated PDF (blocked for students until published; 410 if purged). |
-| | `GET` | `/api/exports/marks-csv/{exam_id}` | Manager/Admin | Generates and streams complete class scorecard in CSV format. |
-| | `GET` | `/api/exports/batch-zip/{batch_id}` | Manager/Admin | Compiles all graded PDFs for an entire batch into a downloadable ZIP archive. |
+| | `GET` | `/api/v1/revaluation/requests` | Manager/Director| Lists pending revaluation requests across campus. |
+| | `POST` | `/api/v1/revaluation/{request_id}/resolve` | Manager/Director| Resolves dispute (100% Zero-AI human decision). |
+| **Exports** | `GET` | `/api/exports/pdf/{sub_id}` | Authenticated | Streams PyMuPDF vector-annotated PDF (blocked for students until published). |
+| | `GET` | `/api/exports/marks-csv/{exam_id}` | Manager/Director| Generates complete class scorecard in CSV format. |
+| | `GET` | `/api/exports/batch-zip/{batch_id}` | Manager/Director| Compiles all graded PDFs for an entire batch into a downloadable ZIP archive. |
 | **Notifications**| `GET` | `/api/v1/notifications` | Authenticated | Fetches user in-app notifications. |
 | | `POST` | `/api/v1/notifications/push-subscription` | Authenticated | Registers client device VAPID push token for browser push delivery. |
 | | `POST` | `/api/v1/notifications/push-unsubscribe` | Authenticated | Revokes registered browser push subscription. |
 | | `GET` | `/api/v1/notifications/vapid-public-key` | Authenticated | Returns VAPID public key for browser push registration. |
 | | `POST` | `/api/v1/notifications/{id}/read` | Authenticated | Marks a single notification as read. |
 | | `POST` | `/api/v1/notifications/read-all` | Authenticated | Marks all user notifications as read in one batch. |
-| **Reports** | `POST` | `/api/v1/reports` | Authenticated | Submits technical issue report with up to 3 screenshots (max 500KB each). |
+| **Reports** | `POST` | `/api/v1/reports` | Authenticated | Submits technical issue report with up to 3 screenshots. |
 | | `GET` | `/api/v1/reports/my` | Authenticated | Lists issues submitted by current user. |
 | | `GET` | `/api/v1/reports` | Root Admin | Administrative ticket triage queue across all tenants. |
 | | `PATCH` | `/api/v1/reports/{report_id}` | Root Admin | Updates ticket status (`IN_PROGRESS`, `RESOLVED`) with admin notes. |
-| **Students** | `GET` | `/api/v1/student/portal-state` | Student | Unified high-performance endpoint with 4-second in-memory caching. |
+| **Students** | `GET` | `/api/v1/student/portal-state` | Student | Unified high-performance endpoint with sub-0.2ms ETag 304 fast path. |
 | | `GET` | `/api/v1/student/past-submissions` | Student | Paginated past exams endpoint for student portal infinite scrolling. |
 | **Analytics** | `GET` | `/api/v1/analytics/telemetry` | Root Admin | Real-time token consumption, latency percentiles ($P_{50}, P_{95}$), and costs. |
 | | `POST` | `/api/v1/analytics/quota-settings` | Root Admin | Updates custom RPM, TPM, and RPD limits per user. |
@@ -1355,25 +984,22 @@ The backend exposes 50+ endpoints across 13 dedicated routers plus root utility 
 
 ---
 
-## 12. Frontend Architecture & Next.js 14 App Router
+## 13. Frontend Architecture & Next.js 14 App Router
 
-The frontend is engineered with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Lucide Icons**.
-
-### 12.1 Directory Structure & Layout Hierarchy
+### 13.1 Directory Topology & Layout Hierarchy
 ```
 frontend/src/
 ├── app/
-│   ├── layout.tsx                 # Root layout with font, theme & global context providers
+│   ├── layout.tsx                 # Root layout with font, theme & global context mesh
+│   ├── not-found.tsx              # Custom Grace-Mark 404 experience ("No Negative Marking Here")
 │   ├── page.tsx                   # Interactive landing page with role-based auto-redirect
 │   ├── admin/
-│   │   ├── tenancy/               # Tenancy & campus infrastructure manager (institutes, branches, subjects)
+│   │   ├── tenancy/               # Tenancy infrastructure manager (institutes, branches, subjects)
 │   │   └── reports/               # Technical issue reports and triage dashboard
 │   ├── auth/
-│   │   ├── login/                 # Unified credentials login portal
+│   │   ├── login/                 # Unified credentials login portal (7-day persistent JWT)
 │   │   └── claim/                 # Student roll-number & PIN account claim
-│   ├── batches/                   # Academic cohort management & CSV roster enrollment
-│   │   └── [id]/                  # Batch detail & student roster table
-│   ├── branch/batches/            # Campus-scoped batch workspaces
+│   ├── batches/                   # Academic cohort management & Excel roster enrollment
 │   ├── exams/                     # Exam creation wizard & management hub
 │   │   ├── new/                   # Multi-step exam creation flow
 │   │   └── [id]/                  # Exam overview, key upload, window controls & submissions
@@ -1383,14 +1009,16 @@ frontend/src/
 │   ├── marks/                     # Class scorecards & export studio
 │   ├── results/[id]/              # Published exam rankings & student performance distributions
 │   ├── student/
-│   │   ├── portal/                # Mobile-optimized PWA student dashboard & past exams
+│   │   ├── portal/                # Mobile-optimized PWA student dashboard & live countdown timers
 │   │   ├── exams/                 # Active student exam listing
-│   │   └── submissions/[id]/      # Student view of evaluated paper & dispute filing
+│   │   └── submissions/[id]/      # Student view of evaluated paper & 7-day dispute filing
 │   ├── revaluation/               # Revaluation dispute management interface
 │   ├── notifications/             # Full-page notification history
 │   └── analytics/                 # Telemetry dashboards, token charts, cost calculators
 ├── components/
-│   ├── DocumentViewer.tsx         # 1,480-line Spatial Document Canvas with 8-handle bbox resize
+│   ├── DocumentViewer.tsx         # Spatial Document Canvas with 8-handle bbox resize
+│   ├── ClippedAnswerCrop.tsx      # Zero-network client-side question cropping via canvas/CSS
+│   ├── PdfPageView.tsx            # High-DPI canvas streaming with LRU cache integration
 │   ├── GradingModal.tsx           # Teacher verification, rubric breakdown & override studio
 │   ├── RubricEditor.tsx           # Interactive rubric point editor & approval controls
 │   ├── MarksTable.tsx             # Sortable student scorecard table with review badges
@@ -1398,405 +1026,223 @@ frontend/src/
 │   ├── ExamRankedTable.tsx        # Published exam class rankings table
 │   ├── ReportIssueModal.tsx       # Multi-screenshot technical issue reporter
 │   ├── ServiceWorkerRegister.tsx  # PWA service worker & closed-app push interceptor
-│   └── ui/
-│       ├── AppleSelect.tsx        # Viewport-aware portal dropdown with Apple ease physics
-│       ├── AppleNumberStepper.tsx # Accelerated micro-stepper with tactile scaling & direct input
-│       └── Skeleton.tsx           # Atomic skeletons (PastExamsCardsSkeleton, TableSkeleton)
-└── lib/
-    ├── api.ts                     # 50KB Exhaustive typed API client
-    ├── queryKeys.ts               # Centralized TanStack React Query key factory
-    ├── QueryProvider.tsx          # Hydration boundary & query client provider
-    ├── TenantContext.tsx          # Multi-tenant branch scoping state
-    ├── NotificationContext.tsx    # Unread counter, drawer state & push sync
-    ├── ThemeContext.tsx           # Theme switcher state
-    ├── ConfirmContext.tsx         # Enterprise confirmation dialog provider
-    ├── ToastContext.tsx           # Action-linked toast notifications
-    └── types.ts                   # Unified TypeScript interfaces matching backend Pydantic models
+│   └── ui/                        # Apple-style micro-steppers, selects, and atomic skeletons
+├── lib/
+│   ├── api.ts                     # 50KB Exhaustive typed API client
+│   ├── pdfAssembler.ts            # Client-side document downscaling and canonical PDF assembly
+│   ├── pdfCache.ts                # Bounded LRU PDF document and page canvas cache
+│   ├── queryKeys.ts               # Centralized TanStack React Query key factory
+│   ├── QueryProvider.tsx          # Hydration boundary & query client provider
+│   ├── TenantContext.tsx          # Multi-branch switching context for directors
+│   ├── ThemeContext.tsx           # Notion-grade Warm Paper / Obsidian Paper theme provider
+│   └── supabase.ts                # Supabase Realtime client initialization
+└── workers/
+    └── pdfWorker.ts               # Background Web Worker for 1920px image compression & assembly
 ```
 
-### 12.2 Client-Side Context Mesh
-- **`TenantContext`**: Maintains active branch selection across sessions, automatically appending branch filters to all dashboard queries.
-- **`ToastContext`**: Provides feedback toasts with custom icons, progress timers, and undo action hooks.
-- **`ConfirmContext`**: Prevents accidental destructive actions (e.g., cascade exam deletion, closing submission windows) via modal dialogs.
-- **`BreadcrumbContext`**: Maintains synchronized breadcrumb trails, shortening long UUIDs to 8 characters during loading states to prevent layout overflow.
-- **`NotificationContext`**: Coordinates in-app alert badges, unread counts, audio chime playback, and push subscription synchronizations.
-- **`ThemeContext`**: Manages responsive system and dark-mode styling across all client components.
+### 13.2 Client-Side Context Mesh
+The application mounts a unified context hierarchy wrapping the Next.js App Router:
+- **`QueryProvider` (`@tanstack/react-query`):** Manages server-state caching with `staleTime = 30000` (30 seconds), deduplicating in-flight requests.
+- **`TenantContext`:** Tracks current `instituteId` and `branchId`, providing the Director campus switcher.
+- **`NotificationContext`:** Coordinates Supabase Realtime WebSockets, Page Visibility adaptive polling, and VAPID push subscriptions.
+- **`ThemeContext`:** Persists dark/light preferences.
 
-### 12.3 Zero-Flicker SSR Auth Verification
-To prevent the jarring "logged-out redirect flicker" on page refresh:
-- Next.js root layout reads auth cookies synchronously before rendering client children.
-- If a student accesses the root `/` URL, the layout performs an immediate client redirect to `/student/portal` before rendering the marketing landing page.
+### 13.3 Notion-Grade Design System & Apple Micro-Tactility
+- **Notion-Grade Warm/Obsidian Aesthetic:**
+  - *Warm Paper Mode (`#f6f5f4`):* Soft, editorial background reducing glare during prolonged grading sessions.
+  - *Obsidian Paper Mode (`#191919`):* Deep neutral dark mode preserving contrast without harsh blue light.
+- **Apple-Style Curved-Glass Tactility:** Interactive components (`AppleSelect.tsx`, `AppleNumberStepper.tsx`) feature accelerated micro-stepping, spring physics transitions, and subtle borders (`border-black/[0.08]` / `border-white/[0.08]`).
 
----
+### 13.4 Spatial Document Canvas (`DocumentViewer.tsx`) & Verification Studio
+- **Multi-Touch Pinch-to-Zoom:** Supports 1.0x to 3.5x smooth zoom scaling on touch devices.
+- **8-Handle Bounding Box Resize:** Evaluators can drag corners or edges (`nw`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`) to adjust answer bounding box coordinates directly on the canvas.
+- **Real-Time Score Recalculation:** Adjusting a criterion mark in `GradingModal.tsx` immediately updates the teacher score stamp and recalculates total marks deterministically.
 
-### 12.4 Spatial Document Viewer Canvas (`DocumentViewer.tsx`)
-The interactive document canvas ([`frontend/src/components/DocumentViewer.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/DocumentViewer.tsx)) is a 1,480-line component providing spatial document interaction:
-- **Interactive Bounding Box Resizing**: Evaluated answer regions feature **8 draggable resize handles** (`move`, `nw`, `n`, `ne`, `e`, `se`, `s`, `sw`, `w`). Teachers can adjust bounding box boundaries directly on the canvas, saving updated coordinates back to the backend.
-- **Hybrid Rendering Engine**: Features client-side PDF.js canvas rendering with automatic fallback to high-resolution pre-rendered 150 DPI raster images.
-- **LRU Document Memory Caching**: Maintains an in-memory client cache of loaded PDF documents (`pdfDocMemoryCache`), preventing repeated network fetches when switching between pages.
-- **Semantic Border Overlays**: Green for full marks, amber for partial marks, red for zero marks, violet for review flags.
+### 13.5 Student Mobile PWA & iOS Safari Banner Integration
+- **Closed-App PWA:** Configured via `manifest.json` and service worker (`sw.js`) for full home-screen installation on Android and iOS.
+- **iOS Safari Install Banner:** Detects non-standalone iOS Safari sessions (`navigator.standalone === false`) and displays step-by-step instructions (*"Tap Share $\to$ Add to Home Screen"*).
 
-### 12.5 One-Click Verification & Override Studio (`GradingModal.tsx`)
-Clicking any bounding box on the canvas opens the inspection studio ([`frontend/src/components/GradingModal.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/GradingModal.tsx)):
-- **Side-by-Side Crop & Evidence**: Displays the 150 DPI handwriting crop alongside the transcribed text and verbatim rubric evidence quote.
-- **Criterion-by-Criterion Stepper**: Teachers can increment or decrement marks on individual criteria; the modal automatically recalculates the question total clamped to `max_marks`.
-- **Mandatory Audit Logging**: Requires an explicit reason before enabling the save button, preventing unaccountable grade inflation.
-
----
-
-### 12.6 TanStack React Query Caching Tier (`@tanstack/react-query`)
-To replace naive `cache: "no-store"` HTTP fetches—which generated repetitive round-trips, layout thrashing, and unnecessary load on the backend database—the frontend incorporates **TanStack React Query v5** ([`frontend/src/lib/QueryProvider.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/lib/QueryProvider.tsx)).
-
-#### Centralized Query Key Taxonomy
-All query cache operations are governed by a strictly typed key factory ([`frontend/src/lib/queryKeys.ts`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/lib/queryKeys.ts)), preventing string typo collisions and enabling surgical cache invalidation:
-```typescript
-export const queryKeys = {
-  auth: {
-    me: () => ['auth', 'me'] as const,
-  },
-  exams: {
-    all: () => ['exams'] as const,
-    list: (branchId?: string) => ['exams', 'list', { branchId }] as const,
-    detail: (id: string) => ['exams', 'detail', id] as const,
-    rubric: (examId: string) => ['exams', 'rubric', examId] as const,
-    evaluationStatus: (examId: string) => ['exams', 'eval-status', examId] as const,
-    windowStatus: (examId: string) => ['exams', 'window-status', examId] as const,
-  },
-  submissions: {
-    byExam: (examId: string) => ['submissions', 'by-exam', examId] as const,
-    detail: (id: string) => ['submissions', 'detail', id] as const,
-  },
-  student: {
-    portalState: () => ['student', 'portal-state'] as const,
-    pastExams: (filters?: Record<string, any>) => ['student', 'past-exams', filters] as const,
-  },
-  analytics: {
-    telemetry: (range: string) => ['analytics', 'telemetry', range] as const,
-    feasibility: (params: any) => ['analytics', 'feasibility', params] as const,
-  },
-};
-```
-
-#### Core Benefits & Architectural Guarantees
-- **Stale-While-Revalidate**: Screens render instantly from memory cache while fresh data is revalidated silently in the background, cutting perceived screen transition latency to 0ms.
-- **Request Deduplication**: If multiple sibling components mount simultaneously and request the active user profile or branch state, TanStack Query coalesces them into a single in-flight network request.
-- **Configurable Stale Times**: Static configurations and past exam catalogs utilize a 60-second `staleTime`, while active submission window countdowns use short or reactive poll intervals.
-- **Surgical Mutation Invalidation**: When an instructor updates marks in `GradingModal.tsx`, only the specific `queryKeys.submissions.detail(id)` and `queryKeys.exams.detail(examId)` query keys are invalidated and refetched.
+### 13.6 Academic Grace-Mark 404 Experience (`not-found.tsx`)
+A custom branded 404 experience featuring academic Easter eggs:
+- *"No Negative Marking Here (404 — Question Not in Syllabus)"*
+- Displays a mock answer sheet with a teacher's red-ink stamp awarding `+0.5 / 0 Grace Marks` for exploring uncharted routes, with a one-click button returning students to their exam portal.
 
 ---
 
-### 12.7 Apple-Style Curved-Glass Micro-Tactility Design System
-The platform features an Apple-inspired dark-mode design system founded on physical micro-tactility, pure specular edge refraction, and strict geometric consistency.
+## 14. Observability, Telemetry & Quota Feasibility
 
-#### Rectangular Geometry Standard (No Pill Shapes)
-To maintain structural visual discipline, all action triggers, filters, and buttons strictly avoid pill (`rounded-full`) geometries, adhering uniformly to standard rectangular `rounded-md` bounding boxes with defined height tiers:
-- **`h-8` (32px)**: Compact action triggers, card utility buttons, table action links.
-- **`h-9` (36px)**: Standard interactive buttons, dropdown triggers, and modal actions.
-- **`h-11` (44px)**: Primary submission triggers and prominent portal action buttons.
+### 14.1 Real-Time Token Telemetry & Paid-Equivalent Cost Tracking
+Every multimodal Gemini call writes an immutable record to `api_usage_events`:
+- **Logged Fields:** `model_name`, `input_tokens`, `output_tokens`, `thinking_tokens`, `cached_tokens`, `duration_ms`, `http_status`, `success`, `estimated_cost_usd`.
+- **Post-Validation Logging:** Telemetry logs `success = True` **only after Pydantic schema validation succeeds**. If the API returns HTTP 200 but deserialization fails, it is recorded as `success = False` to prevent false observability metrics.
+- **Cost Formulation (Gemini 3.8 Flash Pricing):**
+  $$\text{Cost} = \frac{\text{Input Tokens}}{10^6} \times \$0.10 + \frac{\text{Output Tokens}}{10^6} \times \$0.40$$
 
-#### Curved-Glass Specular Physics
-The CSS utility system (`globals.css`) defines high-polish glassmorphism classes simulating curved optical surfaces:
-- **`.btn-glass-primary`**: Electric blue specular finish featuring a subtle top-edge internal specular highlight (`box-shadow: inset 0 1px 0 rgba(255,255,255,0.25)`), dynamic linear gradient fill (`from-blue-500/20 to-blue-600/30`), and interactive micro-press compression (`active:scale-[0.98]`).
-- **`.btn-glass-utility`**: Neutral frosted glass dark surface (`bg-white/[0.04]`), ultra-subtle perimeter border (`border-white/[0.08]`), and gentle hover luminescence.
-- **`.btn-glass-danger-utility`**: Dark crimson translucent glass for secondary destructive actions.
-- **`.btn-glass-danger`**: High-visibility ruby glass for irreversible actions (e.g., cascade exam purge).
+### 14.2 Latency Percentiles ($P_{50}, P_{95}$)
+Based on 500+ production evaluations across 5–10 page handwritten answer scripts:
+- **$P_{50}$ Latency:** **14.2 seconds** per submission (including visual analysis, handwriting transcription, bounding box localization, and criterion evaluation).
+- **$P_{95}$ Latency:** **26.8 seconds** per submission (observed on dense 10-page papers with multiple diagrams and derivations).
 
-#### High-Polish Interactive Primitives
-1. **Accelerated Micro-Stepper ([`AppleNumberStepper.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/ui/AppleNumberStepper.tsx))**:
-   - **Micro-Press Scaling**: Stepper decrement and increment triggers feature physical scale feedback (`active:scale-90`).
-   - **Press-and-Hold Progressive Acceleration**: Holding down a stepper button initiates an auto-repeat cycle after 350ms, dynamically reducing the step interval down to 50ms for rapid value adjustments.
-   - **Sliding Number Animation**: Digits transition using GPU-accelerated directional translateY slide keyframes (`@keyframes appleNumberUp` / `appleNumberDown`).
-   - **Direct Numerical Input**: Clicking the displayed number instantly converts the component into an inline HTML input with auto-select and discrete step clamping ($0.5$ step increments).
-2. **Viewport-Aware Portal Dropdown ([`AppleSelect.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/components/ui/AppleSelect.tsx))**:
-   - **Body Portal Rendering**: Renders the menu directly into `document.body` via React `createPortal`, completely eliminating clipping or z-index stacking issues inside modal dialogs or table containers.
-   - **Collision Detection & Auto-Flip**: Continuously calculates bounding client rects. If the trigger is within 240px of the viewport bottom, the dropdown opens upwards automatically.
-   - **Apple Easing Curves**: Uses spring-calibrated cubic-bezier transitions (`cubic-bezier(0.16, 1, 0.3, 1)`) for natural menu expansion.
+### 14.3 Mathematical Batch Concurrency & Capacity Modeling
 
----
-
-### 12.8 Student PWA Mobile Portal Architecture & Past Exams Subsystem
-The student mobile portal ([`frontend/src/app/student/portal/page.tsx`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/frontend/src/app/student/portal/page.tsx)) is built as an installable Progressive Web App (PWA) tailored for high-latency mobile conditions.
-
-#### Decoupled Static Search & Filter Architecture
-In earlier revisions, selecting a filter tab (e.g. switching from *All* to *Evaluated*) unmounted the entire container, causing the search bar, filter tabs, and exam lists to flash skeleton screens simultaneously.
-- **Permanent Component Mounting**: The search input, clear button, and filter tab controls remain permanently mounted and interactive.
-- **Isolated Cards-Only Skeleton (`PastExamsCardsSkeleton`)**: During network refetches or filter shifts, only the exam cards container transitions into a card skeleton with zero layout shift; search input focus is never interrupted.
-- **Zero Pill Skeletons**: Eliminates awkward pill badge placeholders in favor of crisp rectangular card skeletons matching exact production card geometries.
-
-#### Touch Gesture Navigation & Fluid Transitions
-- **Horizontal Touch Swipe Navigation**: The student dashboard tracks touch start and end coordinates (`handlePortalTouchStart`, `handlePortalTouchEnd`). Swiping left or right with sufficient velocity toggles seamlessly between the **Dashboard** and **Past Exams** views without requiring thumb reach to the top navigation bar.
-- **Dynamic Time-Aware Greetings**: Welcomes students with contextual greetings matched to their local time of day (`Good Morning`, `Good Afternoon`, `Good Evening`, `Good Night`, `Late Night Study Session`), combined with user name interpolation and an entrance fade animation.
-- **Clean Mobile Document Canvas**: On mobile viewports ($<768\text{px}$), redundant manual zoom buttons are hidden to maximize document viewable area, giving students native two-finger pinch-to-zoom and pan gestures.
-- **Missing Question Paper Fallback**: When an instructor has not uploaded a question paper PDF, the portal displays an informative "Question paper not uploaded" notice rather than failing or injecting placeholder test papers.
+#### 41-Student Single Batch Analysis (Borivali Campus `br_c25_acbdd4d8`)
+- **Ingestion Window (< 8:00 PM IST):**
+  - All 41 students pre-authenticated via 7-day JWT tokens (0 bcrypt hashing operations).
+  - All 41 canonical PDFs uploaded directly to Cloud CDN edge (0 bytes server RAM).
+  - Backend processes 41 `request-upload` and 41 `confirm-upload` calls over a 3-minute window (~0.45 req/sec).
+  - Result: **0% server CPU spike, 0 MB memory buffer, 100% submission success.**
+- **Overnight Batch Grading ($\ge$ 8:00 PM IST):**
+  - 41 papers graded sequentially by `PersistentQueueWorker`.
+  - Pacing delay: 4.12s between calls. Average paper grading duration: ~18 seconds.
+  - Total batch grading duration:
+    $$41 \times (18\text{s} + 4.12\text{s}) \approx 907\text{ seconds (15.1 minutes)}$$
+  - Result: Complete batch graded before 8:30 PM IST with zero 429 quota exhaustion.
 
 ---
 
-## 13. Observability, Telemetry & Quota Feasibility
+## 15. DevOps, Deployment & Operations Runbook
 
-### 13.1 Real-Time Token Telemetry & Cost Tracking
-Every multimodal inference call logs fine-grained token usage into `api_usage_events`:
-- **Input Tokens**: Prompt instructions + Question Paper PDF tokens + Student Answer PDF tokens.
-- **Output Tokens**: Generated JSON characters and reasoning structure.
-- **Thinking Tokens**: Deep reasoning tokens generated by Gemini models.
-- **Cached Tokens**: Context cache hits when reusing identical Question Paper rubrics across multiple student papers.
-- **Paid-Equivalent Cost Calculation**: Uses published Google AI Studio pricing ([`backend/app/gemini/pricing.py`](file:///c:/Users/tarun/Desktop/Github%20Repo/PaperGrade%20AI/backend/app/gemini/pricing.py)):
-  $$\text{Cost} = \left(\frac{\text{Input} - \text{Cached}}{10^6} \times \$0.075\right) + \left(\frac{\text{Cached}}{10^6} \times \$0.01875\right) + \left(\frac{\text{Output} + \text{Thinking}}{10^6} \times \$0.300\right)$$
-
-### 13.2 Latency Percentiles ($P_{50}, P_{95}$)
-The analytics dashboard calculates running latency percentiles across evaluation requests:
-- $P_{50}$ (Median Latency): Typically 12.5 seconds for a 5-page student answer script.
-- $P_{95}$ (Tail Latency): ~28.0 seconds for a complex 10-page exam paper evaluated with 65,536 token capacity.
-
-### 13.3 Quota Feasibility Modeling (40 & 50 Paper Batches)
-The `/api/v1/analytics/feasibility` endpoint projects whether an upcoming exam batch will exceed Google AI Studio rate limits:
-- Evaluates estimated token consumption ($40 \text{ papers} \times \sim 18,000 \text{ tokens/paper} \approx 720,000 \text{ tokens}$).
-- Compares against TPM (Tokens Per Minute) and RPM ceilings.
-- Recommends optimal worker concurrency and pacing delays to complete the batch without triggering 429 quota exhaustion.
-
----
-
-## 14. DevOps, Deployment & Operations Runbook
-
-### 14.1 Environment Configuration Matrix (`.env`)
+### 15.1 Environment Configuration Matrix (`.env`)
 
 ```ini
 # ==============================================================================
-# SERVER CONFIGURATION
+# ENVIRONMENT & GENERAL
 # ==============================================================================
-APP_NAME=PaperGrade AI
-APP_VERSION=2.0.0-PROD
+ENVIRONMENT=production
 DEBUG=False
-HOST=0.0.0.0
-PORT=8000
+SECRET_KEY=generate_a_64_char_cryptographically_secure_random_key
 
 # ==============================================================================
 # DATABASE (SUPABASE POSTGRESQL TRANSACTION POOLER :6543)
 # ==============================================================================
-DATABASE_URL=postgresql://postgres.xxx:xxx@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require
+# Must use transaction pooler port 6543, not session port 5432
+DATABASE_URL=postgresql://postgres.xxx:password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+DB_POOL_SIZE=15
+DB_MAX_OVERFLOW=25
+DB_POOL_RECYCLE=300
 
 # ==============================================================================
-# GOOGLE GEMINI MULTI-KEY FAILOVER RING & VERTEX AI
+# GOOGLE GEMINI MULTI-KEY FAILOVER RING (UP TO 100 KEYS)
 # ==============================================================================
-GEMINI_API_KEY=AIzaSyA_PrimaryKey...
-GEMINI_API_KEY_2=AIzaSyB_SecondaryKey...
-GEMINI_API_KEY_3=AIzaSyC_TertiaryKey...
-GEMINI_API_KEY_4=AIzaSyD_QuaternaryKey...
-MAX_ACTIVE_GEMINI_KEYS=4
-GEMINI_MODEL=gemini-3.8-flash
-GEMINI_FALLBACK_MODEL_1=gemini-3.6-flash
-GEMINI_FALLBACK_MODEL_2=gemini-3.5-flash
+GEMINI_API_KEY=AIzaSy...key1
+GEMINI_API_KEY_2=AIzaSy...key2
+GEMINI_API_KEY_3=AIzaSy...key3
+GEMINI_API_KEY_4=AIzaSy...key4
+GEMINI_API_KEY_5=AIzaSy...key5
+# Or comma-separated list:
+# GEMINI_API_KEYS=key1,key2,key3,key4,key5
+
+GEMINI_PRIMARY_MODEL=gemini-3.8-flash
+GEMINI_FALLBACK_MODELS=gemini-3.6-flash,gemini-3.5-flash
 GEMINI_REEVAL_MODEL=gemini-3.5-flash-lite
-GEMINI_THINKING_BUDGET=4096
-
-# Optional: Google Cloud Paid Vertex AI Service Account
-GCP_PROJECT_ID=your_gcp_project_id
-GCP_LOCATION=us-central1
-GCP_SERVICE_ACCOUNT_PATH=backend/credentials/gcp_service_account.json
+GEMINI_THINKING_BUDGET=2048
+GEMINI_MAX_OUTPUT_TOKENS=65536
+MAX_EVALUATION_WORKERS=1
 
 # ==============================================================================
-# WORKER POOL & STORAGE LIFECYCLE
-# ==============================================================================
-MAX_EVALUATION_WORKERS=2
-SUBMISSION_RETENTION_DAYS=15
-WINDOW_DURATION_MINUTES=30
-GRACE_PERIOD_MINUTES=2
-
-# ==============================================================================
-# OBJECT STORAGE BACKENDS (CLOUDINARY / CLOUDFLARE R2 / LOCAL)
+# CLOUD OBJECT STORAGE (CLOUDINARY / CLOUDFLARE R2)
 # ==============================================================================
 STORAGE_BACKEND=cloudinary
 
-# Cloudinary CDN Credentials
-CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-CLOUDINARY_API_KEY=your_cloudinary_api_key
-CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+# Cloudinary CDN Configuration
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 
-# Cloudflare R2 / S3 Credentials (Alternative to Cloudinary)
-R2_ACCOUNT_ID=your_cloudflare_account_id
-R2_ACCESS_KEY_ID=your_r2_access_key_id
-R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
-R2_BUCKET_NAME=papergrade-bucket
+# Cloudflare R2 Alternative Configuration
+R2_ACCOUNT_ID=your_account_id
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_BUCKET_NAME=papergrade-assets
 R2_PUBLIC_URL=https://pub-xxx.r2.dev
 
 # ==============================================================================
-# W3C BROWSER WEB PUSH (VAPID KEYS)
+# SUBMISSION WINDOWS & RETENTION POLICY
 # ==============================================================================
-VAPID_PUBLIC_KEY=your_vapid_public_key
-VAPID_PRIVATE_KEY=your_vapid_private_key
-VAPID_CLAIMS_EMAIL=mailto:notifications@papergrade.ai
+MAX_UPLOAD_SIZE_MB=7
+MAX_PAGE_COUNT=15
+WINDOW_DURATION_MINUTES=30
+GRACE_PERIOD_MINUTES=2
+REVALUATION_WINDOW_DAYS=7
+SUBMISSION_RETENTION_DAYS=15
 
 # ==============================================================================
-# SECURITY & JWT
+# W3C WEB PUSH (VAPID CRYPTOGRAPHIC KEYS)
 # ==============================================================================
-JWT_SECRET=super_secret_enterprise_signing_key_replace_in_production
+VAPID_PUBLIC_KEY=your_p256_public_key
+VAPID_PRIVATE_KEY=your_p256_private_key
+VAPID_CLAIMS_EMAIL=mailto:admin@papergrade.ai
+
+# ==============================================================================
+# SECURITY & JWT (7-DAY EXPIRATION)
+# ==============================================================================
+JWT_SECRET=super_secret_jwt_signing_key_replace_in_production
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# ==============================================================================
+# FRONTEND PUBLIC ENVIRONMENT VARIABLES
+# ==============================================================================
+NEXT_PUBLIC_API_URL=https://papergrade-ai-al1w.onrender.com
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_p256_public_key
 ```
 
----
+### 15.2 Production Deployment Setup
 
-### 14.2 Production Deployment Setup
+#### Backend (Render Cloud / Docker)
+- **Runtime:** Python 3.11+
+- **Build Command:** `pip install -r backend/requirements.txt`
+- **Start Command:** `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 1`
+  *(Note: Run with 1 Uvicorn worker process so internal threads share the in-memory rate-limiter and claim mutexes without lock contention).*
+- **Keep-Alive Monitor:** Ping `https://papergrade-ai-al1w.onrender.com/api/v1/exams` every 5 minutes via UptimeRobot to maintain zero cold starts.
 
-#### Backend (Render / Docker)
-- **Runtime**: Python 3.11+
-- **Build Command**: `pip install -r backend/requirements.txt`
-- **Start Command**: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 1`
-- *Note*: Run with 1 Uvicorn worker process so that internal worker threads share memory and pacing locks without database lock contention.
-
-#### Frontend (Vercel)
-- **Framework Preset**: Next.js 14
-- **Root Directory**: `frontend`
-- **Build Command**: `npm run build`
-- **Environment Variables**:
-  - `NEXT_PUBLIC_API_URL=https://your-backend-service.onrender.com`
-  - `NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_vapid_public_key`
+#### Frontend (Vercel Edge)
+- **Framework Preset:** Next.js 14 (App Router)
+- **Root Directory:** `frontend`
+- **Build Command:** `npm run build`
 
 ---
 
-### 14.3 Emergency Troubleshooting Playbooks
+### 15.3 Emergency Troubleshooting Playbooks
 
-#### Playbook 1: Worker Queue Deadlock / Frozen Submissions
-- **Symptom**: Papers remain in `status = 'PROCESSING'` or `QUEUED` without progressing.
-- **Root Cause**: An unhandled exception or 8,192-token truncation crashed a worker thread without releasing the queue claim.
-- **Resolution**:
-  1. Inspect submission status via scratch script or SQL:
-     ```sql
-     SELECT id, roll_number, status, retry_count, error_message FROM submissions WHERE status = 'PROCESSING';
-     ```
-  2. The automated watchdog recovers jobs older than 5 minutes. To force immediate recovery:
+#### Playbook 1: Submission Window Upload Failure / Network Block
+- **Symptom:** Students encounter upload network errors when submitting answer sheets.
+- **Root Cause:** College Wi-Fi firewall blocks `api.cloudinary.com` direct uploads.
+- **Resolution:**
+  1. The client automatically falls back to `POST /api/v1/submissions/{exam_id}/upload-single`.
+  2. If client remains blocked, verify student is on an active cellular network.
+  3. Ensure active submission window has not expired or been administratively hard-closed.
+
+#### Playbook 2: Google Gemini 429 Quota Exhaustion
+- **Symptom:** Worker logs report `429 ResourceExhausted` during batch evaluation.
+- **Root Cause:** Consecutive heavy multimodal queries exceeded per-minute quota on active keys.
+- **Resolution:**
+  1. No manual intervention required: the failover ring automatically rotates to the next active key.
+  2. If all keys exhaust quota, the worker sleeps for a 30-second cooldown without failing jobs.
+  3. To expand throughput, append additional API keys to `GEMINI_API_KEYS` in `.env`.
+
+#### Playbook 3: Stuck Jobs in Evaluation Queue
+- **Symptom:** Submissions remain in `status = 'PROCESSING'` after a server redeploy.
+- **Root Cause:** Backend process restarted while a worker thread held an active claim.
+- **Resolution:**
+  1. The automated 60-second watchdog thread automatically recovers jobs older than 5 minutes back to `QUEUED`.
+  2. To force immediate recovery via SQL:
      ```sql
      UPDATE submissions SET status = 'QUEUED' WHERE status = 'PROCESSING';
      UPDATE evaluation_queue SET status = 'QUEUED' WHERE status = 'PROCESSING';
      ```
-  3. Verify that `max_output_tokens` is configured to `65536` in `backend/app/gemini/client.py`.
 
-#### Playbook 2: PostgreSQL NUL Byte Crash (`UntranslatableCharacter`)
-- **Symptom**: Logs show `psycopg2.errors.UntranslatableCharacter: unsupported Unicode escape sequence \u0000`.
-- **Root Cause**: LLM generated a C-style null byte in a mathematical formula.
-- **Resolution**:
-  1. Ensure all database executions pass through `PostgresCursorWrapper`.
-  2. Verify that `_sanitize_params` in `backend/app/database.py` is stripping `\x00` characters across tuples, dictionaries, and lists.
-
-#### Playbook 3: Google AI Studio 429 Quota Exhaustion
-- **Symptom**: Worker logs report `ResourceExhausted: 429 Resource has been exhausted`.
-- **Root Cause**: High batch concurrency exceeded the per-minute quota of the primary API key.
-- **Resolution**:
-  1. Add additional API keys to the `GEMINI_API_KEYS` comma-separated list in `.env`.
-  2. The multi-key ring will automatically expand its round-robin cycle.
-  3. The worker pool will sleep for 30 seconds automatically without dropping queued student jobs.
+#### Playbook 4: 15-Day Storage Retention Manual Sweep
+- **Symptom:** Cloudinary storage usage approaches account limits.
+- **Resolution:**
+  1. Trigger an immediate manual purge sweep:
+     ```bash
+     curl -X POST https://papergrade-ai-al1w.onrender.com/api/v1/submissions/purge-expired \
+          -H "Authorization: Bearer <ROOT_ADMIN_JWT>"
+     ```
+  2. The purge daemon unlinks expired PDFs from Cloudinary and deletes `answer_regions` coordinates while keeping numerical scores permanently intact.
 
 ---
 
-## 15. Master Data Architecture & Business Intelligence (BI) Retention Specification
-
-### 15.1 Storage Tier Partitioning & Structural Invariants
-PaperGrade AI divides platform data across three distinct storage tiers to achieve high query performance, low cost, and strict compliance:
-
-```mermaid
-flowchart TD
-    subgraph Tier1["Tier 1: Relational State (PostgreSQL / SQLite WAL)"]
-        direction TB
-        T1_Meta["24 Normalized Tables across 5 Domains<br/>Institutes, Branches, Subjects, Users, Batches, Exams"]
-        T1_Scores["Granular Score Data<br/>Criteria Breakdown, Section Sums, Audit Trail"]
-        T1_Invar["Permanent Retention Invariant<br/>Preserved Indefinitely for Historical BI"]
-    end
-
-    subgraph Tier2["Tier 2: Local Processing Cache (SSD Buffer)"]
-        direction TB
-        T2_Uploads["backend/data/uploads/<br/>Raw Image Scans & Multipart Uploads"]
-        T2_Proc["PyMuPDF Vector Burning & EXIF Normalization"]
-        T2_Evict["Ephemeral Lifecycle<br/>Flushed Upon CDN Sync"]
-    end
-
-    subgraph Tier3["Tier 3: Cloud Object Storage (Cloudinary / R2 / S3)"]
-        direction TB
-        T3_Canonical["Canonical Upright Student PDFs"]
-        T3_Extracts["150 DPI Answer Region Crops"]
-        T3_Annotated["PyMuPDF Graded Vector Overlays"]
-        T3_TTL["15-Day Strict TTL Expiration Window"]
-    end
-
-    Tier2 -->|"Async Ingestion"| Tier3
-    Tier2 -->|"Extract Structured Grades"| Tier1
-    Tier3 -.->|"15-Day TTL Cascade Purge"| PurgeEngine["Scheduled Purge Worker<br/>(Binary Documents Expunged)"]
-    Tier1 -.->|"Permanent BI Analytics"| BI["Cohort Progression, NAAC/ABET Reports,<br/>Item Difficulty & Discrimination Curves"]
-```
-
-1. **Relational Tier (PostgreSQL 15+ / SQLite 3 WAL)**:
-   - Houses all system state across 24 normalized tables (`institutes`, `branches`, `subjects`, `users`, `batches`, `students`, `exams`, `exam_batches`, `submission_windows`, `rubric_versions`, `submissions`, `answers`, `answer_regions`, `criterion_scores`, `evaluation_queue`, `revaluation_requests`, `notifications`, `push_subscriptions`, `password_reset_requests`, `technical_reports`, `audit_logs`, `api_usage_events`, `user_quota_settings`, `experiment_benchmarks`).
-   - Handles ACID transactions, row-level concurrency claims (`FOR UPDATE SKIP LOCKED`), and structured criteria score breakdowns.
-2. **Local SSD Processing Buffer (`backend/data/uploads/`)**:
-   - High-throughput scratchpad for EXIF transposition, multi-image merging, 150 DPI page rendering, and PyMuPDF vector drawing.
-   - Cleared automatically or synchronized with cloud storage.
-3. **Cloud CDN & Object Tier (Cloudinary / Cloudflare R2 / AWS S3)**:
-   - Stores binary PDF payloads: raw canonical uploads, vector-annotated review PDFs, and 150 DPI handwriting crops.
-   - Governed by the automated 15-day time-to-live lifecycle.
-
----
-
-### 15.2 15-Day TTL Cascade Purge Engine Mechanics
-To satisfy educational data privacy regulations (FERPA, GDPR) and eliminate unbounded cloud storage costs, the platform implements an automated document purge lifecycle:
-
-$$\text{retention\_expires\_at} = t_{\text{graded}} + 15 \times 86400\,\text{seconds}$$
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Cron as Scheduled Purge Daemon
-    participant API as Submissions Router (POST /api/v1/submissions/purge-expired)
-    participant DB as Relational Database
-    participant CDN as Cloudinary / R2 CDN
-    participant Disk as Local File Storage
-
-    Cron->>API: Trigger Expired Purge Sweep
-    API->>DB: SELECT id, canonical_pdf_path, annotated_pdf_path FROM submissions WHERE retention_expires_at <= NOW() AND is_document_purged = 0
-    DB-->>API: Return Expired Submissions List
-    loop For Each Expired Submission
-        API->>Disk: os.remove(local_pdf_path) (if cached)
-        API->>CDN: uploader.destroy(public_id, resource_type='raw')
-        API->>DB: DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = :id)
-        API->>DB: UPDATE submissions SET is_document_purged = 1, canonical_pdf_path = NULL, annotated_pdf_path = NULL WHERE id = :id
-    end
-    API-->>Cron: Purge Summary (Total Reclaimed Bytes, Purged Records)
-```
-
-- **Physical Media Deletion**: Both the raw student scan PDF and the vector-annotated PDF are unlinked from local disk and destroyed in the cloud CDN via Admin API credentials.
-- **Database Tombstone**: The `is_document_purged` flag is set to `1`, path columns are set to `NULL`, and coordinate bounding boxes in `answer_regions` are dropped to conserve database space.
-- **Student Portal UX**: If a student accesses an expired exam paper in the portal, the spatial viewer displays an informative *"Document archived under 15-day retention policy"* banner while still rendering their complete numerical score and question-by-question performance breakdown.
-
----
-
-### 15.3 Historical Grade & Analytics Retention for Academic BI
-A core architectural guarantee of PaperGrade AI is that **document purge does not equal data loss**:
-
-| Data Entity | Storage Location | Retention Lifespan | Academic & BI Purpose |
-| :--- | :--- | :--- | :--- |
-| **Raw Scanned PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Temporary grading evidence & immediate student review. |
-| **Annotated Graded PDF** | Cloudinary / Local Disk | **15 Days (TTL)** | Downloadable vector report card during verification window. |
-| **Final Marks & Percentages** | Relational DB (`submissions`) | **Permanent ($\infty$)** | Official student academic records, GPA calculation, transcripts. |
-| **Question-by-Question Breakdown** | Relational DB (`answers`) | **Permanent ($\infty$)** | Item difficulty analysis, curriculum defect identification. |
-| **Criteria-Level Marks & Rubrics** | Relational DB (`criterion_scores`)| **Permanent ($\infty$)** | Pedagogical scoring distribution, rubric fairness auditing. |
-| **Teacher Override Trail** | Relational DB (`audit_logs`) | **Permanent ($\infty$)** | Immutable accountability audit logs for institutional compliance. |
-| **LLM Inference Telemetry** | Relational DB (`api_usage_events`) | **Permanent ($\infty$)** | Historical cost tracking, latency percentiles, quota planning. |
-
-#### Continuous Business Intelligence Capabilities
-Because structured performance records are preserved permanently, academic institutions can execute longitudinal analytics across decades without storing petabytes of raw PDF scans:
-- **Longitudinal Cohort Tracking**: Measure learning outcome progression across multi-year academic cohorts.
-- **Curriculum & Item Difficulty Indexing**: Compute classical test theory metrics ($P$-value facility indices and item discrimination coefficients) to isolate flawed examination questions.
-- **Accreditation Evidence**: Instantly export structured compliance matrices required by international accreditation boards (e.g., ABET, NAAC, NBA).
-
----
-
-### 15.4 Multi-Tenant Data Isolation & Compliance Guarantees
-1. **Hierarchical Row Scoping**:
-   - Every administrative query strictly filters across `institute_id` and `branch_id`.
-   - Foreign key constraints with `ON DELETE CASCADE` guarantee that deleting an institutional branch automatically scrubs all associated exams, rubrics, and student records without leaving orphan rows.
-2. **Student Privacy (Zero PII Ingestion to AI)**:
-   - Student identities (names, emails, demographic data) are never transmitted to Google Gemini inference endpoints.
-   - Evaluation prompts receive only the isolated question paper text and anonymized student handwriting pixel buffers labeled by synthetic roll-number identifiers.
-3. **FERPA & GDPR Compliance**:
-   - Right to erasure and data minimization are structurally enforced via the 15-day TTL purge engine.
-   - Comprehensive teacher audit logging ensures full transparency and defensibility for every grade awarded or modified.
-
----
-
-**© 2026 PaperGrade AI Systems Inc. All rights reserved. Assessment Integrity Platform.**
+**© 2026 PaperGrade AI Systems Inc. All rights reserved. Enterprise Assessment Integrity Platform.**
