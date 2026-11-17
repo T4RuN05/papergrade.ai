@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   RotateCcw,
   ShieldCheck,
@@ -39,11 +39,43 @@ export function StudentQuestionModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAppealForm, setShowAppealForm] = useState(false);
   const [showFullCrop, setShowFullCrop] = useState(false);
+  const [selectedRegionIndex, setSelectedRegionIndex] = useState(0);
+
+  // Reset region index and expansion state whenever the inspected answer changes
+  useEffect(() => {
+    setSelectedRegionIndex(0);
+    setShowFullCrop(false);
+  }, [answer?.id]);
+
+  const allRegions = useMemo(() => {
+    if (!answer) return [];
+    if (Array.isArray(answer.regions) && answer.regions.length > 0) {
+      return answer.regions;
+    }
+    if ((answer as any).x !== undefined && (answer as any).width !== undefined) {
+      return [
+        {
+          id: answer.id,
+          page_number: answer.page_number || 1,
+          x: (answer as any).x,
+          y: (answer as any).y,
+          width: (answer as any).width,
+          height: (answer as any).height,
+        },
+      ];
+    }
+    return [];
+  }, [answer]);
+
+  const activeRegion = allRegions[selectedRegionIndex] || allRegions[0] || null;
+  const activePage = activeRegion?.page_number || answer?.page_number || 1;
 
   const cropUrl = useMemo(() => {
     if (!answer) return "";
-    return api.getAnswerCropUrl(submissionId, answer);
-  }, [answer, submissionId]);
+    return activeRegion?.id
+      ? api.getAnswerCropUrl(submissionId, answer, activeRegion.id)
+      : api.getAnswerCropUrl(submissionId, answer);
+  }, [answer, submissionId, activeRegion?.id]);
 
   if (!isOpen || !answer) return null;
 
@@ -185,29 +217,59 @@ export function StudentQuestionModal({
           </div>
         )}
 
-        {/* Student Handwriting Crop Preview (Compact & Expandable) */}
-        <div className="space-y-1 rounded-md border border-hairline bg-surface p-2">
+        {/* Student Handwriting Crop Preview (Compact & Expandable with Multi-Page/Part Support) */}
+        <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2 sm:p-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-ink-muted">
             <span className="font-semibold flex items-center gap-1 text-[10.5px]">
               <ImageIcon className="h-3 w-3 text-primary" />
               Detected Student Handwriting:
             </span>
-            <button
-              type="button"
-              onClick={() => setShowFullCrop((prev) => !prev)}
-              className="text-[10px] text-primary hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
-            >
-              {showFullCrop ? (
-                <>
-                  <ChevronUp className="h-3 w-3" /> Collapse
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3 w-3" /> Expand
-                </>
+            <div className="flex items-center gap-2">
+              {allRegions.length > 1 && (
+                <span className="text-[10px] text-ink-muted font-mono font-medium hidden sm:inline">
+                  Part {selectedRegionIndex + 1}/{allRegions.length} • Page {activePage}
+                </span>
               )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setShowFullCrop((prev) => !prev)}
+                className="text-[10px] text-primary hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
+              >
+                {showFullCrop ? (
+                  <>
+                    <ChevronUp className="h-3 w-3" /> Collapse
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3 w-3" /> Expand
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* Multi-Page / Multi-Part Region Selector Tabs (Mobile & Touch Responsive) */}
+          {allRegions.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-0.5 -mx-0.5 px-0.5">
+              {allRegions.map((reg, rIdx) => {
+                const isSelected = selectedRegionIndex === rIdx;
+                return (
+                  <button
+                    key={reg.id || rIdx}
+                    type="button"
+                    onClick={() => setSelectedRegionIndex(rIdx)}
+                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      isSelected
+                        ? "btn-glass-primary font-bold shadow-2xs"
+                        : "btn-glass-utility hover:text-ink text-ink-secondary"
+                    }`}
+                  >
+                    Part {rIdx + 1} (Page {reg.page_number || 1})
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div
             className={`rounded bg-canvas-soft/60 overflow-hidden flex items-center justify-center transition-all ${
@@ -216,13 +278,19 @@ export function StudentQuestionModal({
           >
             <ClippedAnswerCrop
               submissionId={submissionId}
-              pageNumber={answer.page_number || 1}
-              region={answer.regions?.[0] || ((answer as any).x !== undefined ? (answer as any) : null)}
+              pageNumber={activePage}
+              region={activeRegion}
               fallbackCropUrl={cropUrl}
-              alt={`Answer Crop ${answer.question_id}`}
+              alt={`Answer Crop ${answer.question_id}${allRegions.length > 1 ? ` - Part ${selectedRegionIndex + 1}` : ""}`}
               maxContainerHeight={showFullCrop ? "280px" : "140px"}
             />
           </div>
+
+          {allRegions.length > 1 && (
+            <p className="text-[10px] text-ink-muted leading-tight">
+              Showing Part {selectedRegionIndex + 1} of {allRegions.length} (Page {activePage}). Tap pills above to switch pages.
+            </p>
+          )}
         </div>
 
         {/* Faculty Rubric Commentary & Feedback */}

@@ -59,11 +59,42 @@ export function AdminRevaluationModal({
   const [revisedMarks, setRevisedMarks] = useState<number>(0);
   const [reviewerNotes, setReviewerNotes] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [selectedRegionIndex, setSelectedRegionIndex] = useState(0);
+
+  // Reset region selection when inspected answer changes
+  useEffect(() => {
+    setSelectedRegionIndex(0);
+  }, [answer?.id]);
+
+  const allRegions = useMemo(() => {
+    if (!answer) return [];
+    if (Array.isArray(answer.regions) && answer.regions.length > 0) {
+      return answer.regions;
+    }
+    if ((answer as any).x !== undefined && (answer as any).width !== undefined) {
+      return [
+        {
+          id: answer.id,
+          page_number: answer.page_number || 1,
+          x: (answer as any).x,
+          y: (answer as any).y,
+          width: (answer as any).width,
+          height: (answer as any).height,
+        },
+      ];
+    }
+    return [];
+  }, [answer]);
+
+  const activeRegion = allRegions[selectedRegionIndex] || allRegions[0] || null;
+  const activePage = activeRegion?.page_number || answer?.page_number || 1;
 
   const cropUrl = useMemo(() => {
     if (!answer) return "";
-    return api.getAnswerCropUrl(submissionId, answer);
-  }, [answer, submissionId]);
+    return activeRegion?.id
+      ? api.getAnswerCropUrl(submissionId, answer, activeRegion.id)
+      : api.getAnswerCropUrl(submissionId, answer);
+  }, [answer, submissionId, activeRegion?.id]);
 
   // Initialize form when answer or request changes
   useEffect(() => {
@@ -269,25 +300,62 @@ export function AdminRevaluationModal({
           </div>
         </div>
 
-        {/* Student Handwriting Crop Preview */}
-        <div className="space-y-1.5">
+        {/* Student Handwriting Crop Preview (with Multi-Page/Part Support) */}
+        <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2 sm:p-2.5 shadow-2xs">
           <div className="flex items-center justify-between text-ink-muted">
             <span className="font-semibold flex items-center gap-1 text-[11px]">
               <ImageIcon className="h-3 w-3 text-primary" />
               Detected Student Handwriting:
             </span>
-            <span className="text-[10px]">Crop Region</span>
+            <div className="flex items-center gap-2">
+              {allRegions.length > 1 && (
+                <span className="text-[10px] font-mono text-ink-muted">
+                  Part {selectedRegionIndex + 1}/{allRegions.length} • Page {activePage}
+                </span>
+              )}
+              <span className="text-[10px] text-ink-muted">Crop Region</span>
+            </div>
           </div>
-          <div className="rounded-md border border-hairline bg-surface p-2 overflow-hidden flex items-center justify-center max-h-52">
+
+          {/* Multi-Page / Multi-Part Region Selector Tabs */}
+          {allRegions.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-0.5 -mx-0.5 px-0.5">
+              {allRegions.map((reg, rIdx) => {
+                const isSelected = selectedRegionIndex === rIdx;
+                return (
+                  <button
+                    key={reg.id || rIdx}
+                    type="button"
+                    onClick={() => setSelectedRegionIndex(rIdx)}
+                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      isSelected
+                        ? "btn-glass-primary font-bold shadow-2xs"
+                        : "btn-glass-utility hover:text-ink text-ink-secondary"
+                    }`}
+                  >
+                    Part {rIdx + 1} (Page {reg.page_number || 1})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="rounded-md border border-hairline bg-canvas-soft/60 p-2 overflow-hidden flex items-center justify-center max-h-52">
             <ClippedAnswerCrop
               submissionId={submissionId}
-              pageNumber={answer.page_number || 1}
-              region={answer.regions?.[0] || ((answer as any).x !== undefined ? (answer as any) : null)}
+              pageNumber={activePage}
+              region={activeRegion}
               fallbackCropUrl={cropUrl}
-              alt={`Crop of Question ${answer.question_id}`}
+              alt={`Crop of Question ${answer.question_id}${allRegions.length > 1 ? ` - Part ${selectedRegionIndex + 1}` : ""}`}
               maxContainerHeight="200px"
             />
           </div>
+
+          {allRegions.length > 1 && (
+            <p className="text-[10px] text-ink-muted leading-tight">
+              Showing Part {selectedRegionIndex + 1} of {allRegions.length} (Page {activePage}). Tap pills above to switch pages.
+            </p>
+          )}
         </div>
 
         {/* Rubric Commentary & Grading Feedback */}
