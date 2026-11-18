@@ -70,11 +70,12 @@ def _purge_and_replace_previous_submissions(
     storage = get_storage_service()
 
     if isinstance(cursor, Session):
+        norm_roll = (clean_roll or "").strip().upper()
         stmt = select(Submission).where(Submission.exam_id == exam_id)
         if student_id:
-            stmt = stmt.where(or_(func.upper(Submission.roll_number) == clean_roll, Submission.student_id == student_id))
+            stmt = stmt.where(or_(func.upper(Submission.roll_number) == norm_roll, Submission.student_id == student_id))
         else:
-            stmt = stmt.where(func.upper(Submission.roll_number) == clean_roll)
+            stmt = stmt.where(func.upper(Submission.roll_number) == norm_roll)
 
         if new_sub_id:
             stmt = stmt.where(Submission.id != new_sub_id)

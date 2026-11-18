@@ -42,6 +42,14 @@ class BoundedTTLCache:
                 self._data.popitem(last=False)
             self._data[key] = (value, now + self.ttl)
 
+    def __len__(self) -> int:
+        now = time.time()
+        with self._lock:
+            expired = [k for k, (_, exp) in self._data.items() if exp < now]
+            for k in expired:
+                del self._data[k]
+            return len(self._data)
+
 
 _active_user_cache = BoundedTTLCache(maxsize=5000, ttl=15.0)  # 15s TTL
 ACTIVE_CACHE_TTL = 15.0  # seconds
