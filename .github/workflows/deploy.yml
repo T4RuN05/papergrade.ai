@@ -24,9 +24,11 @@ jobs:
           script: |
             set -e
             echo "🚀 Starting automated deployment on VPS..."
+            git config --global --add safe.directory /opt/papergrade/app
             cd /opt/papergrade/app
             git fetch origin main
             git reset --hard origin/main
+            chown -R papergrade:papergrade /opt/papergrade/app
             echo "📦 Installing updated dependencies..."
             /opt/papergrade/venv/bin/pip install --no-cache-dir -r backend/requirements.txt
             echo "🔄 Restarting papergrade-backend service..."
