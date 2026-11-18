@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import NullPool
 from backend.app.config import settings
 
 def get_database_url() -> str:
@@ -35,11 +36,11 @@ engine_kwargs = {
 if is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # Production Postgres / Supabase PgBouncer transaction pooler tuning
-    engine_kwargs["pool_recycle"] = 300
-    engine_kwargs["pool_size"] = 15
-    engine_kwargs["max_overflow"] = 25
-    engine_kwargs["pool_reset_on_return"] = "rollback"  # Ensures connections never linger in 'idle in transaction'
+    # Supabase Transaction Mode Pooler (:6543) / PgBouncer tuning:
+    # Use NullPool so SQLAlchemy does not maintain an artificial client-side connection limit (which
+    # previously starved concurrent browsing at 40 connections). PgBouncer handles connection
+    # multiplexing at the server level for thousands of concurrent queries.
+    engine_kwargs["poolclass"] = NullPool
     engine_kwargs["connect_args"] = {
         "connect_timeout": 10,
         "keepalives": 1,
