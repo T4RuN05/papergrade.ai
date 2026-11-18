@@ -2,6 +2,7 @@ import os
 import uuid
 import json
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
@@ -99,7 +100,8 @@ async def submit_technical_report(
 
         try:
             storage = get_storage_service()
-            storage.upload_file(content, storage_key, content_type=content_type)
+            # D-08: Offload synchronous WAN storage upload from event loop to worker thread
+            await asyncio.to_thread(storage.upload_file, content, storage_key, content_type=content_type)
         except Exception as st_err:
             logger.warning("Failed uploading screenshot to storage service: %s", st_err)
 

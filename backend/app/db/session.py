@@ -29,6 +29,9 @@ def get_database_url() -> str:
 DATABASE_URL = get_database_url()
 is_sqlite = DATABASE_URL.startswith("sqlite")
 
+def is_postgres() -> bool:
+    return not is_sqlite
+
 engine_kwargs = {
     "pool_pre_ping": True,  # Liveness check prevents stale SSL/timeout socket drops
 }

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Query, Request, Response, Depends, status
 from fastapi.responses import FileResponse, Response
@@ -113,5 +114,6 @@ async def upload_file_proxy(
             raise HTTPException(status_code=400, detail="Invalid JPEG file: Missing JPEG magic bytes header.")
 
     storage = get_storage_service()
-    storage.upload_file(body, clean_key, content_type=content_type)
+    # D-08: Offload synchronous WAN upload from event loop to worker thread
+    await asyncio.to_thread(storage.upload_file, body, clean_key, content_type=content_type)
     return {"status": "success", "key": clean_key, "size_bytes": len(body)}

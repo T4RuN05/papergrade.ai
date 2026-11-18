@@ -24,10 +24,11 @@ from backend.app.db.models import (
 logger = logging.getLogger(__name__)
 
 
-def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, payload_str: str):
-    """Deliver a Web Push encrypted packet to Google FCM / Apple APNs / Mozilla push servers."""
+def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, payload_str: str) -> Optional[str]:
+    """Deliver a Web Push encrypted packet to Google FCM / Apple APNs / Mozilla push servers.
+    Returns sub_id if expired (HTTP 404 or 410 Gone) for bulk cleanup."""
     try:
-        from pywebpush import webpush, WebPushException
+        from pywebpush import webpush
         webpush(
             subscription_info={
                 "endpoint": endpoint,
@@ -43,20 +44,16 @@ def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, pay
             },
             ttl=86400,  # 24 hours delivery window if device is currently offline
         )
+        return None
     except Exception as ex:
         # Check if subscription has expired or unsubscribed (HTTP 404 or 410 Gone)
         response = getattr(ex, "response", None)
         status_code = getattr(response, "status_code", None)
         if status_code in (404, 410):
-            try:
-                with get_session() as session:
-                    sub = session.scalar(select(PushSubscription).where(PushSubscription.id == sub_id))
-                    if sub:
-                        session.delete(sub)
-            except Exception:
-                pass
+            return sub_id
         else:
             logger.debug("WebPush delivery notice: %s", ex)
+            return None
 
 
 def dispatch_webpush_for_users(user_ids: List[str], title: str, message: str, link_url: Optional[str] = None):
@@ -84,14 +81,35 @@ def dispatch_webpush_for_users(user_ids: List[str], title: str, message: str, li
                     "url": link_url or "/overview",
                 })
 
-                for s in subs:
-                    _send_single_webpush(
-                        sub_id=s.id,
-                        endpoint=s.endpoint,
-                        p256dh=s.p256dh,
-                        auth=s.auth,
-                        payload_str=payload,
-                    )
+                sub_data = [(s.id, s.endpoint, s.p256dh, s.auth) for s in subs]
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from sqlalchemy import delete
+            expired_sub_ids = []
+            max_workers = min(8, len(sub_data))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(_send_single_webpush, s_id, ep, p256, auth, payload): s_id
+                    for (s_id, ep, p256, auth) in sub_data
+                }
+                for future in as_completed(futures):
+                    try:
+                        expired_id = future.result()
+                        if expired_id:
+                            expired_sub_ids.append(expired_id)
+                    except Exception as exc:
+                        logger.debug("Error delivering webpush: %s", exc)
+
+            if expired_sub_ids:
+                try:
+                    with get_session() as session:
+                        session.execute(
+                            delete(PushSubscription).where(PushSubscription.id.in_(expired_sub_ids))
+                        )
+                        session.commit()
+                        logger.info("Pruned %d expired WebPush subscriptions (404/410)", len(expired_sub_ids))
+                except Exception as del_err:
+                    logger.debug("Failed to prune expired push subscriptions: %s", del_err)
         except Exception as err:
             logger.debug("Failed in dispatch_webpush_for_users: %s", err)
 
@@ -127,7 +145,7 @@ def prune_user_notifications(cursor_or_session, user_id: str, keep_limit: int = 
             res = cursor_or_session.execute(text(prune_sql), {"user_id": user_id, "keep_limit": keep_limit})
             return res.rowcount if res and res.rowcount else 0
         else:
-            from backend.app.database import is_postgres
+            from backend.app.db.session import is_postgres
             param = "%s" if is_postgres() else "?"
             sql = f"""
                 DELETE FROM notifications
@@ -182,7 +200,7 @@ def prune_all_notifications(cursor_or_session=None, keep_limit: int = 50) -> int
             deleted = res.rowcount if res and res.rowcount else 0
             return deleted
         else:
-            from backend.app.database import is_postgres
+            from backend.app.db.session import is_postgres
             param = "%s" if is_postgres() else "?"
             sql = f"""
                 DELETE FROM notifications

@@ -135,75 +135,17 @@ def _purge_and_replace_previous_submissions(
 
         return len(prev_subs)
 
-    # Legacy raw cursor fallback
-    conds = ["exam_id = ?"]
-    params = [exam_id]
-    if student_id:
-        conds.append("(UPPER(roll_number) = ? OR student_id = ?)")
-        params.extend([clean_roll, student_id])
-    else:
-        conds.append("UPPER(roll_number) = ?")
-        params.append(clean_roll)
-
-    if new_sub_id:
-        conds.append("id != ?")
-        params.append(new_sub_id)
-
-    query = f"""
-        SELECT id, original_file_path, canonical_pdf_path, annotated_pdf_path 
-        FROM submissions 
-        WHERE {' AND '.join(conds)}
-    """
-    cursor.execute(query, tuple(params))
-    prev_subs = [dict(r) for r in cursor.fetchall()]
-
-    if not prev_subs:
-        return 0
-
-    for ps in prev_subs:
-        pid = ps["id"]
-        for file_key in [ps.get("original_file_path"), ps.get("canonical_pdf_path"), ps.get("annotated_pdf_path")]:
-            if file_key:
-                try:
-                    storage.delete_file(file_key)
-                except Exception as e:
-                    logger.warning(f"Could not delete replaced submission storage file {file_key}: {e}")
-
-        try:
-            local_renders = settings.RENDERS_DIR / pid
-            if local_renders.exists():
-                shutil.rmtree(local_renders, ignore_errors=True)
-            local_page_renders = settings.PAGE_RENDERS_DIR / f"sub_{pid}"
-            if local_page_renders.exists():
-                shutil.rmtree(local_page_renders, ignore_errors=True)
-            local_annotated = settings.EXPORTS_DIR / f"{pid}_annotated.pdf"
-            if local_annotated.exists():
-                local_annotated.unlink(missing_ok=True)
-            local_uploads = settings.UPLOADS_DIR / "submissions" / pid
-            if local_uploads.exists():
-                shutil.rmtree(local_uploads, ignore_errors=True)
-        except Exception as e:
-            logger.warning(f"Could not delete local submission files for {pid}: {e}")
-
-        cursor.execute("DELETE FROM evaluation_queue WHERE submission_id = ?", (pid,))
-        cursor.execute("DELETE FROM criterion_scores WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (pid,))
-        cursor.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (pid,))
-        cursor.execute("DELETE FROM answers WHERE submission_id = ?", (pid,))
-        cursor.execute("DELETE FROM revaluation_requests WHERE submission_id = ?", (pid,))
-        cursor.execute("DELETE FROM submissions WHERE id = ?", (pid,))
-
-        cursor.execute("""
-            INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, details_json, created_at)
-            VALUES (?, ?, 'REPLACE_SUBMISSION', 'SUBMISSION', ?, ?, ?)
-        """, (
-            f"aud_{uuid.uuid4().hex[:12]}",
-            current_user_id or "system",
-            pid,
-            json.dumps({"replaced_by": new_sub_id, "exam_id": exam_id, "roll_number": clean_roll}),
-            now
-        ))
-
-    return len(prev_subs)
+    # D-05: Eliminate broken raw DBAPI cursor with SQLite '?' syntax. Delegate cleanly to ORM session.
+    from backend.app.db.session import get_session
+    with get_session() as session:
+        return _purge_and_replace_previous_submissions(
+            cursor=session,
+            exam_id=exam_id,
+            clean_roll=clean_roll,
+            student_id=student_id,
+            new_sub_id=new_sub_id,
+            current_user_id=current_user_id
+        )
 
 
 def parse_iso(iso_str: str) -> datetime:

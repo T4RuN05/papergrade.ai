@@ -1214,9 +1214,14 @@ async def get_exam_artifact_meta(
     render_dir = settings.RENDERS_DIR / render_key
     page_1 = render_dir / "page_1.png"
 
-    doc = fitz.open(str(pdf_path))
-    page_count = len(doc)
-    doc.close()
+    # D-07: Offload PyMuPDF parsing from asyncio event loop to worker thread
+    def _read_page_count(path: Path) -> int:
+        doc = fitz.open(str(path))
+        cnt = len(doc)
+        doc.close()
+        return cnt
+
+    page_count = await asyncio.to_thread(_read_page_count, pdf_path)
 
     # In Pattern B, the frontend renders pages client-side directly from the PDF.
     # Eager server-side rasterization is bypassed to preserve server RAM.
@@ -1265,7 +1270,8 @@ async def get_exam_artifact_page_image(
         pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
         if not pdf_path or not pdf_path.exists():
             raise HTTPException(status_code=404, detail="Document not found.")
-        pdf_service.render_pdf_pages_to_images(pdf_path, render_key)
+        # D-07: Offload CPU-heavy page rasterization from event loop to worker thread
+        await asyncio.to_thread(pdf_service.render_pdf_pages_to_images, pdf_path, render_key)
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page {page_num} not found.")

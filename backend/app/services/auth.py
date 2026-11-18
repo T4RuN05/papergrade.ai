@@ -4,6 +4,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
+from collections import OrderedDict
 from fastapi import HTTPException, Security, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -11,18 +12,45 @@ from backend.app.config import settings
 
 security = HTTPBearer(auto_error=False)
 
-_active_user_cache: Dict[str, tuple[bool, float]] = {}
-_cache_lock = threading.Lock()
+
+class BoundedTTLCache:
+    """Thread-safe bounded LRU-TTL cache to eliminate memory leaks and unbounded dict bloat."""
+    def __init__(self, maxsize: int = 1000, ttl: float = 300.0):
+        self.maxsize = maxsize
+        self.ttl = ttl
+        self._data: OrderedDict[str, tuple[Any, float]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Optional[Any]:
+        now = time.time()
+        with self._lock:
+            if key in self._data:
+                val, exp = self._data[key]
+                if now < exp:
+                    self._data.move_to_end(key)
+                    return val
+                else:
+                    del self._data[key]
+            return None
+
+    def set(self, key: str, value: Any):
+        now = time.time()
+        with self._lock:
+            if key in self._data:
+                del self._data[key]
+            elif len(self._data) >= self.maxsize:
+                self._data.popitem(last=False)
+            self._data[key] = (value, now + self.ttl)
+
+
+_active_user_cache = BoundedTTLCache(maxsize=5000, ttl=15.0)  # 15s TTL
 ACTIVE_CACHE_TTL = 15.0  # seconds
 
 def is_user_active_in_db(user_id: str) -> bool:
-    """Check if user account is active in the database with short-lived TTL cache."""
-    now = time.time()
-    with _cache_lock:
-        if user_id in _active_user_cache:
-            is_active, exp = _active_user_cache[user_id]
-            if now < exp:
-                return is_active
+    """Check if user account is active in the database with short-lived bounded TTL cache."""
+    cached = _active_user_cache.get(user_id)
+    if cached is not None:
+        return cached
 
     try:
         from backend.app.db.session import get_session
@@ -40,9 +68,7 @@ def is_user_active_in_db(user_id: str) -> bool:
         # Fallback gracefully if DB session unavailable
         is_active_bool = True
 
-    with _cache_lock:
-        _active_user_cache[user_id] = (is_active_bool, now + ACTIVE_CACHE_TTL)
-
+    _active_user_cache.set(user_id, is_active_bool)
     return is_active_bool
 
 def hash_password(password: str) -> str:
@@ -50,25 +76,20 @@ def hash_password(password: str) -> str:
     salt = bcrypt.gensalt(rounds=12)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
-_pwd_verify_cache: Dict[str, tuple[bool, float]] = {}
-_pwd_cache_lock = threading.Lock()
+_pwd_verify_cache = BoundedTTLCache(maxsize=1000, ttl=300.0)  # 5 minutes TTL
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against bcrypt hash with short-lived LRU/TTL cache to prevent CPU starvation."""
+    """Verify password against bcrypt hash with bounded LRU/TTL cache to prevent CPU starvation and memory bloat."""
     import hashlib
     cache_key = hashlib.sha256((plain_password + ":" + hashed_password).encode("utf-8")).hexdigest()
-    now = time.time()
-    with _pwd_cache_lock:
-        if cache_key in _pwd_verify_cache:
-            valid, exp = _pwd_verify_cache[cache_key]
-            if now < exp:
-                return valid
+    cached = _pwd_verify_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     try:
         is_valid = bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
         if is_valid:
-            with _pwd_cache_lock:
-                _pwd_verify_cache[cache_key] = (True, now + 300.0)  # 5 minutes TTL
+            _pwd_verify_cache.set(cache_key, True)
         return is_valid
     except Exception:
         return False
