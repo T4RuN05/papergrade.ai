@@ -29,12 +29,12 @@ class Settings:
     MAX_EVALUATION_WORKERS: int = int(os.getenv("MAX_EVALUATION_WORKERS", "1"))
 
     # Google Cloud Vertex AI & Paid API Key Settings
-    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "project-fe04c36f-bda1-4c99-86b").strip()
+    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "").strip()
     GCP_LOCATION: str = os.getenv("GCP_LOCATION", "global").strip()
-    GCP_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL", "1040007059825-compute@developer.gserviceaccount.com").strip()
+    GCP_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL", "").strip()
     GCP_SERVICE_ACCOUNT_PATH: Path = Path(os.getenv("GCP_SERVICE_ACCOUNT_PATH", str(Path(__file__).resolve().parent.parent / "credentials" / "gcp_service_account.json")))
     GCP_SERVICE_ACCOUNT_JSON: str = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "").strip()
-    GCP_PAID_API_KEY: str = os.getenv("GCP_PAID_API_KEY", "AIzaSyBsSY1kKW4DUvThcWG14uZwKZVfHVe2VGc").strip()
+    GCP_PAID_API_KEY: str = os.getenv("GCP_PAID_API_KEY", "").strip()
 
     # Data & Storage
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
