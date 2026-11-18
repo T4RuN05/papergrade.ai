@@ -35,7 +35,7 @@ from backend.app.services.notification_service import (
     notify_root_admins,
 )
 
-router = APIRouter(prefix="/api/v1/auth", tags=["Authentication & RBAC"])
+router = APIRouter(prefix="/api/auth", tags=["Authentication & RBAC"])
 
 
 class ForgotPasswordRequest(BaseModel):

@@ -35,7 +35,7 @@ from backend.app.db.models import (
 from backend.app.services.auth import get_current_user
 from backend.app.services.retention_service import RetentionService
 
-router = APIRouter(prefix="/api/v1/student", tags=["Student Portal"])
+router = APIRouter(prefix="/api/student", tags=["Student Portal"])
 
 # Lightweight in-memory window cache (4-second TTL) to protect DB pool during bursts
 _window_cache: Dict[str, Any] = {}

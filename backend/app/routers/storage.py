@@ -12,7 +12,7 @@ from backend.app.services.storage import (
 )
 from backend.app.services.auth import get_current_user
 
-router = APIRouter(prefix="/api/v1/storage", tags=["Storage"])
+router = APIRouter(prefix="/api/storage", tags=["Storage"])
 
 @router.get("/download")
 def download_file(

@@ -1495,6 +1495,53 @@ def archive_exam(
     }
 
 
+@router.post("/{exam_id}/restore")
+def restore_exam(
+    exam_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
+    """
+    Restore an archived examination back to its active operational status.
+    """
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER" and exam.branch_id != current_user.get("branch_id"):
+        raise HTTPException(status_code=403, detail="Forbidden: You can only restore exams belonging to your branch.")
+    elif user_role == "INSTITUTE_DIRECTOR" and exam.institute_id != current_user.get("institute_id"):
+        raise HTTPException(status_code=403, detail="Forbidden: You can only restore exams belonging to your institute.")
+
+    now = get_iso_now()
+    target_status = "PUBLISHED" if exam.is_published == 1 else "COMPLETED"
+    exam.lifecycle_status = target_status
+    exam.status = target_status
+    exam.updated_at = now
+
+    audit = AuditLog(
+        id=f"aud_{uuid.uuid4().hex[:12]}",
+        user_id=current_user["sub"],
+        action="RESTORE_EXAM",
+        resource_type="EXAM",
+        resource_id=exam_id,
+        details_json=json.dumps({"title": exam.title, "restored_to": target_status}),
+        created_at=now,
+    )
+    db.add(audit)
+    db.commit()
+
+    PortalStateEpochManager.bump_branch(exam.branch_id)
+
+    return {
+        "success": True,
+        "message": f"Exam '{exam.title}' has been restored to {target_status}.",
+        "exam_id": exam_id,
+        "lifecycle_status": target_status
+    }
+
+
 @router.get("/{exam_id}/rankings")
 def get_exam_rankings(
     exam_id: str,

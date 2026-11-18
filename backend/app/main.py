@@ -79,24 +79,25 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 
-# Startup: include v1 routers
+# Backward compatibility middleware: transparently rewrite legacy /api/v1/... to /api/...
+@app.middleware("http")
+async def v1_compatibility_middleware(request: Request, call_next):
+    if request.scope.get("path", "").startswith("/api/v1/"):
+        request.scope["path"] = request.scope["path"].replace("/api/v1/", "/api/", 1)
+    return await call_next(request)
+
+# Standardized unified /api routers (D-04)
 app.include_router(auth.router)
 app.include_router(tenancy.router)
 app.include_router(windows.router)
 app.include_router(storage.router)
-app.include_router(exams.router, prefix="/api/v1/exams")
 app.include_router(exams.router, prefix="/api/exams")
-app.include_router(submissions.router, prefix="/api/v1/submissions")
 app.include_router(submissions.router, prefix="/api/submissions")
 app.include_router(revaluation.router)
 app.include_router(notifications.router)
 app.include_router(students.router)
-app.include_router(reports.router, prefix="/api/v1/reports")
 app.include_router(reports.router, prefix="/api/reports")
-
-# Include legacy/core routers for backward compatibility
 app.include_router(grading.router)
-app.include_router(analytics.router, prefix="/api/v1/analytics")
 app.include_router(analytics.router, prefix="/api/analytics")
 app.include_router(exports.router)
 

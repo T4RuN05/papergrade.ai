@@ -48,7 +48,7 @@ from backend.app.services.storage import get_storage_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/tenancy", tags=["Tenancy & Student Onboarding"])
+router = APIRouter(prefix="/api/tenancy", tags=["Tenancy & Student Onboarding"])
 
 
 class CreateInstituteRequest(BaseModel):

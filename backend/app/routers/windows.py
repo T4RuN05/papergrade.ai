@@ -25,7 +25,7 @@ from backend.app.services.notification_service import (
 )
 from backend.app.services.portal_cache import PortalStateEpochManager
 
-router = APIRouter(prefix="/api/v1/windows", tags=["Submission Windows & Lifecycles"])
+router = APIRouter(prefix="/api/windows", tags=["Submission Windows & Lifecycles"])
 
 
 class OpenWindowRequest(BaseModel):

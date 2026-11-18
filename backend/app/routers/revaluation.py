@@ -32,7 +32,7 @@ from backend.app.services.notification_service import (
     get_branch_name,
 )
 
-router = APIRouter(prefix="/api/v1/revaluation", tags=["Manual Revaluation (Strictly Human)"])
+router = APIRouter(prefix="/api/revaluation", tags=["Manual Revaluation (Strictly Human)"])
 
 
 class SubmitRevaluationRequest(BaseModel):

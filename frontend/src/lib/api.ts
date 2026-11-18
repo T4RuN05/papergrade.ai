@@ -196,6 +196,39 @@ export function parseErrorDetail(err: any, fallback: string = "Request failed"):
   return fallback;
 }
 
+export async function safeJson<T = any>(res: Response, fallbackDetail = "Request failed"): Promise<T> {
+  let text = "";
+  try {
+    text = await res.text();
+  } catch (err: any) {
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`);
+    }
+    throw new Error(`Failed to read response: ${err.message}`);
+  }
+
+  if (!text || !text.trim()) {
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`);
+    }
+    return {} as T;
+  }
+
+  try {
+    const data = JSON.parse(text);
+    if (!res.ok) {
+      throw new Error(parseErrorDetail(data, `Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`));
+    }
+    return data as T;
+  } catch (parseErr: any) {
+    if (!res.ok) {
+      const cleanSnippet = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
+      throw new Error(`Server returned HTTP ${res.status}: ${cleanSnippet || res.statusText || fallbackDetail}`);
+    }
+    throw new Error(`Invalid JSON received from server: ${parseErr.message}`);
+  }
+}
+
 export const api = {
   API_BASE,
 
@@ -226,7 +259,7 @@ export const api = {
       headers = { "Content-Type": "application/json" };
     }
 
-    const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers,
       body,
@@ -260,7 +293,7 @@ export const api = {
   },
 
   async claimAccount(data: { roll_number: string; password: string; student_id_num?: string }): Promise<{ access_token: string; role: string; user_id: string; full_name: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/claim-account`, {
+    const res = await fetch(`${API_BASE}/api/auth/claim-account`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -281,7 +314,7 @@ export const api = {
   async getMe(): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string; has_changed_password?: number }> {
     return fetchWithCache("auth:me", async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
           headers: { ...getAuthHeaders() },
           cache: "no-store",
         });
@@ -326,7 +359,7 @@ export const api = {
     is_staff?: boolean;
     user_role?: string;
   }> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/request`, {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password/request`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier }),
@@ -350,7 +383,7 @@ export const api = {
     reset_token?: string;
   }> {
     const query = sessionSecret ? `?session_secret=${encodeURIComponent(sessionSecret)}` : "";
-    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/status/${requestId}${query}`, {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password/status/${requestId}${query}`, {
       cache: "no-store",
     });
     if (!res.ok) {
@@ -365,7 +398,7 @@ export const api = {
     reset_token: string;
     new_password: string;
   }): Promise<{ status: string; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/forgot-password/reset`, {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password/reset`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -378,7 +411,7 @@ export const api = {
   },
 
   async changePassword(data: { current_password: string; new_password: string }): Promise<{ status: string; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/change-password`, {
+    const res = await fetch(`${API_BASE}/api/auth/change-password`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -395,7 +428,7 @@ export const api = {
     if (statusFilter) params.append("status_filter", statusFilter);
     if (targetType) params.append("target_type", targetType);
     const query = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${API_BASE}/api/v1/auth/password-resets${query}`, {
+    const res = await fetch(`${API_BASE}/api/auth/password-resets${query}`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -404,7 +437,7 @@ export const api = {
   },
 
   async approvePasswordReset(requestId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/password-resets/${requestId}/approve`, {
+    const res = await fetch(`${API_BASE}/api/auth/password-resets/${requestId}/approve`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -416,7 +449,7 @@ export const api = {
   },
 
   async rejectPasswordReset(requestId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/password-resets/${requestId}/reject`, {
+    const res = await fetch(`${API_BASE}/api/auth/password-resets/${requestId}/reject`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -432,7 +465,7 @@ export const api = {
   // -------------------------------------------------------------
   async listInstitutes(): Promise<any[]> {
     return fetchWithCache("tenancy:institutes", async () => {
-      const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes`, {
+      const res = await fetch(`${API_BASE}/api/tenancy/institutes`, {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
@@ -442,7 +475,7 @@ export const api = {
   },
 
   async createInstitute(data: { name: string; code: string; subjects?: string[] }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/institutes`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -463,7 +496,7 @@ export const api = {
     const query = params.toString() ? `?${params.toString()}` : "";
     const key = `tenancy:subjects:${branchId || ""}:${instituteId || ""}`;
     return fetchWithCache(key, async () => {
-      const res = await fetch(`${API_BASE}/api/v1/tenancy/subjects${query}`, {
+      const res = await fetch(`${API_BASE}/api/tenancy/subjects${query}`, {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
@@ -474,7 +507,7 @@ export const api = {
   },
 
   async addInstituteSubjects(instituteId: string, subjects: string[]): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes/${instituteId}/subjects`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/institutes/${instituteId}/subjects`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ subjects }),
@@ -489,7 +522,7 @@ export const api = {
   },
 
   async deleteInstitute(instituteId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/institutes/${instituteId}`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/institutes/${instituteId}`, {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
@@ -509,8 +542,8 @@ export const api = {
     const key = `tenancy:branches:${instituteId || "all"}`;
     return fetchWithCache(key, async () => {
       const url = instituteId
-        ? `${API_BASE}/api/v1/tenancy/branches?institute_id=${instituteId}`
-        : `${API_BASE}/api/v1/tenancy/branches`;
+        ? `${API_BASE}/api/tenancy/branches?institute_id=${instituteId}`
+        : `${API_BASE}/api/tenancy/branches`;
       const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (!res.ok) throw new Error("Failed to list branches");
       return res.json();
@@ -518,7 +551,7 @@ export const api = {
   },
 
   async createBranch(data: { institute_id: string; name: string; code: string; city: string }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/branches`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/branches`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -532,7 +565,7 @@ export const api = {
   },
 
   async listUsers(role?: string, branchId?: string): Promise<any[]> {
-    let url = `${API_BASE}/api/v1/auth/users`;
+    let url = `${API_BASE}/api/auth/users`;
     const params = new URLSearchParams();
     if (role) params.append("role", role);
     if (branchId) params.append("branch_id", branchId);
@@ -551,7 +584,7 @@ export const api = {
     institute_id?: string;
     branch_id?: string;
   }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/create-user`, {
+    const res = await fetch(`${API_BASE}/api/auth/create-user`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -571,7 +604,7 @@ export const api = {
     institute_id?: string;
     is_active?: number;
   }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/users/${userId}`, {
+    const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -584,7 +617,7 @@ export const api = {
   },
 
   async deleteUser(userId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/auth/users/${userId}`, {
+    const res = await fetch(`${API_BASE}/api/auth/users/${userId}`, {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
@@ -600,8 +633,8 @@ export const api = {
     if (forceRefresh) clearApiCache("tenancy:batches");
     return fetchWithCache(key, async () => {
       const url = branchId
-        ? `${API_BASE}/api/v1/tenancy/batches?branch_id=${branchId}`
-        : `${API_BASE}/api/v1/tenancy/batches`;
+        ? `${API_BASE}/api/tenancy/batches?branch_id=${branchId}`
+        : `${API_BASE}/api/tenancy/batches`;
       const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (!res.ok) throw new Error("Failed to list batches");
       return res.json();
@@ -609,7 +642,7 @@ export const api = {
   },
 
   async createBatch(data: { branch_id: string; name: string; academic_year: string }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/batches`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -623,7 +656,7 @@ export const api = {
   },
 
   async addStudent(batchId: string, data: { roll_number?: string; full_name: string; email?: string; phone?: string }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/students`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/batches/${batchId}/students`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -639,7 +672,7 @@ export const api = {
   async importRoster(batchId: string, file: File): Promise<any> {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/import-students`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/batches/${batchId}/import-students`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
@@ -653,7 +686,7 @@ export const api = {
   },
 
   async deleteBatch(batchId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/batches/${batchId}`, {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
@@ -666,7 +699,7 @@ export const api = {
   },
 
   async deleteStudent(batchId: string, studentId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/students/${studentId}`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/batches/${batchId}/students/${studentId}`, {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
@@ -679,7 +712,7 @@ export const api = {
   },
 
   async listStudentsInBatch(batchId: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/v1/tenancy/batches/${batchId}/students`, {
+    const res = await fetch(`${API_BASE}/api/tenancy/batches/${batchId}/students`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -691,7 +724,7 @@ export const api = {
   // Submission Windows (30-min window, 2-min grace)
   // -------------------------------------------------------------
   async openWindow(examId: string, durationMinutes = 30, graceMinutes = 2): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/open`, {
+    const res = await fetch(`${API_BASE}/api/windows/${examId}/open`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ duration_minutes: Number(durationMinutes), grace_minutes: Number(graceMinutes) }),
@@ -719,7 +752,7 @@ export const api = {
     should_display?: boolean;
     [key: string]: any;
   }> {
-    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/status`, {
+    const res = await fetch(`${API_BASE}/api/windows/${examId}/status`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -735,7 +768,7 @@ export const api = {
       reason: reasonText,
       reopen_scope: data.reopen_scope || "UNSUBMITTED_ONLY",
     };
-    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/reopen`, {
+    const res = await fetch(`${API_BASE}/api/windows/${examId}/reopen`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(payload),
@@ -748,7 +781,7 @@ export const api = {
   },
 
   async extendWindow(examId: string, additionalMinutes: number = 15, reason?: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/extend`, {
+    const res = await fetch(`${API_BASE}/api/windows/${examId}/extend`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ additional_minutes: Number(additionalMinutes), reason: reason || "Extended by teacher" }),
@@ -761,7 +794,7 @@ export const api = {
   },
 
   async closeWindow(examId: string, reason?: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/windows/${examId}/close`, {
+    const res = await fetch(`${API_BASE}/api/windows/${examId}/close`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ reason: reason || "Manually closed by administrator" }),
@@ -789,7 +822,7 @@ export const api = {
       headers.set("If-None-Match", _cachedPortalEtag);
     }
 
-    const res = await fetch(`${API_BASE}/api/v1/student/portal-state`, {
+    const res = await fetch(`${API_BASE}/api/student/portal-state`, {
       headers,
       cache: "no-store",
     });
@@ -833,7 +866,7 @@ export const api = {
     if (params?.status && params.status !== "ALL") sp.set("status", params.status);
 
     const qs = sp.toString() ? `?${sp.toString()}` : "";
-    const res = await fetch(`${API_BASE}/api/v1/student/past-submissions${qs}`, {
+    const res = await fetch(`${API_BASE}/api/student/past-submissions${qs}`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -865,7 +898,7 @@ export const api = {
     headers?: Record<string, string>;
     is_direct_cloud: boolean;
   }> {
-    const res = await fetch(`${API_BASE}/api/v1/submissions/${examId}/request-upload`, {
+    const res = await fetch(`${API_BASE}/api/submissions/${examId}/request-upload`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -902,7 +935,7 @@ export const api = {
     submitted_at: string;
     student_status: string;
   }> {
-    const res = await fetch(`${API_BASE}/api/v1/submissions/${examId}/confirm-upload`, {
+    const res = await fetch(`${API_BASE}/api/submissions/${examId}/confirm-upload`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -918,7 +951,7 @@ export const api = {
   },
 
   async uploadSingleMultipart(examId: string, formData: FormData): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/submissions/${examId}/upload-single`, {
+    const res = await fetch(`${API_BASE}/api/submissions/${examId}/upload-single`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
@@ -946,7 +979,7 @@ export const api = {
     const cacheKey = `submissions:detail:${id}`;
     if (forceRefresh) clearApiCache(cacheKey);
     return fetchWithCache(cacheKey, async () => {
-      const res = await fetch(`${API_BASE}/api/v1/submissions/${id}`, {
+      const res = await fetch(`${API_BASE}/api/submissions/${id}`, {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
@@ -957,7 +990,7 @@ export const api = {
 
   getSubmissionPdfUrl(submissionId: string): string {
     const token = getAuthToken();
-    return `${API_BASE}/api/v1/submissions/${submissionId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    return `${API_BASE}/api/submissions/${submissionId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
   },
 
   async listSubmissions(examId?: string, forceRefresh: boolean = false): Promise<any[]> {
@@ -979,7 +1012,7 @@ export const api = {
   async listExams(branchId?: string): Promise<Exam[]> {
     const query = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : "";
     try {
-      const res = await fetch(`${API_BASE}/api/v1/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
+      const res = await fetch(`${API_BASE}/api/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (res.ok) return await res.json();
       // Fallback to legacy path if needed
       const fallback = await fetch(`${API_BASE}/api/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
@@ -994,7 +1027,7 @@ export const api = {
     const cacheKey = `exams:detail:${id}`;
     if (forceRefresh) clearApiCache(cacheKey);
     return fetchWithCache(cacheKey, async () => {
-      const res = await fetch(`${API_BASE}/api/v1/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
+      const res = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (!res.ok) {
         const fallback = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
         if (!fallback.ok) throw new Error("Failed to fetch exam");
@@ -1005,7 +1038,7 @@ export const api = {
   },
 
   async getExamEvaluationStatus(id: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${id}/evaluation-status`, {
+    const res = await fetch(`${API_BASE}/api/exams/${id}/evaluation-status`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1021,7 +1054,7 @@ export const api = {
   },
 
   async getExamRankings(id: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${id}/rankings`, {
+    const res = await fetch(`${API_BASE}/api/exams/${id}/rankings`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1040,7 +1073,7 @@ export const api = {
   },
 
   async createExam(formData: FormData): Promise<Exam> {
-    const res = await fetch(`${API_BASE}/api/v1/exams`, {
+    const res = await fetch(`${API_BASE}/api/exams`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
@@ -1053,7 +1086,7 @@ export const api = {
   },
 
   async uploadQuestionPaper(examId: string, formData: FormData): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/question-paper`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/question-paper`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
@@ -1067,7 +1100,7 @@ export const api = {
   },
 
   async uploadAnswerKey(examId: string, formData: FormData): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/answer-key`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/answer-key`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
@@ -1096,7 +1129,7 @@ export const api = {
   }> {
     const token = getAuthToken();
     const res = await fetch(
-      `${API_BASE}/api/v1/exams/${examId}/${artifactType}/meta${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+      `${API_BASE}/api/exams/${examId}/${artifactType}/meta${token ? `?token=${encodeURIComponent(token)}` : ""}`,
       {
         headers: getAuthHeaders(),
       }
@@ -1114,7 +1147,7 @@ export const api = {
     pageNum: number
   ): string {
     const token = getAuthToken();
-    return `${API_BASE}/api/v1/exams/${examId}/${artifactType}/pages/${pageNum}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    return `${API_BASE}/api/exams/${examId}/${artifactType}/pages/${pageNum}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
   },
 
   getExamArtifactPdfUrl(
@@ -1127,7 +1160,7 @@ export const api = {
     const token = getAuthToken();
     if (token) params.set("token", token);
     const qs = params.toString();
-    return `${API_BASE}/api/v1/exams/${examId}/${artifactType}${qs ? `?${qs}` : ""}`;
+    return `${API_BASE}/api/exams/${examId}/${artifactType}${qs ? `?${qs}` : ""}`;
   },
 
   getQuestionPaperPdfUrl(examId: string): string {
@@ -1139,7 +1172,7 @@ export const api = {
   },
 
   async generateRubric(examId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/generate-rubric`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/generate-rubric`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1152,7 +1185,7 @@ export const api = {
   },
 
   async approveRubric(examId: string, rubricData: ExamRubric): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/rubric/approve`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ rubric_data: rubricData }),
@@ -1166,7 +1199,7 @@ export const api = {
   },
 
   async unlockRubric(examId: string): Promise<Exam> {
-    let res = await fetch(`${API_BASE}/api/v1/exams/${examId}/rubric/unlock`, {
+    let res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/unlock`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1200,7 +1233,7 @@ export const api = {
   },
 
   async startEvaluation(examId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/start-evaluation`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/start-evaluation`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1217,7 +1250,7 @@ export const api = {
   },
 
   async publishResults(examId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}/publish-results`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/publish-results`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1237,7 +1270,7 @@ export const api = {
   // Manual Revaluation Desk (100% Human, ZERO AI)
   // -------------------------------------------------------------
   async requestRevaluation(submissionId: string, data: { question_ids: string[]; student_reason: string }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/revaluation/${submissionId}/request`, {
+    const res = await fetch(`${API_BASE}/api/revaluation/${submissionId}/request`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -1250,7 +1283,7 @@ export const api = {
   },
 
   async getMyRevaluations(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/v1/revaluation/my-requests`, {
+    const res = await fetch(`${API_BASE}/api/revaluation/my-requests`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1263,7 +1296,7 @@ export const api = {
     if (examId) params.append("exam_id", examId);
     if (branchId) params.append("branch_id", branchId);
     const query = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${API_BASE}/api/v1/revaluation/requests${query}`, {
+    const res = await fetch(`${API_BASE}/api/revaluation/requests${query}`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1276,7 +1309,7 @@ export const api = {
     reviewer_notes: string;
     revised_answers?: Array<{ question_id: string; revised_marks: number; comment: string }>;
   }): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/revaluation/${requestId}/resolve`, {
+    const res = await fetch(`${API_BASE}/api/revaluation/${requestId}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -1292,7 +1325,7 @@ export const api = {
   // In-App Notifications
   // -------------------------------------------------------------
   async listNotifications(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/api/v1/notifications`, {
+    const res = await fetch(`${API_BASE}/api/notifications`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1301,7 +1334,7 @@ export const api = {
   },
 
   async markNotificationRead(notifId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/notifications/${notifId}/read`, {
+    const res = await fetch(`${API_BASE}/api/notifications/${notifId}/read`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1310,7 +1343,7 @@ export const api = {
   },
 
   async markAllNotificationsRead(): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/notifications/read-all`, {
+    const res = await fetch(`${API_BASE}/api/notifications/read-all`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1326,7 +1359,7 @@ export const api = {
       return _cachedVapidPublicKey;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/v1/notifications/vapid-public-key`);
+      const res = await fetch(`${API_BASE}/api/notifications/vapid-public-key`);
       if (!res.ok) return null;
       const data = await res.json();
       _cachedVapidPublicKey = data.public_key || null;
@@ -1337,7 +1370,7 @@ export const api = {
   },
 
   async savePushSubscription(sub: any): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/notifications/push-subscription`, {
+    const res = await fetch(`${API_BASE}/api/notifications/push-subscription`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(sub),
@@ -1347,7 +1380,7 @@ export const api = {
   },
 
   async removePushSubscription(endpoint: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/notifications/push-unsubscribe`, {
+    const res = await fetch(`${API_BASE}/api/notifications/push-unsubscribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ endpoint }),
@@ -1357,7 +1390,7 @@ export const api = {
   },
 
   async testClosedAppPush(): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/v1/notifications/test-closed-app-push`, {
+    const res = await fetch(`${API_BASE}/api/notifications/test-closed-app-push`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     });
@@ -1740,7 +1773,7 @@ export const api = {
   },
 
   async purgeExpiredSubmissions(): Promise<{ scanned_count: number; purged_count: number; purged_submission_ids: string[] }> {
-    const res = await fetch(`${API_BASE}/api/v1/submissions/purge-expired`, {
+    const res = await fetch(`${API_BASE}/api/submissions/purge-expired`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
@@ -1755,7 +1788,7 @@ export const api = {
   // Technical Issue Reports & Support
   // -------------------------------------------------------------
   async submitTechnicalReport(formData: FormData): Promise<{ success: boolean; report_id: string; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/reports`, {
+    const res = await fetch(`${API_BASE}/api/reports`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
       body: formData,
@@ -1768,7 +1801,7 @@ export const api = {
   },
 
   async getMyTechnicalReports(): Promise<{ reports: any[] }> {
-    const res = await fetch(`${API_BASE}/api/v1/reports/my`, {
+    const res = await fetch(`${API_BASE}/api/reports/my`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1789,7 +1822,7 @@ export const api = {
     if (branchId && branchId !== "ALL") params.append("branch_id", branchId);
 
     const query = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${API_BASE}/api/v1/reports${query}`, {
+    const res = await fetch(`${API_BASE}/api/reports${query}`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
@@ -1804,7 +1837,7 @@ export const api = {
     reportId: string,
     data: { status: string; admin_notes?: string }
   ): Promise<{ success: boolean; report: any; message: string }> {
-    const res = await fetch(`${API_BASE}/api/v1/reports/${reportId}`, {
+    const res = await fetch(`${API_BASE}/api/reports/${reportId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -1817,19 +1850,34 @@ export const api = {
   },
 
   getReportImageUrl(reportId: string, filename: string): string {
-    return `${API_BASE}/api/v1/reports/${reportId}/images/${encodeURIComponent(filename)}`;
+    return `${API_BASE}/api/reports/${reportId}/images/${encodeURIComponent(filename)}`;
   },
 
-  async deleteExam(examId: string): Promise<{ success: boolean; message: string; deleted_submissions_count?: number }> {
+  async deleteExam(examId: string, confirmTitle?: string): Promise<{ success: boolean; message: string; deleted_submissions_count?: number }> {
     clearApiCache();
-    const res = await fetch(`${API_BASE}/api/v1/exams/${examId}`, {
+    const query = confirmTitle ? `?confirm_delete_title=${encodeURIComponent(confirmTitle)}` : "";
+    const res = await fetch(`${API_BASE}/api/exams/${examId}${query}`, {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to delete examination" }));
-      throw new Error(parseErrorDetail(err, "Failed to delete examination"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to delete examination");
+  },
+
+  async archiveExam(examId: string): Promise<{ success: boolean; message: string; exam_id: string; lifecycle_status: string }> {
+    clearApiCache();
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/archive`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+    });
+    return safeJson(res, "Failed to archive examination");
+  },
+
+  async restoreExam(examId: string): Promise<{ success: boolean; message: string; exam_id: string; lifecycle_status: string }> {
+    clearApiCache();
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/restore`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+    });
+    return safeJson(res, "Failed to restore examination");
   },
 };

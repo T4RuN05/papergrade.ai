@@ -13,7 +13,7 @@ from backend.app.db.models import Notification, PushSubscription
 from backend.app.services.auth import get_current_user
 from backend.app.services.notification_service import dispatch_webpush_for_user
 
-router = APIRouter(prefix="/api/v1/notifications", tags=["In-App Notifications"])
+router = APIRouter(prefix="/api/notifications", tags=["In-App Notifications"])
 
 
 class PushSubscriptionKeys(BaseModel):

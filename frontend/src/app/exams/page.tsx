@@ -25,6 +25,7 @@ import {
   X,
   Filter,
   Lock,
+  Archive,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Exam } from "@/lib/types";
@@ -97,16 +98,22 @@ export default function ExamsPage() {
       }
 
       // 2. Status filter
-      if (selectedStatus !== "ALL") {
-        const win = windowsMap[exam.id];
-        const isRubricApproved = checkIsRubricApproved(exam);
+      const isArchived = exam.status === "ARCHIVED" || exam.lifecycle_status === "ARCHIVED";
+      if (selectedStatus === "ARCHIVED") {
+        if (!isArchived) return false;
+      } else {
+        if (isArchived) return false;
+        if (selectedStatus !== "ALL") {
+          const win = windowsMap[exam.id];
+          const isRubricApproved = checkIsRubricApproved(exam);
 
-        if (selectedStatus === "PUBLISHED" && !exam.is_published) return false;
-        if (selectedStatus === "APPROVED_RUBRIC" && !isRubricApproved) return false;
-        if (selectedStatus === "DRAFT_RUBRIC" && (isRubricApproved || !exam.current_rubric_version_id)) return false;
-        if (selectedStatus === "NO_RUBRIC" && (isRubricApproved || exam.current_rubric_version_id)) return false;
-        if (selectedStatus === "WINDOW_OPEN" && !win?.is_active) return false;
-        if (selectedStatus === "WINDOW_CLOSED" && win?.is_active) return false;
+          if (selectedStatus === "PUBLISHED" && !exam.is_published) return false;
+          if (selectedStatus === "APPROVED_RUBRIC" && !isRubricApproved) return false;
+          if (selectedStatus === "DRAFT_RUBRIC" && (isRubricApproved || !exam.current_rubric_version_id)) return false;
+          if (selectedStatus === "NO_RUBRIC" && (isRubricApproved || exam.current_rubric_version_id)) return false;
+          if (selectedStatus === "WINDOW_OPEN" && !win?.is_active) return false;
+          if (selectedStatus === "WINDOW_CLOSED" && win?.is_active) return false;
+        }
       }
 
       // 3. Search query
@@ -277,15 +284,80 @@ export default function ExamsPage() {
     }
   };
 
-  const handleDeleteExam = async () => {
-    if (!targetExamForDelete) return;
-    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
-      toast.error("Please type DELETE to confirm deletion.", { title: "Confirmation Required" });
+  const handleArchiveExam = async (exam: Exam) => {
+    const ok = await confirm({
+      title: "Archive Examination",
+      message: `Are you sure you want to archive "${exam.title}"? The examination will be hidden from active lists, but all student grades, rankings, answer scripts, and revaluation histories will remain permanently preserved.`,
+      confirmText: "Archive Exam",
+      variant: "warning",
+    });
+    if (!ok) return;
+
+    try {
+      await api.archiveExam(exam.id);
+      toast.success(`Exam "${exam.title}" archived successfully.`, { title: "Exam Archived" });
+      setExams((prev) =>
+        prev.map((e) => (e.id === exam.id ? { ...e, status: "ARCHIVED", lifecycle_status: "ARCHIVED" } : e))
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to archive exam", { title: "Archive Failed" });
+    }
+  };
+
+  const handleRestoreExam = async (exam: Exam) => {
+    try {
+      const res = await api.restoreExam(exam.id);
+      toast.success(res.message || `Exam "${exam.title}" restored.`, { title: "Exam Restored" });
+      setExams((prev) =>
+        prev.map((e) =>
+          e.id === exam.id
+            ? { ...e, status: res.lifecycle_status, lifecycle_status: res.lifecycle_status }
+            : e
+        )
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to restore exam", { title: "Restore Failed" });
+    }
+  };
+
+  const promptDeleteExam = (exam: Exam) => {
+    const isPublished = Boolean(exam.is_published || ["PUBLISHED", "RESULTS_READY"].includes(exam.lifecycle_status || ""));
+    if (isPublished && !isRootAdmin) {
+      toast.error(
+        "Published academic records are protected by academic integrity policies. Only Root Administrators can permanently delete published exams. You can Archive this exam instead.",
+        { title: "Deletion Blocked" }
+      );
       return;
     }
+    setTargetExamForDelete(exam);
+    setDeleteConfirmText("");
+  };
+
+  const handleDeleteExam = async () => {
+    if (!targetExamForDelete) return;
+    const isPublished = Boolean(
+      targetExamForDelete.is_published ||
+      ["PUBLISHED", "RESULTS_READY"].includes(targetExamForDelete.lifecycle_status || "")
+    );
+    const requiredConfirmation = isPublished ? targetExamForDelete.title.trim() : "DELETE";
+
+    if (isPublished) {
+      if (deleteConfirmText.trim() !== requiredConfirmation) {
+        toast.error(`Please type the exact exam title "${requiredConfirmation}" to confirm permanent destruction.`, {
+          title: "Confirmation Required",
+        });
+        return;
+      }
+    } else {
+      if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
+        toast.error("Please type DELETE to confirm deletion.", { title: "Confirmation Required" });
+        return;
+      }
+    }
+
     setIsDeletingExam(true);
     try {
-      const res = await api.deleteExam(targetExamForDelete.id);
+      const res = await api.deleteExam(targetExamForDelete.id, isPublished ? requiredConfirmation : undefined);
       toast.success(
         res.message || `Exam "${targetExamForDelete.title}" and all associated files/evaluations permanently deleted.`,
         { title: "Exam Deleted" }
@@ -397,6 +469,7 @@ export default function ExamsPage() {
                 { value: "NO_RUBRIC", label: "No Rubric" },
                 { value: "WINDOW_OPEN", label: "Window Open" },
                 { value: "WINDOW_CLOSED", label: "Window Closed" },
+                { value: "ARCHIVED", label: "Archived Exams" },
               ]}
               className="min-w-[140px] flex-1 sm:flex-initial"
             />
@@ -640,20 +713,44 @@ export default function ExamsPage() {
                       </span>
                     </div>
 
-                    {canDeleteExam(exam) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetExamForDelete(exam);
-                          setDeleteConfirmText("");
-                        }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer text-xs font-medium"
-                        title="Permanently Delete Exam"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 shrink-0" />
-                        <span className="text-[11px] sm:hidden">Delete</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {/* Archive / Restore actions */}
+                      {exam.status === "ARCHIVED" || exam.lifecycle_status === "ARCHIVED" ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreExam(exam)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors cursor-pointer text-xs font-medium"
+                          title="Restore Archived Exam"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                          <span>Restore</span>
+                        </button>
+                      ) : (
+                        (exam.is_published || ["PUBLISHED", "RESULTS_READY", "COMPLETED"].includes(exam.status)) && (
+                          <button
+                            type="button"
+                            onClick={() => handleArchiveExam(exam)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer text-xs font-medium"
+                            title="Archive Exam (Preserves all historical grades and records)"
+                          >
+                            <Archive className="h-3.5 w-3.5 shrink-0" />
+                            <span>Archive</span>
+                          </button>
+                        )
+                      )}
+
+                      {canDeleteExam(exam) && (
+                        <button
+                          type="button"
+                          onClick={() => promptDeleteExam(exam)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer text-xs font-medium"
+                          title="Permanently Delete Exam"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-[11px] sm:hidden">Delete</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -798,13 +895,33 @@ export default function ExamsPage() {
             {/* Confirmation Input */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-ink">
-                To proceed, type <span className="font-mono font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-200">DELETE</span> in the box below:
+                {targetExamForDelete.is_published ? (
+                  <>
+                    Because results are published, type the exact exam title{" "}
+                    <span className="font-mono font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-200">
+                      {targetExamForDelete.title}
+                    </span>{" "}
+                    below to confirm permanent destruction of published academic records:
+                  </>
+                ) : (
+                  <>
+                    To proceed, type{" "}
+                    <span className="font-mono font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-200">
+                      DELETE
+                    </span>{" "}
+                    in the box below:
+                  </>
+                )}
               </label>
               <input
                 type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
-                placeholder="Type DELETE to confirm"
+                placeholder={
+                  targetExamForDelete.is_published
+                    ? `Type "${targetExamForDelete.title}" to confirm`
+                    : "Type DELETE to confirm"
+                }
                 disabled={isDeletingExam}
                 className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs font-mono text-ink focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
                 autoFocus
@@ -823,7 +940,12 @@ export default function ExamsPage() {
               <button
                 type="button"
                 onClick={handleDeleteExam}
-                disabled={isDeletingExam || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+                disabled={
+                  isDeletingExam ||
+                  (targetExamForDelete.is_published
+                    ? deleteConfirmText.trim() !== targetExamForDelete.title.trim()
+                    : deleteConfirmText.trim().toUpperCase() !== "DELETE")
+                }
                 className="btn-glass-danger inline-flex items-center justify-center px-4 py-2 rounded-md text-xs font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
               >
                 {isDeletingExam ? (
