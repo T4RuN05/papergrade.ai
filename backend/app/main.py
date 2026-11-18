@@ -11,6 +11,7 @@ from backend.app.services.auth import get_current_user
 from sqlalchemy import select, func
 from backend.app.database import init_db
 from backend.app.worker.queue_worker import queue_worker
+from backend.app.services.retention_service import retention_daemon
 from backend.app.routers import (
     exams,
     submissions,
@@ -29,11 +30,13 @@ from backend.app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure tables exist and start persistent queue worker
+    # Startup: ensure tables exist, start persistent queue worker and retention daemon
     init_db()
     queue_worker.start()
+    retention_daemon.start()
     yield
-    # Shutdown: stop worker cleanly
+    # Shutdown: stop daemons cleanly
+    retention_daemon.stop()
     queue_worker.stop()
 
 app = FastAPI(

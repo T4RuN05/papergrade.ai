@@ -286,6 +286,12 @@ def init_db():
     from backend.app.db.base import Base
     import backend.app.db.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        try:
+            from sqlalchemy import text
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 1"))
+        except Exception:
+            pass
     _seed_defaults()
 
 

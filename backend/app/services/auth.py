@@ -42,6 +42,10 @@ class BoundedTTLCache:
                 self._data.popitem(last=False)
             self._data[key] = (value, now + self.ttl)
 
+    def invalidate(self, key: str) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
     def __len__(self) -> int:
         now = time.time()
         with self._lock:
@@ -52,11 +56,17 @@ class BoundedTTLCache:
 
 
 _active_user_cache = BoundedTTLCache(maxsize=5000, ttl=15.0)  # 15s TTL
+_user_auth_cache = BoundedTTLCache(maxsize=5000, ttl=15.0)    # (is_active, token_version)
 ACTIVE_CACHE_TTL = 15.0  # seconds
 
-def is_user_active_in_db(user_id: str) -> bool:
-    """Check if user account is active in the database with short-lived bounded TTL cache."""
-    cached = _active_user_cache.get(user_id)
+def invalidate_user_auth_cache(user_id: str) -> None:
+    """Invalidate cached auth state for a user (e.g. upon password change or status update)."""
+    _active_user_cache.invalidate(user_id)
+    _user_auth_cache.invalidate(user_id)
+
+def get_user_auth_state(user_id: str) -> tuple[bool, int]:
+    """Retrieve user (is_active, token_version) with short-lived bounded TTL cache."""
+    cached = _user_auth_cache.get(user_id)
     if cached is not None:
         return cached
 
@@ -66,18 +76,29 @@ def is_user_active_in_db(user_id: str) -> bool:
         from sqlalchemy import select
 
         with get_session() as session:
-            active = session.scalar(select(User.is_active).where(User.id == user_id))
-            if active is None:
+            user_row = session.execute(
+                select(User.is_active, User.token_version).where(User.id == user_id)
+            ).first()
+            if user_row is None:
                 # Fallback for synthetic/test users that are not in DB
                 is_active_bool = user_id.startswith("usr_test") or user_id.startswith("user_")
+                token_ver = 1
             else:
-                is_active_bool = bool(active == 1)
+                is_active_bool = bool(user_row[0] == 1)
+                token_ver = int(user_row[1] if user_row[1] is not None else 1)
     except Exception:
         # Fallback gracefully if DB session unavailable
         is_active_bool = True
+        token_ver = 1
 
+    state = (is_active_bool, token_ver)
+    _user_auth_cache.set(user_id, state)
     _active_user_cache.set(user_id, is_active_bool)
-    return is_active_bool
+    return state
+
+def is_user_active_in_db(user_id: str) -> bool:
+    """Check if user account is active in the database with short-lived bounded TTL cache."""
+    return get_user_auth_state(user_id)[0]
 
 def hash_password(password: str) -> str:
     """Hash plaintext password with bcrypt."""
@@ -152,10 +173,19 @@ def get_current_user(
             detail="Malformed authentication payload",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not is_user_active_in_db(user_id):
+    is_active, current_ver = get_user_auth_state(user_id)
+    if not is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is deactivated or invalid",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # D-24: Invalidate JWT session if user's password has been updated/reset
+    token_ver = payload.get("token_version")
+    if token_ver is not None and int(token_ver) < current_ver:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has expired due to a recent password change. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return payload

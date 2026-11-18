@@ -27,6 +27,7 @@ from backend.app.services.auth import (
     get_current_user,
     require_root_admin,
     require_branch_manager,
+    invalidate_user_auth_cache,
 )
 from backend.app.services.notification_service import (
     send_notification,
@@ -219,6 +220,7 @@ async def login(
         "institute_id": user.institute_id,
         "branch_id": user.branch_id,
         "has_changed_password": getattr(user, "has_changed_password", 0),
+        "token_version": getattr(user, "token_version", 1) or 1,
     }
     user_response = {
         "id": user.id,
@@ -228,6 +230,7 @@ async def login(
         "institute_id": user.institute_id,
         "branch_id": user.branch_id,
         "has_changed_password": getattr(user, "has_changed_password", 0),
+        "token_version": getattr(user, "token_version", 1) or 1,
     }
 
     if student_info:
@@ -345,6 +348,8 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         password_hash=hashed,
         full_name=student.full_name,
         is_active=1,
+        has_changed_password=1,
+        token_version=1,
         created_at=now,
         last_login_at=now,
     )
@@ -393,6 +398,8 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         "branch_id": branch_id,
         "student_id": student.id,
         "roll_number": student.roll_number,
+        "has_changed_password": 1,
+        "token_version": 1,
     }
     token = create_access_token(token_payload)
 
@@ -453,7 +460,9 @@ def change_password(
     now = get_iso_now()
     user.password_hash = hash_password(req.new_password)
     user.has_changed_password = 1
+    user.token_version = (getattr(user, "token_version", 1) or 1) + 1
     user.updated_at = now
+    invalidate_user_auth_cache(user.id)
 
     send_notification(
         cursor=db,
@@ -956,7 +965,9 @@ def complete_password_reset(req: ResetPasswordSubmission, db: Session = Depends(
     if user:
         user.password_hash = new_hash
         user.has_changed_password = 1
+        user.token_version = (getattr(user, "token_version", 1) or 1) + 1
         user.updated_at = now
+        invalidate_user_auth_cache(user.id)
 
     # Mark request COMPLETED and clear reset token
     pr.status = "COMPLETED"

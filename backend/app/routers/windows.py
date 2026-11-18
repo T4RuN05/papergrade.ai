@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, update
 
@@ -34,10 +34,17 @@ class OpenWindowRequest(BaseModel):
 
 
 class ReopenWindowRequest(BaseModel):
-    reopen_reason: Optional[str] = None
-    reason: Optional[str] = None  # Compatible alias for frontend requests
-    reopen_scope: Optional[str] = "UNSUBMITTED_ONLY"  # "UNSUBMITTED_ONLY" or "ALL_STUDENTS"
-    duration_minutes: Optional[int] = None
+    reason: str = Field(
+        ...,
+        validation_alias=AliasChoices("reason", "reopen_reason"),
+        min_length=3,
+        description="Mandatory audited reason for reopening the exam window."
+    )
+    reopen_scope: str = Field(
+        default="UNSUBMITTED_ONLY",
+        pattern="^(UNSUBMITTED_ONLY|ALL_STUDENTS)$"
+    )
+    duration_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
 
 
 class CloseWindowRequest(BaseModel):
@@ -268,10 +275,12 @@ def reopen_submission_window(
     """
     Reopen an expired submission window. Requires mandatory audited reason and scope.
     """
-    raw_reason = req.reopen_reason or req.reason or ""
-    clean_reason = raw_reason.strip()
-    if not clean_reason:
-        clean_reason = "Reopened by administrator"
+    clean_reason = req.reason.strip()
+    if len(clean_reason) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Audited reason must be at least 3 characters."
+        )
 
     duration = req.duration_minutes or settings.WINDOW_DURATION_MINUTES
     grace = settings.GRACE_PERIOD_MINUTES

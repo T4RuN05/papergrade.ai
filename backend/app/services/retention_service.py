@@ -1,4 +1,6 @@
 import shutil
+import threading
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
@@ -433,3 +435,52 @@ class RetentionService:
         }
 
 retention_service = RetentionService()
+
+
+class RetentionDaemon:
+    """Daily background daemon running retention and cleanup checks.
+    
+    Adheres strictly to the Two-Phase Evaluation Window Invariant:
+    Runs exclusively during the overnight batch processing window,
+    ensuring zero competition with live daytime exam ingestion.
+    """
+    def __init__(self, interval_seconds: int = 86400):
+        self.interval_seconds = interval_seconds
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run_loop, name="RetentionDaemon", daemon=True)
+        self._thread.start()
+        logging.getLogger("RetentionDaemon").info("RetentionDaemon background thread started.")
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+        logging.getLogger("RetentionDaemon").info("RetentionDaemon stopped.")
+
+    def _run_loop(self):
+        # Grace period on startup before the first run (90 seconds)
+        if self._stop_event.wait(90):
+            return
+
+        while not self._stop_event.is_set():
+            try:
+                result = RetentionService.check_and_purge_expired_submissions()
+                purged_subs = result.get("purged_submissions_count", 0)
+                purged_exams = result.get("purged_exams_count", 0)
+                if purged_subs > 0 or purged_exams > 0:
+                    logging.getLogger("RetentionDaemon").info(
+                        f"Retention cleanup completed: {purged_subs} submissions, {purged_exams} exams purged."
+                    )
+            except Exception as e:
+                logging.getLogger("RetentionDaemon").error(f"Error in RetentionDaemon cleanup loop: {e}", exc_info=True)
+
+            self._stop_event.wait(self.interval_seconds)
+
+
+retention_daemon = RetentionDaemon()

@@ -295,8 +295,9 @@ class GradingService:
             calculated_exam_max += sec_max
 
             if attempt_limit and attempt_limit > 0 and len(ans_list) > 0:
-                attempted = [a for a in ans_list if not a.get("is_missing") and float(a.get("awarded_marks") or 0.0) > 0]
-                unattempted = [a for a in ans_list if a not in attempted]
+                # D-25: An answer is attempted if it was present on paper (not missing), regardless of marks awarded (even 0 marks)
+                attempted = [a for a in ans_list if not a.get("is_missing")]
+                unattempted = [a for a in ans_list if a.get("is_missing")]
 
                 # Sort attempted answers by awarded_marks descending (Best of N)
                 attempted.sort(key=lambda x: float(x.get("awarded_marks") or 0.0), reverse=True)
