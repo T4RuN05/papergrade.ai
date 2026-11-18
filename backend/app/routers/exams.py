@@ -141,12 +141,15 @@ def list_exams(
         for w in win_rows:
             windows_by_exam[w.exam_id] = calculate_window_dict(_window_to_dict(w), now_dt)
 
-    # Pre-fetch scoped batches for specific batch exams
-    eb_rows = db.execute(
-        select(ExamBatch.exam_id, Batch.id, Batch.name, Batch.academic_year)
-        .join(Batch, ExamBatch.batch_id == Batch.id)
-        .order_by(Batch.name.asc())
-    ).all()
+    # D-02: Pre-fetch scoped batches strictly restricted to current tenant exam_ids
+    eb_rows = []
+    if exam_ids:
+        eb_rows = db.execute(
+            select(ExamBatch.exam_id, Batch.id, Batch.name, Batch.academic_year)
+            .join(Batch, ExamBatch.batch_id == Batch.id)
+            .where(ExamBatch.exam_id.in_(exam_ids))
+            .order_by(Batch.name.asc())
+        ).all()
     scoped_map: Dict[str, List[Dict[str, Any]]] = {}
     for ex_id, b_id, b_name, b_year in eb_rows:
         if ex_id not in scoped_map:

@@ -710,11 +710,25 @@ def confirm_presigned_upload(
 
     storage = get_storage_service()
 
+    # D-18: Fast-fail: verify active window BEFORE downloading from cloud storage or parsing PyMuPDF
+    try:
+        verify_active_submission_window(exam_id, db, allow_grace=True)
+    except Exception:
+        try:
+            storage.delete_file(req.storage_key)
+        except Exception:
+            pass
+        raise
+
     if not storage.file_exists(req.storage_key):
         raise HTTPException(status_code=400, detail="Uploaded file was not found in storage. Please re-upload.")
 
-    local_path = storage.get_local_path_or_download(req.storage_key)
-    file_size = local_path.stat().st_size
+    try:
+        local_path = storage.get_local_path_or_download(req.storage_key)
+        file_size = local_path.stat().st_size
+    except Exception as e:
+        storage.delete_file(req.storage_key)
+        raise HTTPException(status_code=400, detail=f"Failed to fetch uploaded file: {str(e)}")
 
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if file_size > max_bytes:
@@ -741,8 +755,6 @@ def confirm_presigned_upload(
 
     now = get_iso_now()
     sub_id = f"sub_{uuid.uuid4().hex[:12]}"
-
-    verify_active_submission_window(exam_id, db, allow_grace=True)
 
     exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     exam_total = exam.total_marks if exam else 0.0

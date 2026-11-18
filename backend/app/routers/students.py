@@ -203,8 +203,20 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         ]
 
         # Filter exams by batch scoping:
-        # If batch_scope in ('ALL', ''): visible to all in branch
-        # If batch_scope in ('SPECIFIC', 'BATCHES', 'SELECTED'): visible only if student's batch_id is in allowed batches
+        # D-03: Pre-fetch scoped exam batches in 1 bulk query to eliminate N+1 loops
+        scoped_ex_ids = [
+            ex["id"] for ex in raw_exam_rows
+            if (ex.get("batch_scope") or "ALL").upper() not in ("ALL", "") and not _parse_allowed_batch_ids(ex.get("batch_ids"))
+        ]
+        batch_ids_by_exam: Dict[str, set] = {}
+        if scoped_ex_ids:
+            eb_rows = session.execute(
+                select(ExamBatch.exam_id, ExamBatch.batch_id).where(ExamBatch.exam_id.in_(scoped_ex_ids))
+            ).all()
+            for eid, bid in eb_rows:
+                if bid:
+                    batch_ids_by_exam.setdefault(eid, set()).add(bid)
+
         exam_rows = []
         for ex in raw_exam_rows:
             scope = (ex.get("batch_scope") or "ALL").upper()
@@ -213,10 +225,7 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
             else:
                 allowed_bids = _parse_allowed_batch_ids(ex.get("batch_ids"))
                 if not allowed_bids:
-                    ex_batches = session.scalars(
-                        select(ExamBatch.batch_id).where(ExamBatch.exam_id == ex["id"])
-                    ).all()
-                    allowed_bids = set(b_id for b_id in ex_batches if b_id)
+                    allowed_bids = batch_ids_by_exam.get(ex["id"], set())
 
                 if batch_id and str(batch_id) in allowed_bids:
                     exam_rows.append(ex)
@@ -308,6 +317,63 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 seen_exam_ids.add(s.exam_id)
                 deduped_sub_pairs.append((s, ex))
 
+        # D-03: Bulk pre-fetch RevaluationRequests and Answers in 2 queries total
+        published_sub_ids = []
+        for s, ex in deduped_sub_pairs:
+            exam_is_pub = bool(ex.is_published == 1 or ex.status == "PUBLISHED" or ex.lifecycle_status == "PUBLISHED")
+            is_pub = bool(s.publication_status == "PUBLISHED" or exam_is_pub)
+            if user_role != "STUDENT" or is_pub:
+                published_sub_ids.append(s.id)
+
+        reval_by_sub_id: Dict[str, Dict[str, Any]] = {}
+        answers_by_sub_id: Dict[str, List[Dict[str, Any]]] = {}
+
+        if published_sub_ids:
+            reval_records = session.scalars(
+                select(RevaluationRequest)
+                .where(RevaluationRequest.submission_id.in_(published_sub_ids))
+                .order_by(RevaluationRequest.requested_at.desc())
+            ).all()
+            for r in reval_records:
+                if r.submission_id not in reval_by_sub_id:
+                    reval_by_sub_id[r.submission_id] = {
+                        "id": r.id,
+                        "submission_id": r.submission_id,
+                        "student_id": r.student_id,
+                        "exam_id": r.exam_id,
+                        "status": r.status,
+                        "question_ids_json": r.question_ids_json,
+                        "student_reason": r.student_reason,
+                        "student_remark": r.student_reason,
+                        "decision": r.decision,
+                        "reviewer_notes": r.reviewer_notes,
+                        "teacher_feedback": r.reviewer_notes,
+                        "resolved_by": r.resolved_by,
+                        "requested_at": r.requested_at,
+                        "resolved_at": r.resolved_at,
+                        "expires_at": r.expires_at,
+                    }
+
+            all_answers = session.scalars(
+                select(Answer)
+                .where(Answer.submission_id.in_(published_sub_ids))
+                .order_by(Answer.question_id.asc())
+            ).all()
+            for a in all_answers:
+                answers_by_sub_id.setdefault(a.submission_id, []).append({
+                    "id": a.id,
+                    "submission_id": a.submission_id,
+                    "question_id": a.question_id,
+                    "subquestion_id": a.subquestion_id,
+                    "section_id": a.section_id,
+                    "awarded_marks": a.awarded_marks,
+                    "max_marks": a.max_marks,
+                    "extracted_text": a.extracted_text,
+                    "grading_rationale": a.grading_rationale,
+                    "feedback": a.grading_rationale,
+                    "needs_review": a.needs_review,
+                })
+
         # Attach revaluation, artifact, and retention info
         for s, ex in deduped_sub_pairs:
             sub = {
@@ -370,65 +436,8 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 sub["retention"] = RetentionService.get_retention_info(sub)
                 sub["days_remaining"] = sub["retention"].get("days_remaining")
                 sub["student_status"] = "Results Published" if is_pub else "Under Evaluation"
-
-                # Fetch active revaluation if any
-                reval = session.scalar(
-                    select(RevaluationRequest)
-                    .where(RevaluationRequest.submission_id == s.id)
-                    .order_by(RevaluationRequest.requested_at.desc())
-                    .limit(1)
-                )
-                if reval:
-                    sub["revaluation"] = {
-                        "id": reval.id,
-                        "submission_id": reval.submission_id,
-                        "student_id": reval.student_id,
-                        "exam_id": reval.exam_id,
-                        "status": reval.status,
-                        "question_ids_json": reval.question_ids_json,
-                        "student_reason": reval.student_reason,
-                        "student_remark": reval.student_reason,
-                        "decision": reval.decision,
-                        "reviewer_notes": reval.reviewer_notes,
-                        "teacher_feedback": reval.reviewer_notes,
-                        "resolved_by": reval.resolved_by,
-                        "requested_at": reval.requested_at,
-                        "resolved_at": reval.resolved_at,
-                        "expires_at": reval.expires_at,
-                    }
-                else:
-                    sub["revaluation"] = None
-
-                # Fetch answers breakdown for published papers
-                ans_records = session.scalars(
-                    select(Answer)
-                    .where(Answer.submission_id == s.id)
-                    .order_by(Answer.question_id.asc())
-                ).all()
-                sub["answers"] = [
-                    {
-                        "id": a.id,
-                        "submission_id": a.submission_id,
-                        "question_id": a.question_id,
-                        "subquestion_id": a.subquestion_id,
-                        "section_id": a.section_id,
-                        "awarded_marks": a.awarded_marks,
-                        "max_marks": a.max_marks,
-                        "extracted_text": a.extracted_text,
-                        "grading_rationale": a.grading_rationale,
-                        "feedback": a.grading_rationale,
-                        "needs_review": a.needs_review,
-                        "review_reason": a.review_reason,
-                        "page_number": a.page_number,
-                        "confidence_score": round(1.0 - (a.grading_uncertainty or 0.0), 2),
-                        "is_manually_edited": a.is_manual_override,
-                        "is_manual_override": a.is_manual_override,
-                        "override_reason": a.override_reason,
-                        "is_extra_attempt": a.is_extra_attempt,
-                        "is_missing": a.is_missing,
-                    }
-                    for a in ans_records
-                ]
+                sub["revaluation"] = reval_by_sub_id.get(s.id)
+                sub["answers"] = answers_by_sub_id.get(s.id, [])
 
             submissions.append(sub)
 
@@ -680,6 +689,68 @@ def _fetch_past_submissions_sync(
         offset = max(0, (page - 1) * limit)
         page_slice = filtered[offset : offset + limit]
 
+        # D-03: Bulk pre-fetch Revaluations and Answers for the current page slice in 2 queries total
+        slice_published_sub_ids = [
+            item["raw_sub"].id for item in page_slice
+            if item.get("raw_sub") and (user_role != "STUDENT" or item.get("is_published"))
+        ]
+        slice_reval_map: Dict[str, Dict[str, Any]] = {}
+        slice_answers_map: Dict[str, List[Dict[str, Any]]] = {}
+
+        if slice_published_sub_ids:
+            reval_records = session.scalars(
+                select(RevaluationRequest)
+                .where(RevaluationRequest.submission_id.in_(slice_published_sub_ids))
+                .order_by(RevaluationRequest.requested_at.desc())
+            ).all()
+            for r in reval_records:
+                if r.submission_id not in slice_reval_map:
+                    slice_reval_map[r.submission_id] = {
+                        "id": r.id,
+                        "submission_id": r.submission_id,
+                        "student_id": r.student_id,
+                        "exam_id": r.exam_id,
+                        "status": r.status,
+                        "question_ids_json": r.question_ids_json,
+                        "student_reason": r.student_reason,
+                        "student_remark": r.student_reason,
+                        "decision": r.decision,
+                        "reviewer_notes": r.reviewer_notes,
+                        "teacher_feedback": r.reviewer_notes,
+                        "resolved_by": r.resolved_by,
+                        "requested_at": r.requested_at,
+                        "resolved_at": r.resolved_at,
+                        "expires_at": r.expires_at,
+                    }
+
+            all_answers = session.scalars(
+                select(Answer)
+                .where(Answer.submission_id.in_(slice_published_sub_ids))
+                .order_by(Answer.question_id.asc())
+            ).all()
+            for a in all_answers:
+                slice_answers_map.setdefault(a.submission_id, []).append({
+                    "id": a.id,
+                    "submission_id": a.submission_id,
+                    "question_id": a.question_id,
+                    "subquestion_id": a.subquestion_id,
+                    "section_id": a.section_id,
+                    "awarded_marks": a.awarded_marks,
+                    "max_marks": a.max_marks,
+                    "extracted_text": a.extracted_text,
+                    "grading_rationale": a.grading_rationale,
+                    "feedback": a.grading_rationale,
+                    "needs_review": a.needs_review,
+                    "review_reason": a.review_reason,
+                    "page_number": a.page_number,
+                    "confidence_score": round(1.0 - (a.grading_uncertainty or 0.0), 2),
+                    "is_manually_edited": a.is_manual_override,
+                    "is_manual_override": a.is_manual_override,
+                    "override_reason": a.override_reason,
+                    "is_extra_attempt": a.is_extra_attempt,
+                    "is_missing": a.is_missing,
+                })
+
         # For ONLY the paginated items, fully hydrate answers, revaluations, and retention
         hydrated_items = []
         for item in page_slice:
@@ -767,61 +838,8 @@ def _fetch_past_submissions_sync(
                 if user_role != "STUDENT" or is_pub:
                     sub_dict["retention"] = RetentionService.get_retention_info(sub_dict)
                     sub_dict["days_remaining"] = sub_dict["retention"].get("days_remaining")
-
-                    reval = session.scalar(
-                        select(RevaluationRequest)
-                        .where(RevaluationRequest.submission_id == s.id)
-                        .order_by(RevaluationRequest.requested_at.desc())
-                        .limit(1)
-                    )
-                    if reval:
-                        sub_dict["revaluation"] = {
-                            "id": reval.id,
-                            "submission_id": reval.submission_id,
-                            "student_id": reval.student_id,
-                            "exam_id": reval.exam_id,
-                            "status": reval.status,
-                            "question_ids_json": reval.question_ids_json,
-                            "student_reason": reval.student_reason,
-                            "student_remark": reval.student_reason,
-                            "decision": reval.decision,
-                            "reviewer_notes": reval.reviewer_notes,
-                            "teacher_feedback": reval.reviewer_notes,
-                            "resolved_by": reval.resolved_by,
-                            "requested_at": reval.requested_at,
-                            "resolved_at": reval.resolved_at,
-                            "expires_at": reval.expires_at,
-                        }
-
-                    ans_records = session.scalars(
-                        select(Answer)
-                        .where(Answer.submission_id == s.id)
-                        .order_by(Answer.question_id.asc())
-                    ).all()
-                    sub_dict["answers"] = [
-                        {
-                            "id": a.id,
-                            "submission_id": a.submission_id,
-                            "question_id": a.question_id,
-                            "subquestion_id": a.subquestion_id,
-                            "section_id": a.section_id,
-                            "awarded_marks": a.awarded_marks,
-                            "max_marks": a.max_marks,
-                            "extracted_text": a.extracted_text,
-                            "grading_rationale": a.grading_rationale,
-                            "feedback": a.grading_rationale,
-                            "needs_review": a.needs_review,
-                            "review_reason": a.review_reason,
-                            "page_number": a.page_number,
-                            "confidence_score": round(1.0 - (a.grading_uncertainty or 0.0), 2),
-                            "is_manually_edited": a.is_manual_override,
-                            "is_manual_override": a.is_manual_override,
-                            "override_reason": a.override_reason,
-                            "is_extra_attempt": a.is_extra_attempt,
-                            "is_missing": a.is_missing,
-                        }
-                        for a in ans_records
-                    ]
+                    sub_dict["revaluation"] = slice_reval_map.get(s.id)
+                    sub_dict["answers"] = slice_answers_map.get(s.id, [])
 
                 hydrated_items.append(sub_dict)
 

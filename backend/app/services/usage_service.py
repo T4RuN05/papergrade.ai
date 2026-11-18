@@ -1,7 +1,7 @@
 import math
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func, case
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
@@ -56,14 +56,63 @@ class UsageService:
     @staticmethod
     def get_usage_metrics(exam_id: Optional[str] = None, batch_id: Optional[str] = None) -> Dict[str, Any]:
         with get_session() as session:
+            # D-23: Aggregate counts and totals directly in SQL
+            agg_stmt = select(
+                func.count(ApiUsageEvent.id),
+                func.coalesce(func.sum(case((ApiUsageEvent.success == 1, 1), else_=0)), 0),
+                func.coalesce(func.sum(case((ApiUsageEvent.success == 0, 1), else_=0)), 0),
+                func.coalesce(func.sum(case((ApiUsageEvent.retry_attempt > 0, 1), else_=0)), 0),
+                func.coalesce(func.sum(ApiUsageEvent.estimated_cost_usd), 0.0),
+            )
+            if exam_id:
+                agg_stmt = agg_stmt.where(ApiUsageEvent.exam_id == exam_id)
+            if batch_id:
+                agg_stmt = agg_stmt.where(ApiUsageEvent.batch_id == batch_id)
+
+            total_requests, succ_count, fail_count, retry_count, total_spent = session.execute(agg_stmt).fetchone()
+
+            if total_requests == 0:
+                return UsageService._get_empty_metrics()
+
+            # Bound event retrieval to the latest 500 events for latency/percentile calculations and UI tables
             stmt = select(ApiUsageEvent)
             if exam_id:
                 stmt = stmt.where(ApiUsageEvent.exam_id == exam_id)
             if batch_id:
                 stmt = stmt.where(ApiUsageEvent.batch_id == batch_id)
-            stmt = stmt.order_by(ApiUsageEvent.timestamp.desc())
+            stmt = stmt.order_by(ApiUsageEvent.timestamp.desc()).limit(500)
 
             event_objs = session.scalars(stmt).all()
+
+            # SQL aggregate for GCP Paid Account metrics
+            gcp_agg_stmt = select(
+                func.count(ApiUsageEvent.id),
+                func.coalesce(func.sum(case((ApiUsageEvent.success == 1, 1), else_=0)), 0),
+                func.coalesce(func.sum(case((ApiUsageEvent.success == 0, 1), else_=0)), 0),
+                func.coalesce(func.sum(ApiUsageEvent.estimated_cost_usd), 0.0),
+                func.coalesce(func.sum(ApiUsageEvent.input_tokens), 0),
+                func.coalesce(func.sum(ApiUsageEvent.output_tokens), 0),
+                func.coalesce(func.sum(ApiUsageEvent.thinking_tokens), 0),
+                func.coalesce(func.sum(ApiUsageEvent.cached_tokens), 0),
+                func.coalesce(func.avg(ApiUsageEvent.duration_ms), 0.0),
+            ).where(ApiUsageEvent.api_key_masked.like("%GCP Paid%"))
+            if exam_id:
+                gcp_agg_stmt = gcp_agg_stmt.where(ApiUsageEvent.exam_id == exam_id)
+            if batch_id:
+                gcp_agg_stmt = gcp_agg_stmt.where(ApiUsageEvent.batch_id == batch_id)
+
+            gcp_row = session.execute(gcp_agg_stmt).fetchone()
+            (
+                gcp_total,
+                gcp_succ,
+                gcp_fail,
+                gcp_spent,
+                gcp_in_tokens,
+                gcp_out_tokens,
+                gcp_think_tokens,
+                gcp_cache_tokens,
+                gcp_avg_latency,
+            ) = gcp_row
 
         events = [
             {
@@ -94,13 +143,6 @@ class UsageService:
             for e in event_objs
         ]
 
-        total_requests = len(events)
-        if total_requests == 0:
-            return UsageService._get_empty_metrics()
-
-        successful = [e for e in events if e["success"] == 1]
-        failed = [e for e in events if e["success"] == 0]
-        retries = [e for e in events if e["retry_attempt"] > 0]
         grading_events = [
             e for e in events
             if e["request_purpose"] in ("SUBMISSION_GRADING", "STAGE2_BATCH_GRADE", "STAGE1_BLIND_OCR") and e["success"] == 1
@@ -131,10 +173,9 @@ class UsageService:
 
         avg_cost = sum(costs) / len(costs) if costs else 0.00038
         p90_cost = max(avg_cost, UsageService._percentile(costs, 90) if costs else avg_cost * 1.3)
-        total_spent = sum(e["estimated_cost_usd"] or 0.0 for e in events)
 
-        retry_rate = (len(retries) / total_requests) * 100 if total_requests > 0 else 0.0
-        failure_rate = (len(failed) / total_requests) * 100 if total_requests > 0 else 0.0
+        retry_rate = (retry_count / total_requests) * 100 if total_requests > 0 else 0.0
+        failure_rate = (fail_count / total_requests) * 100 if total_requests > 0 else 0.0
 
         quotas = UsageService.get_quota_settings()
         rpm = quotas["rpm_limit"]
@@ -173,15 +214,9 @@ class UsageService:
             rpd=rpd
         )
 
-        # Partition events into GCP Paid vs AI Studio Pool
+        # Partition recent events into GCP Paid vs AI Studio Pool for error breakdown and table
         gcp_paid_events = [e for e in events if e.get("api_key_masked") and "GCP Paid" in e["api_key_masked"]]
-        pool_events = [e for e in events if not (e.get("api_key_masked") and "GCP Paid" in e["api_key_masked"])]
-
-        # Compile GCP Paid Account Metrics
-        gcp_paid_success = [e for e in gcp_paid_events if e["success"] == 1]
         gcp_paid_fail = [e for e in gcp_paid_events if e["success"] == 0]
-        gcp_paid_durations = [e["duration_ms"] for e in gcp_paid_events if e["duration_ms"] is not None]
-        gcp_paid_spent = sum(e["estimated_cost_usd"] or 0.0 for e in gcp_paid_events)
 
         err_counts: Dict[str, int] = {}
         for e in gcp_paid_fail:
@@ -194,16 +229,16 @@ class UsageService:
             "project_id": settings.GCP_PROJECT_ID,
             "location": settings.GCP_LOCATION,
             "service_account_email": settings.GCP_SERVICE_ACCOUNT_EMAIL,
-            "total_requests": len(gcp_paid_events),
-            "successful_requests": len(gcp_paid_success),
-            "failed_requests": len(gcp_paid_fail),
-            "success_rate_pct": round((len(gcp_paid_success) / len(gcp_paid_events)) * 100, 1) if gcp_paid_events else 0.0,
-            "total_spent_usd": round(gcp_paid_spent, 6),
-            "total_input_tokens": sum(e["input_tokens"] or 0 for e in gcp_paid_events),
-            "total_output_tokens": sum(e["output_tokens"] or 0 for e in gcp_paid_events),
-            "total_thinking_tokens": sum(e["thinking_tokens"] or 0 for e in gcp_paid_events),
-            "total_cached_tokens": sum(e["cached_tokens"] or 0 for e in gcp_paid_events),
-            "avg_latency_ms": round(sum(gcp_paid_durations) / len(gcp_paid_durations), 1) if gcp_paid_durations else 0,
+            "total_requests": gcp_total,
+            "successful_requests": gcp_succ,
+            "failed_requests": gcp_fail,
+            "success_rate_pct": round((gcp_succ / gcp_total) * 100, 1) if gcp_total else 0.0,
+            "total_spent_usd": round(gcp_spent, 6),
+            "total_input_tokens": gcp_in_tokens,
+            "total_output_tokens": gcp_out_tokens,
+            "total_thinking_tokens": gcp_think_tokens,
+            "total_cached_tokens": gcp_cache_tokens,
+            "avg_latency_ms": round(gcp_avg_latency, 1),
             "error_breakdown": err_counts,
             "recent_events": gcp_paid_events[:50]
         }
@@ -211,9 +246,9 @@ class UsageService:
         return {
             "summary": {
                 "total_requests": total_requests,
-                "successful_requests": len(successful),
-                "failed_requests": len(failed),
-                "retry_count": len(retries),
+                "successful_requests": succ_count,
+                "failed_requests": fail_count,
+                "retry_count": retry_count,
                 "retry_rate_pct": round(retry_rate, 2),
                 "failure_rate_pct": round(failure_rate, 2),
                 "total_estimated_cost_usd": round(total_spent, 6),

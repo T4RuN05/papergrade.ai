@@ -85,20 +85,14 @@ class CreateStudentRequest(BaseModel):
 def allocate_next_roll_numbers(db: Session, branch_id: str, count: int = 1) -> List[str]:
     """
     Atomically allocates `count` sequential roll numbers for a branch.
-    Uses PostgreSQL SELECT ... FOR UPDATE on the Branch row to serialize
+    Uses atomic UPDATE ... RETURNING on the Branch row to serialize
     concurrent student roster uploads and prevent roll number collisions.
     Pattern: {INSTITUTE_CODE}-{BRANCH_CODE}-{SEQUENCE:03d}
     """
     if count <= 0:
         return []
 
-    try:
-        branch = db.execute(
-            select(Branch).where(Branch.id == branch_id).with_for_update()
-        ).scalar_one_or_none()
-    except Exception:
-        branch = db.scalar(select(Branch).where(Branch.id == branch_id))
-
+    branch = db.scalar(select(Branch).where(Branch.id == branch_id))
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found")
 
@@ -107,11 +101,12 @@ def allocate_next_roll_numbers(db: Session, branch_id: str, count: int = 1) -> L
     branch_code = branch.code.strip().upper()
     prefix = f"{inst_code}-{branch_code}-"
 
-    current_seq = getattr(branch, "last_roll_sequence", 0) or 0
-    if current_seq == 0:
+    # If last_roll_sequence is uninitialized (0), seed it from any existing students
+    if (getattr(branch, "last_roll_sequence", 0) or 0) == 0:
         existing_rolls = db.scalars(
             select(Student.roll_number).where(Student.roll_number.like(f"{prefix}%"))
         ).all()
+        current_seq = 0
         for r in existing_rolls:
             try:
                 num = int(r.split("-")[-1])
@@ -119,15 +114,23 @@ def allocate_next_roll_numbers(db: Session, branch_id: str, count: int = 1) -> L
                     current_seq = num
             except ValueError:
                 pass
+        if current_seq > 0:
+            branch.last_roll_sequence = current_seq
+            db.flush()
 
-    allocated = []
-    for _ in range(count):
-        current_seq += 1
-        allocated.append(f"{prefix}{current_seq:03d}")
+    from sqlalchemy import update
+    stmt = (
+        update(Branch)
+        .where(Branch.id == branch_id)
+        .values(last_roll_sequence=Branch.last_roll_sequence + count)
+        .returning(Branch.last_roll_sequence)
+    )
+    new_max_seq = db.scalar(stmt)
+    if new_max_seq is None:
+        raise HTTPException(status_code=500, detail="Failed to allocate roll sequence")
 
-    branch.last_roll_sequence = current_seq
-    db.flush()
-
+    start_seq = new_max_seq - count + 1
+    allocated = [f"{prefix}{seq:03d}" for seq in range(start_seq, new_max_seq + 1)]
     return allocated
 
 
@@ -705,8 +708,8 @@ async def import_students_excel(
     if not raw_rows:
         raise HTTPException(status_code=400, detail="Excel file has no valid student rows.")
 
-    # Determine roll numbers: prefer provided roll number if present, otherwise auto-allocate
-    rows_needing_rolls = [r for r in raw_rows if not r["roll_number"]]
+    # D-09: Batch roll allocation, duplicate checks, and student_id_num generation into 3 bulk queries total
+    rows_needing_rolls = [r for r in raw_rows if not r.get("roll_number")]
     allocated_rolls = allocate_next_roll_numbers(db, batch.branch_id, count=len(rows_needing_rolls)) if rows_needing_rolls else []
     alloc_iter = iter(allocated_rolls)
 
@@ -717,56 +720,88 @@ async def import_students_excel(
     branch_code = branch.code.strip().upper() if branch else "BR"
     prefix = f"{inst_code}-{branch_code}-"
 
-    imported_students = []
-    now = get_iso_now()
+    resolved_rows = []
     highest_seq = getattr(branch, "last_roll_sequence", 0) or 0
 
     for row_data in raw_rows:
-        roll_number = row_data.get("roll_number")
-        if not roll_number:
-            roll_number = next(alloc_iter)
+        r_num = row_data.get("roll_number")
+        if not r_num:
+            r_num = next(alloc_iter)
         else:
-            if roll_number.isdigit():
-                roll_number = f"{prefix}{int(roll_number):03d}"
+            r_num = str(r_num).strip().upper()
+            if r_num.isdigit():
+                r_num = f"{prefix}{int(r_num):03d}"
             try:
-                num = int(roll_number.split("-")[-1])
+                num = int(r_num.split("-")[-1])
                 if num > highest_seq:
                     highest_seq = num
             except ValueError:
                 pass
+        resolved_rows.append((r_num, row_data))
 
-        # Check for existing duplicate roll number
-        existing_student = db.scalar(select(Student).where(Student.roll_number == roll_number))
-        if existing_student:
+    # Single bulk query to check all candidate roll numbers for collisions
+    candidate_rolls = [r_num for r_num, _ in resolved_rows]
+    existing_students = db.execute(
+        select(Student.id, Student.roll_number).where(Student.roll_number.in_(candidate_rolls))
+    ).all()
+    existing_roll_map = {row.roll_number: row.id for row in existing_students}
+
+    valid_rows = []
+    for r_num, row_data in resolved_rows:
+        if r_num in existing_roll_map:
             skipped_duplicates.append({
-                "roll_number": roll_number,
+                "roll_number": r_num,
                 "full_name": row_data["full_name"],
-                "reason": f"Roll number already exists (Student ID: {existing_student.id})"
+                "reason": f"Roll number already exists (Student ID: {existing_roll_map[r_num]})"
             })
-            continue
+        else:
+            valid_rows.append((r_num, row_data))
 
+    # Single bulk query to generate collision-free 6-digit student ID numbers
+    needed_count = len(valid_rows)
+    if needed_count > 0:
+        candidate_pool = set()
+        while len(candidate_pool) < needed_count * 2:
+            candidate_pool.add(str(random.randint(100000, 999999)))
+        colliding = set(
+            db.scalars(
+                select(Student.student_id_num).where(Student.student_id_num.in_(list(candidate_pool)))
+            ).all()
+        )
+        avail_id_nums = list(candidate_pool - colliding)
+    else:
+        avail_id_nums = []
+
+    imported_students = []
+    new_student_objs = []
+    now = get_iso_now()
+
+    for idx, (r_num, row_data) in enumerate(valid_rows):
         student_id = f"stu_{uuid.uuid4().hex[:12]}"
-        student_id_num = generate_unique_student_id_num(db)
+        student_id_num = avail_id_nums[idx]
 
         student = Student(
             id=student_id,
             batch_id=batch_id,
             student_id_num=student_id_num,
-            roll_number=roll_number,
+            roll_number=r_num,
             full_name=row_data["full_name"],
-            email=row_data["email"],
-            phone=row_data["phone"],
+            email=row_data.get("email"),
+            phone=row_data.get("phone"),
             account_claimed=0,
             created_at=now,
         )
-        db.add(student)
+        new_student_objs.append(student)
 
         imported_students.append({
             "student_id": student_id,
             "student_id_num": student_id_num,
-            "roll_number": roll_number,
+            "roll_number": r_num,
             "full_name": row_data["full_name"],
         })
+
+    if new_student_objs:
+        db.add_all(new_student_objs)
 
     if branch and highest_seq > (getattr(branch, "last_roll_sequence", 0) or 0):
         branch.last_roll_sequence = highest_seq
