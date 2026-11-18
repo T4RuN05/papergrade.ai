@@ -40,6 +40,13 @@ else:
     engine_kwargs["pool_size"] = 15
     engine_kwargs["max_overflow"] = 25
     engine_kwargs["pool_reset_on_return"] = "rollback"  # Ensures connections never linger in 'idle in transaction'
+    engine_kwargs["connect_args"] = {
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 
