@@ -17,6 +17,7 @@ import {
   Home,
   ChevronRight,
   KeyRound,
+  RotateCcw,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser, setStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
@@ -49,6 +50,7 @@ export function Navbar() {
     (pathname === "/student/exams" ||
       (typeof window !== "undefined" && window.location.search.includes("tab=exams")));
   const isPortalTab = isMounted && pathname === "/student/portal" && !isPastExamsTab;
+  const isRevalTab = isMounted && pathname === "/student/revaluation";
 
   useEffect(() => {
     setIsMounted(true);
@@ -174,16 +176,18 @@ export function Navbar() {
 
         {/* Desktop Navigation (Clean, uncluttered for public/student view) */}
         <nav className="hidden md:flex items-center gap-1">
-          <Link
-            href="/"
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              pathname === "/"
-                ? "bg-canvas-soft text-ink font-semibold"
-                : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-            }`}
-          >
-            Home
-          </Link>
+          {(!currentUser || currentUser.role !== "STUDENT") && (
+            <Link
+              href="/"
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                pathname === "/"
+                  ? "bg-canvas-soft text-ink font-semibold"
+                  : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+              }`}
+            >
+              Home
+            </Link>
+          )}
           <Link
             href="/student/portal"
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -193,20 +197,33 @@ export function Navbar() {
             }`}
           >
             <Clock className="h-3.5 w-3.5 text-ink-muted" />
-            Student Portal
+            Dashboard
           </Link>
           {isMounted && currentUser && (
-            <Link
-              href="/student/portal?tab=exams"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                isPastExamsTab
-                  ? "bg-canvas-soft text-ink font-semibold"
-                  : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-              }`}
-            >
-              <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
-              Past Exams
-            </Link>
+            <>
+              <Link
+                href="/student/portal?tab=exams"
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  isPastExamsTab
+                    ? "bg-canvas-soft text-ink font-semibold"
+                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                }`}
+              >
+                <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
+                Past Exams
+              </Link>
+              <Link
+                href="/student/revaluation"
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  isRevalTab
+                    ? "bg-canvas-soft text-ink font-semibold"
+                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                }`}
+              >
+                <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
+                Revaluations
+              </Link>
+            </>
           )}
           {isAdminUser && (
             <Link
@@ -395,21 +412,23 @@ export function Navbar() {
 
             {/* Navigation Links */}
             <nav className="p-3 space-y-1">
-              <Link
-                href="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                  pathname === "/"
-                    ? "bg-canvas-soft text-ink font-semibold"
-                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Home className="h-4 w-4 text-ink-muted" />
-                  <span>Home</span>
-                </div>
-                {pathname === "/" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-              </Link>
+              {(!currentUser || currentUser.role !== "STUDENT") && (
+                <Link
+                  href="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    pathname === "/"
+                      ? "bg-canvas-soft text-ink font-semibold"
+                      : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Home className="h-4 w-4 text-ink-muted" />
+                    <span>Home</span>
+                  </div>
+                  {pathname === "/" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                </Link>
+              )}
 
               <Link
                 href="/student/portal"
@@ -422,29 +441,49 @@ export function Navbar() {
               >
                 <div className="flex items-center gap-2.5">
                   <Clock className="h-4 w-4 text-ink-muted" />
-                  <span>Student Portal</span>
+                  <span>Dashboard</span>
                 </div>
                 {isPortalTab && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
               </Link>
 
               {isMounted && currentUser && (
-                <Link
-                  href="/student/portal?tab=exams"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                    isPastExamsTab
-                      ? "bg-canvas-soft text-ink font-semibold"
-                      : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <BookOpen className="h-4 w-4 text-ink-muted" />
-                    <span>Past Exams & Submissions</span>
-                  </div>
-                  {isPastExamsTab && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  )}
-                </Link>
+                <>
+                  <Link
+                    href="/student/portal?tab=exams"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                      isPastExamsTab
+                        ? "bg-canvas-soft text-ink font-semibold"
+                        : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <BookOpen className="h-4 w-4 text-ink-muted" />
+                      <span>Past Exams & Submissions</span>
+                    </div>
+                    {isPastExamsTab && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    )}
+                  </Link>
+
+                  <Link
+                    href="/student/revaluation"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                      isRevalTab
+                        ? "bg-canvas-soft text-ink font-semibold"
+                        : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <RotateCcw className="h-4 w-4 text-ink-muted" />
+                      <span>Revaluations & Appeals</span>
+                    </div>
+                    {isRevalTab && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    )}
+                  </Link>
+                </>
               )}
 
               {isAdminUser && (

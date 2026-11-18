@@ -176,7 +176,7 @@ def request_revaluation(
         notif_type="REVALUATION_REQUESTED",
         title="Revaluation Appeal Lodged",
         message=f"Your appeal for '{exam_title}' on question(s) {q_str} has been received and is pending faculty review.",
-        link_url=f"/student/submissions/{submission_id}"
+        link_url="/student/revaluation"
     )
 
     effective_branch = exam.branch_id
@@ -450,7 +450,7 @@ def resolve_revaluation_request(
                 notif_type="REVALUATION_DECIDED",
                 title="Revaluation Resolved",
                 message=f"Your revaluation request for '{exam_title}' has been resolved: {req.decision.replace('_', ' ')}.",
-                link_url=f"/student/submissions/{sub_id}"
+                link_url="/student/revaluation"
             )
 
         exam_branch = e_obj.branch_id

@@ -1217,15 +1217,21 @@ const PastExamCard = React.memo(function PastExamCard({
               {isPublished && (hasOpenReval || isRevalResolved) && (
                 <div className="w-full sm:w-auto">
                   {hasOpenReval ? (
-                    <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] text-center whitespace-nowrap shadow-2xs">
+                    <Link
+                      href="/student/revaluation"
+                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] text-center whitespace-nowrap shadow-2xs hover:opacity-90 transition-opacity"
+                    >
                       <RotateCcw className="h-3.5 w-3.5 animate-spin" />
-                      <span>Revaluation Appeal Active</span>
-                    </div>
+                      <span>Revaluation Appeal Active →</span>
+                    </Link>
                   ) : (
-                    <div className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] text-center whitespace-nowrap shadow-2xs">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Revaluation Completed</span>
-                    </div>
+                    <Link
+                      href="/student/revaluation"
+                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] text-center whitespace-nowrap shadow-2xs hover:opacity-90 transition-opacity"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Revaluation Completed →</span>
+                    </Link>
                   )}
                 </div>
               )}
@@ -1299,7 +1305,10 @@ export default function StudentPortalPage() {
     };
     handleUrlTab();
     window.addEventListener("popstate", handleUrlTab);
-    return () => window.removeEventListener("popstate", handleUrlTab);
+    return () => {
+      window.removeEventListener("popstate", handleUrlTab);
+      if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
+    };
   }, [activeTab]);
 
   const handleTabSwitch = useCallback((newTab: "dashboard" | "exams", scrollToTop = false) => {
@@ -3516,15 +3525,15 @@ export default function StudentPortalPage() {
                       <div className="w-full sm:w-auto">
                         {hasOpenReval ? (
                           <Link
-                            href={`/student/submissions/${sub.id}`}
+                            href="/student/revaluation"
                             className="text-[11px] font-medium text-orange-700 bg-orange-50 px-2.5 py-1.5 rounded-md border border-orange-200 inline-flex items-center justify-center gap-1 hover:bg-orange-100 transition-colors w-full sm:w-auto text-center"
                           >
                             <Clock className="h-3 w-3" />
-                            Appeal In Review (View in Viewer →)
+                            Appeal In Review (Track Status →)
                           </Link>
                         ) : (
                           <Link
-                            href={`/student/submissions/${sub.id}`}
+                            href="/student/revaluation"
                             className="text-[11px] font-medium text-ink-secondary bg-canvas-soft px-2.5 py-1.5 rounded-md border border-hairline inline-flex items-center justify-center gap-1 hover:bg-surface transition-colors w-full sm:w-auto text-center"
                           >
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" />

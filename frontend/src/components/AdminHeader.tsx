@@ -177,6 +177,9 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
     if (pathname.startsWith("/analytics")) {
       return { group: "Intelligence & Quota", segments: [{ label: "Telemetry & Quota" }] };
     }
+    if (pathname.startsWith("/student/revaluation")) {
+      return { group: "Student", segments: [{ label: "Revaluation Appeals" }] };
+    }
     if (pathname.startsWith("/student/portal")) {
       return { group: "Student Preview", segments: [{ label: "Student Portal" }] };
     }
