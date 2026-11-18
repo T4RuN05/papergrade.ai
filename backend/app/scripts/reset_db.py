@@ -45,14 +45,14 @@ def reset_test_database():
         if prod_inst:
             print(f"  -> Invariant Verified: Production institute '{prod_inst.name}' ({PROD_INSTITUTE_ID}) is protected.")
 
-        # Identify test and synthetic exams
+        # Identify ephemeral synthetic test run exams (preserving regular exams in TEST BVI)
         test_exams = session.scalars(
             select(Exam).where(
                 or_(
-                    Exam.institute_id == TEST_INSTITUTE_ID,
                     Exam.id.like("ex_test%"),
                     Exam.id.like("exam_d%"),
-                    Exam.title.like("%Test%"),
+                    Exam.id.like("exam_sec_test%"),
+                    Exam.title.like("%[Synthetic Test]%"),
                 ),
                 Exam.institute_id != PROD_INSTITUTE_ID
             )
