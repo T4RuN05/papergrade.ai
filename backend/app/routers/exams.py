@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, update, delete, or_, and_
@@ -842,13 +842,29 @@ def publish_results(
     now = get_iso_now()
     retention_expiry = RetentionService.calculate_retention_expiry(now, settings.SUBMISSION_RETENTION_DAYS)
 
-    # Publish all graded submissions and set retention expiry
+    # D-17: Strict Pedagogical Gate — Hard block publication if any submissions require faculty review
+    needs_review_count = db.scalar(
+        select(func.count(Submission.id))
+        .where(
+            Submission.exam_id == exam_id,
+            Submission.submission_status == "SUBMITTED",
+            Submission.status == "NEEDS_REVIEW"
+        )
+    ) or 0
+
+    if needs_review_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot publish results: {needs_review_count} submission(s) are flagged as 'NEEDS_REVIEW' and require faculty verification before publication."
+        )
+
+    # Publish all verified submissions and set retention expiry
     subs = db.scalars(
         select(Submission)
         .where(
             Submission.exam_id == exam_id,
             Submission.submission_status == "SUBMITTED",
-            Submission.status.in_(["GRADED", "REVIEWED", "COMPLETED", "NEEDS_REVIEW"])
+            Submission.status.in_(["GRADED", "REVIEWED", "COMPLETED"])
         )
     ).all()
 
@@ -1264,6 +1280,7 @@ async def get_exam_artifact_page_image(
 @router.delete("/{exam_id}")
 async def delete_exam(
     exam_id: str,
+    confirm_delete_title: Optional[str] = Query(None, description="Mandatory confirmation matching exam title if exam is published"),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
@@ -1271,6 +1288,8 @@ async def delete_exam(
     Permanently delete an examination, all student answer sheets (from DB and CDN/storage),
     evaluation scores, criteria, answers, revaluations, and submission windows.
     Enforces branch tenancy: Branch Manager can only delete exams in their assigned branch.
+    Enforces two-tier deletion guard: Published exams cannot be deleted by Branch Managers (only archived).
+    Root Admin alone can delete published exams, requiring confirm_delete_title to match the exam title.
     """
     storage = get_storage_service()
 
@@ -1285,6 +1304,22 @@ async def delete_exam(
     elif current_user.get("role") == "INSTITUTE_DIRECTOR":
         if exam.institute_id != current_user.get("institute_id"):
             raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your institute.")
+
+    # D-19: Two-Tier Exam Deletion Guard
+    is_published_exam = bool(exam.lifecycle_status in ["PUBLISHED", "RESULTS_READY"] or exam.is_published == 1)
+    if is_published_exam:
+        user_role = current_user.get("role")
+        if user_role != "ROOT_ADMIN":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete an examination with published results. Published academic records are protected. Archive the exam instead."
+            )
+        # Root Admin override requires explicit confirmation matching exam title
+        if not confirm_delete_title or confirm_delete_title.strip() != exam.title.strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Destruction of published academic records requires confirmation. Provide confirm_delete_title='{exam.title}'."
+            )
 
     exam_title = exam.title
 
@@ -1401,6 +1436,53 @@ async def delete_exam(
         "exam_id": exam_id,
         "deleted_submissions_count": len(subs),
         "deleted_files_count": deleted_files_count,
+    }
+
+
+@router.post("/{exam_id}/archive")
+def archive_exam(
+    exam_id: str,
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
+):
+    """
+    Archive an examination. Hides it from active views while permanently preserving
+    all historical student grades, report cards, answer sheets, and revaluation logs.
+    """
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER" and exam.branch_id != current_user.get("branch_id"):
+        raise HTTPException(status_code=403, detail="Forbidden: You can only archive exams belonging to your branch.")
+    elif user_role == "INSTITUTE_DIRECTOR" and exam.institute_id != current_user.get("institute_id"):
+        raise HTTPException(status_code=403, detail="Forbidden: You can only archive exams belonging to your institute.")
+
+    now = get_iso_now()
+    exam.lifecycle_status = "ARCHIVED"
+    exam.status = "ARCHIVED"
+    exam.updated_at = now
+
+    audit = AuditLog(
+        id=f"aud_{uuid.uuid4().hex[:12]}",
+        user_id=current_user["sub"],
+        action="ARCHIVE_EXAM",
+        resource_type="EXAM",
+        resource_id=exam_id,
+        details_json=json.dumps({"title": exam.title}),
+        created_at=now,
+    )
+    db.add(audit)
+    db.commit()
+
+    PortalStateEpochManager.bump_branch(exam.branch_id)
+
+    return {
+        "success": True,
+        "message": f"Exam '{exam.title}' has been successfully archived.",
+        "exam_id": exam_id,
+        "lifecycle_status": "ARCHIVED"
     }
 
 

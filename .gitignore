@@ -74,3 +74,6 @@ Thumbs.db
 *.zip
 PaperGrade AI Demo-1.mp4
 encrypted.data
+
+# Local Forensic Audit Log & Diary
+ARCHITECTURAL_AUDIT_AND_DIARY.md

@@ -286,12 +286,19 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
         if not sub_filters:
             sub_filters.append(Submission.student_id == user_id)
 
-        sub_exam_rows = session.execute(
+        sub_stmt = (
             select(Submission, Exam)
             .join(Exam, Submission.exam_id == Exam.id)
             .where(or_(*sub_filters), Submission.submission_status == 'SUBMITTED')
-            .order_by(Submission.created_at.desc())
-        ).all()
+        )
+        # D-22: Strict multi-tenant isolation — scope submissions by institute and branch
+        if user_inst:
+            sub_stmt = sub_stmt.where(Exam.institute_id == user_inst)
+        if branch_id:
+            sub_stmt = sub_stmt.where(or_(Exam.branch_id == branch_id, Exam.branch_id.is_(None)))
+
+        sub_stmt = sub_stmt.order_by(Submission.created_at.desc())
+        sub_exam_rows = session.execute(sub_stmt).all()
 
         # Deduplicate submissions by exam_id (keep only newest active submission per exam)
         seen_exam_ids = set()
@@ -587,12 +594,19 @@ def _fetch_past_submissions_sync(
         if not sub_filters:
             sub_filters.append(Submission.student_id == user_id)
 
-        sub_exam_rows = session.execute(
+        sub_stmt = (
             select(Submission, Exam)
             .join(Exam, Submission.exam_id == Exam.id)
             .where(or_(*sub_filters), Submission.submission_status == 'SUBMITTED')
-            .order_by(Submission.created_at.desc())
-        ).all()
+        )
+        # D-22: Strict multi-tenant isolation — scope submissions by institute and branch
+        if user_inst:
+            sub_stmt = sub_stmt.where(Exam.institute_id == user_inst)
+        if branch_id:
+            sub_stmt = sub_stmt.where(or_(Exam.branch_id == branch_id, Exam.branch_id.is_(None)))
+
+        sub_stmt = sub_stmt.order_by(Submission.created_at.desc())
+        sub_exam_rows = session.execute(sub_stmt).all()
 
         # Deduplicate submissions by exam_id (keep only newest active submission per exam)
         seen_exam_ids = set()

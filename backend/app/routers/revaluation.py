@@ -489,6 +489,11 @@ def resolve_revaluation_request(
 
     db.commit()
 
+    # D-15: Ensure annotated PDF is re-stamped and re-synced to storage after human marks revision
+    if req.decision == "MARKS_REVISED":
+        from backend.app.services.grading_service import GradingService
+        GradingService.trigger_background_export_pdf(sub_id)
+
     return {
         "status": "success",
         "request_id": request_id,

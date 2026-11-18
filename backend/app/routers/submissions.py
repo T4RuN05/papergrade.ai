@@ -482,6 +482,17 @@ def get_submission_pdf_stream(
         owns_sub = (sub_roll and sub_roll in allowed_rolls) or (sub_stu_id and sub_stu_id in allowed_ids)
         if not owns_sub:
             raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's submission.")
+    elif user_role in ("BRANCH_MANAGER", "TEACHER"):
+        user_branch = current_user.get("branch_id")
+        user_inst = current_user.get("institute_id")
+        if user_branch and exam and exam.branch_id and exam.branch_id != user_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access submissions belonging to another branch.")
+        if user_inst and exam and exam.institute_id and exam.institute_id != user_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access submissions belonging to another institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        user_inst = current_user.get("institute_id")
+        if user_inst and exam and exam.institute_id and exam.institute_id != user_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access submissions belonging to another institute.")
 
     key = sub.canonical_pdf_path or sub.original_file_path
     if not key:
