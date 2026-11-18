@@ -43,14 +43,43 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [activeStudentTab, setActiveStudentTab] = useState<"dashboard" | "exams">("dashboard");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isExams = window.location.search.includes("tab=exams") || pathname === "/student/exams";
+      setActiveStudentTab(isExams ? "exams" : "dashboard");
+    }
+    const handlePortalTabSync = (e: Event) => {
+      const ce = e as CustomEvent<"dashboard" | "exams">;
+      if (ce.detail) {
+        setActiveStudentTab(ce.detail);
+      }
+    };
+    window.addEventListener("papergrade:tab-changed", handlePortalTabSync);
+    return () => window.removeEventListener("papergrade:tab-changed", handlePortalTabSync);
+  }, [pathname]);
 
   const isPastExamsTab =
     isMounted &&
     pathname.startsWith("/student") &&
-    (pathname === "/student/exams" ||
-      (typeof window !== "undefined" && window.location.search.includes("tab=exams")));
-  const isPortalTab = isMounted && pathname === "/student/portal" && !isPastExamsTab;
+    (pathname === "/student/exams" || (pathname === "/student/portal" && activeStudentTab === "exams"));
+  const isPortalTab = isMounted && pathname === "/student/portal" && activeStudentTab === "dashboard";
   const isRevalTab = isMounted && pathname === "/student/revaluation";
+
+  const handleStudentNavClick = (tab: "dashboard" | "exams", e: React.MouseEvent) => {
+    setMobileMenuOpen(false);
+    if (pathname === "/student/portal") {
+      e.preventDefault();
+      setActiveStudentTab(tab);
+      const newUrl = tab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
+      window.history.pushState(null, "", newUrl);
+      window.dispatchEvent(new CustomEvent("papergrade:switch-tab", { detail: tab }));
+    } else {
+      setActiveStudentTab(tab);
+      router.push(tab === "exams" ? "/student/portal?tab=exams" : "/student/portal");
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -190,6 +219,7 @@ export function Navbar() {
           )}
           <Link
             href="/student/portal"
+            onClick={(e) => isStudent && handleStudentNavClick("dashboard", e)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
               isPortalTab
                 ? "bg-canvas-soft text-ink font-semibold"
@@ -203,6 +233,7 @@ export function Navbar() {
             <>
               <Link
                 href="/student/portal?tab=exams"
+                onClick={(e) => isStudent && handleStudentNavClick("exams", e)}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   isPastExamsTab
                     ? "bg-canvas-soft text-ink font-semibold"
@@ -432,7 +463,13 @@ export function Navbar() {
 
               <Link
                 href="/student/portal"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={(e) => {
+                  if (isStudent) {
+                    handleStudentNavClick("dashboard", e);
+                  } else {
+                    setMobileMenuOpen(false);
+                  }
+                }}
                 className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                   isPortalTab
                     ? "bg-canvas-soft text-ink font-semibold"
@@ -450,7 +487,13 @@ export function Navbar() {
                 <>
                   <Link
                     href="/student/portal?tab=exams"
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(e) => {
+                      if (isStudent) {
+                        handleStudentNavClick("exams", e);
+                      } else {
+                        setMobileMenuOpen(false);
+                      }
+                    }}
                     className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                       isPastExamsTab
                         ? "bg-canvas-soft text-ink font-semibold"

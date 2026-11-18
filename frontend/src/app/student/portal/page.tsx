@@ -1287,32 +1287,13 @@ export default function StudentPortalPage() {
     };
   }, []);
 
-  // Read initial tab from URL query param (?tab=exams) & handle back/forward navigation
-  useEffect(() => {
-    const handleUrlTab = () => {
-      if (typeof window !== "undefined") {
-        const params = new URLSearchParams(window.location.search);
-        const tab = params.get("tab") === "exams" ? "exams" : "dashboard";
-        if (tab !== activeTab) {
-          setIsTransitioning(true);
-          setActiveTab(tab);
-          if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
-          tabTransitionTimerRef.current = setTimeout(() => {
-            setIsTransitioning(false);
-          }, 300);
-        }
-      }
-    };
-    handleUrlTab();
-    window.addEventListener("popstate", handleUrlTab);
-    return () => {
-      window.removeEventListener("popstate", handleUrlTab);
-      if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
-    };
-  }, [activeTab]);
-
   const handleTabSwitch = useCallback((newTab: "dashboard" | "exams", scrollToTop = false) => {
-    if (newTab === activeTab) return;
+    if (newTab === activeTab) {
+      if (scrollToTop && typeof window !== "undefined" && window.scrollY > 100) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
     if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
 
     // Keep both panes visible during the slide transition
@@ -1331,6 +1312,11 @@ export default function StudentPortalPage() {
     const newUrl = newTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
     window.history.replaceState(null, "", newUrl);
 
+    // Notify Navbar of active tab change
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("papergrade:tab-changed", { detail: newTab }));
+    }
+
     // Smooth scroll to top when switching from bottom of dashboard to avoid jarring jump
     if (scrollToTop && typeof window !== "undefined" && window.scrollY > 100) {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1340,6 +1326,36 @@ export default function StudentPortalPage() {
       setIsTransitioning(false);
     }, 300);
   }, [activeTab]);
+
+  // Read initial tab from URL query param (?tab=exams) & handle back/forward navigation & Navbar custom events
+  useEffect(() => {
+    const handleUrlTab = () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab") === "exams" ? "exams" : "dashboard";
+        if (tab !== activeTab) {
+          handleTabSwitch(tab, false);
+        }
+      }
+    };
+    handleUrlTab();
+
+    // Listen to custom tab switch events dispatched by Navbar (both desktop and mobile hamburger menu)
+    const handleCustomTabSwitch = (e: Event) => {
+      const ce = e as CustomEvent<"dashboard" | "exams">;
+      if (ce.detail) {
+        handleTabSwitch(ce.detail, true);
+      }
+    };
+    window.addEventListener("papergrade:switch-tab", handleCustomTabSwitch);
+    window.addEventListener("popstate", handleUrlTab);
+
+    return () => {
+      window.removeEventListener("papergrade:switch-tab", handleCustomTabSwitch);
+      window.removeEventListener("popstate", handleUrlTab);
+      if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
+    };
+  }, [activeTab, handleTabSwitch]);
 
   const handlePortalTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
@@ -1464,6 +1480,9 @@ export default function StudentPortalPage() {
       setActiveTab(targetTab);
       const newUrl = targetTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
       window.history.replaceState(null, "", newUrl);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("papergrade:tab-changed", { detail: targetTab }));
+      }
     }
 
     if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
