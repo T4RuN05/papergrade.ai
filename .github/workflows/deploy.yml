@@ -33,8 +33,14 @@ jobs:
             /opt/papergrade/venv/bin/pip install --no-cache-dir -r backend/requirements.txt
             echo "🔄 Restarting papergrade-backend service..."
             systemctl restart papergrade-backend
-            sleep 5
-            systemctl is-active --quiet papergrade-backend
-            echo "🩺 Verifying backend health..."
+            echo "🩺 Verifying backend health (polling up to 60s for DB startup)..."
+            for i in {1..30}; do
+              if curl -f -s http://127.0.0.1:8000/api/status > /dev/null; then
+                echo "✅ Backend is healthy and responding!"
+                break
+              fi
+              echo "Waiting for application startup ($i/30)..."
+              sleep 2
+            done
             curl -f http://127.0.0.1:8000/api/status
             echo "✅ Deployment completed successfully!"
