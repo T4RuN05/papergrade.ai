@@ -313,13 +313,17 @@ function ToastCard({
     } else {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+        timerRef.current = null;
         const elapsed = Date.now() - startTimeRef.current;
         remainingTimeRef.current = Math.max(0, remainingTimeRef.current - elapsed);
       }
     }
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [isHovered, toast.duration, toast.id, handleDismiss]);
 
@@ -460,7 +464,8 @@ function ToastCard({
 }
 
 /**
- * Toast viewport container, anchored at bottom-right of the screen
+ * Toast viewport container, horizontally centered on mobile/PWA viewports,
+ * anchored at bottom-right on desktop viewports with safe-area support.
  */
 function ToastContainer({
   toasts,
@@ -475,8 +480,11 @@ function ToastContainer({
     <div
       aria-live="polite"
       aria-atomic="false"
-      className="fixed bottom-4 right-4 z-[99999] flex flex-col-reverse gap-2.5 w-full max-w-sm sm:max-w-md pointer-events-none px-3 sm:px-0"
-      style={{ zIndex: 99999 }}
+      className="fixed z-[99999] flex flex-col-reverse items-center sm:items-end gap-2.5 pointer-events-none left-0 right-0 sm:left-auto sm:right-4 mx-auto sm:mx-0 px-4 sm:px-0 w-full max-w-md"
+      style={{
+        zIndex: 99999,
+        bottom: "max(1rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)))",
+      }}
     >
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} onDismiss={onDismiss} />

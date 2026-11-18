@@ -17,7 +17,7 @@ export default function NotFound() {
         switch (user.role) {
           case "STUDENT":
             setDashboardHref("/student/portal");
-            setDashboardLabel("Back to Student Portal");
+            setDashboardLabel("Back to Dashboard");
             break;
           case "BRANCH_MANAGER":
             setDashboardHref("/branch/batches");

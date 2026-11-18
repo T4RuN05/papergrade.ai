@@ -14,10 +14,6 @@ import {
   FileText,
   Search,
   Filter,
-  Award,
-  ChevronRight,
-  TrendingUp,
-  Sparkles,
   BookOpen,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
@@ -172,14 +168,6 @@ export default function StudentRevaluationPage() {
     () => requests.filter((r) => r.status === "RESOLVED" && r.decision === "MARKS_UPHELD").length,
     [requests]
   );
-  const totalMarksGained = useMemo(() => {
-    return requests.reduce((acc, r) => {
-      if (r.status === "RESOLVED" && r.decision === "MARKS_REVISED" && typeof r.delta_marks === "number") {
-        return acc + Math.max(0, r.delta_marks);
-      }
-      return acc;
-    }, 0);
-  }, [requests]);
 
   // Filtered requests
   const filteredRequests = useMemo(() => {
@@ -215,7 +203,7 @@ export default function StudentRevaluationPage() {
     <div className="min-h-screen bg-canvas text-ink pb-20">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6">
         {/* Navigation Breadcrumb Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+        <div className="flex items-center justify-between pb-3 border-b border-hairline">
           <Link
             href="/student/portal"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit"
@@ -223,16 +211,6 @@ export default function StudentRevaluationPage() {
             <ArrowLeft className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </Link>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/student/portal?tab=exams"
-              className="h-8 px-3 rounded-md btn-glass-utility text-ink text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs hover:bg-canvas-soft transition-colors"
-            >
-              <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
-              <span>Past Exams</span>
-            </Link>
-          </div>
         </div>
 
         {/* Header Title Section */}
@@ -250,65 +228,6 @@ export default function StudentRevaluationPage() {
           </p>
         </div>
 
-        {/* 4-Column KPI Summary Strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Total Appeals */}
-          <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs text-ink-muted font-medium">
-              <span>Total Lodged</span>
-              <RotateCcw className="h-4 w-4 text-ink-muted" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold text-ink">{totalCount}</span>
-              <span className="text-[11px] text-ink-muted">requests</span>
-            </div>
-          </FeatureCard>
-
-          {/* Under Review */}
-          <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-2 border-amber-500/20 bg-amber-500/[0.02]">
-            <div className="flex items-center justify-between text-xs text-amber-700 dark:text-amber-400 font-medium">
-              <span>Under Review</span>
-              <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold text-amber-700 dark:text-amber-300">
-                {pendingCount}
-              </span>
-              <span className="text-[11px] text-amber-600/80">pending faculty</span>
-            </div>
-          </FeatureCard>
-
-          {/* Marks Revised */}
-          <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-2 border-emerald-500/20 bg-emerald-500/[0.02]">
-            <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-medium">
-              <span>Marks Revised</span>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                {revisedCount}
-              </span>
-              {totalMarksGained > 0 && (
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                  +{totalMarksGained.toFixed(1)} pts
-                </span>
-              )}
-            </div>
-          </FeatureCard>
-
-          {/* Marks Upheld */}
-          <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs text-ink-muted font-medium">
-              <span>Marks Upheld</span>
-              <ShieldCheck className="h-4 w-4 text-ink-muted" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold text-ink">{upheldCount}</span>
-              <span className="text-[11px] text-ink-muted">confirmed accurate</span>
-            </div>
-          </FeatureCard>
-        </div>
-
         {/* Filter Pills & Search Bar Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
           {/* Segmented Filter Pills */}
@@ -316,7 +235,7 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("ALL")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                 activeFilter === "ALL"
                   ? "bg-primary text-white shadow-xs"
                   : "bg-surface border border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
@@ -328,7 +247,7 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("PENDING")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
+              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === "PENDING"
                   ? "bg-amber-600 text-white shadow-xs"
                   : "bg-surface border border-hairline text-ink-secondary hover:text-amber-700 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
@@ -341,7 +260,7 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("REVISED")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
+              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === "REVISED"
                   ? "bg-emerald-600 text-white shadow-xs"
                   : "bg-surface border border-hairline text-ink-secondary hover:text-emerald-700 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
@@ -354,7 +273,7 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("UPHELD")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
+              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === "UPHELD"
                   ? "bg-slate-700 text-white shadow-xs"
                   : "bg-surface border border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
@@ -539,7 +458,7 @@ export default function StudentRevaluationPage() {
                   {/* Faculty Resolution Panel (Only if RESOLVED) */}
                   {isResolved && (
                     <div
-                      className={`p-3.5 sm:p-4 rounded-xl border text-xs space-y-2.5 transition-all ${
+                      className={`p-3.5 sm:p-4 rounded-xl border text-xs space-y-2.5 transition-colors ${
                         isRevised
                           ? "bg-emerald-500/[0.04] border-emerald-500/20 dark:bg-emerald-950/20"
                           : "bg-surface border-hairline"

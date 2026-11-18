@@ -129,7 +129,7 @@ export default function StudentSubmissionViewerPage() {
           <div className="pt-2">
             <ButtonUtility href="/student/portal">
               <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-              Return to Student Portal
+              Back to Dashboard
             </ButtonUtility>
           </div>
         </FeatureCard>
@@ -160,7 +160,7 @@ export default function StudentSubmissionViewerPage() {
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Back to Student Portal</span>
+          <span>Back to Dashboard</span>
         </Link>
 
         {/* Actions Group: View QP/Answer Key & Download Graded PDF */}
@@ -169,7 +169,7 @@ export default function StudentSubmissionViewerPage() {
             <button
               type="button"
               onClick={() => setArtifactModalOpen(true)}
-              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-all w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
+              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
               title="View Question Paper and Official Answer Key"
             >
               <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -206,7 +206,7 @@ export default function StudentSubmissionViewerPage() {
               onClick={() =>
                 toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
               }
-              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-all w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
+              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
             >
               <Download className="h-3.5 w-3.5 text-primary shrink-0" />
               <span>Download Graded Answer Sheet</span>
