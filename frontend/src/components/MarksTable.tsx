@@ -22,9 +22,10 @@ interface MarksTableProps {
   examId: string;
   rubric?: ExamRubric;
   submissions: Submission[];
+  isFetching?: boolean;
 }
 
-export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
+export function MarksTable({ examId, rubric, submissions, isFetching = false }: MarksTableProps) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
@@ -115,7 +116,12 @@ export function MarksTable({ examId, rubric, submissions }: MarksTableProps) {
       </div>
 
       {/* Spreadsheet Matrix Table */}
-      <div className="overflow-x-auto sleek-scrollbar">
+      {isFetching && (
+        <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full mb-2">
+          <div className="h-full bg-primary animate-pulse w-full" />
+        </div>
+      )}
+      <div className={`overflow-x-auto sleek-scrollbar transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-hairline bg-canvas-soft text-[11px] font-bold text-ink-secondary uppercase tracking-wider">

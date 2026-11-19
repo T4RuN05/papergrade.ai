@@ -167,6 +167,7 @@ interface ExamRankedTableProps {
   hideToolbar?: boolean;
   searchTerm?: string;
   bracketFilter?: "ALL" | "TOP10" | "DISTINCTION" | "PASS";
+  isFetching?: boolean;
 }
 
 export function ExamRankedTable({
@@ -181,6 +182,7 @@ export function ExamRankedTable({
   hideToolbar = false,
   searchTerm: propSearchTerm,
   bracketFilter: propBracketFilter,
+  isFetching = false,
 }: ExamRankedTableProps) {
   const { toast } = useToast();
   const [internalSearchTerm, setInternalSearchTerm] = useState("");
@@ -384,7 +386,9 @@ export function ExamRankedTable({
       {/* SUMMARY DISTRIBUTION METRICS BANNER */}
       {!hideSummaryCards && stats.total > 0 && (
         <div
-          className={`grid gap-2 sm:gap-3.5 ${
+          className={`grid gap-2 sm:gap-3.5 transition-opacity duration-200 ${
+            isFetching ? "opacity-75" : "opacity-100"
+          } ${
             isStudentView ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
           }`}
         >
@@ -585,7 +589,13 @@ export function ExamRankedTable({
       )}
 
       {/* RANKED TABLE VIEW */}
-      {filteredRanked.length === 0 ? (
+      {isFetching && (
+        <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full">
+          <div className="h-full bg-primary animate-pulse w-full" />
+        </div>
+      )}
+      <div className={`transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+        {filteredRanked.length === 0 ? (
         <div className="rounded-xl border border-hairline bg-surface p-6 sm:p-8 text-center space-y-2 shadow-2xs w-full">
           <BarChart3 className="h-8 w-8 text-ink-faint mx-auto" />
           <h4 className="text-xs sm:text-sm font-semibold text-ink">
@@ -843,6 +853,7 @@ export function ExamRankedTable({
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }

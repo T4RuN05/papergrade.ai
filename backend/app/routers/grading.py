@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from backend.app.config import settings
 from backend.app.db.session import get_db
-from backend.app.db.models import Submission, AnswerRegion, Exam, Student
+from backend.app.db.models import Submission, AnswerRegion, Exam, Student, Batch
 from backend.app.schemas import (
     ManualEditAnswerRequest,
     ManualEditRegionRequest,
@@ -67,16 +67,17 @@ def _verify_submission_tenancy(submission_id: str, current_user: Dict[str, Any],
         return
 
     row = db.execute(
-        select(Submission.branch_id, Exam.institute_id, Exam.branch_id)
+        select(Submission.id, Exam.institute_id, Exam.branch_id, Batch.branch_id)
         .join(Exam, Submission.exam_id == Exam.id)
+        .outerjoin(Batch, Submission.batch_id == Batch.id)
         .where(Submission.id == submission_id)
     ).first()
 
     if not row:
         raise HTTPException(status_code=404, detail="Submission not found.")
 
-    sub_branch_id, exam_inst_id, exam_branch_id = row
-    effective_branch = sub_branch_id or exam_branch_id
+    _, exam_inst_id, exam_branch_id, batch_branch_id = row
+    effective_branch = batch_branch_id or exam_branch_id
 
     if user_role in ("BRANCH_MANAGER", "TEACHER"):
         user_branch = current_user.get("branch_id")

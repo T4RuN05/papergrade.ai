@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { api, type WindowStatus } from "@/lib/api";
 import type { Exam, Submission, Batch } from "@/lib/types";
 import { queryKeys } from "@/lib/queryKeys";
@@ -97,6 +97,17 @@ export function useExamDetail(examId: string, forceRefresh = false) {
     queryKey: queryKeys.exams.detail(examId),
     queryFn: () => api.getExam(examId, forceRefresh),
     enabled: Boolean(examId),
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSubmissionsForExam(examId?: string) {
+  return useQuery<Submission[]>({
+    queryKey: ["submissions", "for-exam", examId || "none"],
+    queryFn: () => (examId ? api.getSubmissionsForExam(examId) : Promise.resolve([])),
+    enabled: Boolean(examId),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }
