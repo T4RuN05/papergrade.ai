@@ -313,7 +313,7 @@ export default function TenancyManagementPage() {
   const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
   const isGlobalLoading = isLoadingInst || isLoadingBranches || isLoadingStaff;
 
-  if (isGlobalLoading || isLoggingOut || !hasToken || isBranchManager) {
+  if (isLoggingOut || !hasToken || isBranchManager) {
     return (
       <div className="space-y-8 max-w-6xl mx-auto pb-16">
         <TenancySkeleton />
@@ -385,7 +385,9 @@ export default function TenancyManagementPage() {
         </div>
       )}
 
-      {institutes.length === 0 ? (
+      {isGlobalLoading && institutes.length === 0 ? (
+        <TenancySkeleton />
+      ) : institutes.length === 0 ? (
         <FeatureCard className="p-12 text-center space-y-4">
           <div className="mx-auto h-12 w-12 rounded-full bg-[#edf5fd] flex items-center justify-center text-primary">
             <Building2 className="h-6 w-6" />

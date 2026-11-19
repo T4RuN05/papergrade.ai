@@ -21,18 +21,28 @@ import { UsageCards } from "@/components/UsageCards";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTelemetryMetrics, useExamsList, useBenchmarks } from "@/lib/queries";
 
 export default function AnalyticsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isBranchManager, isInstituteDirector } = useTenant();
 
-  const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
-  const [exams, setExams] = useState<Exam[]>([]);
+  // TanStack Queries (Cached in-memory, instant back-nav, CLS = 0.00)
+  const { data: metrics, isLoading: isMetricsLoading, error: metricsError, refetch: refetchMetrics } = useTelemetryMetrics();
+  const { data: exams = [] } = useExamsList();
+
   const [selectedExamId, setSelectedExamId] = useState<string>("");
-  const [benchmarks, setBenchmarks] = useState<BenchmarkSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (exams.length > 0 && !selectedExamId) {
+      setSelectedExamId(exams[0].id);
+    }
+  }, [exams, selectedExamId]);
+
+  const { data: benchmarks, refetch: refetchBenchmarks } = useBenchmarks(selectedExamId);
 
   // New benchmark form state
   const [benchSubId, setBenchSubId] = useState("");
@@ -46,50 +56,14 @@ export default function AnalyticsPage() {
   const [benchNotes, setBenchNotes] = useState("");
   const [isSubmittingBench, setIsSubmittingBench] = useState(false);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [uData, eList] = await Promise.all([
-        api.getUsageMetrics(),
-        api.listExams().catch(() => []),
-      ]);
-      setMetrics(uData);
-      setExams(eList);
-      if (eList.length > 0) {
-        setSelectedExamId(eList[0].id);
-        try {
-          const bData = await api.getBenchmarks(eList[0].id);
-          setBenchmarks(bData);
-        } catch (bErr) {
-          console.warn("Could not load benchmarks for initial exam:", bErr);
-        }
-      }
-    } catch (e: any) {
-      console.error("Telemetry load error:", e);
-      setError(e.message || "Failed to load telemetry metrics");
-      toast.error(e.message || "Failed to load telemetry metrics", { title: "Telemetry Error" });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
   useEffect(() => {
     if (isBranchManager || isInstituteDirector) {
       router.replace("/branch/batches");
-      return;
     }
-    loadAll();
-  }, [isBranchManager, isInstituteDirector, router, loadAll]);
+  }, [isBranchManager, isInstituteDirector, router]);
 
-  const handleExamChange = async (examId: string) => {
+  const handleExamChange = (examId: string) => {
     setSelectedExamId(examId);
-    try {
-      const bData = await api.getBenchmarks(examId);
-      setBenchmarks(bData);
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const handleRecordBenchmark = async (e: React.FormEvent) => {
@@ -113,8 +87,9 @@ export default function AnalyticsPage() {
         notes: benchNotes,
       });
       toast.success("Ground-truth benchmark recorded successfully!", { title: "Benchmark Recorded" });
-      const bData = await api.getBenchmarks(selectedExamId);
-      setBenchmarks(bData);
+      queryClient.invalidateQueries({ queryKey: ["benchmarks", selectedExamId] });
+      await refetchBenchmarks();
+      setBenchSubId("");
       setBenchNotes("");
     } catch (err: any) {
       toast.error(err.message || "Failed to record benchmark", { title: "Recording Failed" });
@@ -122,29 +97,6 @@ export default function AnalyticsPage() {
       setIsSubmittingBench(false);
     }
   };
-
-  if (loading) {
-    return <AnalyticsSkeleton />;
-  }
-
-  if (error || !metrics) {
-    return (
-      <div className="max-w-xl mx-auto py-16 px-4">
-        <FeatureCard className="p-8 text-center space-y-4 border-amber-200 bg-[#fffdfa] dark:bg-card">
-          <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center text-amber-600">
-            <Activity className="h-6 w-6" />
-          </div>
-          <h2 className="text-base font-bold text-ink">Telemetry Unavailable</h2>
-          <p className="text-xs text-ink-muted">
-            {error || "Unable to load telemetry metrics from the server."}
-          </p>
-          <div className="pt-2">
-            <ButtonPrimary onClick={loadAll}>Retry Telemetry Fetch</ButtonPrimary>
-          </div>
-        </FeatureCard>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12 cascade-group">
@@ -162,8 +114,27 @@ export default function AnalyticsPage() {
         </p>
       </div>
 
-      {/* Main Usage & Projection Component */}
-      <UsageCards metrics={metrics} onQuotaUpdated={loadAll} />
+      {isMetricsLoading && !metrics ? (
+        <AnalyticsSkeleton />
+      ) : metricsError || !metrics ? (
+        <div className="max-w-xl mx-auto py-16 px-4">
+          <FeatureCard className="p-8 text-center space-y-4 border-amber-200 bg-[#fffdfa] dark:bg-card">
+            <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center text-amber-600">
+              <Activity className="h-6 w-6" />
+            </div>
+            <h2 className="text-base font-bold text-ink">Telemetry Unavailable</h2>
+            <p className="text-xs text-ink-muted">
+              {(metricsError as any)?.message || "Unable to load telemetry metrics from the server."}
+            </p>
+            <div className="pt-2">
+              <ButtonPrimary onClick={() => refetchMetrics()}>Retry Telemetry Fetch</ButtonPrimary>
+            </div>
+          </FeatureCard>
+        </div>
+      ) : (
+        <>
+          {/* Main Usage & Projection Component */}
+          <UsageCards metrics={metrics} onQuotaUpdated={() => refetchMetrics()} />
 
       {/* Experimental Evaluation & Ground Truth Benchmark Section */}
       <FeatureCard className="p-6 space-y-6">
@@ -352,6 +323,8 @@ export default function AnalyticsPage() {
           </div>
         </form>
       </FeatureCard>
+      </>
+      )}
     </div>
   );
 }

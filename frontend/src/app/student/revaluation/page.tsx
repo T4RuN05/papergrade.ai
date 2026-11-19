@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,7 +16,10 @@ import {
   Filter,
   BookOpen,
 } from "lucide-react";
-import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { getAuthToken } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
+import { useMyAppeals } from "@/lib/queries";
 import { useToast } from "@/lib/ToastContext";
 import {
   FeatureCard,
@@ -24,6 +27,8 @@ import {
   ButtonUtility,
   BadgePill,
   StatusWell,
+  MetricValue,
+  RefetchProgressLine,
 } from "@/components/ui";
 
 interface StudentRevaluationItem {
@@ -121,38 +126,33 @@ function RevaluationListSkeleton() {
 export default function StudentRevaluationPage() {
   const router = useRouter();
   const { toast } = useToast();
-
-  const [requests, setRequests] = useState<StudentRevaluationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"ALL" | "PENDING" | "REVISED" | "UPHELD">("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const loadRevaluations = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.getMyRevaluations();
-      setRequests(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      console.error("Failed to load student revaluations:", err);
-      setError(err.message || "Failed to load revaluation requests.");
-      toast.error(err.message || "Could not retrieve revaluations.", {
-        title: "Load Error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
       router.push("/auth/login?role=student&redirect=/student/revaluation");
-      return;
     }
-    loadRevaluations();
-  }, [router, loadRevaluations]);
+  }, [router]);
+
+  // TanStack Query: SWR cached my appeals
+  const {
+    data: appealsData,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch: refetchAppeals,
+  } = useMyAppeals();
+
+  const requests: StudentRevaluationItem[] = useMemo(() => {
+    return Array.isArray(appealsData) ? appealsData : [];
+  }, [appealsData]);
+
+  const [activeFilter, setActiveFilter] = useState<"ALL" | "PENDING" | "REVISED" | "UPHELD">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const isColdLoading = isLoading && requests.length === 0;
+  const error = queryError ? (queryError as any).message || "Failed to load revaluation requests." : null;
 
   // Derived KPI metrics
   const totalCount = requests.length;
@@ -200,9 +200,12 @@ export default function StudentRevaluationPage() {
   }, [requests, activeFilter, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-canvas text-ink pb-20">
+    <div className="min-h-screen bg-canvas text-ink pb-20 relative">
+      {/* Background Refetch Line */}
+      <RefetchProgressLine isFetching={isFetching} />
+
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6">
-        {/* Navigation Breadcrumb Bar */}
+        {/* Navigation Breadcrumb Bar — Permanently Mounted (CLS = 0.00) */}
         <div className="flex items-center justify-between pb-3 border-b border-hairline">
           <Link
             href="/student/portal"
@@ -213,14 +216,20 @@ export default function StudentRevaluationPage() {
           </Link>
         </div>
 
-        {/* Header Title Section */}
+        {/* Header Title Section — Permanently Mounted (CLS = 0.00) */}
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
               My Revaluation Appeals
             </h1>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-surface border border-hairline text-ink-secondary">
-              {totalCount} Total
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-surface border border-hairline text-ink-secondary flex items-center gap-1">
+              <MetricValue
+                value={totalCount}
+                isLoading={isColdLoading}
+                width="w-4"
+                className="text-xs font-semibold"
+              />
+              <span>Total</span>
             </span>
           </div>
           <p className="text-xs sm:text-sm text-ink-secondary max-w-2xl leading-relaxed">
@@ -228,20 +237,30 @@ export default function StudentRevaluationPage() {
           </p>
         </div>
 
-        {/* Filter Pills & Search Bar Toolbar */}
+        {/* Filter Pills & Search Bar Toolbar — Permanently Mounted (CLS = 0.00) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
           {/* Segmented Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
             <button
               type="button"
               onClick={() => setActiveFilter("ALL")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                 activeFilter === "ALL"
                   ? "bg-primary text-white shadow-xs"
                   : "bg-surface border border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
               }`}
             >
-              All Appeals ({totalCount})
+              <span>All Appeals</span>
+              <span className="opacity-80">
+                (
+                <MetricValue
+                  value={totalCount}
+                  isLoading={isColdLoading}
+                  width="w-3"
+                  className="font-semibold"
+                />
+                )
+              </span>
             </button>
 
             <button
@@ -254,7 +273,17 @@ export default function StudentRevaluationPage() {
               }`}
             >
               <Clock className="h-3 w-3" />
-              <span>Under Review ({pendingCount})</span>
+              <span>Under Review</span>
+              <span className="opacity-80">
+                (
+                <MetricValue
+                  value={pendingCount}
+                  isLoading={isColdLoading}
+                  width="w-3"
+                  className="font-semibold"
+                />
+                )
+              </span>
             </button>
 
             <button
@@ -267,7 +296,17 @@ export default function StudentRevaluationPage() {
               }`}
             >
               <CheckCircle2 className="h-3 w-3" />
-              <span>Marks Revised ({revisedCount})</span>
+              <span>Marks Revised</span>
+              <span className="opacity-80">
+                (
+                <MetricValue
+                  value={revisedCount}
+                  isLoading={isColdLoading}
+                  width="w-3"
+                  className="font-semibold"
+                />
+                )
+              </span>
             </button>
 
             <button
@@ -280,11 +319,21 @@ export default function StudentRevaluationPage() {
               }`}
             >
               <ShieldCheck className="h-3 w-3" />
-              <span>Marks Upheld ({upheldCount})</span>
+              <span>Marks Upheld</span>
+              <span className="opacity-80">
+                (
+                <MetricValue
+                  value={upheldCount}
+                  isLoading={isColdLoading}
+                  width="w-3"
+                  className="font-semibold"
+                />
+                )
+              </span>
             </button>
           </div>
 
-          {/* Search Box */}
+          {/* Search Box — Permanently Mounted & Focus-Retaining */}
           <div className="relative w-full sm:w-64 shrink-0">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
             <input
@@ -308,7 +357,7 @@ export default function StudentRevaluationPage() {
         </div>
 
         {/* Content Area */}
-        {loading ? (
+        {isColdLoading ? (
           <RevaluationListSkeleton />
         ) : error ? (
           <FeatureCard className="p-8 text-center space-y-4 max-w-xl mx-auto">
@@ -319,7 +368,7 @@ export default function StudentRevaluationPage() {
               <h3 className="text-base font-bold text-ink">Failed to Load Appeals</h3>
               <p className="text-xs text-ink-muted">{error}</p>
             </div>
-            <ButtonPrimary onClick={loadRevaluations} className="mx-auto">
+            <ButtonPrimary onClick={() => refetchAppeals()} className="mx-auto">
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
               Try Again
             </ButtonPrimary>
@@ -350,188 +399,108 @@ export default function StudentRevaluationPage() {
                   View Past Exam Papers
                 </ButtonPrimary>
               ) : (
-                <ButtonUtility
-                  onClick={() => {
-                    setActiveFilter("ALL");
-                    setSearchQuery("");
-                  }}
-                >
-                  Reset All Filters
+                <ButtonUtility onClick={() => { setSearchQuery(""); setActiveFilter("ALL"); }}>
+                  Clear Filters
                 </ButtonUtility>
               )}
             </div>
           </FeatureCard>
         ) : (
           <div className="space-y-4">
-            {filteredRequests.map((item) => {
-              const qids = parseQuestionIds(item.question_ids_json);
-              const isPending = item.status === "SUBMITTED" || item.status === "UNDER_REVIEW";
-              const isResolved = item.status === "RESOLVED";
-              const isRevised = isResolved && item.decision === "MARKS_REVISED";
-              const isUpheld = isResolved && item.decision === "MARKS_UPHELD";
+            {filteredRequests.map((req) => {
+              const qids = parseQuestionIds(req.question_ids_json);
+              const isResolved = req.status === "RESOLVED";
+              const isRevised = isResolved && req.decision === "MARKS_REVISED";
+              const isUpheld = isResolved && req.decision === "MARKS_UPHELD";
+              const isPending = req.status === "SUBMITTED" || req.status === "UNDER_REVIEW";
 
               return (
                 <FeatureCard
-                  key={item.id}
-                  className="p-5 sm:p-6 space-y-4 border-hairline bg-surface hover:border-hairline-strong transition-colors"
+                  key={req.id}
+                  className="p-5 sm:p-6 border-hairline bg-surface space-y-4 transition-all hover:shadow-2xs"
                 >
-                  {/* Card Header Row */}
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-hairline/60">
-                    <div className="space-y-1">
+                  {/* Top Bar: Exam Title, Subject Badge, and Resolution Status Pill */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        {item.exam_subject && (
-                          <BadgePill
-                            label={item.exam_subject}
-                            color={getSubjectBadgeColor(item.exam_subject)}
-                          />
-                        )}
-                        <h2 className="text-sm sm:text-base font-bold text-ink">
-                          {item.exam_title || "Examination"}
+                        <BadgePill
+                          label={req.exam_subject || "General"}
+                          color={getSubjectBadgeColor(req.exam_subject)}
+                        />
+                        <h2 className="text-base sm:text-lg font-bold text-ink truncate">
+                          {req.exam_title || "Examination Paper"}
                         </h2>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-muted">
-                        <span>
-                          Requested on <strong className="text-ink-secondary">{formatDate(item.requested_at)}</strong>
-                        </span>
+                      <div className="flex items-center gap-2 text-xs text-ink-muted">
+                        <span>Submitted on {formatDate(req.requested_at)}</span>
                         <span>•</span>
-                        <span className="font-mono text-[10px]">ID: {item.id}</span>
+                        <span>
+                          {qids.length === 0 ? "Entire Paper" : `Question ${qids.join(", ")}`}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Status Pill Badge */}
                     <div className="shrink-0">
                       {isPending && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 shadow-2xs">
-                          <RotateCcw className="h-3 w-3 animate-spin text-amber-600" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                          <Clock className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
                           <span>Under Faculty Review</span>
-                        </div>
+                        </span>
                       )}
                       {isRevised && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>Marks Revised {typeof item.delta_marks === "number" && item.delta_marks > 0 ? `(+${item.delta_marks})` : ""}</span>
-                        </div>
+                          <span>Marks Revised ({req.delta_marks && req.delta_marks > 0 ? `+${req.delta_marks}` : req.delta_marks}m)</span>
+                        </span>
                       )}
                       {isUpheld && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/20 shadow-2xs">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                           <ShieldCheck className="h-3.5 w-3.5 text-slate-500" />
-                          <span>Marks Upheld</span>
-                        </div>
+                          <span>Evaluation Upheld</span>
+                        </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Challenged Questions Row */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-semibold text-ink-secondary uppercase tracking-wider">
-                      Challenged Question{qids.length > 1 ? "s" : ""}:
-                    </span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {qids.length > 0 ? (
-                        qids.map((qid) => (
-                          <span
-                            key={qid}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold font-mono bg-canvas-soft border border-hairline text-ink"
-                          >
-                            <FileText className="h-3 w-3 text-primary" />
-                            Question {qid}
+                  {/* Student Justification */}
+                  {req.student_reason && (
+                    <div className="p-3 rounded-lg bg-canvas-soft border border-hairline/70 text-xs space-y-1">
+                      <div className="font-semibold text-ink-secondary">Your Appeal Reason:</div>
+                      <p className="text-ink-muted italic">&ldquo;{req.student_reason}&rdquo;</p>
+                    </div>
+                  )}
+
+                  {/* Evaluator Notes / Decision Banner */}
+                  {isResolved && (req.reviewer_notes || req.resolution_notes) && (
+                    <div className="p-3.5 rounded-lg border border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between font-bold text-emerald-900 dark:text-emerald-300">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                          Faculty Review Decision
+                        </span>
+                        {req.resolved_at && (
+                          <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-400">
+                            {formatDate(req.resolved_at)}
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-ink-muted italic">Entire Script Review</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Student Reason Callout */}
-                  {item.student_reason && (
-                    <div className="p-3 rounded-lg bg-canvas-soft border border-hairline/80 space-y-1 text-xs">
-                      <div className="text-[10.5px] font-semibold text-ink-secondary">
-                        Your Submitted Grievance Justification:
+                        )}
                       </div>
-                      <p className="text-ink leading-relaxed italic">
-                        &ldquo;{item.student_reason}&rdquo;
+                      <p className="text-emerald-950 dark:text-emerald-200 leading-relaxed">
+                        {req.reviewer_notes || req.resolution_notes}
                       </p>
                     </div>
                   )}
 
-                  {/* Faculty Resolution Panel (Only if RESOLVED) */}
-                  {isResolved && (
-                    <div
-                      className={`p-3.5 sm:p-4 rounded-xl border text-xs space-y-2.5 transition-colors ${
-                        isRevised
-                          ? "bg-emerald-500/[0.04] border-emerald-500/20 dark:bg-emerald-950/20"
-                          : "bg-surface border-hairline"
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-hairline/50">
-                        <div className="flex items-center gap-2">
-                          {isRevised ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                          ) : (
-                            <ShieldCheck className="h-4 w-4 text-slate-500 shrink-0" />
-                          )}
-                          <span className="font-bold text-ink">
-                            Senior Faculty Verdict:{" "}
-                            <span className={isRevised ? "text-emerald-700 dark:text-emerald-400" : "text-ink"}>
-                              {isRevised ? "Marks Adjusted & Revised" : "Marks Upheld (Original Accurate)"}
-                            </span>
-                          </span>
-                        </div>
-                        {item.resolved_at && (
-                          <span className="text-[10.5px] text-ink-muted">
-                            Resolved on {formatDate(item.resolved_at)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Marks Scorecard Comparison */}
-                      {typeof item.total_awarded_marks === "number" && (
-                        <div className="flex items-center gap-3 text-xs">
-                          <span className="text-ink-secondary font-medium">Final Paper Score:</span>
-                          <span className="font-bold text-sm text-ink font-mono">
-                            {item.total_awarded_marks.toFixed(1)} / {item.max_marks || 25}
-                          </span>
-                          {isRevised && typeof item.delta_marks === "number" && (
-                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                              {item.delta_marks > 0 ? `+${item.delta_marks}` : item.delta_marks} Marks
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Examiner Written Remarks */}
-                      {item.reviewer_notes ? (
-                        <div className="space-y-1">
-                          <span className="text-[11px] font-semibold text-ink-secondary">
-                            Examiner Step-Marking Remarks:
-                          </span>
-                          <p className="text-ink-secondary leading-relaxed bg-surface/80 p-2.5 rounded-lg border border-hairline text-xs">
-                            {item.reviewer_notes}
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-ink-muted italic">
-                          Senior faculty reviewed the step evaluations and finalized this appeal.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Card Footer Action: Deep Link to Evaluated Paper */}
-                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-hairline/60">
-                    <span className="text-[11px] text-ink-muted">
-                      {isPending
-                        ? "Faculty is re-checking the handwritten paper against the step rubric."
-                        : "Official marks and annotated answer sheet have been updated in your records."}
+                  {/* Footer: Link to Paper View */}
+                  <div className="flex items-center justify-between pt-3 border-t border-hairline/60 text-xs">
+                    <span className="text-ink-muted">
+                      Paper ID: <code className="font-mono">{req.submission_id.slice(0, 8)}...</code>
                     </span>
-
                     <Link
-                      href={`/student/submissions/${item.submission_id}`}
-                      className="h-8 px-3.5 rounded-md btn-glass-utility text-xs font-semibold text-primary hover:text-primary-hover inline-flex items-center justify-center gap-1.5 shadow-2xs transition-colors w-full sm:w-auto text-center"
+                      href={`/student/submissions/${req.submission_id}`}
+                      className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-hover hover:underline transition-colors"
                     >
-                      <span>View Graded Paper</span>
-                      <ExternalLink className="h-3 w-3" />
+                      <span>View Evaluated Script</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
                   </div>
                 </FeatureCard>

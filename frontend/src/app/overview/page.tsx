@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,26 +22,33 @@ import {
   Lock,
   LogIn,
 } from "lucide-react";
-import { api, getAuthToken } from "@/lib/api";
-import { Exam, UsageMetrics } from "@/lib/types";
+import { getAuthToken } from "@/lib/api";
+import { Exam } from "@/lib/types";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
+import {
+  useSystemStatus,
+  useExamsList,
+  useTelemetryMetrics,
+} from "@/lib/queries";
 import {
   ButtonPrimary,
   ButtonUtility,
   FeatureCard,
   BadgePill,
-  DashboardSkeleton,
+  MetricValue,
+  Skeleton,
 } from "@/components/ui";
 
 export default function RootAdminOverviewPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { switchTenancy, currentUser, loading: tenantLoading, isLoggingOut } = useTenant();
-  const [status, setStatus] = useState<any>(null);
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+
+  // TanStack Queries (Cached in-memory, instant back-nav, CLS = 0.00)
+  const { data: status, isLoading: isStatusLoading } = useSystemStatus();
+  const { data: exams = [], isLoading: isExamsLoading } = useExamsList();
+  const { data: metrics, isLoading: isMetricsLoading } = useTelemetryMetrics();
 
   const handleInspectExam = (e: React.MouseEvent, exam: Exam) => {
     e.preventDefault();
@@ -67,59 +74,19 @@ export default function RootAdminOverviewPage() {
     router.push(`/exams/${exam.id}`);
   };
 
-  useEffect(() => {
-    if (tenantLoading || isLoggingOut) return;
-    const token = typeof window !== "undefined" ? getAuthToken() : null;
-    if (!token) {
-      router.replace("/auth/login?role=staff&redirect=/overview");
-      return;
-    }
-
-    if (!currentUser) {
-      return;
-    }
-
-    if (currentUser.role === "BRANCH_MANAGER" || currentUser.role === "INSTITUTE_DIRECTOR") {
-      router.replace("/branch/batches");
-      return;
-    }
-
-    if (currentUser.role === "ROOT_ADMIN") {
-      loadOverviewData();
-    } else {
-      router.replace("/student/portal");
-    }
-  }, [currentUser, tenantLoading, isLoggingOut, router]);
-
-  const loadOverviewData = async () => {
-    setLoading(true);
-    try {
-      const [sysStatus, examList, usageData] = await Promise.all([
-        api.getStatus().catch(() => null),
-        api.listExams().catch(() => []),
-        api.getUsageMetrics().catch(() => null),
-      ]);
-      setStatus(sysStatus);
-      setExams(examList);
-      setMetrics(usageData);
-    } catch (e) {
-      console.error("Failed to load Root Admin overview:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 1. Loading State & Protective Auth Gates
+  // 1. Protective Auth Gates (Only for auth state, never for data loading)
   const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
-  if (
-    loading ||
-    tenantLoading ||
-    isLoggingOut ||
-    !hasToken ||
-    !currentUser ||
-    currentUser.role === "BRANCH_MANAGER"
-  ) {
-    return <DashboardSkeleton />;
+  if (tenantLoading || isLoggingOut || !hasToken) {
+    return (
+      <div className="max-w-6xl mx-auto py-12 px-4 space-y-6">
+        <div className="h-44 rounded-xl bg-surface border border-hairline animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-xl bg-surface border border-hairline animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   // 2. Unauthenticated Barrier
@@ -190,7 +157,7 @@ export default function RootAdminOverviewPage() {
     );
   }
 
-  // 4. Authorized Root Admin Operations Console
+  // 4. Authorized Root Admin Operations Console - Permanently Mounted Component Tree (CLS = 0.00)
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12 cascade-group">
       {/* Hero Header Card */}
@@ -316,9 +283,12 @@ export default function RootAdminOverviewPage() {
             <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">Examinations</span>
             <BadgePill label="Active" color="green" />
           </div>
-          <div className="text-3xl font-bold text-ink">
-            {status?.total_exams || exams.length || 0}
-          </div>
+          <MetricValue
+            isLoading={isStatusLoading && isExamsLoading}
+            value={status?.total_exams || exams.length || 0}
+            className="text-3xl font-bold text-ink"
+            width="w-16"
+          />
           <p className="text-xs text-ink-muted">
             Total examinations registered across branches.
           </p>
@@ -329,9 +299,12 @@ export default function RootAdminOverviewPage() {
             <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">Submissions</span>
             <BadgePill label="Cloudinary Backed" color="teal" />
           </div>
-          <div className="text-3xl font-bold text-ink">
-            {status?.total_submissions || 0}
-          </div>
+          <MetricValue
+            isLoading={isStatusLoading}
+            value={status?.total_submissions || 0}
+            className="text-3xl font-bold text-ink"
+            width="w-16"
+          />
           <p className="text-xs text-ink-muted">
             Answer sheets ingested via single-PDF canonical flow.
           </p>
@@ -345,9 +318,13 @@ export default function RootAdminOverviewPage() {
               color={status?.gemini_configured ? "green" : "orange"}
             />
           </div>
-          <div className="text-sm font-mono font-bold text-ink truncate">
-            {status?.model || "gemini-3.8-flash"}
-          </div>
+          {isStatusLoading ? (
+            <Skeleton className="h-5 w-36 rounded my-0.5" />
+          ) : (
+            <div className="text-sm font-mono font-bold text-ink truncate">
+              {status?.model || "gemini-3.8-flash"}
+            </div>
+          )}
           <p className="text-xs text-ink-muted">
             Round-robin rotation across 4 API keys with tiered 500 RPD fallback.
           </p>
@@ -365,39 +342,54 @@ export default function RootAdminOverviewPage() {
         </div>
 
         <div className="divide-y divide-hairline">
-          {exams.slice(0, 10).map((exam) => (
-            <div key={exam.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-ink">{exam.title}</span>
-                  {(exam.institute_name || exam.branch_name) && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md">
-                      <Building2 className="h-3 w-3 text-primary shrink-0" />
-                      <span>{exam.institute_name || "Institution"}</span>
-                      <span className="text-hairline">/</span>
-                      <span>{exam.branch_name || "Branch"}</span>
-                    </span>
-                  )}
+          {isExamsLoading && exams.length === 0 ? (
+            [1, 2, 3, 4].map((i) => (
+              <div key={i} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1.5 flex-1">
+                  <Skeleton className="h-4 w-48 rounded" />
+                  <Skeleton className="h-3 w-32 rounded" />
                 </div>
-                <div className="text-[11px] text-ink-muted flex flex-wrap items-center gap-2">
-                  <span>Subject: {exam.subject}</span>
-                  <span>•</span>
-                  <span>Total: {exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A"}</span>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                  <Skeleton className="h-8 w-36 rounded-md" />
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <BadgePill
-                  label={exam.is_published ? "Published" : exam.lifecycle_status || "Draft"}
-                  color={exam.is_published ? "purple" : "gray"}
-                />
-                <ButtonUtility onClick={(e) => handleInspectExam(e, exam)}>
-                  Inspect Exam & Papers
-                </ButtonUtility>
+            ))
+          ) : (
+            exams.slice(0, 10).map((exam) => (
+              <div key={exam.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-ink">{exam.title}</span>
+                    {(exam.institute_name || exam.branch_name) && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md">
+                        <Building2 className="h-3 w-3 text-primary shrink-0" />
+                        <span>{exam.institute_name || "Institution"}</span>
+                        <span className="text-hairline">/</span>
+                        <span>{exam.branch_name || "Branch"}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-ink-muted flex flex-wrap items-center gap-2">
+                    <span>Subject: {exam.subject}</span>
+                    <span>•</span>
+                    <span>Total: {exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A"}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <BadgePill
+                    label={exam.is_published ? "Published" : exam.lifecycle_status || "Draft"}
+                    color={exam.is_published ? "purple" : "gray"}
+                  />
+                  <ButtonUtility onClick={(e) => handleInspectExam(e, exam)}>
+                    Inspect Exam & Papers
+                  </ButtonUtility>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
 
-          {exams.length === 0 && (
+          {!isExamsLoading && exams.length === 0 && (
             <div className="py-8 text-center text-xs text-ink-muted">
               No examinations configured yet. Click "Create Exam & Rubric" above to start.
             </div>

@@ -16,7 +16,7 @@ import {
   Clock,
   ExternalLink,
 } from "lucide-react";
-import { BadgePill, ButtonUtility, AppleSelect } from "@/components/ui";
+import { BadgePill, ButtonUtility, AppleSelect, TableSkeletonRows, RefetchProgressLine } from "@/components/ui";
 import { ExamRankedTable } from "@/components/ExamRankedTable";
 
 interface SubmissionRow {
@@ -40,7 +40,8 @@ interface ExamSubmissionsGridProps {
   examTitle: string;
   maxMarks: number;
   submissions: SubmissionRow[];
-  isRefreshing: boolean;
+  isRefreshing?: boolean;
+  isLoading?: boolean;
   onRefresh: () => void;
   onExportRosterCsv: () => void;
   onExportRankedCsv: () => void;
@@ -54,13 +55,14 @@ export function ExamSubmissionsGrid({
   examTitle,
   maxMarks,
   submissions,
-  isRefreshing,
+  isRefreshing = false,
+  isLoading = false,
   onRefresh,
   onExportRosterCsv,
   onExportRankedCsv,
   needsReviewCount,
   onClearAllReviews,
-  isBulkClearing,
+  isBulkClearing = false,
 }: ExamSubmissionsGridProps) {
   const [submissionViewMode, setSubmissionViewMode] = useState<"roster" | "ranked">("roster");
   const [searchTerm, setSearchTerm] = useState("");
@@ -156,7 +158,10 @@ export function ExamSubmissionsGrid({
   };
 
   return (
-    <div className="rounded-lg border border-hairline overflow-hidden bg-surface shadow-xs">
+    <div className="relative rounded-lg border border-hairline overflow-hidden bg-surface shadow-xs">
+      {/* Background Refetch Progress Line */}
+      <RefetchProgressLine isFetching={isRefreshing} />
+
       {/* Top Header Toolbar */}
       <div className="p-3 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border-b border-hairline bg-surface">
         {/* Left: View Switcher */}
@@ -310,14 +315,6 @@ export function ExamSubmissionsGrid({
           searchTerm={searchTerm}
           bracketFilter={rankedBracket}
         />
-      ) : filteredSubmissions.length === 0 ? (
-        <div className="py-12 text-center space-y-2">
-          <p className="text-xs font-semibold text-ink">No submissions match the search criteria.</p>
-          <p className="text-[11px] text-ink-muted">Clear filters or try searching for another student name or roll number.</p>
-          <ButtonUtility onClick={() => { setSearchTerm(""); setScoreFilter("ALL"); }}>
-            Reset Filters
-          </ButtonUtility>
-        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -333,16 +330,44 @@ export function ExamSubmissionsGrid({
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline bg-surface">
-              {filteredSubmissions.map((sub) => {
-                const pct = sub.percentage || 0;
-                const scoreBadgeColor =
-                  pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
+              {isLoading && submissions.length === 0 ? (
+                <TableSkeletonRows
+                  rowCount={6}
+                  columns={[
+                    { width: "w-24" },
+                    { width: "w-36" },
+                    { width: "w-10", align: "center" },
+                    { width: "w-20", align: "right" },
+                    { width: "w-14", align: "center" },
+                    { width: "w-16", align: "center" },
+                    { width: "w-16", align: "right" },
+                  ]}
+                />
+              ) : filteredSubmissions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center space-y-2">
+                    <p className="text-xs font-semibold text-ink">No submissions match the search criteria.</p>
+                    <p className="text-[11px] text-ink-muted">Clear filters or try searching for another student name or roll number.</p>
+                    <div className="pt-2">
+                      <ButtonUtility onClick={() => { setSearchTerm(""); setScoreFilter("ALL"); }}>
+                        Reset Filters
+                      </ButtonUtility>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredSubmissions.map((sub) => {
+                  const pct = sub.percentage || 0;
+                  const scoreBadgeColor =
+                    pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
 
-                return (
-                  <tr
-                    key={sub.id}
-                    className="hover:bg-canvas-soft/60 transition-colors group"
-                  >
+                  return (
+                    <tr
+                      key={sub.id}
+                      className={`hover:bg-canvas-soft/60 transition-colors group ${
+                        isRefreshing ? "opacity-60" : ""
+                      }`}
+                    >
                     <td className="py-3 px-4 font-mono font-semibold text-ink">
                       {sub.roll_number}
                     </td>
@@ -379,7 +404,7 @@ export function ExamSubmissionsGrid({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>

@@ -20,6 +20,8 @@ import {
   BadgePill,
   StatusWell,
   BatchesRosterSkeleton,
+  MetricValue,
+  Skeleton,
   useConfirm,
 } from "@/components/ui";
 
@@ -254,7 +256,7 @@ export default function BranchBatchesPage() {
   };
 
   const hasToken = mounted ? Boolean(getAuthToken()) : true;
-  if (!mounted || (loadingBatches && batchesData.length === 0) || !hasToken) {
+  if (!mounted || !hasToken) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto pb-16">
         <BatchesRosterSkeleton />
@@ -345,9 +347,12 @@ export default function BranchBatchesPage() {
           <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
             Active Batches
           </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono text-ink">
-            {batchesData.length}
-          </div>
+          <MetricValue
+            isLoading={loadingBatches}
+            value={batchesData.length}
+            className="text-xl sm:text-2xl font-bold font-mono text-ink"
+            width="w-10"
+          />
           <p className="hidden sm:block text-[11px] text-ink-faint truncate">
             Academic batches in {selectedBranch?.name || "branch"}
           </p>
@@ -357,9 +362,12 @@ export default function BranchBatchesPage() {
           <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
             Enrolled Students
           </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono text-ink">
-            {students.length}
-          </div>
+          <MetricValue
+            isLoading={loadingStudents}
+            value={students.length}
+            className="text-xl sm:text-2xl font-bold font-mono text-ink"
+            width="w-10"
+          />
           <p className="hidden sm:block text-[11px] text-ink-faint truncate">
             In currently selected batch
           </p>
@@ -369,11 +377,16 @@ export default function BranchBatchesPage() {
           <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
             PWA Claim Rate
           </div>
-          <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-600">
-            {students.length > 0
-              ? `${Math.round((claimedCount / students.length) * 100)}%`
-              : "0%"}
-          </div>
+          <MetricValue
+            isLoading={loadingStudents}
+            value={
+              students.length > 0
+                ? `${Math.round((claimedCount / students.length) * 100)}%`
+                : "0%"
+            }
+            className="text-xl sm:text-2xl font-bold font-mono text-emerald-600"
+            width="w-12"
+          />
           <p className="hidden sm:block text-[11px] text-ink-faint truncate">
             {claimedCount} of {students.length} claimed
           </p>
@@ -395,7 +408,12 @@ export default function BranchBatchesPage() {
         {/* Right Column: Selected Batch Roster Table */}
         <div className="md:col-span-2 space-y-4">
           <BatchRosterTable
-            selectedBatch={selectedBatch}
+            selectedBatch={
+              selectedBatch ||
+              (loadingBatches
+                ? { id: "loading", name: "Loading batch...", academic_year: "..." }
+                : null)
+            }
             students={students}
             loadingStudents={loadingStudents}
             studentSearch={studentSearch}

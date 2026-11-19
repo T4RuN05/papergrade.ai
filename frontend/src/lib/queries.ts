@@ -85,10 +85,11 @@ export function useTenancySubjects(branchId?: string, instituteId?: string, forc
 // ============================================================================
 
 export function useExamsList(branchId?: string) {
-  return useQuery({
+  return useQuery<Exam[]>({
     queryKey: queryKeys.exams.list(branchId),
     queryFn: () => api.listExams(branchId),
-    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   });
 }
 
@@ -156,7 +157,8 @@ export function useSubmissionsList(examId?: string, forceRefresh = false) {
   return useQuery<Submission[]>({
     queryKey: queryKeys.submissions.list(examId),
     queryFn: () => api.listSubmissions(examId, forceRefresh),
-    staleTime: 15 * 1000,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -165,6 +167,7 @@ export function useSubmissionDetail(submissionId: string, forceRefresh = false) 
     queryKey: queryKeys.submissions.detail(submissionId),
     queryFn: () => api.getSubmission(submissionId, forceRefresh),
     enabled: Boolean(submissionId),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }
@@ -177,6 +180,7 @@ export function useStudentPortalState() {
   return useQuery({
     queryKey: queryKeys.submissions.studentPortalState(),
     queryFn: () => api.getStudentPortalState(),
+    placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
     gcTime: 5 * 60 * 1000,
     refetchInterval: 20 * 1000,
@@ -206,6 +210,7 @@ export function useStudentPastSubmissionsInfinite(filters: {
       }),
     initialPageParam: 1,
     getNextPageParam: (lastPage: any) => (lastPage?.has_more ? (lastPage.page || 1) + 1 : undefined),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }
@@ -219,6 +224,7 @@ export function useBatchDetail(batchId: string) {
     queryKey: queryKeys.batches.detail(batchId),
     queryFn: () => api.getBatch(batchId),
     enabled: Boolean(batchId),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }
@@ -228,6 +234,7 @@ export function useBatchStudents(batchId: string) {
     queryKey: queryKeys.batches.students(batchId),
     queryFn: () => api.listStudentsInBatch(batchId),
     enabled: Boolean(batchId),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }
@@ -236,6 +243,7 @@ export function usePasswordResets(statusFilter = "PENDING", targetType: "staff" 
   return useQuery({
     queryKey: queryKeys.batches.passwordResets(targetType),
     queryFn: () => api.listPasswordResets(statusFilter, targetType),
+    placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
     refetchInterval: 45 * 1000,
   });
@@ -249,6 +257,7 @@ export function useRevaluationsList(examId?: string, branchId?: string) {
   return useQuery({
     queryKey: queryKeys.revaluations.list(branchId),
     queryFn: () => api.listRevaluations(examId, branchId),
+    placeholderData: keepPreviousData,
     staleTime: 20 * 1000,
   });
 }
@@ -257,12 +266,58 @@ export function useMyAppeals() {
   return useQuery({
     queryKey: queryKeys.revaluations.myAppeals(),
     queryFn: () => api.getMyRevaluations(),
+    placeholderData: keepPreviousData,
     staleTime: 20 * 1000,
   });
 }
 
 // ============================================================================
-// 8. REAL-TIME NOTIFICATIONS QUERY
+// 8. TECHNICAL REPORTS QUERY
+// ============================================================================
+
+export function useTechnicalReports(statusFilter?: string, roleFilter?: string, branchId?: string) {
+  return useQuery({
+    queryKey: ["reports", "technical", statusFilter || "ALL", roleFilter || "ALL", branchId || "all"],
+    queryFn: () => api.listTechnicalReports(statusFilter, roleFilter, branchId),
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
+// 9. TELEMETRY & SYSTEM HEALTH QUERIES
+// ============================================================================
+
+export function useTelemetryMetrics() {
+  return useQuery({
+    queryKey: queryKeys.telemetry.usage(),
+    queryFn: () => api.getUsageMetrics(),
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useSystemStatus() {
+  return useQuery({
+    queryKey: queryKeys.telemetry.systemStatus(),
+    queryFn: () => api.getStatus(),
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useBenchmarks(examId: string) {
+  return useQuery({
+    queryKey: queryKeys.telemetry.benchmarks(examId),
+    queryFn: () => api.getBenchmarks(examId),
+    enabled: Boolean(examId),
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
+// ============================================================================
+// 10. REAL-TIME NOTIFICATIONS QUERY
 // ============================================================================
 
 export function useNotificationsQuery() {

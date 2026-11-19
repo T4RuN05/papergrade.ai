@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle, FileText } from "lucide-react";
-import { api, clearApiCache, getCached } from "@/lib/api";
-import { Exam, ExamRubric } from "@/lib/types";
+import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
+import { ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, StatusWell, RubricSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
+import { useExamDetail } from "@/lib/queries";
 
 const RubricEditor = dynamic(
   () => import("@/components/RubricEditor").then((m) => m.RubricEditor),
@@ -20,21 +23,13 @@ const RubricEditor = dynamic(
 export default function ExamRubricPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { currentUser } = useTenant();
   const examId = params.id as string;
 
-  const [exam, setExam] = useState<Exam | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // Safety fallback: ensure skeleton never hangs indefinitely
-  useEffect(() => {
-    if (!loading) return;
-    const fallbackTimer = setTimeout(() => {
-      setLoading(false);
-    }, 4000);
-    return () => clearTimeout(fallbackTimer);
-  }, [loading]);
+  // TanStack Query: Exam details with cache (instant back-nav, CLS = 0.00)
+  const { data: exam, isLoading, refetch: refetchExam } = useExamDetail(examId);
 
   useSetBreadcrumbs(
     exam
@@ -50,35 +45,12 @@ export default function ExamRubricPage() {
     [exam]
   );
 
-  const loadExam = useCallback(async () => {
-    try {
-      const cached = getCached<Exam>(`exams:detail:${examId}`);
-      if (cached) {
-        setExam(cached);
-        setLoading(false);
-      }
-      const data = await api.getExam(examId, true);
-      setExam(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [examId]);
-
-  useEffect(() => {
-    loadExam();
-  }, [loadExam]);
-
   const handleApprove = async (approvedRubric: ExamRubric) => {
     try {
-      const updatedExam = await api.approveRubric(examId, approvedRubric);
-      clearApiCache(`exams:detail:${examId}`);
-      if (updatedExam && updatedExam.id && updatedExam.rubric_version) {
-        setExam(updatedExam);
-      } else {
-        await loadExam();
-      }
+      await api.approveRubric(examId, approvedRubric);
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(examId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
+      await refetchExam();
       toast.success("Rubric approved & locked! Ingestion of student answer sheets is now open.", { title: "Rubric Approved" });
     } catch (err: any) {
       toast.error(err.message || "Failed to approve rubric", { title: "Approval Failed" });
@@ -87,24 +59,17 @@ export default function ExamRubricPage() {
 
   const handleUnlock = async () => {
     try {
-      const updatedExam = await api.unlockRubric(examId);
-      clearApiCache(`exams:detail:${examId}`);
-      if (updatedExam && updatedExam.id && updatedExam.rubric_version) {
-        setExam(updatedExam);
-      } else {
-        await loadExam();
-      }
+      await api.unlockRubric(examId);
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(examId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
+      await refetchExam();
       toast.info("Rubric unlocked for criteria and structure modifications.", { title: "Rubric Unlocked" });
     } catch (err: any) {
       toast.error(err.message || "Failed to unlock rubric", { title: "Unlock Failed" });
     }
   };
 
-  if (loading) {
-    return <RubricSkeleton />;
-  }
-
-  if (!exam) {
+  if (!isLoading && !exam) {
     return (
       <div className="max-w-xl mx-auto py-12">
         <FeatureCard className="p-8 text-center space-y-4">
@@ -126,15 +91,23 @@ export default function ExamRubricPage() {
     );
   }
 
+  if (isLoading && !exam) {
+    return (
+      <div className="space-y-6 max-w-5xl mx-auto pb-12">
+        <RubricSkeleton />
+      </div>
+    );
+  }
+
   let rubricData: ExamRubric = {
-    exam_title: exam.title || "Examination Rubric",
-    subject: exam.subject || "",
-    total_marks: exam.total_marks || 20,
+    exam_title: exam?.title || "Examination Rubric",
+    subject: exam?.subject || "",
+    total_marks: exam?.total_marks || 20,
     questions: [],
     sections: [],
   };
 
-  if (exam.rubric_version?.rubric_data) {
+  if (exam?.rubric_version?.rubric_data) {
     try {
       const raw = exam.rubric_version.rubric_data;
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -169,9 +142,9 @@ export default function ExamRubricPage() {
     }
   }
 
-  const isApproved = Boolean(exam.rubric_version?.is_approved);
+  const isApproved = Boolean(exam?.rubric_version?.is_approved);
   const hasQuestions = Boolean(rubricData.questions && rubricData.questions.length > 0);
-  const showNoKeyBanner = !exam.answer_key_path && !hasQuestions;
+  const showNoKeyBanner = !exam?.answer_key_path && !hasQuestions;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -203,7 +176,7 @@ export default function ExamRubricPage() {
       )}
 
       <RubricEditor
-        key={`${exam.id}_${exam.rubric_version?.id || "draft"}_${isApproved ? "locked" : "unlocked"}`}
+        key={`${exam?.id}_${exam?.rubric_version?.id || "draft"}_${isApproved ? "locked" : "unlocked"}`}
         initialRubric={rubricData}
         isApproved={isApproved}
         onApprove={handleApprove}

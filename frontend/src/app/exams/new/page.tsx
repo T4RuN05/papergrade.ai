@@ -35,6 +35,8 @@ import {
 import { useToast, queueToast } from "@/lib/ToastContext";
 import LogoLoader from "@/components/LogoLoader/LogoLoader";
 import { useTenant } from "@/lib/TenantContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -63,6 +65,7 @@ const AGENTIC_RUBRIC_STEPS = [
 
 export default function NewExamPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { selectedBranch, isRootAdmin, isInstituteDirector, isBranchManager } = useTenant();
   const [title, setTitle] = useState("");
@@ -309,6 +312,7 @@ export default function NewExamPage() {
       }
 
       setIsSubmitting(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
       try {
         router.push(targetUrl);
       } catch (e) {

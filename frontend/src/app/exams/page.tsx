@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   GraduationCap,
   Plus,
@@ -31,6 +32,8 @@ import { api } from "@/lib/api";
 import { Exam } from "@/lib/types";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
+import { useExamsList } from "@/lib/queries";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -38,17 +41,25 @@ import {
   BadgePill,
   ModalCard,
   FormInput,
-  ExamsGridSkeleton,
   useConfirm,
   AppleSelect,
+  RefetchProgressLine,
+  Skeleton,
 } from "@/components/ui";
 
 export default function ExamsPage() {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const { selectedBranch, isRootAdmin, isInstituteDirector, isBranchManager, currentUser, loading: tenantLoading } = useTenant();
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { selectedBranch, isRootAdmin, isInstituteDirector, isBranchManager, currentUser } = useTenant();
+
+  // TanStack Query: In-memory SWR caching (0ms back navigation, 0 redundant fetches)
+  const {
+    data: exams = [],
+    isLoading: examsLoading,
+    isFetching: examsFetching,
+  } = useExamsList(selectedBranch?.id);
+
   const [windowsMap, setWindowsMap] = useState<Record<string, any>>({});
   const [closingExamId, setClosingExamId] = useState<string | null>(null);
 
@@ -139,41 +150,22 @@ export default function ExamsPage() {
   );
 
 
-  const loadExamsAndWindows = useCallback(async () => {
-    if (tenantLoading && !selectedBranch?.id) return;
-
-    setLoading(true);
-    try {
-      const data = await api.listExams(selectedBranch?.id);
-      const examList = Array.isArray(data) ? data : [];
-      setExams(examList);
-
-      // Batch window status is already joined by the backend in a single query (0 extra roundtrips)
-      const statusMap: Record<string, any> = {};
-      for (const exam of examList) {
-        statusMap[exam.id] = (exam as any).window_status || null;
-      }
-      setWindowsMap(statusMap);
-    } catch (err: any) {
-      console.error("Failed to load exams:", err);
-      setExams([]);
-    } finally {
-      setLoading(false);
+  // Synchronize initial window status map whenever exams cache updates
+  useEffect(() => {
+    if (exams.length > 0) {
+      setWindowsMap((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const exam of exams) {
+          if (!next[exam.id] || next[exam.id].seconds_remaining === undefined) {
+            next[exam.id] = (exam as any).window_status || null;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     }
-  }, [selectedBranch?.id, tenantLoading]);
-
-  useEffect(() => {
-    loadExamsAndWindows();
-  }, [loadExamsAndWindows]);
-
-  // Safety fallback: ensure skeleton never hangs indefinitely if network stalls
-  useEffect(() => {
-    if (!loading) return;
-    const fallbackTimer = setTimeout(() => {
-      setLoading(false);
-    }, 4000);
-    return () => clearTimeout(fallbackTimer);
-  }, [loading]);
+  }, [exams]);
 
   // Real-time smooth local countdown ticker for active windows
   useEffect(() => {
@@ -221,6 +213,7 @@ export default function ExamsPage() {
       toast.success(`Submission window closed for "${examTitle}".`, { title: "Window Closed" });
       const win = await api.getWindowStatus(examId);
       setWindowsMap((prev) => ({ ...prev, [examId]: win }));
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
     } catch (err: any) {
       const msg = err.message || "Failed to close window.";
       toast.error(msg, { title: "Window Close Failed" });
@@ -274,6 +267,7 @@ export default function ExamsPage() {
           status: "OPEN",
         },
       }));
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
       setReopenModalOpen(false);
       setTargetExamForReopen(null);
     } catch (err: any) {
@@ -296,9 +290,7 @@ export default function ExamsPage() {
     try {
       await api.archiveExam(exam.id);
       toast.success(`Exam "${exam.title}" archived successfully.`, { title: "Exam Archived" });
-      setExams((prev) =>
-        prev.map((e) => (e.id === exam.id ? { ...e, status: "ARCHIVED", lifecycle_status: "ARCHIVED" } : e))
-      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
     } catch (err: any) {
       toast.error(err.message || "Failed to archive exam", { title: "Archive Failed" });
     }
@@ -308,13 +300,7 @@ export default function ExamsPage() {
     try {
       const res = await api.restoreExam(exam.id);
       toast.success(res.message || `Exam "${exam.title}" restored.`, { title: "Exam Restored" });
-      setExams((prev) =>
-        prev.map((e) =>
-          e.id === exam.id
-            ? { ...e, status: res.lifecycle_status, lifecycle_status: res.lifecycle_status }
-            : e
-        )
-      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
     } catch (err: any) {
       toast.error(err.message || "Failed to restore exam", { title: "Restore Failed" });
     }
@@ -362,12 +348,12 @@ export default function ExamsPage() {
         res.message || `Exam "${targetExamForDelete.title}" and all associated files/evaluations permanently deleted.`,
         { title: "Exam Deleted" }
       );
-      setExams((prev) => prev.filter((e) => e.id !== targetExamForDelete.id));
       setWindowsMap((prev) => {
         const next = { ...prev };
         delete next[targetExamForDelete.id];
         return next;
       });
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
       setTargetExamForDelete(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete exam", { title: "Deletion Failed" });
@@ -375,14 +361,6 @@ export default function ExamsPage() {
       setIsDeletingExam(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="space-y-6 max-w-7xl mx-auto pb-16">
-        <ExamsGridSkeleton />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16 cascade-group">
@@ -412,98 +390,113 @@ export default function ExamsPage() {
         </ButtonPrimary>
       </div>
 
-
-
-      {/* 2. Search & Filter Bar */}
-      {exams.length > 0 && (
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 bg-surface p-2.5 sm:p-3 rounded-lg border border-hairline shadow-2xs">
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setSearchQuery("");
-              }}
-              placeholder="Search exams by title, subject, batch..."
-              className="w-full rounded-md border border-hairline bg-canvas-soft pl-9 pr-8 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:border-primary focus:bg-surface focus:outline-none transition-colors shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full flex items-center justify-center text-[10px] text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
-                title="Clear search"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Filters Row */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* Subject Selector */}
-            {availableSubjects.length > 0 && (
-              <AppleSelect
-                value={selectedSubject}
-                onChange={(val) => setSelectedSubject(val)}
-                options={[
-                  { value: "ALL", label: "All Subjects" },
-                  ...availableSubjects.map((sub) => ({ value: sub, label: sub })),
-                ]}
-                className="min-w-[130px] flex-1 sm:flex-initial"
-              />
-            )}
-
-            {/* Rubric / Window Status Filter */}
-            <AppleSelect
-              value={selectedStatus}
-              onChange={(val) => setSelectedStatus(val)}
-              options={[
-                { value: "ALL", label: "All Statuses" },
-                { value: "PUBLISHED", label: "Published" },
-                { value: "APPROVED_RUBRIC", label: "Rubric Approved" },
-                { value: "DRAFT_RUBRIC", label: "Draft Rubric" },
-                { value: "NO_RUBRIC", label: "No Rubric" },
-                { value: "WINDOW_OPEN", label: "Window Open" },
-                { value: "WINDOW_CLOSED", label: "Window Closed" },
-                { value: "ARCHIVED", label: "Archived Exams" },
-              ]}
-              className="min-w-[140px] flex-1 sm:flex-initial"
-            />
-
-            {/* Reset Filter Button if active */}
-            {(searchQuery || selectedSubject !== "ALL" || selectedStatus !== "ALL") && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedSubject("ALL");
-                  setSelectedStatus("ALL");
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline transition-colors cursor-pointer shrink-0"
-                title="Reset all filters"
-              >
-                <RotateCcw className="h-3 w-3" />
-                <span className="hidden sm:inline">Reset</span>
-              </button>
-            )}
-
-            {/* Count Tag */}
-            <span className="text-[11px] font-mono text-ink-muted whitespace-nowrap pl-1">
-              {filteredExams.length} of {exams.length}
-            </span>
-          </div>
+      {/* 2. Search & Filter Bar (Permanently Mounted) */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 bg-surface p-2.5 sm:p-3 rounded-lg border border-hairline shadow-2xs">
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSearchQuery("");
+            }}
+            placeholder="Search exams by title, subject, batch..."
+            className="w-full rounded-md border border-hairline bg-canvas-soft pl-9 pr-8 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:border-primary focus:bg-surface focus:outline-none transition-colors shadow-2xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full flex items-center justify-center text-[10px] text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+              title="Clear search"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
-      )}
+
+        {/* Filters Row */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Subject Selector */}
+          {availableSubjects.length > 0 && (
+            <AppleSelect
+              value={selectedSubject}
+              onChange={(val) => setSelectedSubject(val)}
+              options={[
+                { value: "ALL", label: "All Subjects" },
+                ...availableSubjects.map((sub) => ({ value: sub, label: sub })),
+              ]}
+              className="min-w-[130px] flex-1 sm:flex-initial"
+            />
+          )}
+
+          {/* Rubric / Window Status Filter */}
+          <AppleSelect
+            value={selectedStatus}
+            onChange={(val) => setSelectedStatus(val)}
+            options={[
+              { value: "ALL", label: "All Statuses" },
+              { value: "PUBLISHED", label: "Published" },
+              { value: "APPROVED_RUBRIC", label: "Rubric Approved" },
+              { value: "DRAFT_RUBRIC", label: "Draft Rubric" },
+              { value: "NO_RUBRIC", label: "No Rubric" },
+              { value: "WINDOW_OPEN", label: "Window Open" },
+              { value: "WINDOW_CLOSED", label: "Window Closed" },
+              { value: "ARCHIVED", label: "Archived Exams" },
+            ]}
+            className="min-w-[140px] flex-1 sm:flex-initial"
+          />
+
+          {/* Reset Filter Button if active */}
+          {(searchQuery || selectedSubject !== "ALL" || selectedStatus !== "ALL") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedSubject("ALL");
+                setSelectedStatus("ALL");
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline transition-colors cursor-pointer shrink-0"
+              title="Reset all filters"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span className="hidden sm:inline">Reset</span>
+            </button>
+          )}
+
+          {/* Count Tag */}
+          <span className="text-[11px] font-mono text-ink-muted whitespace-nowrap pl-1">
+            {filteredExams.length} of {exams.length}
+          </span>
+        </div>
+      </div>
+
+      {/* Refetch progress indicator */}
+      <RefetchProgressLine isFetching={examsFetching} />
 
       {/* 3. Main Content Area */}
-      {loading ? (
-        <FeatureCard className="p-16 text-center text-xs text-ink-muted animate-pulse">
-          Loading examinations for {selectedBranch?.name || "active branch"}...
-        </FeatureCard>
+      {examsLoading && exams.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-4 sm:p-5 rounded-xl border border-hairline bg-surface space-y-4">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-6 w-3/4 rounded-md" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-3 w-full rounded" />
+                <Skeleton className="h-3 w-4/5 rounded" />
+              </div>
+              <div className="pt-3 border-t border-hairline flex items-center justify-between">
+                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-20 rounded-md" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : exams.length === 0 ? (
         <FeatureCard className="p-12 text-center space-y-3">
           <div className="mx-auto h-12 w-12 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
@@ -549,7 +542,7 @@ export default function ExamsPage() {
           </div>
         </FeatureCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast transition-opacity duration-200 ${examsFetching ? "opacity-60" : "opacity-100"}`}>
           {filteredExams.map((exam) => {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;

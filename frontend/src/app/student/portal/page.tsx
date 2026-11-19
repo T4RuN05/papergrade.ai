@@ -29,6 +29,8 @@ import {
   FeatureCard,
   StudentPortalSkeleton,
   PastExamsCardsSkeleton,
+  RefetchProgressLine,
+  MetricValue,
 } from "@/components/ui";
 
 import { usePortalTabSwipe } from "@/hooks/usePortalTabSwipe";
@@ -73,6 +75,7 @@ export default function StudentPortalPage() {
   const {
     data: portalState,
     isLoading: isPortalLoading,
+    isFetching: isPortalFetching,
     refetch: refetchPortalState,
   } = useStudentPortalState();
 
@@ -547,9 +550,7 @@ export default function StudentPortalPage() {
     queryClient.invalidateQueries({ queryKey: queryKeys.submissions.studentPortalState() });
   }, [refetchPortalState, queryClient]);
 
-  if (isPortalLoading && !portalState) {
-    return <StudentPortalSkeleton />;
-  }
+  const isColdLoading = isPortalLoading && !portalState;
 
   // Summary Metrics
   const totalSubmissionsCount = localSubmissions.length;
@@ -568,10 +569,14 @@ export default function StudentPortalPage() {
   ).length;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group overflow-x-hidden">
-      {/* 1. Profile Header */}
+    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group overflow-x-hidden relative">
+      {/* Background Refetch Line */}
+      <RefetchProgressLine isFetching={isPortalFetching} />
+
+      {/* 1. Profile Header — Permanently Mounted (CLS = 0.00) */}
       <StudentProfileHeader
         user={user}
+        isLoading={isColdLoading}
         onReportIssueClick={() => setReportModalOpen(true)}
       />
 
@@ -663,6 +668,7 @@ export default function StudentPortalPage() {
               publishedCount={publishedSubmissions.length}
               avgPercentage={avgPercentage}
               activeRevalsCount={activeRevalsCount}
+              isLoading={isColdLoading}
             />
 
             {/* Trajectory Graph */}
@@ -708,7 +714,9 @@ export default function StudentPortalPage() {
                 </div>
               </div>
 
-              {pastSubmissionsList.length === 0 ? (
+              {isColdLoading ? (
+                <PastExamsCardsSkeleton count={1} />
+              ) : pastSubmissionsList.length === 0 ? (
                 <div className="rounded-xl border border-hairline bg-surface p-6 sm:p-8 text-center space-y-2">
                   <FileText className="h-7 w-7 text-ink-faint mx-auto" />
                   <h3 className="text-sm font-semibold text-ink">No past exam submissions</h3>

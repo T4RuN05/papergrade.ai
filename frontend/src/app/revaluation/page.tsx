@@ -23,11 +23,23 @@ import {
   Edit3,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
+import { useRevaluationsList, useSubmissionDetail } from "@/lib/queries";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
 import { AdminRevaluationModal } from "@/components/AdminRevaluationModal";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, RevaluationDeskSkeleton, EvaluationViewerSkeleton } from "@/components/ui";
+import {
+  ButtonPrimary,
+  ButtonUtility,
+  FeatureCard,
+  BadgePill,
+  MetricValue,
+  RefetchProgressLine,
+  Skeleton,
+  EvaluationViewerSkeleton,
+} from "@/components/ui";
 import { GradedAnswer } from "@/lib/types";
 
 const DocumentViewer = dynamic(
@@ -70,29 +82,34 @@ function parseQuestionIds(raw: any): string[] {
 export default function RevaluationDeskPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { selectedBranch, loading: tenantLoading } = useTenant();
 
-  // Raw revaluation requests queue
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loadingRequests, setLoadingRequests] = useState(true);
+  // Guard: token check
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      router.push("/auth/login?role=staff&redirect=/revaluation");
+    }
+  }, [router]);
+
+  // TanStack Query: SWR cached revaluations list
+  const {
+    data: revaluationsData,
+    isLoading: loadingRequests,
+    isFetching: isFetchingRequests,
+    refetch: refetchRequests,
+  } = useRevaluationsList(undefined, selectedBranch?.id);
+
+  const requests = useMemo(() => {
+    return Array.isArray(revaluationsData) ? revaluationsData : [];
+  }, [revaluationsData]);
 
   // Active selection state
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
 
-  // Active submission data loaded for DocumentViewer
-  const [submission, setSubmission] = useState<any>(null);
-  const [loadingSubmission, setLoadingSubmission] = useState(false);
-
-  // PDF Viewer navigation & editing state
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [selectedAnswer, setSelectedAnswer] = useState<GradedAnswer | null>(null);
-  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
-
-  // Admin Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // 1. Group revaluation requests by student paper (submission_id)
+  // Group revaluation requests by student paper (submission_id)
   const studentGroups = useMemo<StudentPaperGroup[]>(() => {
     if (!requests || requests.length === 0) return [];
 
@@ -149,7 +166,6 @@ export default function RevaluationDeskPage() {
       }
     }
 
-    // Sort: papers with pending appeals first, then recent
     return Array.from(map.values()).sort((a, b) => {
       if (a.hasPending && !b.hasPending) return -1;
       if (!a.hasPending && b.hasPending) return 1;
@@ -174,96 +190,57 @@ export default function RevaluationDeskPage() {
       const found = selectedGroup.requests.find((r) => r.id === selectedReqId);
       if (found) return found;
     }
-    // Default to first pending appeal or first appeal
     const pending = selectedGroup.requests.find(
       (r) => r.status === "SUBMITTED" || r.status === "UNDER_REVIEW"
     );
     return pending || selectedGroup.requests[0];
   }, [selectedGroup, selectedReqId]);
 
-  // 2. Load Revaluation Requests from API
-  const loadRequests = useCallback(async () => {
-    if (tenantLoading && !selectedBranch?.id) return;
+  // TanStack Query: SWR submission detail
+  const activeSubId = selectedGroup?.submission_id || "";
+  const {
+    data: fetchedSubmission,
+    isLoading: loadingSubmission,
+    isFetching: isFetchingSubmission,
+  } = useSubmissionDetail(activeSubId);
 
-    setLoadingRequests(true);
-    try {
-      const data = await api.listRevaluations(undefined, selectedBranch?.id);
-      const reqList = Array.isArray(data) ? data : [];
-      setRequests(reqList);
-
-      setSelectedSubmissionId((prev) => {
-        if (prev && reqList.some((r: any) => r.submission_id === prev)) {
-          return prev;
-        }
-        return reqList[0]?.submission_id || null;
-      });
-    } catch (err: any) {
-      console.error("Failed to load revaluation requests:", err);
-      setRequests([]);
-    } finally {
-      setLoadingRequests(false);
-    }
-  }, [selectedBranch?.id, tenantLoading]);
+  // Local state overlay for manual edits/region adjustments
+  const [localSubmission, setLocalSubmission] = useState<any>(null);
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) {
-      router.push("/auth/login?role=staff&redirect=/revaluation");
-      return;
+    setLocalSubmission(null);
+  }, [activeSubId]);
+
+  const submission = useMemo(() => {
+    if (localSubmission && localSubmission.id === activeSubId) {
+      return localSubmission;
     }
-    loadRequests();
-  }, [loadRequests, router]);
+    return fetchedSubmission || null;
+  }, [localSubmission, fetchedSubmission, activeSubId]);
 
-  const selectedReqRef = useRef(selectedReq);
-  const selectedGroupRef = useRef(selectedGroup);
+  // PDF Viewer navigation & editing state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [selectedAnswer, setSelectedAnswer] = useState<GradedAnswer | null>(null);
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
 
+  // Admin Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Auto-align selected answer when submission changes
   useEffect(() => {
-    selectedReqRef.current = selectedReq;
-    selectedGroupRef.current = selectedGroup;
-  });
-
-  // 3. Load the full submission when selected student paper changes
-  useEffect(() => {
-    if (!selectedGroup?.submission_id) {
-      setSubmission(null);
-      return;
+    if (submission?.answers && submission.answers.length > 0) {
+      const activeQids = parseQuestionIds(selectedReq?.question_ids_json);
+      const allQids = selectedGroup?.allChallengedQids || [];
+      const flaggedAns =
+        submission.answers.find((a: any) => activeQids.includes(a.question_id)) ||
+        submission.answers.find((a: any) => allQids.includes(a.question_id));
+      const target = flaggedAns || submission.answers[0];
+      setSelectedAnswer(target);
+      if (target?.page_number) {
+        setCurrentPage(target.page_number);
+      }
     }
-
-    let isMounted = true;
-    setLoadingSubmission(true);
-
-    api
-      .getSubmission(selectedGroup.submission_id)
-      .then((data) => {
-        if (!isMounted) return;
-        setSubmission(data);
-        if (data.answers && data.answers.length > 0) {
-          // Find first answer that matches the selected request or any challenged question
-          const activeQids = parseQuestionIds(selectedReqRef.current?.question_ids_json);
-          const allQids = selectedGroupRef.current?.allChallengedQids || [];
-          const flaggedAns =
-            data.answers.find((a: any) => activeQids.includes(a.question_id)) ||
-            data.answers.find((a: any) => allQids.includes(a.question_id));
-          const target = flaggedAns || data.answers[0];
-          setSelectedAnswer(target);
-          if (target.page_number) {
-            setCurrentPage(target.page_number);
-          }
-        }
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        console.error("Failed to load submission for revaluation desk:", err);
-        toast.error("Failed to load answer sheet details.", { title: "Load Error" });
-      })
-      .finally(() => {
-        if (isMounted) setLoadingSubmission(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedGroup?.submission_id, toast]);
+  }, [submission?.id, selectedReq?.id, selectedGroup?.submission_id]);
 
   // Handle clicking on an answer (from viewer or sidebar)
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = false) => {
@@ -274,7 +251,6 @@ export default function RevaluationDeskPage() {
       setCurrentPage(targetPage);
     }
     if (openModal) {
-      // Align active request to the one targeting this question if available
       const matchingReq = selectedGroup?.requests.find((r) =>
         parseQuestionIds(r.question_ids_json).includes(current.question_id)
       );
@@ -313,7 +289,9 @@ export default function RevaluationDeskPage() {
       const timestamp = Date.now();
       const baseSub = updatedSub && updatedSub.answers ? updatedSub : submission;
       const patchedAnswers = (baseSub.answers || []).map((ans: any) => {
-        const hasRegion = (ans.regions || []).some((reg: any) => reg.id === regionId || (!reg.id && ans.id === regionId));
+        const hasRegion = (ans.regions || []).some(
+          (reg: any) => reg.id === regionId || (!reg.id && ans.id === regionId)
+        );
         if (hasRegion || ans.id === regionId) {
           const updatedRegions = (ans.regions || []).map((reg: any) => {
             if (reg.id === regionId || (!reg.id && ans.id === regionId)) {
@@ -323,7 +301,10 @@ export default function RevaluationDeskPage() {
           });
           return {
             ...ans,
-            regions: updatedRegions.length > 0 ? updatedRegions : [{ id: regionId, ...coords, _lastUpdated: timestamp }],
+            regions:
+              updatedRegions.length > 0
+                ? updatedRegions
+                : [{ id: regionId, ...coords, _lastUpdated: timestamp }],
             page_number: coords.page_number,
             _lastUpdated: timestamp,
           };
@@ -332,7 +313,7 @@ export default function RevaluationDeskPage() {
       });
 
       const nextSub = { ...baseSub, answers: patchedAnswers };
-      setSubmission(nextSub);
+      setLocalSubmission(nextSub);
 
       if (selectedAnswer) {
         const freshSelected = patchedAnswers.find((a: any) => a.id === selectedAnswer.id);
@@ -372,14 +353,11 @@ export default function RevaluationDeskPage() {
     revisedMarks: number,
     notes: string
   ) => {
-    await loadRequests();
+    await queryClient.invalidateQueries({ queryKey: queryKeys.revaluations.all() });
     if (selectedGroup?.submission_id) {
-      try {
-        const freshSub = await api.getSubmission(selectedGroup.submission_id);
-        setSubmission(freshSub);
-      } catch {
-        // ignore
-      }
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.submissions.detail(selectedGroup.submission_id),
+      });
     }
   };
 
@@ -410,13 +388,21 @@ export default function RevaluationDeskPage() {
   }, [submission?.answers, selectedGroup]);
 
   // Overall pending count
-  const pendingRequestsCount = requests.filter(
-    (r) => r.status === "SUBMITTED" || r.status === "UNDER_REVIEW"
-  ).length;
+  const pendingRequestsCount = useMemo(() => {
+    return requests.filter(
+      (r) => r.status === "SUBMITTED" || r.status === "UNDER_REVIEW"
+    ).length;
+  }, [requests]);
+
+  const isInitialDeskLoading = loadingRequests && requests.length === 0;
+  const isSubmissionContentLoading = loadingSubmission && !submission;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-16 px-2 sm:px-4 md:px-6 cascade-group">
-      {/* 1. Header & Branch Info */}
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-16 px-2 sm:px-4 md:px-6 cascade-group relative">
+      {/* Background Refetch Activity Indicator */}
+      <RefetchProgressLine isFetching={isFetchingRequests || isFetchingSubmission} />
+
+      {/* 1. Header & Branch Info — Permanently Mounted (CLS = 0.00) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
         <div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -426,9 +412,15 @@ export default function RevaluationDeskPage() {
                 {selectedBranch.name} • {selectedBranch.city}
               </span>
             )}
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
               <Clock className="h-3 w-3 shrink-0" />
-              <span>{pendingRequestsCount} Pending {pendingRequestsCount === 1 ? "Appeal" : "Appeals"}</span>
+              <MetricValue
+                value={pendingRequestsCount}
+                isLoading={isInitialDeskLoading}
+                width="w-4"
+                className="text-[11px] font-bold text-orange-700"
+              />
+              <span>Pending {pendingRequestsCount === 1 ? "Appeal" : "Appeals"}</span>
             </span>
           </div>
 
@@ -441,15 +433,26 @@ export default function RevaluationDeskPage() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <ButtonUtility size="sm" onClick={loadRequests} className="w-full sm:w-auto justify-center">
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+          <ButtonUtility
+            size="sm"
+            onClick={() => {
+              refetchRequests();
+              if (activeSubId) {
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.submissions.detail(activeSubId),
+                });
+              }
+            }}
+            className="w-full sm:w-auto justify-center"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isFetchingRequests ? "animate-spin" : ""}`} />
             Refresh Queue
           </ButtonUtility>
         </div>
       </div>
 
-      {/* 2. Student Paper Queue Selector (Grouped per Student Submission) */}
-      {studentGroups.length > 0 && (
+      {/* 2. Student Paper Queue Carousel — Permanently Mounted (CLS = 0.00) */}
+      {(isInitialDeskLoading || studentGroups.length > 0) && (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-ink-muted">
             <div className="flex items-center gap-2">
@@ -463,129 +466,164 @@ export default function RevaluationDeskPage() {
           </div>
 
           <div className="flex items-center gap-3 overflow-x-auto pb-2 pt-1 scrollbar-none">
-            {studentGroups.map((group) => {
-              const isSelected = selectedGroup?.submission_id === group.submission_id;
-
-              return (
+            {isInitialDeskLoading ? (
+              [1, 2, 3].map((idx) => (
                 <div
-                  key={group.submission_id}
-                  onClick={() => {
-                    setSelectedSubmissionId(group.submission_id);
-                    const pending = group.requests.find(
-                      (r) => r.status === "SUBMITTED" || r.status === "UNDER_REVIEW"
-                    );
-                    setSelectedReqId((pending || group.requests[0])?.id || null);
-                  }}
-                  className={`flex-shrink-0 flex flex-col gap-2 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer min-w-[270px] sm:min-w-[310px] max-w-[340px] ${
-                    isSelected
-                      ? "bg-surface border-primary shadow-xs ring-2 ring-primary/25"
-                      : "bg-surface border-hairline hover:border-slate-400 hover:shadow-2xs"
-                  }`}
+                  key={idx}
+                  className="flex-shrink-0 flex flex-col gap-2 p-3 sm:p-3.5 rounded-xl border border-hairline bg-surface min-w-[270px] sm:min-w-[310px] max-w-[340px]"
                 >
-                  {/* Top row: Student Name, Roll Number, and Score */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg border shrink-0 ${
-                        group.hasPending 
-                          ? "bg-amber-50 text-amber-700 border-amber-200" 
-                          : "bg-canvas-soft text-ink border-hairline"
-                      }`}>
-                        <User className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-ink truncate max-w-[130px]">
-                            {group.student_name}
-                          </span>
-                          <span className="font-mono text-[10px] font-semibold bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded text-ink shrink-0">
-                            {group.roll_number}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-ink-muted truncate max-w-[170px] mt-0.5">
-                          {group.exam_title}
-                        </div>
+                      <Skeleton className="h-9 w-9 rounded-lg" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-3.5 w-24 rounded" />
+                        <Skeleton className="h-3 w-32 rounded" />
                       </div>
                     </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="text-[11px] font-mono font-bold text-ink block">
-                        {group.total_awarded_marks} / {group.max_marks}m
-                      </span>
-                      <span className="text-[9px] text-ink-faint uppercase font-medium">Score</span>
-                    </div>
+                    <Skeleton className="h-4 w-12 rounded" />
                   </div>
-
-                  {/* Middle: Appeals Breakdown & Requests inside this Student Card */}
-                  <div className="pt-2 border-t border-hairline/70 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-1 text-[10px]">
-                      <span className="font-semibold text-ink-secondary flex items-center gap-1">
-                        <FileText className="h-3 w-3 text-ink-muted" />
-                        <span>{group.requests.length} {group.requests.length === 1 ? "Appeal Request" : "Appeals Filed"}</span>
-                      </span>
-
-                      {group.hasPending ? (
-                        <span className="inline-flex items-center gap-1 font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
-                          <Clock className="h-2.5 w-2.5 shrink-0" />
-                          <span>{group.pendingCount} Pending</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
-                          <span>Resolved</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Chips for individual requests filed by this student */}
-                    <div className="flex flex-wrap gap-1 items-center">
-                      {group.requests.map((r, idx) => {
-                        const rPending = r.status === "SUBMITTED" || r.status === "UNDER_REVIEW";
-                        const rQids = parseQuestionIds(r.question_ids_json);
-                        const isThisReqActive = isSelected && selectedReq?.id === r.id;
-
-                        return (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedSubmissionId(group.submission_id);
-                              handleSelectRequestInGroup(r);
-                            }}
-                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                              isThisReqActive
-                                ? "bg-primary text-white border-primary font-bold shadow-2xs"
-                                : rPending
-                                ? "bg-amber-50 text-amber-900 border-amber-300 font-medium hover:bg-amber-100"
-                                : "bg-canvas-soft text-ink-muted border-hairline hover:bg-white"
-                            }`}
-                            title={r.student_reason ? `Reason: "${r.student_reason}"` : undefined}
-                          >
-                            <span>Req #{idx + 1}:</span>
-                            <span className="font-semibold">
-                              {rQids.length > 0 ? rQids.join(", ") : "Paper"}
-                            </span>
-                            {rPending ? (
-                              <span className={`inline-block h-1.5 w-1.5 rounded-full ${isThisReqActive ? "bg-white" : "bg-amber-500 animate-pulse"}`} />
-                            ) : (
-                              <Check className={`h-2.5 w-2.5 ${isThisReqActive ? "text-white" : "text-emerald-600"}`} />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="pt-2 border-t border-hairline/70 flex justify-between">
+                    <Skeleton className="h-3 w-20 rounded" />
+                    <Skeleton className="h-3 w-16 rounded" />
                   </div>
                 </div>
-              );
-            })}
+              ))
+            ) : (
+              studentGroups.map((group) => {
+                const isSelected = selectedGroup?.submission_id === group.submission_id;
+
+                return (
+                  <div
+                    key={group.submission_id}
+                    onClick={() => {
+                      setSelectedSubmissionId(group.submission_id);
+                      const pending = group.requests.find(
+                        (r) => r.status === "SUBMITTED" || r.status === "UNDER_REVIEW"
+                      );
+                      setSelectedReqId((pending || group.requests[0])?.id || null);
+                    }}
+                    className={`flex-shrink-0 flex flex-col gap-2 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer min-w-[270px] sm:min-w-[310px] max-w-[340px] ${
+                      isSelected
+                        ? "bg-surface border-primary shadow-xs ring-2 ring-primary/25"
+                        : "bg-surface border-hairline hover:border-slate-400 hover:shadow-2xs"
+                    }`}
+                  >
+                    {/* Top row: Student Name, Roll Number, and Score */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`flex h-9 w-9 items-center justify-center rounded-lg border shrink-0 ${
+                            group.hasPending
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-canvas-soft text-ink border-hairline"
+                          }`}
+                        >
+                          <User className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-ink truncate max-w-[130px]">
+                              {group.student_name}
+                            </span>
+                            <span className="font-mono text-[10px] font-semibold bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded text-ink shrink-0">
+                              {group.roll_number}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-ink-muted truncate max-w-[170px] mt-0.5">
+                            {group.exam_title}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-[11px] font-mono font-bold text-ink block">
+                          {group.total_awarded_marks} / {group.max_marks}m
+                        </span>
+                        <span className="text-[9px] text-ink-faint uppercase font-medium">Score</span>
+                      </div>
+                    </div>
+
+                    {/* Middle: Appeals Breakdown & Requests inside this Student Card */}
+                    <div className="pt-2 border-t border-hairline/70 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-1 text-[10px]">
+                        <span className="font-semibold text-ink-secondary flex items-center gap-1">
+                          <FileText className="h-3 w-3 text-ink-muted" />
+                          <span>
+                            {group.requests.length}{" "}
+                            {group.requests.length === 1 ? "Appeal Request" : "Appeals Filed"}
+                          </span>
+                        </span>
+
+                        {group.hasPending ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                            <Clock className="h-2.5 w-2.5 shrink-0" />
+                            <span>{group.pendingCount} Pending</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
+                            <span>Resolved</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Chips for individual requests filed by this student */}
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {group.requests.map((r, idx) => {
+                          const rPending = r.status === "SUBMITTED" || r.status === "UNDER_REVIEW";
+                          const rQids = parseQuestionIds(r.question_ids_json);
+                          const isThisReqActive = isSelected && selectedReq?.id === r.id;
+
+                          return (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSubmissionId(group.submission_id);
+                                handleSelectRequestInGroup(r);
+                              }}
+                              className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                                isThisReqActive
+                                  ? "bg-primary text-white border-primary font-bold shadow-2xs"
+                                  : rPending
+                                  ? "bg-amber-50 text-amber-900 border-amber-300 font-medium hover:bg-amber-100"
+                                  : "bg-canvas-soft text-ink-muted border-hairline hover:bg-white"
+                              }`}
+                              title={r.student_reason ? `Reason: "${r.student_reason}"` : undefined}
+                            >
+                              <span>Req #{idx + 1}:</span>
+                              <span className="font-semibold">
+                                {rQids.length > 0 ? rQids.join(", ") : "Paper"}
+                              </span>
+                              {rPending ? (
+                                <span
+                                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                                    isThisReqActive ? "bg-white" : "bg-amber-500 animate-pulse"
+                                  }`}
+                                />
+                              ) : (
+                                <Check
+                                  className={`h-2.5 w-2.5 ${
+                                    isThisReqActive ? "text-white" : "text-emerald-600"
+                                  }`}
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
 
-      {/* 3. Empty State or PDF Viewer Workspace */}
-      {loadingRequests ? (
-        <RevaluationDeskSkeleton />
-      ) : studentGroups.length === 0 ? (
+      {/* 3. Empty State or Workspace — Permanently Mounted (CLS = 0.00) */}
+      {!isInitialDeskLoading && studentGroups.length === 0 ? (
         <FeatureCard className="p-16 text-center text-xs text-ink-muted space-y-3">
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
           <h2 className="text-base font-bold text-ink">Zero Open Grievances</h2>
@@ -593,8 +631,6 @@ export default function RevaluationDeskPage() {
             No students in {selectedBranch?.name || "this branch"} currently have open revaluation requests. When a student challenges a score via the student portal, their answer sheet will appear here for PDF-first human review.
           </p>
         </FeatureCard>
-      ) : loadingSubmission || !submission ? (
-        <EvaluationViewerSkeleton />
       ) : (
         <div className="space-y-4 cascade-group">
           {/* Active Paper Banner with Multi-Request Tabs */}
@@ -606,14 +642,24 @@ export default function RevaluationDeskPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-sm font-bold text-ink">{submission.exam_title || "Examination"}</h2>
-                    <span className="font-mono text-xs font-semibold bg-canvas-soft border border-hairline px-2 py-0.5 rounded text-ink">
-                      Roll: {submission.roll_number}
-                    </span>
-                    <span className="text-xs text-ink-muted">• {submission.student_name}</span>
-                    <span className="text-xs font-mono font-semibold text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded">
-                      Total Score: {submission.total_awarded_marks} / {submission.max_marks}
-                    </span>
+                    {isSubmissionContentLoading || !submission ? (
+                      <>
+                        <Skeleton className="h-4 w-36 rounded" />
+                        <Skeleton className="h-4 w-24 rounded" />
+                        <Skeleton className="h-4 w-28 rounded" />
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-sm font-bold text-ink">{submission.exam_title || "Examination"}</h2>
+                        <span className="font-mono text-xs font-semibold bg-canvas-soft border border-hairline px-2 py-0.5 rounded text-ink">
+                          Roll: {submission.roll_number}
+                        </span>
+                        <span className="text-xs text-ink-muted">• {submission.student_name}</span>
+                        <span className="text-xs font-mono font-semibold text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded">
+                          Total Score: {submission.total_awarded_marks} / {submission.max_marks}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5 flex flex-wrap items-center gap-1.5">
                     <span>Flagged questions display</span>
@@ -628,15 +674,17 @@ export default function RevaluationDeskPage() {
 
               {/* Quick Actions */}
               <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                <a
-                  href={api.getAnnotatedPdfUrl(submission.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface text-ink hover:bg-canvas-soft px-3 py-1.5 text-xs font-semibold transition-colors shadow-2xs"
-                >
-                  <Download className="h-3.5 w-3.5 text-ink-muted" />
-                  <span>Annotated PDF</span>
-                </a>
+                {submission && (
+                  <a
+                    href={api.getAnnotatedPdfUrl(submission.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface text-ink hover:bg-canvas-soft px-3 py-1.5 text-xs font-semibold transition-colors shadow-2xs"
+                  >
+                    <Download className="h-3.5 w-3.5 text-ink-muted" />
+                    <span>Annotated PDF</span>
+                  </a>
+                )}
               </div>
             </div>
 
@@ -664,18 +712,24 @@ export default function RevaluationDeskPage() {
                               : "bg-surface text-ink border-hairline hover:bg-canvas-soft"
                           }`}
                         >
-                          <span>Appeal #{i + 1} ({qids.length > 0 ? qids.join(", ") : "Paper"})</span>
+                          <span>
+                            Appeal #{i + 1} ({qids.length > 0 ? qids.join(", ") : "Paper"})
+                          </span>
                           {isPen ? (
-                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                              isAct ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
-                            }`}>
+                            <span
+                              className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                isAct ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
                               <Clock className="h-2.5 w-2.5" />
                               Pending
                             </span>
                           ) : (
-                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                              isAct ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
-                            }`}>
+                            <span
+                              className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                isAct ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
                               <Check className="h-2.5 w-2.5" />
                               Resolved
                             </span>
@@ -700,24 +754,28 @@ export default function RevaluationDeskPage() {
           {/* Interactive Workspace: PDF Viewer (3 cols) + Flagged Questions Sidebar (1 col) */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
             {/* Left: DocumentViewer with Revaluation Flags & Interactive Drag Handles (3 cols) */}
-            <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[700px] lg:h-[840px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs">
-              <DocumentViewer
-                submissionId={submission.id}
-                pageCount={submission.page_count || 1}
-                answers={answers}
-                onSelectAnswer={(ans) => handleSelectAnswer(ans, false)}
-                onInspectAnswer={(ans) => handleSelectAnswer(ans, true)}
-                selectedAnswerId={selectedAnswer?.id}
-                editingAnswerId={editingAnswerId}
-                onSetEditingAnswerId={setEditingAnswerId}
-                currentPage={currentPage}
-                onPageChange={setCurrentPage}
-                onUpdateRegion={handleUpdateRegion}
-                totalAwardedMarks={submission.total_awarded_marks}
-                maxMarks={submission.max_marks}
-                readOnly={false}
-                isDocumentPurged={Boolean(submission.is_document_purged)}
-              />
+            <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[700px] lg:h-[840px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative">
+              {isSubmissionContentLoading || !submission ? (
+                <EvaluationViewerSkeleton />
+              ) : (
+                <DocumentViewer
+                  submissionId={submission.id}
+                  pageCount={submission.page_count || 1}
+                  answers={answers}
+                  onSelectAnswer={(ans) => handleSelectAnswer(ans, false)}
+                  onInspectAnswer={(ans) => handleSelectAnswer(ans, true)}
+                  selectedAnswerId={selectedAnswer?.id}
+                  editingAnswerId={editingAnswerId}
+                  onSetEditingAnswerId={setEditingAnswerId}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  onUpdateRegion={handleUpdateRegion}
+                  totalAwardedMarks={submission.total_awarded_marks}
+                  maxMarks={submission.max_marks}
+                  readOnly={false}
+                  isDocumentPurged={Boolean(submission.is_document_purged)}
+                />
+              )}
             </div>
 
             {/* Right: Question Navigator with Revaluation Focus (1 col) */}
@@ -731,92 +789,114 @@ export default function RevaluationDeskPage() {
                 </div>
 
                 <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1">
-                  {answers.map((ans) => {
-                    const isSelected = selectedAnswer?.id === ans.id;
-                    const isAnsResolved = Boolean(ans.revaluation && ans.revaluation.status === "RESOLVED");
-
-                    // Check which request this question belongs to in this student's paper
-                    const matchedReq = selectedGroup?.requests.find((r) =>
-                      parseQuestionIds(r.question_ids_json).includes(ans.question_id)
-                    );
-                    const matchedReqIdx = matchedReq && selectedGroup ? selectedGroup.requests.indexOf(matchedReq) + 1 : null;
-                    const isFlagged = !isAnsResolved && Boolean(
-                      matchedReq ||
-                      selectedGroup?.allChallengedQids.includes(ans.question_id) ||
-                      (ans.revaluation &&
-                        (ans.revaluation.status === "SUBMITTED" ||
-                          ans.revaluation.status === "UNDER_REVIEW"))
-                    );
-
-                    const ansScore = Number(ans.awarded_marks || 0);
-                    const ansMax = Number(ans.max_marks || 1);
-
-                    return (
+                  {isSubmissionContentLoading || !submission ? (
+                    [1, 2, 3, 4, 5].map((i) => (
                       <div
-                        key={ans.id}
-                        onClick={() => handleSelectAnswer(ans, false)}
-                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer space-y-2 ${
-                          isFlagged
-                            ? "bg-amber-50/40 border-amber-300 ring-1 ring-amber-300/40"
-                            : isAnsResolved
-                              ? "bg-emerald-50/20 border-emerald-200"
-                              : isSelected
-                                ? "bg-surface border-primary shadow-xs ring-1 ring-primary/20"
-                                : "bg-surface border-hairline hover:bg-canvas-soft"
-                        }`}
+                        key={i}
+                        className="p-3 rounded-lg border border-hairline bg-surface space-y-2"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 font-bold text-xs text-ink flex-wrap">
-                            <span>{ans.question_id}</span>
-                            {matchedReqIdx && (
-                              <span className="text-[10px] font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded">
-                                Appeal #{matchedReqIdx}
-                              </span>
-                            )}
-                            {isAnsResolved ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                <Check className="h-3 w-3 shrink-0" />
-                                <span>RESOLVED</span>
-                              </span>
-                            ) : isFlagged ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                                <Flag className="h-2.5 w-2.5 shrink-0 fill-amber-700" />
-                                <span>APPEAL</span>
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <span className="font-mono text-xs font-bold text-ink">
-                            {ansScore.toFixed(1)} / {ansMax}m
-                          </span>
+                          <Skeleton className="h-3.5 w-16 rounded" />
+                          <Skeleton className="h-3.5 w-12 rounded" />
                         </div>
-
-                        {/* Student Grievance Snippet specific to this question's request */}
-                        {isFlagged && (matchedReq?.student_reason || selectedReq?.student_reason) && (
-                          <div className="text-[11px] text-amber-950 italic bg-white/80 p-2 rounded border border-amber-200 line-clamp-2">
-                            &ldquo;{matchedReq?.student_reason || selectedReq?.student_reason}&rdquo;
-                          </div>
-                        )}
-
-                        {/* Action buttons inside card */}
-                        <div className="flex items-center justify-between pt-1 border-t border-hairline/60 text-[11px]">
-                          <span className="text-ink-muted">Page {ans.page_number || 1}</span>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectAnswer(ans, true);
-                            }}
-                            className="inline-flex items-center gap-1 text-primary hover:underline font-semibold text-xs cursor-pointer"
-                          >
-                            <Eye className="h-3 w-3" />
-                            Open Modal & Review →
-                          </button>
-                        </div>
+                        <Skeleton className="h-3 w-full rounded" />
                       </div>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    answers.map((ans) => {
+                      const isSelected = selectedAnswer?.id === ans.id;
+                      const isAnsResolved = Boolean(
+                        ans.revaluation && ans.revaluation.status === "RESOLVED"
+                      );
+
+                      const matchedReq = selectedGroup?.requests.find((r) =>
+                        parseQuestionIds(r.question_ids_json).includes(ans.question_id)
+                      );
+                      const matchedReqIdx =
+                        matchedReq && selectedGroup
+                          ? selectedGroup.requests.indexOf(matchedReq) + 1
+                          : null;
+                      const isFlagged =
+                        !isAnsResolved &&
+                        Boolean(
+                          matchedReq ||
+                            selectedGroup?.allChallengedQids.includes(ans.question_id) ||
+                            (ans.revaluation &&
+                              (ans.revaluation.status === "SUBMITTED" ||
+                                ans.revaluation.status === "UNDER_REVIEW"))
+                        );
+
+                      const ansScore = Number(ans.awarded_marks || 0);
+                      const ansMax = Number(ans.max_marks || 1);
+
+                      return (
+                        <div
+                          key={ans.id}
+                          onClick={() => handleSelectAnswer(ans, false)}
+                          className={`p-3 rounded-lg border text-left transition-all cursor-pointer space-y-2 ${
+                            isFlagged
+                              ? "bg-amber-50/40 border-amber-300 ring-1 ring-amber-300/40"
+                              : isAnsResolved
+                              ? "bg-emerald-50/20 border-emerald-200"
+                              : isSelected
+                              ? "bg-surface border-primary shadow-xs ring-1 ring-primary/20"
+                              : "bg-surface border-hairline hover:bg-canvas-soft"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-ink flex-wrap">
+                              <span>{ans.question_id}</span>
+                              {matchedReqIdx && (
+                                <span className="text-[10px] font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded">
+                                  Appeal #{matchedReqIdx}
+                                </span>
+                              )}
+                              {isAnsResolved ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  <Check className="h-3 w-3 shrink-0" />
+                                  <span>RESOLVED</span>
+                                </span>
+                              ) : isFlagged ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                                  <Flag className="h-2.5 w-2.5 shrink-0 fill-amber-700" />
+                                  <span>APPEAL</span>
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <span className="font-mono text-xs font-bold text-ink">
+                              {ansScore.toFixed(1)} / {ansMax}m
+                            </span>
+                          </div>
+
+                          {/* Student Grievance Snippet specific to this question's request */}
+                          {isFlagged &&
+                            (matchedReq?.student_reason || selectedReq?.student_reason) && (
+                              <div className="text-[11px] text-amber-950 italic bg-white/80 p-2 rounded border border-amber-200 line-clamp-2">
+                                &ldquo;{matchedReq?.student_reason || selectedReq?.student_reason}&rdquo;
+                              </div>
+                            )}
+
+                          {/* Action buttons inside card */}
+                          <div className="flex items-center justify-between pt-1 border-t border-hairline/60 text-[11px]">
+                            <span className="text-ink-muted">Page {ans.page_number || 1}</span>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectAnswer(ans, true);
+                              }}
+                              className="inline-flex items-center gap-1 text-primary hover:underline font-semibold text-xs cursor-pointer"
+                            >
+                              <Eye className="h-3 w-3" />
+                              Open Modal & Review →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </FeatureCard>
 

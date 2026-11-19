@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -24,15 +24,18 @@ import {
   Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { Batch } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
+import { useBatchDetail, useExamDetail } from "@/lib/queries";
 import {
   ButtonUtility,
   FeatureCard,
   BadgePill,
   BatchDetailSkeleton,
   AppleSelect,
+  MetricValue,
+  TableSkeletonRows,
+  Skeleton,
 } from "@/components/ui";
 
 export default function SingleBatchPage() {
@@ -41,11 +44,12 @@ export default function SingleBatchPage() {
   const { toast } = useToast();
   const batchId = params.id as string;
 
-  const [batch, setBatch] = useState<Batch | null>(null);
-  const [exam, setExam] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [scoreFilter, setScoreFilter] = useState<"ALL" | "TOP" | "MID" | "LOW">("ALL");
+
+  // TanStack Queries (Cached in-memory, instant back-nav, CLS = 0.00)
+  const { data: batch, isLoading: isBatchLoading } = useBatchDetail(batchId);
+  const { data: exam } = useExamDetail(batch?.exam_id || "");
 
   useSetBreadcrumbs(
     {
@@ -57,27 +61,6 @@ export default function SingleBatchPage() {
     },
     [batch?.name, batchId]
   );
-
-  const loadBatchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.getBatch(batchId);
-      setBatch(data);
-
-      if (data?.exam_id) {
-        const ex = await api.getExam(data.exam_id).catch(() => null);
-        setExam(ex);
-      }
-    } catch (e) {
-      console.error("Failed to load batch:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [batchId]);
-
-  useEffect(() => {
-    loadBatchData();
-  }, [loadBatchData]);
 
   const submissions = useMemo(() => batch?.submissions || [], [batch?.submissions]);
 
@@ -138,11 +121,7 @@ export default function SingleBatchPage() {
     });
   }, [submissions, searchTerm, scoreFilter]);
 
-  if (loading) {
-    return <BatchDetailSkeleton />;
-  }
-
-  if (!batch) {
+  if (!isBatchLoading && !batch) {
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
         <FeatureCard className="p-8 text-center space-y-4">
@@ -171,37 +150,55 @@ export default function SingleBatchPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-hairline">
           <div className="space-y-2 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
-              <BadgePill
-                label={batch.status === "COMPLETED" ? "Evaluation Completed" : batch.status}
-                color={batch.status === "COMPLETED" ? "green" : "orange"}
-              />
-              <BadgePill label={`AY ${batch.academic_year || "2026"}`} color="gray" />
+              {isBatchLoading && !batch ? (
+                <>
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </>
+              ) : (
+                <>
+                  <BadgePill
+                    label={batch?.status === "COMPLETED" ? "Evaluation Completed" : batch?.status || "Active"}
+                    color={batch?.status === "COMPLETED" ? "green" : "orange"}
+                  />
+                  <BadgePill label={`AY ${batch?.academic_year || "2026"}`} color="gray" />
+                </>
+              )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">
-              {batch.name}
-            </h1>
+            {isBatchLoading && !batch ? (
+              <Skeleton className="h-8 w-64 rounded-md my-0.5" />
+            ) : (
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+                {batch?.name}
+              </h1>
+            )}
             <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
-              Enrolled evaluation batch for <span className="font-semibold text-ink">Apex Engineering Institute</span> (Main Campus). Total registered scripts: <span className="font-mono font-bold text-ink">{batch.total_submissions} submissions</span>.
+              Enrolled evaluation batch for <span className="font-semibold text-ink">Apex Engineering Institute</span> (Main Campus). Total registered scripts:{" "}
+              {isBatchLoading && !batch ? (
+                <span className="font-mono font-bold text-ink">...</span>
+              ) : (
+                <span className="font-mono font-bold text-ink">{batch?.total_submissions || 0} submissions</span>
+              )}.
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 sm:self-start lg:self-center">
-            {batch.exam_id && (
+            {batch?.exam_id && (
               <ButtonUtility href={`/exams/${batch.exam_id}`}>
                 <GraduationCap className="h-3.5 w-3.5 mr-1.5 text-primary" />
                 Exam Details
               </ButtonUtility>
             )}
 
-            {batch.exam_id && (
+            {batch?.exam_id && (
               <ButtonUtility href={`/marks?exam_id=${batch.exam_id}`}>
                 <FileCheck2 className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
                 Marks Ledger
               </ButtonUtility>
             )}
 
-            {stats.completed > 0 && (
+            {stats.completed > 0 && batch && (
               <a
                 href={api.getBatchZipUrl(batch.id, `${(batch.name || "Batch").replace(/\s+/g, "_")}_Graded_PDFs.zip`)}
                 download={`${(batch.name || "Batch").replace(/\s+/g, "_")}_Graded_PDFs.zip`}
@@ -263,7 +260,12 @@ export default function SingleBatchPage() {
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold font-mono text-ink">{stats.completed}</span>
+              <MetricValue
+                isLoading={isBatchLoading}
+                value={stats.completed}
+                className="text-2xl font-bold font-mono text-ink"
+                width="w-10"
+              />
               <span className="text-xs text-ink-muted">/ {stats.total} total</span>
             </div>
             <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full mt-2.5 overflow-hidden">
@@ -280,7 +282,12 @@ export default function SingleBatchPage() {
               <Award className="h-4 w-4 text-primary" />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold font-mono text-ink">{stats.avgMarks.toFixed(1)}</span>
+              <MetricValue
+                isLoading={isBatchLoading}
+                value={stats.avgMarks.toFixed(1)}
+                className="text-2xl font-bold font-mono text-ink"
+                width="w-12"
+              />
               <span className="text-xs text-ink-muted">/ {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</span>
             </div>
             <div className="text-[11px] text-ink-secondary font-medium mt-1">
@@ -294,7 +301,12 @@ export default function SingleBatchPage() {
               <Sparkles className="h-4 w-4 text-amber-500" />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold font-mono text-emerald-600">{stats.maxScore.toFixed(1)}</span>
+              <MetricValue
+                isLoading={isBatchLoading}
+                value={stats.maxScore.toFixed(1)}
+                className="text-2xl font-bold font-mono text-emerald-600"
+                width="w-12"
+              />
               <span className="text-xs text-ink-muted">/ {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</span>
             </div>
             <div className="text-[11px] text-ink-muted mt-1">
@@ -308,7 +320,12 @@ export default function SingleBatchPage() {
               <GraduationCap className="h-4 w-4 text-purple-600" />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold font-mono text-ink">{stats.passRate.toFixed(1)}%</span>
+              <MetricValue
+                isLoading={isBatchLoading}
+                value={`${stats.passRate.toFixed(1)}%`}
+                className="text-2xl font-bold font-mono text-ink"
+                width="w-14"
+              />
             </div>
             <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full mt-2.5 overflow-hidden">
               <div
@@ -360,30 +377,47 @@ export default function SingleBatchPage() {
         </div>
 
         {/* Table View */}
-        {filteredSubmissions.length === 0 ? (
-          <div className="py-12 text-center space-y-2">
-            <p className="text-xs font-semibold text-ink">No student submissions found matching current criteria.</p>
-            <p className="text-[11px] text-ink-muted">Try clearing the search query or adjusting filters.</p>
-            <ButtonUtility onClick={() => { setSearchTerm(""); setScoreFilter("ALL"); }}>
-              Reset Search
-            </ButtonUtility>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-hairline">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium">
-                  <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4 text-center">Pages</th>
-                  <th className="py-3 px-4 text-right">Marks Awarded</th>
-                  <th className="py-3 px-4 text-center">Score %</th>
-                  <th className="py-3 px-4 text-center">Evaluation Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+        <div className="overflow-x-auto rounded-lg border border-hairline">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium">
+                <th className="py-3 px-4">Roll Number</th>
+                <th className="py-3 px-4">Student Name</th>
+                <th className="py-3 px-4 text-center">Pages</th>
+                <th className="py-3 px-4 text-right">Marks Awarded</th>
+                <th className="py-3 px-4 text-center">Score %</th>
+                <th className="py-3 px-4 text-center">Evaluation Status</th>
+                <th className="py-3 px-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline bg-surface">
+              {isBatchLoading && submissions.length === 0 ? (
+                <TableSkeletonRows
+                  rowCount={6}
+                  columns={[
+                    { width: "w-24" },
+                    { width: "w-36" },
+                    { width: "w-10", align: "center" },
+                    { width: "w-20", align: "right" },
+                    { width: "w-14", align: "center" },
+                    { width: "w-24", align: "center" },
+                    { width: "w-16", align: "right" },
+                  ]}
+                />
+              ) : filteredSubmissions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center space-y-2">
+                    <p className="text-xs font-semibold text-ink">No student submissions found matching current criteria.</p>
+                    <p className="text-[11px] text-ink-muted">Try clearing the search query or adjusting filters.</p>
+                    <div className="pt-2">
+                      <ButtonUtility onClick={() => { setSearchTerm(""); setScoreFilter("ALL"); }}>
+                        Reset Search
+                      </ButtonUtility>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline bg-surface">
-                {filteredSubmissions.map((sub) => {
+              ) : (
+                filteredSubmissions.map((sub) => {
                   const pct = sub.percentage || 0;
                   const scoreBadgeColor =
                     pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
@@ -492,11 +526,11 @@ export default function SingleBatchPage() {
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </FeatureCard>
     </div>
   );

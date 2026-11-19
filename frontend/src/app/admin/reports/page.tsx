@@ -17,31 +17,28 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
+import { useTechnicalReports } from "@/lib/queries";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   ButtonPrimary,
   ButtonUtility,
   BadgePill,
   Skeleton,
   AppleSelect,
+  MetricValue,
+  RefetchProgressLine,
 } from "@/components/ui";
 
 export default function AdminReportsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { setTrail } = useBreadcrumbs();
   const { currentUser, isRootAdmin, branches } = useTenant();
-
-  const [loading, setLoading] = useState(true);
-  const [reports, setReports] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    open: 0,
-    in_progress: 0,
-    resolved: 0,
-  });
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -49,12 +46,51 @@ export default function AdminReportsPage() {
   const [branchFilter, setBranchFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  // TanStack Query: Technical reports & stats (Cached, keepPreviousData, instant back-nav, CLS = 0.00)
+  const {
+    data: reportsData,
+    isLoading,
+    isFetching,
+    refetch: refetchReports,
+  } = useTechnicalReports(
+    statusFilter !== "ALL" ? statusFilter : undefined,
+    roleFilter !== "ALL" ? roleFilter : undefined,
+    branchFilter !== "ALL" ? branchFilter : undefined
+  );
+
+  const reports = useMemo(() => reportsData?.reports || [], [reportsData?.reports]);
+  const stats = useMemo(
+    () =>
+      reportsData?.stats || {
+        total: 0,
+        open: 0,
+        in_progress: 0,
+        resolved: 0,
+      },
+    [reportsData?.stats]
+  );
+
   // Resolving state per report
   const [adminNotesMap, setAdminNotesMap] = useState<Record<string, string>>({});
   const [updatingReportId, setUpdatingReportId] = useState<string | null>(null);
 
   // Full-size screenshot modal / lightbox
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
+
+  // Pre-fill admin notes when reports load
+  useEffect(() => {
+    if (reports.length > 0) {
+      setAdminNotesMap((prev) => {
+        const next = { ...prev };
+        reports.forEach((r: any) => {
+          if (r.admin_notes && !next[r.id]) {
+            next[r.id] = r.admin_notes;
+          }
+        });
+        return next;
+      });
+    }
+  }, [reports]);
 
   // Set breadcrumb
   useEffect(() => {
@@ -81,50 +117,11 @@ export default function AdminReportsPage() {
     }
   }, [router]);
 
-  const loadReports = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await api.listTechnicalReports(
-        statusFilter !== "ALL" ? statusFilter : undefined,
-        roleFilter !== "ALL" ? roleFilter : undefined,
-        branchFilter !== "ALL" ? branchFilter : undefined
-      );
-      setReports(res.reports || []);
-      setStats(
-        res.stats || {
-          total: 0,
-          open: 0,
-          in_progress: 0,
-          resolved: 0,
-        }
-      );
-
-      // Pre-fill existing admin notes
-      const initialNotes: Record<string, string> = {};
-      (res.reports || []).forEach((r: any) => {
-        if (r.admin_notes) {
-          initialNotes[r.id] = r.admin_notes;
-        }
-      });
-      setAdminNotesMap(initialNotes);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to load technical reports.", {
-        title: "Load Error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, roleFilter, branchFilter, toast]);
-
-  useEffect(() => {
-    loadReports();
-  }, [loadReports]);
-
   const handleUpdateStatus = async (reportId: string, newStatus: string) => {
     try {
       setUpdatingReportId(reportId);
       const notes = adminNotesMap[reportId] || "";
-      const res = await api.updateTechnicalReport(reportId, {
+      await api.updateTechnicalReport(reportId, {
         status: newStatus,
         admin_notes: notes,
       });
@@ -136,16 +133,11 @@ export default function AdminReportsPage() {
         { title: "Status Updated", duration: 5000 }
       );
 
-      // Update local state
-      setReports((prev) =>
-        prev.map((r) => (r.id === reportId ? { ...r, ...res.report } : r))
-      );
-
-      // Refresh stats
-      loadReports();
+      queryClient.invalidateQueries({ queryKey: ["technical-reports"] });
+      await refetchReports();
     } catch (err: any) {
-      toast.error(err.message || "Failed to update report.", {
-        title: "Update Failed",
+      toast.error(err.message || "Failed to update report status.", {
+        title: "Update Error",
       });
     } finally {
       setUpdatingReportId(null);
@@ -187,11 +179,11 @@ export default function AdminReportsPage() {
 
         <button
           type="button"
-          onClick={loadReports}
-          disabled={loading}
+          onClick={() => refetchReports()}
+          disabled={isFetching}
           className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-surface hover:bg-canvas-soft border border-hairline transition-colors cursor-pointer text-ink shadow-2xs"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
           <span>Refresh Reports</span>
         </button>
       </div>
@@ -200,9 +192,12 @@ export default function AdminReportsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-lg bg-surface border border-hairline shadow-2xs">
           <div className="text-[11px] font-semibold text-ink-muted uppercase">Total Reports</div>
-          <div className="text-xl sm:text-2xl font-black text-ink font-mono mt-0.5">
-            {stats.total}
-          </div>
+          <MetricValue
+            isLoading={isLoading}
+            value={stats.total}
+            className="text-xl sm:text-2xl font-black text-ink font-mono mt-0.5"
+            width="w-12"
+          />
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface border border-hairline shadow-2xs">
@@ -210,9 +205,12 @@ export default function AdminReportsPage() {
             <AlertTriangle className="h-3 w-3" />
             <span>Open (Action Needed)</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-600 font-mono mt-0.5">
-            {stats.open}
-          </div>
+          <MetricValue
+            isLoading={isLoading}
+            value={stats.open}
+            className="text-xl sm:text-2xl font-black text-amber-600 font-mono mt-0.5"
+            width="w-10"
+          />
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface border border-hairline shadow-2xs">
@@ -220,9 +218,12 @@ export default function AdminReportsPage() {
             <RotateCcw className="h-3 w-3" />
             <span>In Progress</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-blue-600 font-mono mt-0.5">
-            {stats.in_progress}
-          </div>
+          <MetricValue
+            isLoading={isLoading}
+            value={stats.in_progress}
+            className="text-xl sm:text-2xl font-black text-blue-600 font-mono mt-0.5"
+            width="w-10"
+          />
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface border border-hairline shadow-2xs">
@@ -230,9 +231,12 @@ export default function AdminReportsPage() {
             <CheckCircle2 className="h-3 w-3" />
             <span>Resolved</span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-600 font-mono mt-0.5">
-            {stats.resolved}
-          </div>
+          <MetricValue
+            isLoading={isLoading}
+            value={stats.resolved}
+            className="text-xl sm:text-2xl font-black text-emerald-600 font-mono mt-0.5"
+            width="w-10"
+          />
         </div>
       </div>
 
@@ -246,10 +250,11 @@ export default function AdminReportsPage() {
                 key={st}
                 type="button"
                 onClick={() => setStatusFilter(st)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${statusFilter === st
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
+                  statusFilter === st
                     ? "bg-surface text-ink shadow-2xs border border-hairline"
                     : "text-ink-secondary hover:text-ink"
-                  }`}
+                }`}
               >
                 {st === "ALL" ? "All Status" : st.replace("_", " ")}
               </button>
@@ -295,26 +300,28 @@ export default function AdminReportsPage() {
       </div>
 
       {/* Reports List */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="p-4 rounded-lg bg-surface border border-hairline space-y-3">
-              <Skeleton className="h-5 w-1/3" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-8 w-1/4" />
-            </div>
-          ))}
-        </div>
-      ) : filteredReports.length === 0 ? (
-        <div className="py-12 text-center text-ink-muted space-y-2 p-6 rounded-lg border border-hairline bg-surface">
-          <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto opacity-80" />
-          <div className="font-bold text-ink text-sm">No reports match your filters</div>
-          <p className="text-xs text-ink-secondary max-w-sm mx-auto">
-            There are currently no technical issue reports matching the selected status or search term.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
+      <div className="relative">
+        <RefetchProgressLine isFetching={isFetching} />
+        {isLoading && reports.length === 0 ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-4 rounded-lg bg-surface border border-hairline space-y-3">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-8 w-1/4" />
+              </div>
+            ))}
+          </div>
+        ) : filteredReports.length === 0 ? (
+          <div className="py-12 text-center text-ink-muted space-y-2 p-6 rounded-lg border border-hairline bg-surface">
+            <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto opacity-80" />
+            <div className="font-bold text-ink text-sm">No reports match your filters</div>
+            <p className="text-xs text-ink-secondary max-w-sm mx-auto">
+              There are currently no technical issue reports matching the selected status or search term.
+            </p>
+          </div>
+        ) : (
+          <div className={`space-y-4 ${isFetching ? "opacity-75 transition-opacity" : ""}`}>
           {filteredReports.map((report) => {
             const isResolved = report.status === "RESOLVED";
             const isInProgress = report.status === "IN_PROGRESS";
@@ -527,6 +534,7 @@ export default function AdminReportsPage() {
           })}
         </div>
       )}
+      </div>
 
       {/* Lightbox Screenshot Modal */}
       {activeLightboxImg && (

@@ -24,7 +24,6 @@ import {
   computeRankedSubmissions,
 } from "@/components/ExamRankedTable";
 import {
-  ExamDetailSkeleton,
   useConfirm,
 } from "@/components/ui";
 
@@ -355,15 +354,7 @@ export default function ExamDetailPage() {
     }
   };
 
-  if (isExamLoading && !exam) {
-    return (
-      <div className="space-y-6 max-w-6xl mx-auto pb-16">
-        <ExamDetailSkeleton />
-      </div>
-    );
-  }
-
-  if (!exam) {
+  if (!isExamLoading && !exam) {
     return (
       <div className="max-w-xl mx-auto py-12 text-center text-xs text-ink-muted">
         Exam not found.
@@ -371,11 +362,11 @@ export default function ExamDetailPage() {
     );
   }
 
-  const isPublished = exam.is_published === 1 || exam.lifecycle_status === "PUBLISHED";
-  const hasQp = Boolean(exam.question_paper_path);
-  const hasAk = Boolean(exam.answer_key_path);
-  const isRubricApproved = Boolean(exam.rubric_version?.is_approved || exam.status === "RUBRIC_APPROVED");
-  const questionCount = exam.rubric_version?.rubric_data
+  const isPublished = exam ? (exam.is_published === 1 || exam.lifecycle_status === "PUBLISHED") : false;
+  const hasQp = Boolean(exam?.question_paper_path);
+  const hasAk = Boolean(exam?.answer_key_path);
+  const isRubricApproved = Boolean(exam?.rubric_version?.is_approved || exam?.status === "RUBRIC_APPROVED");
+  const questionCount = exam?.rubric_version?.rubric_data
     ? typeof exam.rubric_version.rubric_data === "string"
       ? (JSON.parse(exam.rubric_version.rubric_data)?.questions || []).length
       : (exam.rubric_version.rubric_data?.questions || []).length
@@ -385,13 +376,14 @@ export default function ExamDetailPage() {
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* 1. Header Toolbar */}
       <ExamActionHeader
-        title={exam.title}
-        subject={exam.subject}
-        totalMarks={exam.total_marks}
+        title={exam?.title}
+        subject={exam?.subject}
+        totalMarks={exam?.total_marks}
         branchName={selectedBranch?.name}
         isPublished={isPublished}
         isPublishing={isPublishing}
         isRootAdmin={isRootAdmin}
+        isLoading={isExamLoading}
         onTogglePublish={handlePublishResults}
         onExportCsv={handleExportRankedCSV}
         onDeleteExam={() => setDeleteExamModalOpen(true)}
@@ -400,6 +392,7 @@ export default function ExamDetailPage() {
       {/* 2. Submission Window Control Bar with Zero-Drift Countdown Hook */}
       <SubmissionWindowControlBar
         windowStatus={windowStatus}
+        isLoading={isExamLoading}
         isOpeningWindow={isOpeningWindow}
         isExtendingWindow={isExtendingWindow}
         isClosingWindow={isClosingWindow}
@@ -416,6 +409,7 @@ export default function ExamDetailPage() {
         isRubricApproved={isRubricApproved}
         questionCount={questionCount}
         isRootAdmin={isRootAdmin}
+        isLoading={isExamLoading}
         onViewQp={() => handleViewArtifact("QUESTION_PAPER")}
         onViewAk={() => handleViewArtifact("ANSWER_KEY")}
         onUploadQp={() => setUploadQpOpen(true)}
@@ -428,15 +422,17 @@ export default function ExamDetailPage() {
         evaluatedCount={stats.completed}
         averagePercentage={stats.avgPct}
         needsReviewCount={stats.needsReview}
+        isLoading={isSubsLoading && submissions.length === 0}
       />
 
       {/* 5. Submissions Ledger & Ranked Grid */}
       <ExamSubmissionsGrid
         examId={examId}
-        examTitle={exam.title}
-        maxMarks={exam.total_marks || 25}
+        examTitle={exam?.title || "Exam"}
+        maxMarks={exam?.total_marks || 25}
         submissions={submissions as any}
         isRefreshing={isSubsRefetching}
+        isLoading={isSubsLoading}
         onRefresh={() => {
           queryClient.invalidateQueries({ queryKey: queryKeys.submissions.list(examId) });
           refetchSubmissions();
@@ -473,7 +469,7 @@ export default function ExamDetailPage() {
       <ExamDeleteConfirmModal
         isOpen={deleteExamModalOpen}
         onClose={() => setDeleteExamModalOpen(false)}
-        examTitle={exam.title}
+        examTitle={exam?.title || "Exam"}
         onConfirm={handleDeleteExam}
         isDeleting={isDeletingExam}
       />
@@ -483,8 +479,8 @@ export default function ExamDetailPage() {
         isOpen={viewerModalOpen}
         onClose={() => setViewerModalOpen(false)}
         examId={examId}
-        examTitle={exam.title}
-        examSubject={exam.subject}
+        examTitle={exam?.title || "Exam"}
+        examSubject={exam?.subject || ""}
         initialArtifact={viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}
         hasQuestionPaper={hasQp}
         hasAnswerKey={hasAk}

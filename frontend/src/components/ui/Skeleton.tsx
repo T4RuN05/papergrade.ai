@@ -96,6 +96,73 @@ export function SkeletonButton({
   return <Skeleton className={`${sizeClasses} ${className}`} rounded="full" />;
 }
 
+export function MetricValue({
+  value,
+  isLoading,
+  width = "w-14",
+  height = "h-7",
+  className = "",
+}: {
+  value?: string | number | null;
+  isLoading?: boolean;
+  width?: string;
+  height?: string;
+  className?: string;
+}) {
+  if (isLoading || value === undefined || value === null) {
+    return <Skeleton className={`${height} ${width} rounded-md font-mono inline-block ${className}`} />;
+  }
+  return <span className={className}>{value}</span>;
+}
+
+export function TableSkeletonRows({
+  columns,
+  rowCount = 6,
+}: {
+  columns: { width: string; align?: "left" | "center" | "right" }[];
+  rowCount?: number;
+}) {
+  return (
+    <>
+      {Array.from({ length: rowCount }).map((_, i) => (
+        <tr key={i} className="h-12 border-b border-hairline/60">
+          {columns.map((col, idx) => (
+            <td
+              key={idx}
+              className={`px-4 py-3 ${
+                col.align === "right"
+                  ? "text-right"
+                  : col.align === "center"
+                  ? "text-center"
+                  : "text-left"
+              }`}
+            >
+              <Skeleton
+                className={`h-3.5 ${col.width} inline-block ${
+                  col.align === "right"
+                    ? "ml-auto"
+                    : col.align === "center"
+                    ? "mx-auto"
+                    : ""
+                }`}
+              />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
+export function RefetchProgressLine({ isFetching }: { isFetching?: boolean }) {
+  if (!isFetching) return null;
+  return (
+    <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full mb-1">
+      <div className="h-full bg-primary animate-pulse w-full" />
+    </div>
+  );
+}
+
 // ==========================================
 // 2. Dashboard Skeleton (/overview)
 // ==========================================

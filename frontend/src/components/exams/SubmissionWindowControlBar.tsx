@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Clock, Plus, Lock, AlertCircle, Play } from "lucide-react";
-import { ButtonPrimary, ButtonUtility, StatusWell } from "@/components/ui";
+import { ButtonPrimary, ButtonUtility, StatusWell, Skeleton } from "@/components/ui";
 import { useWindowCountdown } from "@/hooks/useWindowCountdown";
 
 interface WindowStatusData {
@@ -15,9 +15,10 @@ interface WindowStatusData {
 
 interface SubmissionWindowControlBarProps {
   windowStatus?: WindowStatusData | null;
-  isOpeningWindow: boolean;
-  isExtendingWindow: boolean;
-  isClosingWindow: boolean;
+  isOpeningWindow?: boolean;
+  isExtendingWindow?: boolean;
+  isClosingWindow?: boolean;
+  isLoading?: boolean;
   onOpenWindowModal: () => void;
   onExtendWindow: () => void;
   onCloseWindow: () => void;
@@ -25,9 +26,10 @@ interface SubmissionWindowControlBarProps {
 
 export function SubmissionWindowControlBar({
   windowStatus,
-  isOpeningWindow,
-  isExtendingWindow,
-  isClosingWindow,
+  isOpeningWindow = false,
+  isExtendingWindow = false,
+  isClosingWindow = false,
+  isLoading = false,
   onOpenWindowModal,
   onExtendWindow,
   onCloseWindow,
@@ -100,15 +102,19 @@ export function SubmissionWindowControlBar({
         </div>
       </div>
 
-      <ButtonPrimary
-        size="sm"
-        onClick={onOpenWindowModal}
-        disabled={isOpeningWindow}
-        className="self-start sm:self-auto shrink-0"
-      >
-        <Play className="h-3.5 w-3.5 mr-1.5" />
-        {isOpeningWindow ? "Starting Session..." : "Open Submission Window"}
-      </ButtonPrimary>
+      {isLoading && !windowStatus ? (
+        <Skeleton className="h-8 w-44 rounded-md shrink-0 self-start sm:self-auto" />
+      ) : (
+        <ButtonPrimary
+          size="sm"
+          onClick={onOpenWindowModal}
+          disabled={isOpeningWindow}
+          className="self-start sm:self-auto shrink-0"
+        >
+          <Play className="h-3.5 w-3.5 mr-1.5" />
+          {isOpeningWindow ? "Starting Session..." : "Open Submission Window"}
+        </ButtonPrimary>
+      )}
     </div>
   );
 }

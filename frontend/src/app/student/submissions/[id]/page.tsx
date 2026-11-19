@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -20,8 +20,20 @@ import {
   BookOpen,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken } from "@/lib/api";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton } from "@/components/ui";
+import { queryKeys } from "@/lib/queryKeys";
+import { useSubmissionDetail } from "@/lib/queries";
+import {
+  ButtonPrimary,
+  ButtonUtility,
+  FeatureCard,
+  BadgePill,
+  MetricValue,
+  RefetchProgressLine,
+  Skeleton,
+  EvaluationViewerSkeleton,
+} from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
 
@@ -39,7 +51,7 @@ const DocumentViewer = dynamic(
   () => import("@/components/DocumentViewer").then((mod) => mod.DocumentViewer),
   {
     ssr: false,
-    loading: () => <EvaluationViewerSkeleton />,
+    loading: () => <EvaluationViewerSkeleton isStudent />,
   }
 );
 
@@ -47,40 +59,51 @@ export default function StudentSubmissionViewerPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const submissionId = params.id as string;
 
-  const [submission, setSubmission] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  // Guard: token check
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      router.push(`/auth/login?role=student&redirect=/student/submissions/${submissionId}`);
+    }
+  }, [submissionId, router]);
+
+  // TanStack Query: SWR cached submission detail
+  const {
+    data: fetchedSubmission,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch: refetchSubmission,
+  } = useSubmissionDetail(submissionId);
+
+  // Local state overlay for optimistic revaluations
+  const [localSubmission, setLocalSubmission] = useState<any>(null);
+
+  useEffect(() => {
+    setLocalSubmission(null);
+  }, [submissionId]);
+
+  const submission: any = useMemo(() => {
+    if (localSubmission && localSubmission.id === submissionId) {
+      return localSubmission;
+    }
+    return fetchedSubmission || null;
+  }, [localSubmission, fetchedSubmission, submissionId]);
+
   const [selectedAnswer, setSelectedAnswer] = useState<GradedAnswer | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [artifactModalOpen, setArtifactModalOpen] = useState(false);
 
-  const loadSubmission = useCallback(async () => {
-    try {
-      const data = await api.getSubmission(submissionId);
-      setSubmission(data);
-      if (data.answers && data.answers.length > 0) {
-        setSelectedAnswer(data.answers[0]);
-      }
-    } catch (err: any) {
-      console.error("Failed to load student submission:", err);
-      toast.error(err.message || "Failed to load examination answer sheet.", {
-        title: "Load Error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [submissionId, toast]);
-
+  // Auto-select first answer when loaded
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) {
-      router.push(`/auth/login?role=student&redirect=/student/submissions/${submissionId}`);
-      return;
+    if (submission?.answers && submission.answers.length > 0 && !selectedAnswer) {
+      setSelectedAnswer(submission.answers[0]);
     }
-    loadSubmission();
-  }, [submissionId, router, loadSubmission]);
+  }, [submission?.id, selectedAnswer]);
 
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = true) => {
     setSelectedAnswer(ans);
@@ -94,22 +117,24 @@ export default function StudentSubmissionViewerPage() {
   };
 
   const handleRevaluationSubmitted = (answerId: string, revalData: any) => {
-    setSubmission((prev: any) => {
-      if (!prev) return prev;
-      const updatedAnswers = (prev.answers || []).map((a: any) => {
-        if (a.id === answerId) {
-          return {
-            ...a,
-            revaluation: revalData,
-          };
-        }
-        return a;
-      });
-      return {
-        ...prev,
-        answers: updatedAnswers,
-      };
+    const updatedAnswers = (submission?.answers || []).map((a: any) => {
+      if (a.id === answerId) {
+        return {
+          ...a,
+          revaluation: revalData,
+        };
+      }
+      return a;
     });
+
+    const nextSub = {
+      ...submission,
+      answers: updatedAnswers,
+    };
+
+    setLocalSubmission(nextSub);
+    queryClient.setQueryData(queryKeys.submissions.detail(submissionId), nextSub);
+    queryClient.invalidateQueries({ queryKey: queryKeys.revaluations.all() });
 
     if (selectedAnswer && selectedAnswer.id === answerId) {
       setSelectedAnswer((prev: any) => ({
@@ -119,11 +144,10 @@ export default function StudentSubmissionViewerPage() {
     }
   };
 
-  if (loading) {
-    return <EvaluationViewerSkeleton isStudent />;
-  }
+  const isColdLoading = isLoading && !submission;
+  const loadError = queryError ? (queryError as any).message || "Failed to load submission" : null;
 
-  if (!submission) {
+  if (!isColdLoading && !submission && loadError) {
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
         <FeatureCard className="p-8 text-center space-y-4">
@@ -134,34 +158,40 @@ export default function StudentSubmissionViewerPage() {
           <p className="text-xs text-ink-muted">
             The examination submission <code className="font-mono bg-canvas-soft px-1.5 py-0.5 rounded">{submissionId}</code> could not be loaded.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex items-center justify-center gap-3">
             <ButtonUtility href="/student/portal">
               <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
               Back to Dashboard
             </ButtonUtility>
+            <ButtonPrimary size="sm" onClick={() => refetchSubmission()}>
+              Retry
+            </ButtonPrimary>
           </div>
         </FeatureCard>
       </div>
     );
   }
 
-  const answers: GradedAnswer[] = submission.answers || [];
-  const pct = Number(submission.percentage || 0);
+  const answers: GradedAnswer[] = submission?.answers || [];
+  const pct = submission?.percentage || 0;
   const scoreBadgeColor = pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
 
-  const totalScore = Number(submission.total_awarded_marks || 0).toFixed(1);
-  const maxScore = submission.max_marks || submission.exam?.total_marks || 25;
-  const isPurged = Boolean(submission.is_document_purged);
+  const totalScore = Number(submission?.total_awarded_marks || 0).toFixed(1);
+  const maxScore = submission?.max_marks || submission?.exam?.total_marks || 25;
+  const isPurged = Boolean(submission?.is_document_purged);
   const isPublished = Boolean(
-    submission.is_published ||
-    submission.publication_status === "PUBLISHED" ||
-    submission.exam?.is_published === 1 ||
-    submission.exam?.lifecycle_status === "PUBLISHED"
+    submission?.is_published ||
+    submission?.publication_status === "PUBLISHED" ||
+    submission?.exam?.is_published === 1 ||
+    submission?.exam?.lifecycle_status === "PUBLISHED"
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pt-4 sm:pt-6 pb-16 px-3 sm:px-6 cascade-group">
-      {/* Top Breadcrumb & Actions Bar */}
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pt-4 sm:pt-6 pb-16 px-3 sm:px-6 cascade-group relative">
+      {/* Background Refetch Line */}
+      <RefetchProgressLine isFetching={isFetching} />
+
+      {/* Top Breadcrumb & Actions Bar — Permanently Mounted (CLS = 0.00) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
         <Link
           href="/student/portal"
@@ -173,7 +203,7 @@ export default function StudentSubmissionViewerPage() {
 
         {/* Actions Group: View QP/Answer Key & Download Graded PDF */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {isPublished && (submission.exam?.has_question_paper || submission.exam?.has_answer_key || submission.has_question_paper || submission.has_answer_key) && (
+          {isPublished && (submission?.exam?.has_question_paper || submission?.exam?.has_answer_key || submission?.has_question_paper || submission?.has_answer_key) && (
             <button
               type="button"
               onClick={() => setArtifactModalOpen(true)}
@@ -186,7 +216,9 @@ export default function StudentSubmissionViewerPage() {
           )}
 
           {/* Download Graded PDF Button */}
-          {!isPublished ? (
+          {isColdLoading || !submission ? (
+            <Skeleton className="h-9 w-48 rounded-md" />
+          ) : !isPublished ? (
             <button
               type="button"
               disabled
@@ -228,40 +260,62 @@ export default function StudentSubmissionViewerPage() {
         </div>
       </div>
 
-      {/* Student & Examination Banner */}
+      {/* Student & Examination Banner — Permanently Mounted (CLS = 0.00) */}
       <FeatureCard className="p-3.5 sm:p-6 border-hairline bg-surface">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="space-y-0.5 sm:space-y-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <h1 className="text-base sm:text-xl font-bold text-ink tracking-tight truncate max-w-[280px] sm:max-w-none">
-                  {submission.exam?.title || submission.exam_title || "Examination Answer Sheet"}
-                </h1>
-                <span className="font-mono text-[11px] sm:text-xs font-semibold rounded-md bg-canvas-soft border border-hairline px-2 py-0.5 text-ink">
-                  Roll: {submission.roll_number}
-                </span>
-                <span className="text-xs text-ink-muted hidden sm:inline">
-                  • {submission.student_name}
-                </span>
-              </div>
-              <p className="text-[11px] sm:text-xs text-ink-muted leading-relaxed">
-                {!isPublished
-                  ? "Read-only preview of your registered answer script. Evaluated marks and rubrics will appear here once officially published."
-                  : isPurged
-                  ? "Archived question marks record. Scanned pages removed after 15 days to conserve storage."
-                  : "Read-only paper viewer. Tap any question box on the canvas to inspect marks and request revaluation."}
-              </p>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {isColdLoading || !submission ? (
+                <>
+                  <Skeleton className="h-6 w-56 rounded" />
+                  <Skeleton className="h-5 w-20 rounded" />
+                </>
+              ) : (
+                <>
+                  <h1 className="text-base sm:text-xl font-bold text-ink tracking-tight truncate max-w-[280px] sm:max-w-none">
+                    {submission.exam?.title || submission.exam_title || "Examination Answer Sheet"}
+                  </h1>
+                  <span className="font-mono text-[11px] sm:text-xs font-semibold rounded-md bg-canvas-soft border border-hairline px-2 py-0.5 text-ink">
+                    Roll: {submission.roll_number}
+                  </span>
+                  <span className="text-xs text-ink-muted hidden sm:inline">
+                    • {submission.student_name}
+                  </span>
+                </>
+              )}
+            </div>
+            <p className="text-[11px] sm:text-xs text-ink-muted leading-relaxed">
+              {isColdLoading || !submission
+                ? "Loading evaluated examination record..."
+                : !isPublished
+                ? "Read-only preview of your registered answer script. Evaluated marks and rubrics will appear here once officially published."
+                : isPurged
+                ? "Archived question marks record. Scanned pages removed after 15 days to conserve storage."
+                : "Read-only paper viewer. Tap any question box on the canvas to inspect marks and request revaluation."}
+            </p>
           </div>
 
           {/* Scores Overview Pill Cluster */}
           <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-3 border-t md:border-t-0 md:border-l border-hairline pt-3 md:pt-0 md:pl-6 shrink-0">
-            {isPublished ? (
+            {isColdLoading || !submission ? (
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-8 w-20 rounded" />
+                <Skeleton className="h-8 w-16 rounded" />
+              </div>
+            ) : isPublished ? (
               <>
                 <div>
                   <span className="text-[10px] text-ink-muted block uppercase tracking-wider font-semibold leading-none">
                     Marks
                   </span>
                   <span className="font-mono text-base sm:text-lg font-bold text-ink mt-0.5 block leading-tight">
-                    {totalScore} <span className="text-[10px] sm:text-xs text-ink-muted font-normal">/ {maxScore}</span>
+                    <MetricValue
+                      value={totalScore}
+                      isLoading={isColdLoading}
+                      width="w-10"
+                      className="font-mono text-base sm:text-lg font-bold text-ink inline-block"
+                    />
+                    <span className="text-[10px] sm:text-xs text-ink-muted font-normal"> / {maxScore}</span>
                   </span>
                 </div>
 
@@ -363,13 +417,15 @@ export default function StudentSubmissionViewerPage() {
                           {ansMax.toFixed(1)}
                         </td>
                         <td className="py-3 px-3 whitespace-nowrap">
-                          <span className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
-                            isFull
-                              ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                              : isZero
-                              ? "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                              : "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                          }`}>
+                          <span
+                            className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                              isFull
+                                ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                : isZero
+                                ? "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                : "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                            }`}
+                          >
                             {ansPct}%
                           </span>
                         </td>
@@ -394,185 +450,161 @@ export default function StudentSubmissionViewerPage() {
             </div>
           </div>
         ) : (
-          <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs">
-            <DocumentViewer
-              submissionId={submission.id}
-              pageCount={submission.page_count || 1}
-              answers={answers}
-              onSelectAnswer={(ans) => handleSelectAnswer(ans, false)}
-              onInspectAnswer={(ans) => handleSelectAnswer(ans, true)}
-              selectedAnswerId={selectedAnswer?.id}
-              currentPage={currentPage}
-              onPageChange={setCurrentPage}
-              totalAwardedMarks={isPublished ? submission.total_awarded_marks : undefined}
-              maxMarks={submission.max_marks}
-              readOnly={true}
-              hideScoreStamp={!isPublished}
-              isDocumentPurged={Boolean(submission.is_document_purged)}
-            />
+          <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative">
+            {isColdLoading || !submission ? (
+              <EvaluationViewerSkeleton isStudent />
+            ) : (
+              <DocumentViewer
+                submissionId={submission.id}
+                pageCount={submission.page_count || 1}
+                answers={answers}
+                onSelectAnswer={(ans) => handleSelectAnswer(ans, false)}
+                onInspectAnswer={(ans) => handleSelectAnswer(ans, true)}
+                selectedAnswerId={selectedAnswer?.id}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                totalAwardedMarks={isPublished ? submission.total_awarded_marks : undefined}
+                maxMarks={submission.max_marks}
+                readOnly={true}
+                hideScoreStamp={!isPublished}
+                isDocumentPurged={Boolean(submission.is_document_purged)}
+              />
+            )}
           </div>
         )}
 
         {/* Right Sidebar: Questions List & Revaluation Badges (1 col) */}
         <div className="space-y-4">
-          {isPublished ? (
-            <>
-              <FeatureCard className="p-3.5 sm:p-4 space-y-2.5 sm:space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-hairline">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
-                    Questions ({answers.length})
-                  </h3>
-                  <span className="text-[10px] text-primary font-medium">Tap to inspect</span>
+          <FeatureCard className="p-3.5 sm:p-4 space-y-2.5 sm:space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-hairline">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
+                Questions ({answers.length})
+              </h3>
+              <span className="text-[10px] text-primary font-medium">Tap to inspect</span>
+            </div>
+
+            <div className="space-y-1.5 max-h-[580px] overflow-y-auto pr-1">
+              {isColdLoading || !submission ? (
+                [1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="p-2.5 rounded-md border border-hairline bg-surface space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-3.5 w-16 rounded" />
+                      <Skeleton className="h-4 w-12 rounded" />
+                    </div>
+                    <Skeleton className="h-2.5 w-24 rounded" />
+                  </div>
+                ))
+              ) : answers.length === 0 ? (
+                <div className="p-4 text-center text-xs text-ink-muted">
+                  No question records available.
                 </div>
+              ) : (
+                answers.map((ans) => {
+                  const isSelected = selectedAnswer?.id === ans.id;
+                  const ansScore = Number(ans.awarded_marks || 0);
+                  const ansMax = Number(ans.max_marks || 1);
+                  const scoreColor =
+                    ansScore >= ansMax
+                      ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                      : ansScore > 0
+                      ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                      : "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
 
-                <div className="space-y-1.5 max-h-[580px] overflow-y-auto pr-1">
-                  {answers.map((ans) => {
-                    const isSelected = selectedAnswer?.id === ans.id;
-                    const ansScore = Number(ans.awarded_marks || 0);
-                    const ansMax = Number(ans.max_marks || 1);
-                    const scoreColor =
-                      ansScore >= ansMax
-                        ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                        : ansScore > 0
-                        ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                        : "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
+                  const reval = ans.revaluation;
+                  const hasPendingReval =
+                    reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
+                  const isResolved = reval && reval.status === "RESOLVED";
 
-                    const reval = ans.revaluation;
-                    const hasPendingReval =
-                      reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
-                    const isResolved = reval && reval.status === "RESOLVED";
+                  return (
+                    <button
+                      key={ans.id}
+                      onClick={() => handleSelectAnswer(ans, true)}
+                      className={`w-full flex flex-col p-2.5 rounded-md border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-primary bg-primary/5 shadow-2xs"
+                          : "border-hairline bg-surface hover:bg-canvas-soft hover:border-[#d0d0d0]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-ink">
+                            {ans.question_id}
+                          </span>
+                          {hasPendingReval && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                              <RotateCcw className="h-2.5 w-2.5 animate-spin text-amber-600" />
+                              Reval Pending
+                            </span>
+                          )}
+                          {isResolved && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                              Resolved
+                            </span>
+                          )}
+                        </div>
 
-                    return (
-                      <button
-                        key={ans.id}
-                        onClick={() => handleSelectAnswer(ans, true)}
-                        className={`w-full flex flex-col p-2.5 rounded-md border text-left transition-all cursor-pointer ${
-                          isSelected
-                            ? "border-primary bg-primary/5 shadow-2xs"
-                            : "border-hairline bg-surface hover:bg-canvas-soft"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 font-bold text-xs text-ink">
-                            <span>{ans.question_id}</span>
-                            {ans.is_manual_override && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] font-normal">
-                                Override
-                              </span>
-                            )}
-                          </div>
-
-                          <span
-                            className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${scoreColor}`}
-                          >
+                        {isPublished ? (
+                          <span className={`font-mono text-xs font-bold px-1.5 py-0.5 rounded border ${scoreColor}`}>
                             {ansScore.toFixed(1)} / {ansMax}m
                           </span>
-                        </div>
-
-                        {/* Revaluation Flag on Card */}
-                        {hasPendingReval && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-[#7a4e18] bg-[#faf4ec] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] px-1.5 py-0.5 rounded">
-                            <Flag className="h-3 w-3 fill-current" />
-                            <span>Revaluation Appeal Pending</span>
-                          </div>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-ink-muted bg-canvas-soft px-1.5 py-0.5 rounded border border-hairline">
+                            Pending
+                          </span>
                         )}
-                        {isResolved && reval.decision === "MARKS_REVISED" && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-[#1e613b] bg-[#edf5f0] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] px-1.5 py-0.5 rounded">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>Marks Revised</span>
-                          </div>
-                        )}
-                        {isResolved && reval.decision === "MARKS_UPHELD" && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-semibold text-[#4d4a46] bg-[#f1f0ee] border border-[#dedcd8] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] px-1.5 py-0.5 rounded">
-                            <ShieldCheck className="h-3 w-3" />
-                            <span>Marks Upheld</span>
-                          </div>
-                        )}
+                      </div>
 
-                        <div className="text-[10px] text-ink-muted mt-1 flex items-center justify-between">
-                          <span>Page {ans.page_number || 1}</span>
-                          <span className="text-primary hover:underline">Inspect →</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </FeatureCard>
+                      <div className="flex items-center justify-between mt-1 text-[10px] text-ink-muted">
+                        <span>{ans.page_number ? `Page ${ans.page_number}` : "Full Paper"}</span>
+                        <span className="text-primary font-semibold hover:underline">
+                          View Analysis →
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </FeatureCard>
 
-              {/* Quick Info Box */}
-              <div className="rounded-lg border border-hairline bg-surface p-3 text-[11px] text-ink-muted space-y-1 relative overflow-hidden shadow-2xs">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/80 dark:bg-blue-400/70" />
-                <div className="font-semibold text-ink flex items-center gap-1.5 pl-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                  <span>Human Revaluation Guarantee</span>
-                </div>
-                <p className="pl-1 leading-relaxed">
-                  Under faculty policy, student grievance appeals are manually reviewed by human senior examiners. Automated AI regrading is strictly forbidden.
-                </p>
-              </div>
-            </>
-          ) : (
-            <FeatureCard className="p-3.5 sm:p-4 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-hairline">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
-                  Examination Status
-                </h3>
-                <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-semibold border border-amber-200">
-                  <Clock className="h-3 w-3 animate-pulse" />
-                  In Progress
-                </span>
-              </div>
-
-              <div className="space-y-2.5 text-xs text-ink-secondary py-1">
-                <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline space-y-1">
-                  <span className="font-semibold text-ink block text-[11px]">Evaluation in Progress</span>
-                  <p className="text-[11px] text-ink-muted leading-relaxed">
-                    Your answer sheet has been recorded and is currently undergoing academic grading.
-                  </p>
-                </div>
-
-                <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline space-y-1">
-                  <span className="font-semibold text-ink block text-[11px]">Marks & Question Rubrics</span>
-                  <p className="text-[11px] text-ink-muted leading-relaxed">
-                    Question-by-question marks, detailed rubric remarks, and evaluator comments will unlock here once official results are published.
-                  </p>
-                </div>
-
-                <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline space-y-1">
-                  <span className="font-semibold text-ink block text-[11px]">Revaluation Appeals</span>
-                  <p className="text-[11px] text-ink-muted leading-relaxed">
-                    A 7-day revaluation appeal window will open immediately upon results publication.
-                  </p>
-                </div>
-              </div>
-            </FeatureCard>
-          )}
+          {/* Academic Guidance Note */}
+          <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 text-xs text-ink-secondary space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-ink text-xs">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <span>Verified AI Evaluation</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-ink-muted">
+              Evaluated strictly against institutional model rubrics. If you find an evaluation
+              discrepancy, click any question to file a formal faculty revaluation.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Redesigned Student Question Modal with Revaluation Submission */}
-      <StudentQuestionModal
-        submissionId={submission.id}
-        answer={selectedAnswer}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onRevaluationSubmitted={handleRevaluationSubmitted}
-      />
-
-      {/* Official Question Paper & Answer Key Modal */}
-      {submission && (
-        <ArtifactViewerModal
-          isOpen={artifactModalOpen}
-          onClose={() => setArtifactModalOpen(false)}
-          examId={submission.exam_id || submission.exam?.id}
-          examTitle={submission.exam?.title || submission.exam_title || "Examination Paper"}
-          examSubject={submission.exam?.subject || submission.exam_subject}
-          initialArtifact="question-paper"
-          hasQuestionPaper={Boolean(submission.exam?.has_question_paper ?? submission.exam?.question_paper_path ?? submission.has_question_paper)}
-          hasAnswerKey={Boolean(submission.exam?.has_answer_key ?? submission.exam?.answer_key_path ?? submission.has_answer_key)}
-          isExamDocumentPurged={submission.exam?.is_document_purged ?? false}
+      {/* Question Details / Revaluation Modal */}
+      {selectedAnswer && (
+        <StudentQuestionModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          answer={selectedAnswer}
+          submissionId={submissionId}
+          onRevaluationSubmitted={handleRevaluationSubmitted}
         />
       )}
+
+      {/* Artifact Viewer Modal (QP & Official Answer Key) */}
+      <ArtifactViewerModal
+        isOpen={artifactModalOpen}
+        onClose={() => setArtifactModalOpen(false)}
+        examId={submission?.exam_id || submission?.exam?.id || ""}
+        examTitle={submission?.exam?.title || submission?.exam_title || "Examination"}
+        hasQuestionPaper={Boolean(submission?.exam?.has_question_paper || submission?.has_question_paper)}
+        hasAnswerKey={Boolean(submission?.exam?.has_answer_key || submission?.has_answer_key)}
+      />
     </div>
   );
 }
