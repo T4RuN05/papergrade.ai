@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional
 import mimetypes
+import requests
+import requests.adapters
 from fastapi.responses import RedirectResponse
 
 from backend.app.config import settings
@@ -318,6 +320,11 @@ class CloudinaryStorageService(StorageService):
         self.cache_dir = settings.DATA_DIR / "cloudinary_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+        self._session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_connections=15, pool_maxsize=30, max_retries=1)
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
+
     def _prune_cache_if_needed(self, max_bytes: int = 400 * 1024 * 1024, target_bytes: int = 250 * 1024 * 1024) -> None:
         """
         Enforces high/low watermark disk pruning on the local Cloudinary cache.
@@ -583,12 +590,10 @@ class CloudinaryStorageService(StorageService):
                 cdn_url, _ = cloudinary.utils.cloudinary_url(pub_id, format=fmt, resource_type="image", secure=True)
                 if "/image/upload/v1/" in cdn_url:
                     cdn_url = cdn_url.replace("/image/upload/v1/", "/image/upload/")
-                req = urllib.request.Request(cdn_url, method="HEAD", headers={"User-Agent": "PaperGrade-AI/1.0"})
-                with urllib.request.urlopen(req, timeout=3) as resp:
-                    if 200 <= resp.status < 300:
-                        return True
-            except urllib.error.HTTPError as http_err:
-                if http_err.code == 404:
+                resp = self._session.head(cdn_url, headers={"User-Agent": "PaperGrade-AI/1.0"}, timeout=3)
+                if 200 <= resp.status_code < 300:
+                    return True
+                elif resp.status_code == 404:
                     return False
             except Exception:
                 pass
@@ -605,12 +610,10 @@ class CloudinaryStorageService(StorageService):
                     type="upload",
                     expires_at=int(time.time()) + 120,
                 )
-                req = urllib.request.Request(raw_url, method="HEAD", headers={"User-Agent": "PaperGrade-AI/1.0"})
-                with urllib.request.urlopen(req, timeout=3) as resp:
-                    if 200 <= resp.status < 300:
-                        return True
-            except urllib.error.HTTPError as http_err:
-                if http_err.code == 404:
+                resp = self._session.head(raw_url, headers={"User-Agent": "PaperGrade-AI/1.0"}, timeout=3)
+                if 200 <= resp.status_code < 300:
+                    return True
+                elif resp.status_code == 404:
                     return False
             except Exception:
                 pass

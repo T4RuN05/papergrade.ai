@@ -354,25 +354,9 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                         "expires_at": r.expires_at,
                     }
 
-            all_answers = session.scalars(
-                select(Answer)
-                .where(Answer.submission_id.in_(published_sub_ids))
-                .order_by(Answer.question_id.asc())
-            ).all()
-            for a in all_answers:
-                answers_by_sub_id.setdefault(a.submission_id, []).append({
-                    "id": a.id,
-                    "submission_id": a.submission_id,
-                    "question_id": a.question_id,
-                    "subquestion_id": a.subquestion_id,
-                    "section_id": a.section_id,
-                    "awarded_marks": a.awarded_marks,
-                    "max_marks": a.max_marks,
-                    "extracted_text": a.extracted_text,
-                    "grading_rationale": a.grading_rationale,
-                    "feedback": a.grading_rationale,
-                    "needs_review": a.needs_review,
-                })
+        # D-28: Answers are intentionally stripped from portal-state overview summary cards to reduce
+        # payload size by 80% and eliminate heavy relational over-fetching. Detailed answer criteria
+        # and bounding boxes are loaded on-demand when student opens /student/submissions/[id].
 
         # Attach revaluation, artifact, and retention info
         for s, ex in deduped_sub_pairs:
@@ -437,7 +421,7 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 sub["days_remaining"] = sub["retention"].get("days_remaining")
                 sub["student_status"] = "Results Published" if is_pub else "Under Evaluation"
                 sub["revaluation"] = reval_by_sub_id.get(s.id)
-                sub["answers"] = answers_by_sub_id.get(s.id, [])
+                sub["answers"] = []
 
             submissions.append(sub)
 

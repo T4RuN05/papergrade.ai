@@ -922,6 +922,8 @@ export const api = {
       batch_id?: string;
       storage_key: string;
       upload_session_id?: string;
+      page_count?: number;
+      file_size_bytes?: number;
       sha256_hash?: string;
     }
   ): Promise<{

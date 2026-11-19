@@ -50,8 +50,10 @@ backend/data/cloudinary_cache/*
 backend/data/submissions/*
 backend/data/backups/
 backend/data/reports/*
+backend/data/sample_pages/
 backend/data/papergrade.db
 backend/data/*.db
+install.cmd
 !backend/data/.gitkeep
 !backend/data/uploads/.gitkeep
 !backend/data/page_renders/.gitkeep

@@ -47,13 +47,11 @@ import {
   Image as ImageIcon,
   Trophy,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { api, getAuthToken } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 import { useNotifications } from "@/lib/NotificationContext";
-import { ReportIssueModal } from "@/components/ReportIssueModal";
-import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
-import { ExamRankedTable } from "@/components/ExamRankedTable";
-import { assembleFilesToCanonicalPdf, AssemblyProgress } from "@/lib/pdfAssembler";
+import type { AssemblyProgress } from "@/lib/pdfAssembler";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -67,6 +65,20 @@ import {
   StatusWell,
   MathText,
 } from "@/components/ui";
+
+// Code splitting: Heavy modals and secondary tabs chunked on-demand
+const ReportIssueModal = dynamic(
+  () => import("@/components/ReportIssueModal").then((mod) => mod.ReportIssueModal),
+  { ssr: false }
+);
+const ArtifactViewerModal = dynamic(
+  () => import("@/components/ArtifactViewerModal").then((mod) => mod.ArtifactViewerModal),
+  { ssr: false }
+);
+const ExamRankedTable = dynamic(
+  () => import("@/components/ExamRankedTable").then((mod) => mod.ExamRankedTable),
+  { ssr: false }
+);
 
 interface TrajectoryPoint {
   index: number;
@@ -1785,16 +1797,10 @@ export default function StudentPortalPage() {
       setSubmissions(dedupedFallback);
 
       if (examList.length > 0) {
-        const windowResults = await Promise.all(
-          examList.map(async (ex) => {
-            try {
-              const win = await api.getWindowStatus(ex.id);
-              return { exam: ex, win };
-            } catch {
-              return { exam: ex, win: null };
-            }
-          })
-        );
+        const windowResults = examList.map((ex: any) => ({
+          exam: ex,
+          win: ex.window_status || null,
+        }));
 
         const activeResults = windowResults
           .filter((r) => r.win && r.win.is_active)
@@ -1852,12 +1858,29 @@ export default function StudentPortalPage() {
     }
     loadPortalData();
 
-    // Auto-poll portal data every 20 seconds to detect live window opens or result publications
+    // Auto-poll portal data every 20 seconds when visible to detect live window opens or result publications
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        loadPortalData(true);
+      }
+    };
+
     const pollInterval = setInterval(() => {
-      loadPortalData(true);
+      if (typeof document !== "undefined" && !document.hidden) {
+        loadPortalData(true);
+      }
     }, 20000);
 
-    return () => clearInterval(pollInterval);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
+
+    return () => {
+      clearInterval(pollInterval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
+    };
   }, [router]);
 
   // Window countdown timer effect (ticks all active windows)
@@ -1924,6 +1947,7 @@ export default function StudentPortalPage() {
           statusMessage: "Preparing pages for upload...",
         });
 
+        const { assembleFilesToCanonicalPdf } = await import("@/lib/pdfAssembler");
         finalPdfFile = await assembleFilesToCanonicalPdf(
           scannedPages.map((p) => p.file),
           {
@@ -2006,6 +2030,8 @@ export default function StudentPortalPage() {
           batch_id: user?.batch_id || user?.student?.batch_id,
           storage_key: ticket.destination_key,
           upload_session_id: ticket.upload_session_id,
+          page_count: scannedPages.length || 1,
+          file_size_bytes: finalPdfFile.size,
         });
       } catch (directErr: any) {
         console.warn("Direct cloud upload failed or unsupported, falling back to server multipart:", directErr);

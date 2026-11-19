@@ -3,13 +3,18 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { CheckCircle2, GraduationCap, Building2, Plus, FileText, FileSpreadsheet, Trophy, Layers } from "lucide-react";
 import { api } from "@/lib/api";
 import { Exam, Submission } from "@/lib/types";
 import { useTenant } from "@/lib/TenantContext";
 import { MarksTable } from "@/components/MarksTable";
-import { ExamRankedTable } from "@/components/ExamRankedTable";
 import { FeatureCard, BadgePill, ButtonPrimary, MarksMatrixSkeleton, Skeleton, AppleSelect } from "@/components/ui";
+
+const ExamRankedTable = dynamic(
+  () => import("@/components/ExamRankedTable").then((m) => m.ExamRankedTable),
+  { ssr: false }
+);
 
 function ClassMarksPageContent() {
   const router = useRouter();
@@ -90,12 +95,29 @@ function ClassMarksPageContent() {
     // Initial fetch
     fetchSubmissionsForExam(selectedExamId, true);
 
-    // Live polling every 4 seconds to catch newly completed papers
-    const interval = setInterval(() => {
-      fetchSubmissionsForExam(selectedExamId, false);
-    }, 4000);
+    // Visibility-aware background refresh (45s) only when tab is actively viewed
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchSubmissionsForExam(selectedExamId, false);
+      }
+    };
 
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchSubmissionsForExam(selectedExamId, false);
+      }
+    }, 45000);
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
+    };
   }, [selectedExamId]);
 
   const fetchSubmissionsForExam = async (examId: string, isInitial = false) => {

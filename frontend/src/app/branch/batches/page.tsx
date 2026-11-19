@@ -88,8 +88,29 @@ export default function BranchBatchesPage() {
 
   useEffect(() => {
     loadPasswordResets();
-    const interval = setInterval(loadPasswordResets, 6000);
-    return () => clearInterval(interval);
+
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        loadPasswordResets();
+      }
+    };
+
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        loadPasswordResets();
+      }
+    }, 45000);
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
+    };
   }, [selectedBranch?.id]);
 
   const pendingResets = useMemo(() => {

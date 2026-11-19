@@ -52,13 +52,18 @@ import { Exam } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
+import dynamic from "next/dynamic";
 import {
   ExamRankedTable,
   computeRankedSubmissions,
   exportRankedStandingsCSV,
   exportRosterCSV,
 } from "@/components/ExamRankedTable";
-import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
+
+const ArtifactViewerModal = dynamic(
+  () => import("@/components/ArtifactViewerModal").then((m) => m.ArtifactViewerModal),
+  { ssr: false }
+);
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -217,10 +222,9 @@ export default function ExamDetailPage() {
     if (showSkeleton) setLoading(true);
     else setIsRefreshing(true);
     try {
-      const [examData, subsData, batchesData] = await Promise.all([
+      const [examData, subsData] = await Promise.all([
         api.getExam(examId, forceRefresh),
         api.listSubmissions(examId, forceRefresh).catch(() => []),
-        api.listBatches().catch(() => []),
       ]);
 
       setExam(examData);
@@ -229,13 +233,9 @@ export default function ExamDetailPage() {
         setWindowStatus(examData.window_status);
       }
 
-      // Find matching batch:
-      // 1. From submissions batch_id if available
+      // Find matching batch from exam's scoped_batches or submission batch_id
       const subBatchId = (subsData || []).find((s: any) => s.batch_id)?.batch_id;
-      let matchedBatch = (batchesData || []).find((b: any) => b.id === subBatchId);
-      if (!matchedBatch && examData?.branch_id) {
-        matchedBatch = (batchesData || []).find((b: any) => b.branch_id === examData.branch_id);
-      }
+      let matchedBatch = (examData?.scoped_batches || []).find((b: any) => b.id === subBatchId) || examData?.scoped_batches?.[0];
       setBatchInfo(matchedBatch || null);
 
       // Tenancy auto-sync for Root Admin: ensure active header context matches exam's branch and institute
@@ -272,9 +272,9 @@ export default function ExamDetailPage() {
     if (cachedExam) {
       setExam(cachedExam);
       setLoading(false);
-      loadExamData(false, true);
+      loadExamData(false, false);
     } else {
-      loadExamData(true, true);
+      loadExamData(true, false);
     }
   }, [examId, loadExamData]);
 

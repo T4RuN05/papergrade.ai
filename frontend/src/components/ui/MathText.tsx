@@ -1,7 +1,20 @@
 "use client";
 
-import React, { useMemo } from "react";
-import katex from "katex";
+import React, { useMemo, useState, useEffect } from "react";
+
+let cachedKatex: any = null;
+let katexPromise: Promise<any> | null = null;
+
+function loadKatexAsync(): Promise<any> {
+  if (cachedKatex) return Promise.resolve(cachedKatex);
+  if (!katexPromise) {
+    katexPromise = import("katex").then((mod) => {
+      cachedKatex = mod.default || mod;
+      return cachedKatex;
+    });
+  }
+  return katexPromise;
+}
 
 export interface MathTextProps {
   text?: string | null;
@@ -210,19 +223,39 @@ export function hasLatexMath(str?: string | null): boolean {
 
 export function MathText({ text, className = "", displayMode = false }: MathTextProps) {
   const content = text ?? "";
+  const isLatex = useMemo(() => hasLatexMath(content), [content]);
+  const [katexReady, setKatexReady] = useState<boolean>(() => Boolean(cachedKatex));
+
+  useEffect(() => {
+    if (isLatex && !cachedKatex) {
+      loadKatexAsync().then(() => setKatexReady(true));
+    }
+  }, [isLatex]);
 
   const renderedElements = useMemo(() => {
     if (!content) return null;
+    if (!isLatex) {
+      return <span>{content}</span>;
+    }
 
     const tokens = parseLatexTokens(content);
+    const k = cachedKatex;
 
     return tokens.map((token, idx) => {
       if (token.type === "text") {
         return <span key={idx}>{token.value}</span>;
       }
 
+      if (!k) {
+        return (
+          <span key={idx} className="font-mono text-ink-muted">
+            {token.value}
+          </span>
+        );
+      }
+
       try {
-        const html = katex.renderToString(token.value, {
+        const html = k.renderToString(token.value, {
           displayMode: token.display ?? displayMode,
           throwOnError: false,
           output: "htmlAndMathml",
@@ -235,7 +268,7 @@ export function MathText({ text, className = "", displayMode = false }: MathText
             dangerouslySetInnerHTML={{ __html: html }}
           />
         );
-      } catch (err) {
+      } catch {
         // Fallback to text if rendering fails
         return (
           <span key={idx} className="font-mono text-ink-muted">
@@ -244,7 +277,8 @@ export function MathText({ text, className = "", displayMode = false }: MathText
         );
       }
     });
-  }, [content, displayMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, displayMode, isLatex, katexReady]);
 
   if (!content) return null;
 

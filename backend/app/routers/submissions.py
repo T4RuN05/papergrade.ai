@@ -5,7 +5,7 @@ import hashlib
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
@@ -154,6 +154,43 @@ def parse_iso(iso_str: str) -> datetime:
         return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
     except Exception:
         return datetime.now(timezone.utc)
+
+
+def get_exam_and_active_window(
+    exam_id: str,
+    db: Session,
+    allow_grace: bool = False
+) -> Tuple[Exam, SubmissionWindow]:
+    """
+    Consolidated single-query fetch for Exam and its latest SubmissionWindow.
+    Eliminates multi-query roundtrips over NullPool while strictly preserving
+    all active window, deadline, and grace period invariant checks.
+    """
+    stmt = (
+        select(Exam, SubmissionWindow)
+        .outerjoin(SubmissionWindow, SubmissionWindow.exam_id == Exam.id)
+        .where(Exam.id == exam_id)
+        .order_by(SubmissionWindow.created_at.desc())
+        .limit(1)
+    )
+    row = db.execute(stmt).first()
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="Exam not found.")
+
+    exam, window = row[0], row[1]
+
+    if not window or window.status != "OPEN":
+        raise HTTPException(status_code=400, detail="Submission window is not currently open for this examination.")
+
+    now = datetime.now(timezone.utc)
+    target_deadline = parse_iso(window.grace_deadline_at if allow_grace else window.deadline_at)
+    if now > target_deadline:
+        if allow_grace:
+            raise HTTPException(status_code=400, detail="Grace period has expired. Upload rejected.")
+        else:
+            raise HTTPException(status_code=400, detail="Submission window has closed.")
+
+    return exam, window
 
 
 def verify_active_submission_window(exam_id: str, cursor, allow_grace: bool = False):
@@ -589,6 +626,7 @@ class ConfirmUploadBody(BaseModel):
     student_name: Optional[str] = None
     student_id: Optional[str] = None
     batch_id: Optional[str] = None
+    page_count: Optional[int] = None
     file_size_bytes: Optional[int] = None
     sha256_hash: Optional[str] = None
 
@@ -615,17 +653,13 @@ def request_presigned_upload(
                 detail=f"Forbidden: You are logged in as {user_roll}. You cannot submit for {clean_roll}."
             )
 
-    verify_active_submission_window(exam_id, db, allow_grace=False)
-
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found.")
+    exam, window = get_exam_and_active_window(exam_id, db, allow_grace=False)
 
     if exam.batch_scope in ("SPECIFIC", "BATCHES"):
-        student_batch = req.batch_id
+        student_batch = req.batch_id or (current_user or {}).get("batch_id")
         if not student_batch:
             st_row = db.scalar(
-                select(Student).where(
+                select(Student.batch_id).where(
                     or_(
                         func.upper(Student.roll_number) == clean_roll,
                         Student.id == (req.student_id or ""),
@@ -634,7 +668,7 @@ def request_presigned_upload(
                 ).limit(1)
             )
             if st_row:
-                student_batch = st_row.batch_id
+                student_batch = st_row
 
         allowed_bids = set()
         if exam.batch_ids:
@@ -710,9 +744,9 @@ def confirm_presigned_upload(
 
     storage = get_storage_service()
 
-    # D-18: Fast-fail: verify active window BEFORE downloading from cloud storage or parsing PyMuPDF
+    # D-18: Fast-fail: verify active window and fetch exam BEFORE probing cloud storage
     try:
-        verify_active_submission_window(exam_id, db, allow_grace=True)
+        exam, window = get_exam_and_active_window(exam_id, db, allow_grace=True)
     except Exception:
         try:
             storage.delete_file(req.storage_key)
@@ -723,28 +757,36 @@ def confirm_presigned_upload(
     if not storage.file_exists(req.storage_key):
         raise HTTPException(status_code=400, detail="Uploaded file was not found in storage. Please re-upload.")
 
-    try:
-        local_path = storage.get_local_path_or_download(req.storage_key)
+    # Zero-Download Confirmation: Avoid downloading multi-megabyte cloud assets during exam submission window.
+    # Validate existence via fast HEAD probe, assert client bounds, and defer rasterization to Phase 2 worker.
+    file_size = req.file_size_bytes or 0
+    page_count = req.page_count or 1
+
+    local_path = None
+    if hasattr(storage, "_resolve_path"):
+        try:
+            candidate_path = storage._resolve_path(req.storage_key)
+            if candidate_path.exists():
+                local_path = candidate_path
+        except Exception:
+            pass
+
+    if local_path and local_path.exists():
         file_size = local_path.stat().st_size
-    except Exception as e:
-        storage.delete_file(req.storage_key)
-        raise HTTPException(status_code=400, detail=f"Failed to fetch uploaded file: {str(e)}")
+        try:
+            doc = fitz.open(str(local_path))
+            page_count = len(doc)
+            doc.close()
+        except Exception:
+            pass
 
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if file_size > max_bytes:
         storage.delete_file(req.storage_key)
         raise HTTPException(
             status_code=400,
-            detail=f"File exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_MB} MB (received {file_size / (1024*1024):.1f} MB)."
+            detail=f"File exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_MB} MB."
         )
-
-    try:
-        doc = fitz.open(str(local_path))
-        page_count = len(doc)
-        doc.close()
-    except Exception as e:
-        storage.delete_file(req.storage_key)
-        raise HTTPException(status_code=400, detail=f"Invalid or corrupted PDF file: {str(e)}")
 
     if page_count > settings.MAX_PAGE_COUNT:
         storage.delete_file(req.storage_key)
@@ -756,19 +798,17 @@ def confirm_presigned_upload(
     now = get_iso_now()
     sub_id = f"sub_{uuid.uuid4().hex[:12]}"
 
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     exam_total = exam.total_marks if exam else 0.0
 
     s_name = req.student_name or f"Student {clean_roll}"
     student_id = req.student_id
     if not student_id:
-        stu_rec = db.scalar(select(Student).where(func.upper(Student.roll_number) == clean_roll))
-        if stu_rec:
-            student_id = stu_rec.id
-            if not req.student_name:
-                s_name = stu_rec.full_name
-        elif current_user and current_user.get("role") == "STUDENT":
-            stu_rec = db.scalar(select(Student).where(Student.user_id == current_user["sub"]))
+        if current_user and current_user.get("role") == "STUDENT":
+            student_id = current_user.get("student_id")
+            if not req.student_name and current_user.get("full_name"):
+                s_name = current_user["full_name"]
+        if not student_id:
+            stu_rec = db.scalar(select(Student).where(func.upper(Student.roll_number) == clean_roll))
             if stu_rec:
                 student_id = stu_rec.id
                 if not req.student_name:

@@ -3,14 +3,19 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle, FileText } from "lucide-react";
 import { api, clearApiCache, getCached } from "@/lib/api";
 import { Exam, ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
-import { RubricEditor } from "@/components/RubricEditor";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, StatusWell, RubricSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
+
+const RubricEditor = dynamic(
+  () => import("@/components/RubricEditor").then((m) => m.RubricEditor),
+  { ssr: false, loading: () => <RubricSkeleton /> }
+);
 
 export default function ExamRubricPage() {
   const params = useParams();

@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'katex'],
+  },
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,

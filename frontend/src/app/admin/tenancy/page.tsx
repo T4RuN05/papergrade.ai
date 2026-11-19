@@ -109,8 +109,29 @@ export default function TenancyManagementPage() {
 
   useEffect(() => {
     loadStaffResets();
-    const interval = setInterval(loadStaffResets, 5000);
-    return () => clearInterval(interval);
+
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        loadStaffResets();
+      }
+    };
+
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        loadStaffResets();
+      }
+    }, 45000);
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
+    };
   }, []);
 
   const pendingStaffResets = useMemo(() => {

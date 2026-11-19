@@ -105,6 +105,11 @@ export default function LandingPage() {
       return;
     }
 
+    if (storedUser) {
+      setCurrentUser(storedUser);
+      return;
+    }
+
     if (token) {
       api
         .getMe()

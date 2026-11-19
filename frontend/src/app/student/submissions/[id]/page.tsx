@@ -21,11 +21,19 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { api, getAuthToken } from "@/lib/api";
-import { StudentQuestionModal } from "@/components/StudentQuestionModal";
-import { ArtifactViewerModal } from "@/components/ArtifactViewerModal";
 import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, EvaluationViewerSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
+
+const StudentQuestionModal = dynamic(
+  () => import("@/components/StudentQuestionModal").then((mod) => mod.StudentQuestionModal),
+  { ssr: false }
+);
+
+const ArtifactViewerModal = dynamic(
+  () => import("@/components/ArtifactViewerModal").then((mod) => mod.ArtifactViewerModal),
+  { ssr: false }
+);
 
 const DocumentViewer = dynamic(
   () => import("@/components/DocumentViewer").then((mod) => mod.DocumentViewer),

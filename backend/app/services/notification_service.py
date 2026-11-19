@@ -221,6 +221,19 @@ def prune_all_notifications(cursor_or_session=None, keep_limit: int = 50) -> int
         return 0
 
 
+def dispatch_async_prune_all(keep_limit: int = 50):
+    """Offload full-table notification pruning to a background thread to prevent blocking caller HTTP transactions."""
+    def _worker():
+        try:
+            with get_session() as session:
+                prune_all_notifications(session, keep_limit=keep_limit)
+                session.commit()
+        except Exception as e:
+            logger.debug("Background bulk notification pruning notice: %s", e)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 def send_notification(
     cursor,
     user_id: str,
@@ -363,8 +376,7 @@ def notify_branch_students(
                 created_at=now,
             ))
 
-        prune_all_notifications(cursor, keep_limit=50)
-        prune_all_notifications(cursor, keep_limit=50)
+        dispatch_async_prune_all(keep_limit=50)
         dispatch_webpush_for_users(uids, title, message, link_url)
         return len(uids)
 
@@ -471,8 +483,7 @@ def notify_branch_managers(
                 is_read=0,
                 created_at=now,
             ))
-        prune_all_notifications(cursor, keep_limit=50)
-        prune_all_notifications(cursor, keep_limit=50)
+        dispatch_async_prune_all(keep_limit=50)
         dispatch_webpush_for_users(uids, title, message, link_url)
         return len(uids)
 
@@ -531,7 +542,7 @@ def notify_root_admins(
                 is_read=0,
                 created_at=now,
             ))
-        prune_all_notifications(cursor, keep_limit=50)
+        dispatch_async_prune_all(keep_limit=50)
         dispatch_webpush_for_users(uids, title, message, link_url)
         return len(uids)
 
