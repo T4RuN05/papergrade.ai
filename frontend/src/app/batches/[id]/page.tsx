@@ -31,7 +31,7 @@ import {
   ButtonUtility,
   FeatureCard,
   BadgePill,
-  ExamDetailSkeleton,
+  BatchDetailSkeleton,
   AppleSelect,
 } from "@/components/ui";
 
@@ -139,7 +139,7 @@ export default function SingleBatchPage() {
   }, [submissions, searchTerm, scoreFilter]);
 
   if (loading) {
-    return <ExamDetailSkeleton />;
+    return <BatchDetailSkeleton />;
   }
 
   if (!batch) {

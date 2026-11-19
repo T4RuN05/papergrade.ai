@@ -386,45 +386,247 @@ export function ExamsGridSkeleton() {
 export function ExamDetailSkeleton() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 animate-in fade-in duration-200">
-      {/* 1. Main Examination Header Card */}
-      <FeatureCard className="p-6 sm:p-8 space-y-6 border-hairline bg-surface shadow-xs">
-        {/* Top Header Section */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-hairline">
-          {/* Left Metadata & Title Column */}
-          <div className="space-y-2 max-w-2xl">
-            {/* Badges Row */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Skeleton className="h-5.5 w-24 rounded-full" />
-              <Skeleton className="h-5.5 w-32 rounded-full" />
-              <Skeleton className="h-5.5 w-24 rounded-full" />
-              <Skeleton className="h-5.5 w-28 rounded-full" />
-              <Skeleton className="h-5.5 w-36 rounded-full" />
+      {/* 1. Exam Action Header Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1 mr-1">
+              <Skeleton className="h-3.5 w-3.5 rounded" />
+              <Skeleton className="h-3.5 w-12 rounded" />
             </div>
+            <span className="text-ink-faint">•</span>
+            <Skeleton className="h-5.5 w-16 rounded-full" />
+            <Skeleton className="h-5.5 w-20 rounded-md" />
+            <Skeleton className="h-4 w-36 rounded" />
+          </div>
+          <Skeleton className="h-7 sm:h-8 w-64 sm:w-96 rounded-md" />
+        </div>
 
-            {/* Title with Graduation Cap Icon */}
-            <div className="flex items-center gap-2.5 pt-1">
-              <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
-              <Skeleton className="h-8 w-44 sm:w-56 rounded-md" />
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <Skeleton className="h-8 w-24 rounded-md" />
+          <Skeleton className="h-8 w-8 rounded-md" />
+        </div>
+      </div>
+
+      {/* 2. Submission Window Control Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-surface border border-hairline shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+          <div className="space-y-1">
+            <Skeleton className="h-3.5 w-48 rounded" />
+            <Skeleton className="h-3 w-72 sm:w-96 rounded" />
+          </div>
+        </div>
+        <Skeleton className="h-8 w-44 rounded-md shrink-0 self-start sm:self-auto" />
+      </div>
+
+      {/* 3. Academic Materials & Rubric Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        {/* 1. Question Paper */}
+        <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-4 w-4 rounded-xs" />
+                <Skeleton className="h-3.5 w-28 rounded" />
+              </div>
+              <Skeleton className="h-5.5 w-16 rounded-full" />
             </div>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-full rounded" />
+              <Skeleton className="h-3 w-4/5 rounded" />
+            </div>
+          </div>
+          <div className="pt-2 border-t border-hairline flex items-center gap-2">
+            <Skeleton className="h-8 flex-1 rounded-md" />
+          </div>
+        </FeatureCard>
 
-            {/* Subtitle */}
-            <Skeleton className="h-4 w-72 sm:w-[420px] rounded" />
+        {/* 2. Official Answer Key */}
+        <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-4 w-4 rounded-xs" />
+                <Skeleton className="h-3.5 w-36 rounded" />
+              </div>
+              <Skeleton className="h-5.5 w-16 rounded-full" />
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-full rounded" />
+              <Skeleton className="h-3 w-4/5 rounded" />
+            </div>
+          </div>
+          <div className="pt-2 border-t border-hairline flex items-center gap-2">
+            <Skeleton className="h-8 flex-1 rounded-md" />
+            <Skeleton className="h-8 flex-1 rounded-md" />
+          </div>
+        </FeatureCard>
+
+        {/* 3. Grading Rubric */}
+        <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-4 w-4 rounded-xs" />
+                <Skeleton className="h-3.5 w-32 rounded" />
+              </div>
+              <Skeleton className="h-5.5 w-16 rounded-full" />
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-full rounded" />
+              <Skeleton className="h-3 w-3/5 rounded" />
+            </div>
+          </div>
+          <div className="pt-2 border-t border-hairline">
+            <Skeleton className="h-8 w-full rounded-md" />
+          </div>
+        </FeatureCard>
+      </div>
+
+      {/* 4. Analytics Metrics */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Total Submissions */}
+          <FeatureCard className="p-3.5 sm:p-4 space-y-1">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-28 rounded" />
+              <Skeleton className="h-4 w-4 rounded-xs" />
+            </div>
+            <Skeleton className="h-7 sm:h-8 w-12 rounded font-mono" />
+            <Skeleton className="h-3 w-32 rounded" />
+          </FeatureCard>
+
+          {/* Evaluated */}
+          <FeatureCard className="p-3.5 sm:p-4 space-y-1">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-20 rounded" />
+              <Skeleton className="h-4 w-4 rounded-xs" />
+            </div>
+            <Skeleton className="h-7 sm:h-8 w-20 rounded font-mono" />
+            <Skeleton className="h-3 w-28 rounded" />
+          </FeatureCard>
+
+          {/* Class Average */}
+          <FeatureCard className="p-3.5 sm:p-4 space-y-1">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-24 rounded" />
+              <Skeleton className="h-4 w-4 rounded-xs" />
+            </div>
+            <Skeleton className="h-7 sm:h-8 w-14 rounded font-mono" />
+            <Skeleton className="h-3 w-36 rounded" />
+          </FeatureCard>
+
+          {/* Needs Review */}
+          <FeatureCard className="p-3.5 sm:p-4 space-y-1">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-24 rounded" />
+              <Skeleton className="h-4 w-4 rounded-xs" />
+            </div>
+            <Skeleton className="h-7 sm:h-8 w-8 rounded font-mono" />
+            <Skeleton className="h-3 w-36 rounded" />
+          </FeatureCard>
+        </div>
+      </div>
+
+      {/* 5. Submissions Ledger & Grid */}
+      <div className="rounded-lg border border-hairline overflow-hidden bg-surface shadow-xs">
+        {/* Top Header Toolbar */}
+        <div className="p-3 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border-b border-hairline bg-surface">
+          {/* Left: View Switcher */}
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="grid grid-cols-2 sm:inline-flex items-center p-0.5 rounded-md bg-canvas-soft border border-hairline w-full sm:w-auto gap-1">
+              <Skeleton className="h-7 w-32 sm:w-36 rounded-sm" />
+              <Skeleton className="h-7 w-28 sm:w-32 rounded-sm" />
+            </div>
           </div>
 
-          {/* Right Action Buttons Cluster */}
-          <div className="flex flex-wrap items-center gap-2.5 sm:self-start lg:self-center">
-            <Skeleton className="h-8 w-48 rounded-md" />
-            <Skeleton className="h-8 w-36 rounded-md" />
-            <Skeleton className="h-8 w-32 rounded-md" />
-            <Skeleton className="h-8 w-24 rounded-md" />
-            <Skeleton className="h-8 w-28 rounded-md" />
-            <Skeleton className="h-8 w-32 rounded-md" />
+          {/* Right: Controls (Search, Filter, Sort, Export, Refresh) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+            <Skeleton className="h-9 w-full sm:w-48 md:w-52 rounded-md" />
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+              <Skeleton className="h-9 w-24 sm:w-28 rounded-md" />
+              <Skeleton className="h-9 w-32 sm:w-36 rounded-md" />
+              <Skeleton className="h-9 w-24 rounded-md" />
+              <Skeleton className="h-9 w-20 rounded-md" />
+            </div>
           </div>
         </div>
 
-        {/* Academic Details & Materials Inset Banner */}
+        {/* Table Content */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-canvas-soft border-b border-hairline text-[11px] uppercase tracking-wider">
+                <th className="py-3 px-4"><Skeleton className="h-3 w-20 rounded" /></th>
+                <th className="py-3 px-4"><Skeleton className="h-3 w-28 rounded" /></th>
+                <th className="py-3 px-4 text-center"><Skeleton className="h-3 w-10 mx-auto rounded" /></th>
+                <th className="py-3 px-4 text-right"><Skeleton className="h-3 w-24 ml-auto rounded" /></th>
+                <th className="py-3 px-4 text-center"><Skeleton className="h-3 w-14 mx-auto rounded" /></th>
+                <th className="py-3 px-4 text-center"><Skeleton className="h-3 w-16 mx-auto rounded" /></th>
+                <th className="py-3 px-4 text-right"><Skeleton className="h-3 w-24 ml-auto rounded" /></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <tr key={i} className="hover:bg-canvas-soft/40 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <Skeleton className="h-3.5 w-28 rounded font-mono" />
+                  </td>
+                  <td className="py-3.5 px-4 space-y-1">
+                    <Skeleton className="h-3.5 w-32 rounded" />
+                    <Skeleton className="h-2.5 w-16 rounded" />
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <Skeleton className="h-3.5 w-6 mx-auto rounded font-mono" />
+                  </td>
+                  <td className="py-3.5 px-4 text-right">
+                    <Skeleton className="h-3.5 w-16 ml-auto rounded font-mono" />
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <Skeleton className="h-3.5 w-12 mx-auto rounded font-mono" />
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <Skeleton className="h-6 w-24 mx-auto rounded-md" />
+                  </td>
+                  <td className="py-3.5 px-4 text-right">
+                    <Skeleton className="h-3.5 w-16 ml-auto rounded" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 6b. Batch Detail Skeleton (/batches/[id])
+// ==========================================
+
+export function BatchDetailSkeleton() {
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 animate-in fade-in duration-200">
+      <FeatureCard className="p-6 sm:p-8 space-y-6 border-hairline bg-surface shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-hairline">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-5.5 w-32 rounded-full" />
+              <Skeleton className="h-5.5 w-20 rounded-full" />
+            </div>
+            <Skeleton className="h-8 w-48 sm:w-64 rounded-md" />
+            <Skeleton className="h-4 w-72 sm:w-[420px] rounded" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 sm:self-start lg:self-center">
+            <Skeleton className="h-8 w-32 rounded-md" />
+            <Skeleton className="h-8 w-32 rounded-md" />
+            <Skeleton className="h-8 w-44 rounded-md" />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs bg-canvas-soft rounded-lg p-4 border border-hairline">
-          {/* Institute & Branch */}
           <div className="flex items-start gap-2.5">
             <Skeleton className="h-4 w-4 rounded-xs shrink-0 mt-0.5" />
             <div className="space-y-1.5 flex-1">
@@ -433,8 +635,6 @@ export function ExamDetailSkeleton() {
               <Skeleton className="h-2.5 w-24 rounded-xs" />
             </div>
           </div>
-
-          {/* Linked Batch */}
           <div className="flex items-start gap-2.5">
             <Skeleton className="h-4 w-4 rounded-xs shrink-0 mt-0.5" />
             <div className="space-y-1.5 flex-1">
@@ -443,168 +643,51 @@ export function ExamDetailSkeleton() {
               <Skeleton className="h-2.5 w-28 rounded-xs" />
             </div>
           </div>
-
-          {/* Exam Artifacts */}
           <div className="flex items-start gap-2.5">
             <Skeleton className="h-4 w-4 rounded-xs shrink-0 mt-0.5" />
             <div className="space-y-1.5 flex-1">
               <Skeleton className="h-2.5 w-24 rounded-xs" />
-              <div className="flex items-center gap-2 pt-0.5">
-                <Skeleton className="h-6 w-32 rounded border border-hairline bg-surface" />
-                <Skeleton className="h-6 w-28 rounded border border-hairline bg-surface" />
-              </div>
+              <Skeleton className="h-3.5 w-28 rounded" />
             </div>
           </div>
         </div>
 
-        {/* 4 Performance Metric Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 1. Submissions Evaluated */}
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3 w-28 rounded" />
-              <Skeleton className="h-4 w-4 rounded-full" />
-            </div>
-            <div className="flex items-baseline gap-1.5 pt-0.5">
-              <Skeleton className="h-7 w-12 rounded font-mono" />
-              <Skeleton className="h-3 w-14 rounded" />
-            </div>
-            <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full overflow-hidden mt-2">
-              <Skeleton className="h-full w-full rounded-full" />
-            </div>
-          </div>
-
-          {/* 2. Class Mean Score */}
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3 w-24 rounded" />
-              <Skeleton className="h-4 w-4 rounded-full" />
-            </div>
-            <div className="flex items-baseline gap-1.5 pt-0.5">
-              <Skeleton className="h-7 w-12 rounded font-mono" />
-              <Skeleton className="h-3 w-10 rounded" />
-            </div>
-            <Skeleton className="h-2.5 w-32 rounded" />
-          </div>
-
-          {/* 3. Highest Score */}
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3 w-20 rounded" />
-              <Skeleton className="h-4 w-4 rounded-full" />
-            </div>
-            <div className="flex items-baseline gap-1.5 pt-0.5">
-              <Skeleton className="h-7 w-12 rounded font-mono" />
-              <Skeleton className="h-3 w-10 rounded" />
-            </div>
-            <Skeleton className="h-2.5 w-36 rounded" />
-          </div>
-
-          {/* 4. Pass Rate */}
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3 w-24 rounded" />
-              <Skeleton className="h-4 w-4 rounded-full" />
-            </div>
-            <div className="flex items-baseline gap-1.5 pt-0.5">
-              <Skeleton className="h-7 w-16 rounded font-mono" />
-            </div>
-            <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full overflow-hidden mt-2">
-              <Skeleton className="h-full w-3/5 rounded-full" />
-            </div>
-          </div>
-        </div>
-      </FeatureCard>
-
-      {/* 2. Evaluation Queue Prerequisites Checklist Banner (Distinct Amber-Tinted Card) */}
-      <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-xs space-y-2.5 shadow-2xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Skeleton className="h-4 w-4 rounded-full" />
-            <Skeleton className="h-4 w-64 sm:w-80 rounded" />
-          </div>
-          <Skeleton className="h-4 w-24 rounded-full" />
-        </div>
-        <Skeleton className="h-3 w-full max-w-2xl rounded" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-          {[
-            { labelW: "w-28", badgeW: "w-14" },
-            { labelW: "w-32", badgeW: "w-20" },
-            { labelW: "w-28", badgeW: "w-14" },
-          ].map((item, idx) => (
-            <div
-              key={idx}
-              className="p-2.5 rounded-lg border border-emerald-300/60 bg-surface flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-4 rounded-full shrink-0" />
-                <Skeleton className={`h-3 ${item.labelW} rounded`} />
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-24 rounded" />
+                <Skeleton className="h-4 w-4 rounded-full" />
               </div>
-              <Skeleton className={`h-5 ${item.badgeW} rounded-full`} />
+              <Skeleton className="h-7 w-16 rounded font-mono" />
+              <Skeleton className="h-2.5 w-28 rounded" />
             </div>
           ))}
         </div>
-      </div>
+      </FeatureCard>
 
-      {/* 3. Student Answer Sheets & Evaluated Scripts (Separate Card) */}
       <FeatureCard className="p-6 space-y-5 border-hairline bg-surface shadow-xs">
-        {/* Header & Controls Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-4 w-4 rounded-xs" />
-              <Skeleton className="h-5 w-64 sm:w-72 rounded" />
-            </div>
-            <Skeleton className="h-3.5 w-48 sm:w-56 rounded" />
-          </div>
-
-          {/* Filter Bar Controls */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Skeleton className="h-7 w-20 rounded-md" />
-            <Skeleton className="h-7 w-48 rounded-md" />
-            <Skeleton className="h-7 w-24 rounded-md" />
-            <Skeleton className="h-7 w-32 rounded-md" />
-            <Skeleton className="h-7 w-36 rounded-md" />
+          <Skeleton className="h-5 w-48 rounded" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-44 rounded-md" />
+            <Skeleton className="h-8 w-28 rounded-md" />
           </div>
         </div>
-
-        {/* Table Container */}
         <div className="overflow-x-auto rounded-lg border border-hairline">
-          {/* Table Header */}
-          <div className="h-10 bg-canvas-soft border-b border-hairline flex items-center px-4 gap-4 text-xs">
+          <div className="h-10 bg-canvas-soft border-b border-hairline flex items-center px-4 gap-4">
             <Skeleton className="h-3 w-20 rounded" />
-            <Skeleton className="h-3 w-28 rounded ml-4" />
-            <Skeleton className="h-3 w-12 rounded mx-auto" />
-            <Skeleton className="h-3 w-24 rounded ml-auto" />
-            <Skeleton className="h-3 w-14 rounded mx-auto" />
-            <Skeleton className="h-3 w-16 rounded mx-auto" />
-            <Skeleton className="h-3 w-24 rounded ml-auto" />
+            <Skeleton className="h-3 w-32 rounded" />
+            <Skeleton className="h-3 w-16 ml-auto rounded" />
+            <Skeleton className="h-3 w-20 ml-auto rounded" />
           </div>
-
-          {/* Table Rows */}
           <div className="divide-y divide-hairline bg-surface">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-14 flex items-center px-4 gap-4 text-xs">
-                {/* Roll Number */}
-                <Skeleton className="h-3.5 w-20 rounded" />
-                {/* Student Name & Sub ID */}
-                <div className="space-y-1 ml-4 flex-1 max-w-[200px]">
-                  <Skeleton className="h-3.5 w-28 sm:w-36 rounded" />
-                  <Skeleton className="h-2 w-16 rounded-xs" />
-                </div>
-                {/* Pages */}
-                <Skeleton className="h-3.5 w-6 rounded mx-auto" />
-                {/* Marks Awarded */}
-                <div className="flex items-baseline gap-1 ml-auto">
-                  <Skeleton className="h-4 w-10 rounded font-bold" />
-                  <Skeleton className="h-3 w-8 rounded" />
-                </div>
-                {/* Score % */}
-                <Skeleton className="h-5.5 w-14 rounded-full mx-auto" />
-                {/* Status */}
-                <Skeleton className="h-5.5 w-24 rounded-full mx-auto" />
-                {/* Audit & Review */}
-                <Skeleton className="h-3.5 w-24 rounded ml-auto" />
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-12 flex items-center px-4 gap-4">
+                <Skeleton className="h-3.5 w-20 rounded font-mono" />
+                <Skeleton className="h-3.5 w-36 rounded" />
+                <Skeleton className="h-3.5 w-16 ml-auto rounded font-mono" />
+                <Skeleton className="h-5.5 w-20 ml-auto rounded-full" />
               </div>
             ))}
           </div>
