@@ -229,6 +229,23 @@ export async function safeJson<T = any>(res: Response, fallbackDetail = "Request
   }
 }
 
+export interface WindowStatus {
+  exam_id: string;
+  is_active: boolean;
+  is_in_grace: boolean;
+  seconds_remaining: number;
+  grace_seconds_remaining: number;
+  opened_at: string | null;
+  deadline_at: string | null;
+  grace_deadline_at: string | null;
+  reopen_count?: number;
+  closed_at?: string | null;
+  seconds_since_closed?: number | null;
+  seconds_until_card_expires?: number;
+  should_display?: boolean;
+  [key: string]: any;
+}
+
 export const api = {
   API_BASE,
 
@@ -311,7 +328,8 @@ export const api = {
     return resData;
   },
 
-  async getMe(): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string; has_changed_password?: number }> {
+  async getMe(forceRefresh: boolean = false): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string; has_changed_password?: number }> {
+    if (forceRefresh) clearApiCache("auth:me");
     return fetchWithCache("auth:me", async () => {
       try {
         const res = await fetch(`${API_BASE}/api/auth/me`, {
@@ -463,7 +481,8 @@ export const api = {
   // -------------------------------------------------------------
   // Tenancy & Onboarding (Institutes, Branches, Staff, Batches)
   // -------------------------------------------------------------
-  async listInstitutes(): Promise<any[]> {
+  async listInstitutes(forceRefresh: boolean = false): Promise<any[]> {
+    if (forceRefresh) clearApiCache("tenancy:institutes");
     return fetchWithCache("tenancy:institutes", async () => {
       const res = await fetch(`${API_BASE}/api/tenancy/institutes`, {
         headers: { ...getAuthHeaders() },
@@ -489,12 +508,13 @@ export const api = {
     return res.json();
   },
 
-  async listSubjects(branchId?: string, instituteId?: string): Promise<string[]> {
+  async listSubjects(branchId?: string, instituteId?: string, forceRefresh: boolean = false): Promise<string[]> {
     const params = new URLSearchParams();
     if (branchId) params.append("branch_id", branchId);
     if (instituteId) params.append("institute_id", instituteId);
     const query = params.toString() ? `?${params.toString()}` : "";
     const key = `tenancy:subjects:${branchId || ""}:${instituteId || ""}`;
+    if (forceRefresh) clearApiCache(key);
     return fetchWithCache(key, async () => {
       const res = await fetch(`${API_BASE}/api/tenancy/subjects${query}`, {
         headers: { ...getAuthHeaders() },
@@ -538,8 +558,9 @@ export const api = {
     return res.json();
   },
 
-  async listBranches(instituteId?: string): Promise<any[]> {
+  async listBranches(instituteId?: string, forceRefresh: boolean = false): Promise<any[]> {
     const key = `tenancy:branches:${instituteId || "all"}`;
+    if (forceRefresh) clearApiCache(key);
     return fetchWithCache(key, async () => {
       const url = instituteId
         ? `${API_BASE}/api/tenancy/branches?institute_id=${instituteId}`
@@ -736,22 +757,7 @@ export const api = {
     return res.json();
   },
 
-  async getWindowStatus(examId: string): Promise<{
-    exam_id: string;
-    is_active: boolean;
-    is_in_grace: boolean;
-    seconds_remaining: number;
-    grace_seconds_remaining: number;
-    opened_at: string | null;
-    deadline_at: string | null;
-    grace_deadline_at: string | null;
-    reopen_count?: number;
-    closed_at?: string | null;
-    seconds_since_closed?: number | null;
-    seconds_until_card_expires?: number;
-    should_display?: boolean;
-    [key: string]: any;
-  }> {
+  async getWindowStatus(examId: string): Promise<WindowStatus> {
     const res = await fetch(`${API_BASE}/api/windows/${examId}/status`, {
       headers: { ...getAuthHeaders() },
       cache: "no-store",

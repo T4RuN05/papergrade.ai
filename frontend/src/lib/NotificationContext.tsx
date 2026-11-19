@@ -1,7 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { useToast } from "@/lib/ToastContext";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -49,6 +51,7 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -272,6 +275,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const token = getAuthToken();
     if (!token) {
       setNotifications([]);
+      queryClient.setQueryData(queryKeys.notifications.list(), []);
       return;
     }
     try {
@@ -294,13 +298,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
         knownIdsRef.current = new Set(data.map((n) => n.id));
         setNotifications(data);
+        queryClient.setQueryData(queryKeys.notifications.list(), data);
       }
     } catch {
       // Ignore background refresh errors
     } finally {
       setLoading(false);
     }
-  }, [toast, sendSystemNotification]);
+  }, [toast, sendSystemNotification, queryClient]);
 
   // Phase 2: Supabase Realtime WebSocket Connection (0ms instant delivery, 0% Render load)
   useEffect(() => {
@@ -343,8 +348,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             created_at: row.created_at || new Date().toISOString(),
           };
 
-          // 1. Immediately prepend to in-memory notification state
-          setNotifications((prev) => [newNotif, ...prev.filter((n) => n.id !== newNotif.id)]);
+          // 1. Immediately prepend to in-memory notification state & sync query cache
+          setNotifications((prev) => {
+            const next = [newNotif, ...prev.filter((n) => n.id !== newNotif.id)];
+            queryClient.setQueryData(queryKeys.notifications.list(), next);
+            return next;
+          });
 
           // 2. Immediate in-app visual toast
           toast.info(newNotif.message, { title: newNotif.title });
@@ -371,7 +380,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         supabase.removeChannel(channel).catch(() => {});
       }
     };
-  }, [toast, sendSystemNotification]);
+  }, [toast, sendSystemNotification, queryClient]);
 
   // Phase 1 + Phase 2 Hybrid Poller: 60s gentle heartbeat if Realtime is active, 30s adaptive if fallback
   useEffect(() => {
@@ -409,24 +418,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const toggleDrawer = () => setIsOpen((prev) => !prev);
 
   const markAsRead = useCallback(async (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n))
-    );
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n));
+      queryClient.setQueryData(queryKeys.notifications.list(), next);
+      return next;
+    });
     try {
       await api.markNotificationRead(id);
     } catch {
       fetchNotifications();
     }
-  }, [fetchNotifications]);
+  }, [fetchNotifications, queryClient]);
 
   const markAllRead = useCallback(async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, is_read: 1 }));
+      queryClient.setQueryData(queryKeys.notifications.list(), next);
+      return next;
+    });
     try {
       await api.markAllNotificationsRead();
     } catch {
       fetchNotifications();
     }
-  }, [fetchNotifications]);
+  }, [fetchNotifications, queryClient]);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.is_read || n.is_read === 0).length,

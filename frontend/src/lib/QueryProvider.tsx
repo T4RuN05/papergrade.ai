@@ -4,9 +4,9 @@ import React, { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
- * Standard TanStack Query Provider for Next.js App Router.
- * Ensures each client session gets an isolated QueryClient instance,
- * with stale-while-revalidate caching defaults suitable for academic dashboards.
+ * Enterprise TanStack Query Provider for Next.js App Router.
+ * Configured with resilient stale-while-revalidate caching defaults,
+ * background tab sleep optimization, and isolated client sessions.
  */
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -15,9 +15,13 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 30 * 1000, // 30 seconds fresh window before background revalidation
-            gcTime: 5 * 60 * 1000, // 5 minutes garbage collection window
+            gcTime: 10 * 60 * 1000, // 10 minutes cache persistence
             refetchOnWindowFocus: false, // Prevent jarring layout shifts during active user input
-            retry: 1, // Single retry on transient network failures
+            refetchIntervalInBackground: false, // Automatically sleep intervals when tab is minimized
+            retry: (failureCount: number, error: any) => {
+              if (error?.status === 401 || error?.status === 404) return false;
+              return failureCount < 2;
+            },
           },
         },
       })
@@ -25,4 +29,3 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
-

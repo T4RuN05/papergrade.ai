@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -9,10 +9,7 @@ import {
   Sparkles,
   Database,
   ChevronRight,
-  ChevronDown,
-  Check,
   ExternalLink,
-  Building2,
   Layers,
   LogOut,
   LifeBuoy,
@@ -27,7 +24,7 @@ import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { ReportIssueModal } from "./ReportIssueModal";
 import { ChangePasswordModal } from "./ChangePasswordModal";
-import { AppleSelect } from "./ui/AppleSelect";
+import { TenancySwitchDropdown } from "./tenancy/TenancySwitchDropdown";
 
 interface AdminHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -42,95 +39,17 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
-  const [isBranchDropdownExiting, setIsBranchDropdownExiting] = useState(false);
-  const branchDropdownRef = useRef<HTMLDivElement>(null);
-  const branchCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const closeBranchDropdown = useCallback(() => {
-    if (!branchDropdownOpen || isBranchDropdownExiting) return;
-    setIsBranchDropdownExiting(true);
-    branchCloseTimerRef.current = setTimeout(() => {
-      setBranchDropdownOpen(false);
-      setIsBranchDropdownExiting(false);
-    }, 140);
-  }, [branchDropdownOpen, isBranchDropdownExiting]);
-
-  const toggleBranchDropdown = () => {
-    if (branchDropdownOpen) {
-      closeBranchDropdown();
-    } else {
-      if (branchCloseTimerRef.current) clearTimeout(branchCloseTimerRef.current);
-      setIsBranchDropdownExiting(false);
-      setBranchDropdownOpen(true);
-    }
-  };
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest && target.closest('[data-apple-select-portal="true"]')) {
-        return;
-      }
-      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
-        closeBranchDropdown();
-      }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeBranchDropdown();
-      }
-    }
-    if (branchDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      window.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [branchDropdownOpen, closeBranchDropdown]);
-
-  useEffect(() => {
-    return () => {
-      if (branchCloseTimerRef.current) clearTimeout(branchCloseTimerRef.current);
-    };
-  }, []);
-
   const {
     currentUser,
-    selectedInstitute,
-    selectedBranch,
-    institutes,
-    branches,
     isRootAdmin,
-    isInstituteDirector,
-    isBranchManager,
-    setInstituteId,
-    setBranchId,
-    refreshTenancy,
     logout,
+    refreshTenancy,
   } = useTenant();
-
-  const handleInstituteChange = (instId: string) => {
-    setInstituteId(instId);
-    const inst = institutes.find((i) => i.id === instId);
-    if (inst) {
-      toast.info(`Switched institute context to ${inst.name}`, { title: "Institution Changed" });
-    }
-  };
-
-  const handleBranchChange = (branchId: string) => {
-    setBranchId(branchId);
-    const b = branches.find((item) => item.id === branchId);
-    if (b) {
-      toast.info(`Switched operational branch to ${b.name} (${b.city})`, { title: "Branch Changed" });
-    }
-  };
 
   const handleLogout = () => {
     logout();
@@ -239,80 +158,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
         </div>
 
         {/* Center: Custom Responsive Multi-Tenant Scope Dropdown with Apple-style Fluid Popover */}
-        <div ref={branchDropdownRef} className="relative shrink min-w-0">
-          <button
-            type="button"
-            onClick={toggleBranchDropdown}
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-md bg-canvas-soft hover:bg-surface border border-hairline hover:border-hairline/80 text-xs shadow-2xs transition-all cursor-pointer max-w-[170px] xs:max-w-[210px] sm:max-w-[280px]"
-            title="Click to switch active branch context"
-          >
-            <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="font-bold text-ink truncate text-xs">
-              {mounted
-                ? selectedBranch?.name || selectedInstitute?.name || ((isBranchManager || isInstituteDirector) && branches[0]?.name) || "Select Branch"
-                : "PaperGrade"}
-            </span>
-            <ChevronDown
-              className={`h-3 w-3 text-ink-muted shrink-0 transition-transform duration-200 ease-out ${branchDropdownOpen && !isBranchDropdownExiting ? "rotate-180 text-primary" : ""
-                }`}
-            />
-          </button>
-
-          {/* Styled Apple-grade Floating Popover Dropdown Menu */}
-          {branchDropdownOpen && mounted && (
-            <div className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-50 ${isBranchDropdownExiting ? "animate-apple-out" : "animate-apple-in"
-              }`}>
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1.5">
-                <span>Operational Branch</span>
-                {isRootAdmin && <span className="text-[10px] text-primary font-semibold lowercase">root admin</span>}
-                {isInstituteDirector && <span className="text-[10px] text-purple-400 font-semibold lowercase">director</span>}
-              </div>
-
-              {isRootAdmin && institutes.length > 1 && (
-                <div className="mb-2 px-1">
-                  <label className="text-[10px] font-semibold text-ink-muted block mb-1">Coaching Institute:</label>
-                  <AppleSelect
-                    size="sm"
-                    value={selectedInstitute?.id || ""}
-                    onChange={(val) => handleInstituteChange(val)}
-                    options={institutes.map((inst) => ({ value: inst.id, label: inst.name }))}
-                    className="w-full"
-                  />
-                </div>
-              )}
-
-              <div className="max-h-52 overflow-y-auto space-y-0.5">
-                {branches.length === 0 ? (
-                  <p className="text-xs text-ink-muted p-2 text-center">No branches found</p>
-                ) : (
-                  branches.map((b) => {
-                    const isSelected = b.id === selectedBranch?.id;
-                    return (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => {
-                          handleBranchChange(b.id);
-                          closeBranchDropdown();
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left select-none ${isSelected
-                          ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
-                          : "text-ink hover:bg-canvas-soft dark:hover:bg-white/5 font-medium"
-                          }`}
-                      >
-                        <div className="min-w-0 pr-2">
-                          <p className="truncate font-semibold">{b.name}</p>
-                          {b.city && <p className="text-[10px] text-ink-muted truncate">{b.city}</p>}
-                        </div>
-                        {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <TenancySwitchDropdown />
 
         {/* Right: Notification Bell + Profile */}
         <div className="flex items-center gap-1 sm:gap-2">

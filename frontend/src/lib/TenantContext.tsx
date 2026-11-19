@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken, getStoredUser, setStoredUser, getStoredUserPayload } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
 import { queueToast } from "@/lib/ToastContext";
 
 export interface Institute {
@@ -50,6 +52,7 @@ const STORAGE_INST_KEY = "papergrade_selected_institute_id";
 const STORAGE_BRANCH_KEY = "papergrade_selected_branch_id";
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [isMounted, setIsMounted] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [institutes, setInstitutes] = useState<Institute[]>([]);
@@ -65,6 +68,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setIsLoggingOut(true);
+    try {
+      queryClient.clear();
+    } catch {
+      // Ignored if queryClient unmounted
+    }
     api.logout();
     if (typeof window !== "undefined") {
       localStorage.removeItem(STORAGE_INST_KEY);
@@ -76,7 +84,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       });
       window.location.href = "/auth/login";
     }
-  }, []);
+  }, [queryClient]);
 
   const refreshTenancy = useCallback(async (seedUser?: any) => {
     const token = getAuthToken();
@@ -299,8 +307,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       } else {
         localStorage.removeItem(STORAGE_BRANCH_KEY);
       }
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.batches.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions.all() });
     }
-  }, [isRootAdmin, institutes, allBranches]);
+  }, [isRootAdmin, institutes, allBranches, queryClient]);
 
   const setBranchId = useCallback((id: string) => {
     if (!isRootAdmin && !isInstituteDirector) return;
@@ -317,8 +328,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         setSelectedInstitute(matchingInst);
         if (matchingInst) localStorage.setItem(STORAGE_INST_KEY, matchingInst.id);
       }
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.batches.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions.all() });
     }
-  }, [isRootAdmin, isInstituteDirector, allBranches, selectedInstitute, institutes]);
+  }, [isRootAdmin, isInstituteDirector, allBranches, selectedInstitute, institutes, queryClient]);
 
   const switchTenancy = useCallback((
     targetInstituteId?: string | null,
@@ -365,6 +379,9 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         setSelectedBranch(branch);
         localStorage.setItem(STORAGE_BRANCH_KEY, branch.id);
       }
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.batches.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions.all() });
       return {
         instituteName: inst?.name || targetInstituteName || undefined,
         branchName: branch?.name || targetBranchName || undefined,
@@ -377,7 +394,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       branchName: selectedBranch?.name,
       switched: false,
     };
-  }, [isRootAdmin, isInstituteDirector, selectedInstitute, allBranches, institutes, selectedBranch]);
+  }, [isRootAdmin, isInstituteDirector, selectedInstitute, allBranches, institutes, selectedBranch, queryClient]);
 
   const branches = useMemo(() => {
     if (isBranchManager && selectedBranch) {
