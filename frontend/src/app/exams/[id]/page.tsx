@@ -362,7 +362,14 @@ export default function ExamDetailPage() {
     );
   }
 
-  const isPublished = exam ? (exam.is_published === 1 || exam.lifecycle_status === "PUBLISHED") : false;
+  const isPublished = exam
+    ? Boolean(
+        exam.is_published ||
+        exam.is_published === 1 ||
+        exam.status === "PUBLISHED" ||
+        exam.lifecycle_status === "PUBLISHED"
+      )
+    : false;
   const hasQp = Boolean(exam?.question_paper_path);
   const hasAk = Boolean(exam?.answer_key_path);
   const isRubricApproved = Boolean(exam?.rubric_version?.is_approved || exam?.status === "RUBRIC_APPROVED");
@@ -396,7 +403,12 @@ export default function ExamDetailPage() {
         isOpeningWindow={isOpeningWindow}
         isExtendingWindow={isExtendingWindow}
         isClosingWindow={isClosingWindow}
-        onOpenWindowModal={() => setOpenWindowModalOpen(true)}
+        isPublished={isPublished}
+        isRubricApproved={isRubricApproved}
+        onOpenWindowModal={() => {
+          if (isPublished) return;
+          setOpenWindowModalOpen(true);
+        }}
         onExtendWindow={handleExtendWindow}
         onCloseWindow={handleCloseWindow}
       />

@@ -19,6 +19,8 @@ interface SubmissionWindowControlBarProps {
   isExtendingWindow?: boolean;
   isClosingWindow?: boolean;
   isLoading?: boolean;
+  isPublished?: boolean;
+  isRubricApproved?: boolean;
   onOpenWindowModal: () => void;
   onExtendWindow: () => void;
   onCloseWindow: () => void;
@@ -30,14 +32,48 @@ export function SubmissionWindowControlBar({
   isExtendingWindow = false,
   isClosingWindow = false,
   isLoading = false,
+  isPublished = false,
+  isRubricApproved = true,
   onOpenWindowModal,
   onExtendWindow,
   onCloseWindow,
 }: SubmissionWindowControlBarProps) {
   const isActive = Boolean(windowStatus?.is_active);
 
-  // Derive zero-network monotonic countdown using our dedicated hook
+  // Derive zero-network monotonic countdown using our dedicated hook (called unconditionally at top)
   const { formatted, isExpired } = useWindowCountdown(windowStatus as any);
+
+  // If exam results are published, submissions are permanently closed and finalized
+  if (isPublished) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-surface border border-hairline shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-full bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+            <Lock className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-ink flex items-center gap-1.5 flex-wrap">
+              <span>Submission Window:</span>
+              <span className="text-purple-700 dark:text-purple-400 font-semibold whitespace-nowrap">
+                Closed (Published)
+              </span>
+            </div>
+            <p className="text-[11px] text-ink-muted">
+              Results published. Submissions closed permanently.
+            </p>
+          </div>
+        </div>
+
+        <span
+          className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none self-start sm:self-auto shrink-0"
+          title="Results have been published. Submissions are permanently closed."
+        >
+          <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+          <span>Finalized</span>
+        </span>
+      </div>
+    );
+  }
 
   const displayActive = isActive && !isExpired;
 
@@ -108,7 +144,8 @@ export function SubmissionWindowControlBar({
         <ButtonPrimary
           size="sm"
           onClick={onOpenWindowModal}
-          disabled={isOpeningWindow}
+          disabled={isOpeningWindow || !isRubricApproved}
+          title={!isRubricApproved ? "Rubric must be approved before opening submission window" : undefined}
           className="self-start sm:self-auto shrink-0"
         >
           <Play className="h-3.5 w-3.5 mr-1.5" />

@@ -22,6 +22,7 @@ import {
   FileSpreadsheet,
   LifeBuoy,
   AlertTriangle,
+  BookOpen,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { Skeleton } from "./ui";
@@ -132,6 +133,18 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           icon: Clock,
           badge: "PWA",
           show: isRootAdmin,
+        },
+      ],
+    },
+    {
+      group: "SUPPORT & MANUALS",
+      items: [
+        {
+          href: "/help",
+          label: "User Manual & Guides",
+          icon: BookOpen,
+          badge: null,
+          show: true,
         },
       ],
     },

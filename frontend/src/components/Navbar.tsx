@@ -18,6 +18,7 @@ import {
   ChevronRight,
   KeyRound,
   RotateCcw,
+  HelpCircle,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser, setStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
@@ -256,6 +257,17 @@ export function Navbar() {
               </Link>
             </>
           )}
+          <Link
+            href="/help"
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              pathname.startsWith("/help")
+                ? "bg-canvas-soft text-ink font-semibold"
+                : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+            }`}
+          >
+            <HelpCircle className="h-3.5 w-3.5 text-ink-muted" />
+            Help & Guides
+          </Link>
           {isAdminUser && (
             <Link
               href="/overview"
@@ -528,6 +540,24 @@ export function Navbar() {
                   </Link>
                 </>
               )}
+
+              <Link
+                href="/help"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                  pathname.startsWith("/help")
+                    ? "bg-canvas-soft text-ink font-semibold"
+                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <HelpCircle className="h-4 w-4 text-ink-muted" />
+                  <span>User Manual & Guides</span>
+                </div>
+                {pathname.startsWith("/help") && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                )}
+              </Link>
 
               {isAdminUser && (
                 <Link
