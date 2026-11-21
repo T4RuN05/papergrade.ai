@@ -26,6 +26,7 @@ from backend.app.services.auth import (
     create_access_token,
     get_current_user,
     require_root_admin,
+    require_institute_director,
     require_branch_manager,
     invalidate_user_auth_cache,
 )
@@ -157,7 +158,7 @@ async def login(
             .where(
                 or_(
                     func.upper(Student.roll_number) == clean_identifier.upper(),
-                    and_(Student.student_id_num == clean_identifier, Student.account_claimed == 0),
+                    Student.student_id_num == clean_identifier,
                 ),
                 User.is_active == 1
             )
@@ -175,7 +176,7 @@ async def login(
                 .where(
                     or_(
                         func.upper(Student.roll_number) == clean_identifier.upper(),
-                        and_(Student.student_id_num == clean_identifier, Student.account_claimed == 0),
+                        Student.student_id_num == clean_identifier,
                     ),
                     User.is_active == 1
                 )
@@ -324,12 +325,20 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     hashed = hash_password(req.password)
     now = get_iso_now()
     student_num_tag = student.student_id_num or clean_roll.replace("-", "_").lower()
-    student_email = req.email.strip().lower() if req.email else f"student_{student_num_tag}@papergrade.local"
 
-    # Check if email is already used
-    email_taken = db.scalar(select(User.id).where(User.email == student_email))
-    if email_taken:
-        student_email = f"student_{student_num_tag}_{uuid.uuid4().hex[:4]}@papergrade.local"
+    if req.email and req.email.strip():
+        student_email = req.email.strip().lower()
+        email_taken = db.scalar(select(User.id).where(func.lower(User.email) == student_email))
+        if email_taken:
+            raise HTTPException(
+                status_code=400,
+                detail="A user account with this email address already exists. Please log in directly or use a different email."
+            )
+    else:
+        student_email = f"student_{student_num_tag}@papergrade.local"
+        email_taken = db.scalar(select(User.id).where(func.lower(User.email) == student_email))
+        if email_taken:
+            student_email = f"student_{student_num_tag}_{uuid.uuid4().hex[:4]}@papergrade.local"
 
     # Look up branch and institute via batch
     batch = db.scalar(select(Batch).where(Batch.id == student.batch_id))
@@ -338,6 +347,23 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
     if branch_id:
         br = db.scalar(select(Branch).where(Branch.id == branch_id))
         institute_id = br.institute_id if br else None
+
+    # 4. Atomic row lock to eliminate claim race conditions
+    claim_result = db.execute(
+        update(Student)
+        .where(Student.id == student.id, Student.account_claimed == 0)
+        .values(
+            user_id=new_user_id,
+            account_claimed=1,
+            claimed_at=now,
+            email=student_email if req.email else student.email
+        )
+    )
+    if claim_result.rowcount == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Account claim collision: This student account has already been claimed."
+        )
 
     user = User(
         id=new_user_id,
@@ -354,13 +380,6 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         last_login_at=now,
     )
     db.add(user)
-
-    # 4. Link student to user and set account_claimed = 1
-    student.user_id = new_user_id
-    student.account_claimed = 1
-    student.claimed_at = now
-    if req.email:
-        student.email = req.email
 
     # 4b. Backfill notifications for any currently active submission windows in their batch or branch
     window_stmt = (
@@ -484,17 +503,31 @@ def change_password(
 @router.post("/create-user")
 def create_user(
     req: CreateUserRequest,
-    current_user: Dict[str, Any] = Depends(require_root_admin),
+    current_user: Dict[str, Any] = Depends(require_institute_director),
     db: Session = Depends(get_db)
 ):
-    """Root Admin endpoint to provision Institute Directors, Branch Managers, or other staff."""
-    if req.role not in ["ROOT_ADMIN", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER"]:
-        raise HTTPException(status_code=400, detail="Invalid role specified.")
+    """Endpoint to provision Institute Directors, Branch Managers, or other staff."""
+    caller_role = current_user.get("role")
+    target_role = req.role
 
-    if req.role == "INSTITUTE_DIRECTOR":
-        if not req.institute_id:
+    if caller_role == "INSTITUTE_DIRECTOR":
+        if target_role not in ["BRANCH_MANAGER", "TEACHER"]:
+            raise HTTPException(status_code=403, detail="Institute Directors can only provision Branch Managers or Teachers.")
+        effective_inst_id = current_user.get("institute_id")
+        if not req.branch_id:
+            raise HTTPException(status_code=400, detail="Branch ID is required when creating a Branch Manager.")
+        br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+        if not br or br.institute_id != effective_inst_id:
+            raise HTTPException(status_code=403, detail="Specified branch does not belong to your institute.")
+    else:
+        if target_role not in ["ROOT_ADMIN", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER", "TEACHER"]:
+            raise HTTPException(status_code=400, detail="Invalid role specified.")
+        effective_inst_id = req.institute_id
+
+    if target_role == "INSTITUTE_DIRECTOR":
+        if not effective_inst_id:
             raise HTTPException(status_code=400, detail="Institute ID is required for Institute Director.")
-        inst = db.scalar(select(Institute).where(Institute.id == req.institute_id))
+        inst = db.scalar(select(Institute).where(Institute.id == effective_inst_id))
         if not inst:
             raise HTTPException(status_code=404, detail="Specified institute does not exist.")
 
@@ -509,10 +542,10 @@ def create_user(
 
     user = User(
         id=new_id,
-        institute_id=req.institute_id,
+        institute_id=effective_inst_id,
         branch_id=req.branch_id,
         email=clean_email,
-        role=req.role,
+        role=target_role,
         password_hash=hashed,
         full_name=req.full_name,
         is_active=1,
@@ -525,7 +558,7 @@ def create_user(
         "status": "success",
         "user_id": new_id,
         "email": clean_email,
-        "role": req.role,
+        "role": target_role,
         "full_name": req.full_name,
     }
 
@@ -535,17 +568,21 @@ def list_users(
     role: Optional[str] = None,
     branch_id: Optional[str] = None,
     institute_id: Optional[str] = None,
-    current_user: Dict[str, Any] = Depends(require_root_admin),
+    current_user: Dict[str, Any] = Depends(require_institute_director),
     db: Session = Depends(get_db)
 ):
     """List staff users / managers for tenancy management."""
     stmt = select(User)
+    caller_role = current_user.get("role")
+    if caller_role == "INSTITUTE_DIRECTOR":
+        stmt = stmt.where(User.institute_id == current_user.get("institute_id"))
+    elif institute_id:
+        stmt = stmt.where(User.institute_id == institute_id)
+
     if role:
         stmt = stmt.where(User.role == role)
     if branch_id:
         stmt = stmt.where(User.branch_id == branch_id)
-    if institute_id:
-        stmt = stmt.where(User.institute_id == institute_id)
     stmt = stmt.order_by(User.created_at.desc())
 
     users = db.scalars(stmt).all()
@@ -592,8 +629,10 @@ def update_user(
         if clean_name:
             user.full_name = clean_name
 
+    security_updated = False
     if req.password is not None and req.password.strip():
         user.password_hash = hash_password(req.password.strip())
+        security_updated = True
 
     if req.branch_id is not None:
         clean_bid = req.branch_id.strip() if req.branch_id else ""
@@ -609,6 +648,11 @@ def update_user(
 
     if req.is_active is not None:
         user.is_active = req.is_active
+        security_updated = True
+
+    if security_updated:
+        user.token_version = (getattr(user, "token_version", 1) or 1) + 1
+        invalidate_user_auth_cache(user.id)
 
     db.commit()
 
@@ -659,6 +703,7 @@ def delete_user(
 
     deleted_email = user.email
     deleted_role = user.role
+    invalidate_user_auth_cache(user_id)
     db.delete(user)
     db.commit()
 
@@ -1072,7 +1117,8 @@ def list_password_resets(
             "user_role": role,
             "is_staff": (pr.student_id is None),
             "status": pr.status,
-            "reset_token": pr.reset_token,
+            "reset_token": None,
+            "has_reset_token": bool(pr.reset_token),
             "approved_by": pr.approved_by,
             "approved_at": pr.approved_at,
             "completed_at": pr.completed_at,
@@ -1112,14 +1158,15 @@ def approve_password_reset(
             )
     else:
         # Check branch/institute ownership for student resets
-        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
-            if req.branch_id and req.branch_id != current_user["branch_id"]:
+        if current_user.get("role") == "BRANCH_MANAGER":
+            if not req.branch_id or req.branch_id != current_user.get("branch_id"):
                 raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned branch.")
-        elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
-            if req.branch_id:
-                br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
-                if br and br.institute_id != current_user["institute_id"]:
-                    raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned institute.")
+        elif current_user.get("role") == "INSTITUTE_DIRECTOR":
+            if not req.branch_id:
+                raise HTTPException(status_code=403, detail="Forbidden: Branch ID missing from request.")
+            br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+            if not br or br.institute_id != current_user.get("institute_id"):
+                raise HTTPException(status_code=403, detail="Forbidden: You can only approve requests for your assigned institute.")
 
     reset_token = f"rst_{uuid.uuid4().hex}"
     now = get_iso_now()
@@ -1174,14 +1221,15 @@ def reject_password_reset(
                 detail="Forbidden: Only Root Administrators can reject staff password reset requests."
             )
     else:
-        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
-            if req.branch_id and req.branch_id != current_user["branch_id"]:
+        if current_user.get("role") == "BRANCH_MANAGER":
+            if not req.branch_id or req.branch_id != current_user.get("branch_id"):
                 raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned branch.")
-        elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
-            if req.branch_id:
-                br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
-                if br and br.institute_id != current_user["institute_id"]:
-                    raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned institute.")
+        elif current_user.get("role") == "INSTITUTE_DIRECTOR":
+            if not req.branch_id:
+                raise HTTPException(status_code=403, detail="Forbidden: Branch ID missing from request.")
+            br = db.scalar(select(Branch).where(Branch.id == req.branch_id))
+            if not br or br.institute_id != current_user.get("institute_id"):
+                raise HTTPException(status_code=403, detail="Forbidden: You can only reject requests for your assigned institute.")
 
     now = get_iso_now()
     req.status = "REJECTED"

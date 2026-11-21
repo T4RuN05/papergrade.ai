@@ -133,7 +133,7 @@ export default function AdminReportsPage() {
         { title: "Status Updated", duration: 5000 }
       );
 
-      queryClient.invalidateQueries({ queryKey: ["technical-reports"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all() });
       await refetchReports();
     } catch (err: any) {
       toast.error(err.message || "Failed to update report status.", {

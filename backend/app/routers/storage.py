@@ -24,7 +24,7 @@ def download_file(
     if ".." in clean_key:
         raise HTTPException(status_code=400, detail="Invalid storage key.")
 
-    # Student isolation: can only download own submission files or exam materials
+    # Student isolation: can only download own submission files, own exports, or exam materials
     if current_user.get("role") == "STUDENT":
         user_roll = (current_user.get("roll_number") or "").strip().upper()
         user_id = current_user.get("sub", "")
@@ -33,8 +33,33 @@ def download_file(
             if user_roll and (f"/{user_roll}/" not in clean_key and not clean_key.endswith(f"/{user_roll}")):
                 if user_id not in clean_key and current_user.get("student_id") not in clean_key:
                     raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's file.")
+        elif clean_key.startswith("exports/"):
+            # Verify student owns this exported annotated PDF
+            from backend.app.db.session import get_session
+            from backend.app.db.models import Submission, Student
+            from sqlalchemy import select
+            sub_id = Path(clean_key).name.replace("_annotated.pdf", "").replace(".pdf", "")
+            with get_session() as session:
+                sub_row = session.execute(
+                    select(Submission.student_id, Submission.roll_number)
+                    .where(Submission.id == sub_id)
+                ).first()
+                if not sub_row:
+                    raise HTTPException(status_code=404, detail="Submission export not found.")
+                sub_stu_id, sub_roll = sub_row
+                stu_rec = session.scalar(
+                    select(Student.id).where(Student.user_id == user_id).limit(1)
+                )
+                student_id = stu_rec if stu_rec else current_user.get("student_id")
+                owns = (
+                    (sub_roll and user_roll and sub_roll.strip().upper() == user_roll)
+                    or (sub_stu_id and student_id and sub_stu_id == student_id)
+                    or (sub_stu_id and sub_stu_id == user_id)
+                )
+                if not owns:
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's graded export.")
         elif not (clean_key.startswith("artifacts/") or clean_key.startswith("exams/")):
-            raise HTTPException(status_code=403, detail="Forbidden: Students may only access submissions and published exam materials.")
+            raise HTTPException(status_code=403, detail="Forbidden: Students may only access submissions, graded exports, and published exam materials.")
 
     storage = get_storage_service()
     if not storage.file_exists(clean_key):

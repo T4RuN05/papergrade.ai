@@ -295,6 +295,14 @@ def get_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.get("branch_id") != current_user.get("branch_id") or (current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+
     # If student, mask answer key and rubric until published
     if current_user.get("role") == "STUDENT":
         if not exam.get("is_published"):
@@ -1095,13 +1103,23 @@ def _serve_exam_artifact_pdf(
             detail=f"Document unavailable: {label} was permanently purged in accordance with the 15-day storage retention policy."
         )
 
-    if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
-        forbidden_msg = (
-            "Question paper is available to students once exam results are published."
-            if is_qp
-            else "Official answer key is confidential until exam results are published."
-        )
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_msg)
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.get("branch_id") != current_user.get("branch_id") or (current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id")):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Exam belongs to another institute.")
+    elif user_role == "STUDENT":
+        if current_user.get("institute_id") and exam.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Exam belongs to another institute.")
+        if not exam.get("is_published"):
+            forbidden_msg = (
+                "Question paper is available to students once exam results are published."
+                if is_qp
+                else "Official answer key is confidential until exam results are published."
+            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_msg)
 
     out_filename = f"{'question_paper' if is_qp else 'answer_key'}_{exam_id}.pdf"
     storage = get_storage_service()
@@ -1287,7 +1305,7 @@ async def get_exam_artifact_page_image(
 
 
 @router.delete("/{exam_id}")
-async def delete_exam(
+def delete_exam(
     exam_id: str,
     confirm_delete_title: Optional[str] = Query(None, description="Mandatory confirmation matching exam title if exam is published"),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
@@ -1566,6 +1584,17 @@ def get_exam_rankings(
     is_student = user_role == "STUDENT"
     caller_user_id = current_user.get("sub") or current_user.get("id")
 
+    # Multi-tenancy check
+    if user_role == "BRANCH_MANAGER":
+        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+    elif is_student:
+        if current_user.get("institute_id") and exam.institute_id and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+
     # Match student identity
     student_record = None
     caller_roll = current_user.get("roll_number") or ""
@@ -1595,7 +1624,7 @@ def get_exam_rankings(
         or bool(getattr(exam, 'is_published', False))
     )
 
-    is_privileged = user_role in ["ROOT_ADMIN", "ADMIN", "TEACHER", "FACULTY"]
+    is_privileged = user_role in ["ROOT_ADMIN", "ADMIN", "TEACHER", "FACULTY", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER"]
 
     # The ranking system must NOT be visible to students until the exam is officially published
     if not is_privileged and not is_exam_published:

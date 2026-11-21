@@ -446,7 +446,7 @@ class CloudinaryStorageService(StorageService):
             url, _ = cloudinary.utils.cloudinary_url(pub_id, format=fmt, resource_type="image", secure=True)
 
         req = urllib.request.Request(url, headers={"User-Agent": "PaperGrade-AI/1.0"})
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             data = resp.read()
 
         if data:

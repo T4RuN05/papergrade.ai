@@ -80,16 +80,20 @@ def get_user_auth_state(user_id: str) -> tuple[bool, int]:
                 select(User.is_active, User.token_version).where(User.id == user_id)
             ).first()
             if user_row is None:
-                # Fallback for synthetic/test users that are not in DB
-                is_active_bool = user_id.startswith("usr_test") or user_id.startswith("user_")
-                token_ver = 1
+                # Restrict bypass strictly to synthetic test users under test environment
+                if getattr(settings, "ENVIRONMENT", "").lower() == "test" and (user_id.startswith("usr_test") or user_id.startswith("user_test")):
+                    is_active_bool = True
+                    token_ver = 1
+                else:
+                    is_active_bool = False
+                    token_ver = 0
             else:
                 is_active_bool = bool(user_row[0] == 1)
                 token_ver = int(user_row[1] if user_row[1] is not None else 1)
     except Exception:
-        # Fallback gracefully if DB session unavailable
-        is_active_bool = True
-        token_ver = 1
+        # Do not fail open on DB error
+        is_active_bool = False
+        token_ver = 0
 
     state = (is_active_bool, token_ver)
     _user_auth_cache.set(user_id, state)
@@ -180,12 +184,12 @@ def get_current_user(
             detail="User account is deactivated or invalid",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # D-24: Invalidate JWT session if user's password has been updated/reset
-    token_ver = payload.get("token_version")
-    if token_ver is not None and int(token_ver) < current_ver:
+    # D-24: Invalidate JWT session if user's password has been updated/reset or missing token version
+    token_ver = int(payload.get("token_version") or 0)
+    if token_ver < current_ver:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session has expired due to a recent password change. Please log in again.",
+            detail="Session has expired due to a recent password change or token revocation. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return payload

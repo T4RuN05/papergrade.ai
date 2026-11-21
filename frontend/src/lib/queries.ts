@@ -37,7 +37,7 @@ export function useCurrentUser(forceRefresh = false) {
 export function useBranchUsers(branchId?: string) {
   return useQuery({
     queryKey: queryKeys.auth.users(branchId),
-    queryFn: () => api.listUsers(branchId),
+    queryFn: () => api.listUsers(undefined, branchId),
     enabled: Boolean(branchId),
     staleTime: 30 * 1000,
   });
@@ -105,7 +105,7 @@ export function useExamDetail(examId: string, forceRefresh = false) {
 
 export function useSubmissionsForExam(examId?: string) {
   return useQuery<Submission[]>({
-    queryKey: ["submissions", "for-exam", examId || "none"],
+    queryKey: queryKeys.submissions.forExam(examId),
     queryFn: () => (examId ? api.getSubmissionsForExam(examId) : Promise.resolve([])),
     enabled: Boolean(examId),
     placeholderData: keepPreviousData,
@@ -277,7 +277,7 @@ export function useMyAppeals() {
 
 export function useTechnicalReports(statusFilter?: string, roleFilter?: string, branchId?: string) {
   return useQuery({
-    queryKey: ["reports", "technical", statusFilter || "ALL", roleFilter || "ALL", branchId || "all"],
+    queryKey: queryKeys.reports.technical(statusFilter, roleFilter, branchId),
     queryFn: () => api.listTechnicalReports(statusFilter, roleFilter, branchId),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,

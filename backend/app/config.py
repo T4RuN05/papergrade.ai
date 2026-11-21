@@ -12,6 +12,7 @@ class Settings:
     APP_NAME: str = "PaperGrade AI"
     APP_VERSION: str = "1.0.0-phase1-poc"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
     HOST: str = "127.0.0.1"
     PORT: int = 8000
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://papergrade-ai.vercel.app").strip()

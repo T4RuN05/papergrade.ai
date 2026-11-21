@@ -25,6 +25,7 @@ import Sortable from "sortablejs";
 import { FeatureCard, BadgePill, ButtonPrimary } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
+import { useWindowCountdown } from "@/hooks/useWindowCountdown";
 import type { AssemblyProgress } from "@/lib/pdfAssembler";
 
 export interface ActiveExamSubmissionCardProps {
@@ -57,6 +58,7 @@ export function ActiveExamSubmissionCard({
 }: ActiveExamSubmissionCardProps) {
   const { toast } = useToast();
   const [isReplacingUpload, setIsReplacingUpload] = useState(false);
+  const countdown = useWindowCountdown(windowStatus as any);
 
   // Multi-page Scanning & Upload state
   const [scannedPages, setScannedPages] = useState<
@@ -276,7 +278,7 @@ export function ActiveExamSubmissionCard({
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (scannedPages.length === 0 || !activeExam) return;
+    if (uploading || scannedPages.length === 0 || !activeExam) return;
 
     setUploading(true);
     setUploadError(null);
@@ -372,6 +374,21 @@ export function ActiveExamSubmissionCard({
           statusMessage: "Registering submission...",
         });
 
+        let verifiedPageCount = scannedPages.length || 1;
+        if (scannedPages.length === 1 && scannedPages[0].isPdf) {
+          try {
+            const { PDFDocument } = await import("pdf-lib");
+            const pdfBytes = await scannedPages[0].file.arrayBuffer();
+            const loadedDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+            verifiedPageCount = loadedDoc.getPageCount();
+          } catch {
+            verifiedPageCount = 1;
+          }
+        }
+        if (verifiedPageCount > 15) {
+          throw new Error(`PDF exceeds maximum allowed page count of 15 pages (detected ${verifiedPageCount} pages).`);
+        }
+
         result = await api.confirmPresignedUpload(activeExam.id, {
           roll_number: roll,
           student_name: studentName,
@@ -379,7 +396,7 @@ export function ActiveExamSubmissionCard({
           batch_id: user?.batch_id || user?.student?.batch_id,
           storage_key: ticket.destination_key,
           upload_session_id: ticket.upload_session_id,
-          page_count: scannedPages.length || 1,
+          page_count: verifiedPageCount,
           file_size_bytes: finalPdfFile.size,
         });
       } catch (directErr: any) {
@@ -447,13 +464,13 @@ export function ActiveExamSubmissionCard({
         {/* Countdown Clock */}
         {windowStatus?.is_active && (
           <div className="flex items-center gap-2 bg-canvas-soft border border-hairline px-3.5 py-2 rounded-md">
-            <Clock className="h-4 w-4 text-primary animate-pulse" />
+            <Clock className={`h-4 w-4 ${countdown.isInGrace ? "text-amber-500" : "text-primary"} animate-pulse`} />
             <div>
               <div className="text-[10px] uppercase font-semibold text-ink-muted leading-none">
-                Time Remaining
+                {countdown.isInGrace ? "Grace Period Remaining" : "Time Remaining"}
               </div>
               <div className="text-base font-mono font-bold text-ink leading-tight">
-                {formatCountdown(windowStatus.seconds_remaining || 0)}
+                {countdown.formatted}
               </div>
             </div>
           </div>

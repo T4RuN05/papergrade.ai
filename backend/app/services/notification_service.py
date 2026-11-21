@@ -746,6 +746,7 @@ def background_dispatch_results_published(
             if students_to_notify:
                 now = get_iso_now()
                 notif_msg = f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown."
+                push_tasks = []
                 for sub_id, u_id in students_to_notify:
                     if not u_id:
                         continue
@@ -759,12 +760,28 @@ def background_dispatch_results_published(
                         is_read=0,
                         created_at=now,
                     ))
-                    dispatch_webpush_for_user(
-                        user_id=u_id,
-                        title="Results Published",
-                        message=notif_msg,
-                        link_url=f"/student/submissions/{sub_id}",
-                    )
+                    push_tasks.append((u_id, notif_msg, f"/student/submissions/{sub_id}"))
+
+                # Commit notifications to database first
+                session.commit()
+
+                # Dispatch WebPush in parallel to eliminate sequential HTTP blocking (HIGH-02)
+                if push_tasks:
+                    from concurrent.futures import ThreadPoolExecutor
+                    def _send_push(task):
+                        user_id, msg, link = task
+                        try:
+                            dispatch_webpush_for_user(
+                                user_id=user_id,
+                                title="Results Published",
+                                message=msg,
+                                link_url=link,
+                            )
+                        except Exception:
+                            pass
+
+                    with ThreadPoolExecutor(max_workers=8) as executor:
+                        list(executor.map(_send_push, push_tasks))
 
             # Notify Root Admin and Branch Manager
             branch_name = get_branch_name(session, branch_id)

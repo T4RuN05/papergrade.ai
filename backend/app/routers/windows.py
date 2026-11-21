@@ -107,6 +107,8 @@ def calculate_window_dict(window: Optional[Dict[str, Any]], now: Optional[dateti
         "opened_at": window["opened_at"],
         "deadline_at": window["deadline_at"],
         "grace_deadline_at": window["grace_deadline_at"],
+        "reopen_reason": window.get("reopen_reason"),
+        "reopen_scope": window.get("reopen_scope"),
         "closed_at": closed_at_iso,
         "seconds_since_closed": seconds_since_closed,
         "seconds_until_card_expires": seconds_until_card_expires,
@@ -174,6 +176,12 @@ def open_submission_window(
     exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
+        )
 
     # Tenancy guard (Branch Manager & Institute Director)
     user_inst = current_user.get("institute_id")
@@ -288,6 +296,12 @@ def reopen_submission_window(
     exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
+        )
 
     # Tenancy guard (Branch Manager & Institute Director)
     user_inst = current_user.get("institute_id")
@@ -406,6 +420,12 @@ def extend_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
+    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
+        )
+
     user_inst = current_user.get("institute_id")
     user_branch = current_user.get("branch_id")
     if user_inst and exam.institute_id and exam.institute_id != user_inst:
@@ -485,6 +505,12 @@ def close_submission_window(
     exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
+        )
 
     # Tenancy guard (Branch Manager & Institute Director)
     user_inst = current_user.get("institute_id")

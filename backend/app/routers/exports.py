@@ -38,7 +38,10 @@ def _resolve_pdf_response(
     sub = result[0] if result else None
     exam = result[1] if result else None
 
-    if sub and sub.is_document_purged:
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    if sub.is_document_purged:
         raise HTTPException(
             status_code=410,
             detail="Document unavailable: This evaluated answer sheet was permanently removed in accordance with the 15-day storage retention policy. Question-by-question marks and final scores are permanently preserved in your academic record."
@@ -57,6 +60,16 @@ def _resolve_pdf_response(
                 status_code=403,
                 detail="Forbidden: Evaluation results for this examination have not been officially published yet. Graded PDFs will become available once officially released by academic faculty."
             )
+
+    # Staff tenancy isolation
+    if not is_student and current_user:
+        user_role = current_user.get("role")
+        if user_role == "BRANCH_MANAGER":
+            if exam and (exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"))):
+                raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another branch.")
+        elif user_role == "INSTITUTE_DIRECTOR":
+            if exam and (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+                raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
 
     if custom_filename:
         safe_name = custom_filename if custom_filename.lower().endswith(".pdf") else f"{custom_filename}.pdf"
@@ -126,13 +139,29 @@ def download_annotated_pdf_with_name(
     return _resolve_pdf_response(submission_id, db=db, custom_filename=filename, current_user=current_user)
 
 
-def _resolve_zip_response(batch_id: str, db: Session, custom_filename: Optional[str] = None):
+def _resolve_zip_response(
+    batch_id: str,
+    db: Session,
+    custom_filename: Optional[str] = None,
+    current_user: Optional[Dict[str, Any]] = None
+):
     clean_batch_id = batch_id.removesuffix(".zip")
+    batch = db.scalar(select(Batch).where(Batch.id == clean_batch_id))
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    if current_user:
+        user_role = current_user.get("role")
+        if user_role == "BRANCH_MANAGER":
+            if batch.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and batch.institute_id != current_user.get("institute_id")):
+                raise HTTPException(status_code=403, detail="Forbidden: Batch belongs to another branch/institute.")
+        elif user_role == "INSTITUTE_DIRECTOR":
+            if current_user.get("institute_id") and batch.institute_id != current_user.get("institute_id"):
+                raise HTTPException(status_code=403, detail="Forbidden: Batch belongs to another institute.")
+
     zip_path = export_service.create_batch_zip(clean_batch_id)
     if not zip_path or not zip_path.exists():
         raise HTTPException(status_code=404, detail="Could not create batch ZIP archive.")
-
-    batch = db.scalar(select(Batch).where(Batch.id == clean_batch_id))
 
     if custom_filename:
         safe_name = custom_filename if custom_filename.lower().endswith(".zip") else f"{custom_filename}.zip"
@@ -170,7 +199,7 @@ def download_batch_zip(
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
-    return _resolve_zip_response(batch_id, db=db)
+    return _resolve_zip_response(batch_id, db=db, current_user=current_user)
 
 
 @router.get("/batch-zip/{batch_id}/{filename}")
@@ -180,7 +209,7 @@ def download_batch_zip_with_name(
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
-    return _resolve_zip_response(batch_id, db=db, custom_filename=filename)
+    return _resolve_zip_response(batch_id, db=db, custom_filename=filename, current_user=current_user)
 
 
 @router.get("/marks-csv/{exam_id}")
@@ -192,9 +221,19 @@ def download_marks_csv(
     db: Session = Depends(get_db)
 ):
     clean_exam_id = exam_id.removesuffix(".csv")
-    csv_content = export_service.generate_exam_marks_csv(clean_exam_id)
-
     exam = db.scalar(select(Exam).where(Exam.id == clean_exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+
+    csv_content = export_service.generate_exam_marks_csv(clean_exam_id)
 
     if exam:
         base = f"{exam.title}_{exam.subject}_Marks".strip()

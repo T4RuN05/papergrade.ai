@@ -85,6 +85,7 @@ class Student(Base, TimestampMixin):
     __table_args__ = (
         Index("idx_students_num", "student_id_num"),
         Index("idx_students_batch", "batch_id"),
+        Index("idx_students_user_id", "user_id"),
         Index("idx_students_roll_unique", "roll_number", unique=True),
     )
 

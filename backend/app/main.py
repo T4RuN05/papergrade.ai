@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
-from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent
+from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent, Branch
 from backend.app.services.auth import get_current_user
 from sqlalchemy import select, func
 from backend.app.database import init_db
@@ -76,7 +76,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
     return response
 
 # Backward compatibility middleware: transparently rewrite legacy /api/v1/... to /api/...
@@ -164,6 +164,8 @@ def get_batch_by_id(
             "name": batch.name,
             "code": getattr(batch, "code", batch.name),
             "academic_year": batch.academic_year,
+            "total_submissions": len(submissions),
+            "completed_submissions": sum(1 for s in submissions if s.status in ("COMPLETED", "NEEDS_REVIEW", "GRADED")),
             "created_at": batch.created_at,
             "updated_at": batch.updated_at,
             "submissions": [

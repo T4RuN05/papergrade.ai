@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
-from backend.app.db.models import ExperimentBenchmark
+from backend.app.db.models import ExperimentBenchmark, Exam
 from backend.app.schemas import QuotaSettingsUpdateRequest, BenchmarkRecordRequest
 from backend.app.services.usage_service import usage_service
 from backend.app.services.auth import require_branch_manager, require_root_admin
@@ -19,8 +19,20 @@ router = APIRouter(tags=["Analytics & Feasibility"])
 def get_usage(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
-    current_user: Dict[str, Any] = Depends(require_branch_manager)
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
+    db: Session = Depends(get_db)
 ):
+    if exam_id:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if exam:
+            user_role = current_user.get("role")
+            if user_role == "BRANCH_MANAGER":
+                if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+                    raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+            elif user_role == "INSTITUTE_DIRECTOR":
+                if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+                    raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+
     return usage_service.get_usage_metrics(exam_id=exam_id, batch_id=batch_id)
 
 
@@ -36,7 +48,7 @@ def update_quota_settings(
 @router.post("/test-gcp-paid")
 def test_gcp_paid(
     test_all: bool = False,
-    current_user: Dict[str, Any] = Depends(require_branch_manager)
+    current_user: Dict[str, Any] = Depends(require_root_admin)
 ):
     """
     Executes a test ping through the Google Cloud Paid Vertex AI engine,
@@ -56,6 +68,17 @@ def record_benchmark(
     Records human teacher verification for an evaluated paper to compute
     transcription, mapping, localization, and grading agreement metrics via ORM.
     """
+    exam = db.scalar(select(Exam).where(Exam.id == req.exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
     bench_id = str(uuid.uuid4())
     now = get_iso_now()
 
@@ -86,6 +109,18 @@ def get_exam_benchmarks(
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+
     records = db.scalars(
         select(ExperimentBenchmark)
         .where(ExperimentBenchmark.exam_id == exam_id)

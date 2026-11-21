@@ -10,6 +10,7 @@ class Submission(Base, UpdatedTimestampMixin):
     __tablename__ = "submissions"
     __table_args__ = (
         Index("idx_submissions_exam", "exam_id"),
+        Index("idx_submissions_batch", "batch_id"),
         Index("idx_submissions_student", "student_id"),
         Index("idx_submissions_status", "status"),
         Index("idx_submissions_retention", "is_document_purged", "retention_expires_at"),
@@ -110,7 +111,7 @@ class CriterionScore(Base, TimestampMixin):
     __tablename__ = "criterion_scores"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"cs_{uuid.uuid4().hex[:12]}")
-    answer_id: Mapped[str] = mapped_column(Text, ForeignKey("answers.id", ondelete="CASCADE"), nullable=False)
+    answer_id: Mapped[str] = mapped_column(Text, ForeignKey("answers.id", ondelete="CASCADE"), nullable=False, index=True)
     criterion_id: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     max_marks: Mapped[float] = mapped_column(REAL, nullable=False, default=0.0)
@@ -127,6 +128,7 @@ class EvaluationQueue(Base, UpdatedTimestampMixin):
     __tablename__ = "evaluation_queue"
     __table_args__ = (
         Index("idx_queue_status", "status"),
+        Index("idx_queue_submission", "submission_id"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"eq_{uuid.uuid4().hex[:12]}")
@@ -145,6 +147,7 @@ class RevaluationRequest(Base):
     __tablename__ = "revaluation_requests"
     __table_args__ = (
         Index("idx_reval_sub", "submission_id"),
+        Index("idx_reval_exam", "exam_id"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"reval_{uuid.uuid4().hex[:12]}")

@@ -464,8 +464,24 @@ class RetentionDaemon:
         logging.getLogger("RetentionDaemon").info("RetentionDaemon stopped.")
 
     def _run_loop(self):
-        # Grace period on startup before the first run (90 seconds)
-        if self._stop_event.wait(90):
+        # Two-Phase Evaluation Window Invariant (GEMINI.md):
+        # Align purge operations strictly to 03:00 AM IST (overnight batch processing window)
+        now_utc = datetime.now(timezone.utc)
+        ist_now = now_utc + timedelta(hours=5, minutes=30)
+        target_ist = ist_now.replace(hour=3, minute=0, second=0, microsecond=0)
+        if target_ist <= ist_now:
+            target_ist += timedelta(days=1)
+        wait_seconds = (target_ist - ist_now).total_seconds()
+
+        logging.getLogger("RetentionDaemon").info(
+            f"RetentionDaemon scheduled for next overnight window at {target_ist.strftime('%Y-%m-%d %H:%M:%S')} IST ({wait_seconds:.0f}s wait)."
+        )
+
+        # In testing environments, allow a short wait for test suites
+        if getattr(settings, "ENVIRONMENT", "").lower() == "test":
+            wait_seconds = 1.0
+
+        if self._stop_event.wait(wait_seconds):
             return
 
         while not self._stop_event.is_set():

@@ -61,21 +61,56 @@ class PersistentQueueWorker:
         self._threads = []
         print("[QueueWorker] Background worker pool stopped.")
 
-    def recover_stalled_jobs(self, stale_only: bool = False, max_stale_minutes: int = 5):
+    def recover_stalled_jobs(self, stale_only: bool = False, max_stale_minutes: int = 15):
         """
         On worker startup or periodic watchdog, reset jobs stuck in 'PROCESSING'
         back to 'QUEUED' so they are not abandoned.
         When stale_only=True, only resets jobs older than max_stale_minutes.
+        Caps retry attempts at 3 to prevent infinite crash loops.
         """
         now = get_iso_now()
         with get_session() as session:
             if stale_only:
                 cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max_stale_minutes)).isoformat()
+                
+                # 1. Fail jobs that exceeded retry cap (>= 3 attempts)
+                fail_stmt = (
+                    update(Submission)
+                    .where(
+                        Submission.status == 'PROCESSING',
+                        or_(Submission.updated_at.is_(None), Submission.updated_at < cutoff),
+                        Submission.retry_count >= 3
+                    )
+                    .values(
+                        status='FAILED',
+                        error_message='Evaluation timed out / stalled after 3 retries',
+                        updated_at=now
+                    )
+                )
+                fail_res = session.execute(fail_stmt)
+                if fail_res.rowcount > 0:
+                    session.execute(
+                        update(EvaluationQueue)
+                        .where(
+                            EvaluationQueue.status == 'PROCESSING',
+                            or_(EvaluationQueue.updated_at.is_(None), EvaluationQueue.updated_at < cutoff),
+                            EvaluationQueue.attempt_count >= 3
+                        )
+                        .values(
+                            status='FAILED',
+                            last_error='Evaluation timed out / stalled after 3 retries',
+                            updated_at=now
+                        )
+                    )
+                    print(f"[QueueWorker] Watchdog marked {fail_res.rowcount} exhausted job(s) as FAILED.")
+
+                # 2. Requeue recoverable jobs (< 3 attempts)
                 stmt = (
                     update(Submission)
                     .where(
                         Submission.status == 'PROCESSING',
-                        or_(Submission.updated_at.is_(None), Submission.updated_at < cutoff)
+                        or_(Submission.updated_at.is_(None), Submission.updated_at < cutoff),
+                        Submission.retry_count < 3
                     )
                     .values(
                         status='QUEUED',
@@ -83,18 +118,38 @@ class PersistentQueueWorker:
                         updated_at=now
                     )
                 )
+                res = session.execute(stmt)
+                sub_count = res.rowcount
+                if sub_count > 0:
+                    session.execute(
+                        update(EvaluationQueue)
+                        .where(
+                            EvaluationQueue.status == 'PROCESSING',
+                            or_(EvaluationQueue.updated_at.is_(None), EvaluationQueue.updated_at < cutoff),
+                            EvaluationQueue.attempt_count < 3
+                        )
+                        .values(
+                            status='QUEUED',
+                            attempt_count=EvaluationQueue.attempt_count + 1,
+                            updated_at=now
+                        )
+                    )
+                    print(f"[QueueWorker] Watchdog recovered {sub_count} stalled job(s) back to QUEUED.")
             else:
                 stmt = (
                     update(Submission)
                     .where(Submission.status == 'PROCESSING')
                     .values(status='QUEUED', updated_at=now)
                 )
-
-            res = session.execute(stmt)
-            sub_count = res.rowcount
-            if sub_count > 0:
-                tag = "Watchdog recovered" if stale_only else "Recovered"
-                print(f"[QueueWorker] {tag} {sub_count} stalled job(s) back to QUEUED.")
+                res = session.execute(stmt)
+                sub_count = res.rowcount
+                if sub_count > 0:
+                    session.execute(
+                        update(EvaluationQueue)
+                        .where(EvaluationQueue.status == 'PROCESSING')
+                        .values(status='QUEUED', updated_at=now)
+                    )
+                    print(f"[QueueWorker] Recovered {sub_count} stalled job(s) back to QUEUED.")
 
             batch_res = session.execute(
                 update(Batch)
@@ -112,7 +167,7 @@ class PersistentQueueWorker:
         while self.running:
             time.sleep(60.0)
             try:
-                self.recover_stalled_jobs(stale_only=True, max_stale_minutes=5)
+                self.recover_stalled_jobs(stale_only=True, max_stale_minutes=15)
             except Exception as e:
                 print(f"[QueueWorker-Watchdog] Error in watchdog loop: {e}")
 
@@ -233,6 +288,13 @@ class PersistentQueueWorker:
 
         # 3. Single-Pass Multimodal Grading Call & Invariant Enforcement
         try:
+            # Heartbeat: touch updated_at right before calling model so watchdog recognizes active processing
+            active_now = get_iso_now()
+            with get_session() as sess:
+                sess.execute(update(Submission).where(Submission.id == submission_id).values(updated_at=active_now))
+                sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == submission_id).values(updated_at=active_now))
+                sess.commit()
+
             grading_result, usage_event_id = gemini_client.grade_student_submission(
                 exam_id=exam_id,
                 batch_id=batch_id,

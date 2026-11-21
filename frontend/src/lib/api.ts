@@ -281,11 +281,7 @@ export const api = {
       headers,
       body,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Login failed" }));
-      throw new Error(parseErrorDetail(err, "Invalid email or password"));
-    }
-    const data = await res.json();
+    const data = await safeJson(res, "Invalid email or password");
     const userPayload = data.user || {
       id: data.user_id,
       role: data.role,
@@ -315,11 +311,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Claim account failed" }));
-      throw new Error(parseErrorDetail(err, "Failed to claim account"));
-    }
-    const resData = await res.json();
+    const resData = await safeJson(res, "Failed to claim account");
     setAuthToken(resData.access_token, {
       id: resData.user_id,
       role: resData.role,
@@ -1245,11 +1237,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to start evaluation" }));
-      throw new Error(parseErrorDetail(err, "Failed to start evaluation"));
-    }
-    const data = await res.json();
+    const data = await safeJson(res, "Failed to start evaluation");
     clearApiCache(`exams:detail:${examId}`);
     clearApiCache(`submissions:list:${examId}`);
     clearApiCache(`submissions:list:all`);
@@ -1262,15 +1250,13 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to publish results" }));
-      throw new Error(parseErrorDetail(err, "Failed to publish results"));
-    }
-    const data = await res.json();
+    const data = await safeJson(res, "Failed to publish results");
     clearApiCache(`exams:detail:${examId}`);
     clearApiCache(`submissions:list:${examId}`);
     clearApiCache(`submissions:list:all`);
     clearApiCache(`exams:list:`);
+    clearApiCache("submissions:student-portal-state");
+    clearApiCache("submissions:student-past");
     return data;
   },
 
@@ -1469,8 +1455,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to save manual edit");
-    const resData = await res.json();
+    const resData = await safeJson(res, "Failed to save manual edit");
     clearApiCache(`submissions:detail:${submissionId}`);
     clearApiCache(`submissions:list:`);
     return resData;
@@ -1493,11 +1478,7 @@ export const api = {
       },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to re-evaluate answer" }));
-      throw new Error(parseErrorDetail(err, "Failed to re-evaluate answer"));
-    }
-    return await res.json();
+    return await safeJson(res, "Failed to re-evaluate answer");
   },
 
   async clearSubmissionReview(submissionId: string): Promise<any> {
@@ -1505,11 +1486,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to clear review flag" }));
-      throw new Error(parseErrorDetail(err, "Failed to clear review flag"));
-    }
-    const resData = await res.json();
+    const resData = await safeJson(res, "Failed to clear review flag");
     clearApiCache(`submissions:detail:${submissionId}`);
     clearApiCache(`submissions:list:`);
     return resData;
@@ -1520,11 +1497,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to bulk clear exam review flags" }));
-      throw new Error(parseErrorDetail(err, "Failed to bulk clear exam review flags"));
-    }
-    const resData = await res.json();
+    const resData = await safeJson(res, "Failed to bulk clear exam review flags");
     clearApiCache(`submissions:list:${examId}`);
     clearApiCache(`submissions:list:all`);
     return resData;
@@ -1565,11 +1538,7 @@ export const api = {
           })(),
       }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to update bounding box region" }));
-      throw new Error(parseErrorDetail(err, "Failed to update bounding box region"));
-    }
-    const resData = await res.json();
+    const resData = await safeJson(res, "Failed to update bounding box region");
     clearApiCache(`submissions:detail:${submissionId}`);
     clearApiCache(`submissions:list:`);
     return resData;
@@ -1580,11 +1549,7 @@ export const api = {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to delete bounding box region" }));
-      throw new Error(parseErrorDetail(err, "Failed to delete bounding box region"));
-    }
-    const resData = await res.json();
+    const resData = await safeJson(res, "Failed to delete bounding box region");
     clearApiCache(`submissions:detail:${submissionId}`);
     clearApiCache(`submissions:list:`);
     return resData;
@@ -1598,8 +1563,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("Failed to fetch usage metrics");
-    return res.json();
+    return safeJson(res, "Failed to fetch usage metrics");
   },
 
   async updateQuotaSettings(data: {

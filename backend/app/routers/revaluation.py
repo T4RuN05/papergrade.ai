@@ -19,11 +19,13 @@ from backend.app.db.models import (
     Batch,
     User,
     AuditLog,
+    RubricVersion,
 )
 from backend.app.services.auth import (
     get_current_user,
     require_root_admin,
     require_student,
+    require_branch_manager,
 )
 from backend.app.services.notification_service import (
     send_notification,
@@ -241,17 +243,23 @@ def get_my_revaluation_requests(
     stu_id = st.id if st else (current_user.get("student_id") or "")
     stu_roll = (st.roll_number if st else (current_user.get("roll_number") or "")).strip().upper()
 
+    inst_id = current_user.get("institute_id")
+    identity_clauses = [
+        RevaluationRequest.student_id == stu_id,
+        Submission.student_id == stu_id,
+    ]
+    if stu_roll:
+        identity_clauses.append(func.upper(Submission.roll_number) == stu_roll)
+
+    where_clauses = [or_(*identity_clauses)]
+    if inst_id:
+        where_clauses.append(Exam.institute_id == inst_id)
+
     stmt = (
         select(RevaluationRequest, Submission, Exam)
         .join(Submission, RevaluationRequest.submission_id == Submission.id)
         .join(Exam, Submission.exam_id == Exam.id)
-        .where(
-            or_(
-                RevaluationRequest.student_id == stu_id,
-                func.upper(Submission.roll_number) == stu_roll,
-                Submission.student_id == stu_id
-            )
-        )
+        .where(*where_clauses)
         .order_by(RevaluationRequest.requested_at.desc())
     )
 
@@ -286,17 +294,31 @@ def get_my_revaluation_requests(
 def list_revaluation_requests(
     exam_id: Optional[str] = None,
     branch_id: Optional[str] = None,
-    current_user: Dict[str, Any] = Depends(require_root_admin),
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
     """
-    Root Admin review desk: lists pending student revaluation requests.
+    Review desk: lists pending student revaluation requests.
+    Multi-tenant scoped by branch and institute for Branch Managers and Directors.
     """
     stmt = (
         select(RevaluationRequest, Submission, Exam)
         .join(Submission, RevaluationRequest.submission_id == Submission.id)
         .join(Exam, Submission.exam_id == Exam.id)
     )
+
+    user_role = current_user.get("role")
+    if user_role in ("BRANCH_MANAGER", "TEACHER"):
+        u_branch = current_user.get("branch_id")
+        u_inst = current_user.get("institute_id")
+        if u_branch:
+            stmt = stmt.where(Exam.branch_id == u_branch)
+        if u_inst:
+            stmt = stmt.where(Exam.institute_id == u_inst)
+    elif user_role == "INSTITUTE_DIRECTOR":
+        u_inst = current_user.get("institute_id")
+        if u_inst:
+            stmt = stmt.where(Exam.institute_id == u_inst)
 
     if exam_id:
         stmt = stmt.where(Submission.exam_id == exam_id)
@@ -335,13 +357,13 @@ def list_revaluation_requests(
 def resolve_revaluation_request(
     request_id: str,
     req: ResolveRevaluationRequest,
-    current_user: Dict[str, Any] = Depends(require_root_admin),
+    current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
     """
-    Root Admin manually resolves a revaluation request.
+    Manually resolves a revaluation request.
     CRITICAL INVARIANT: NEVER INVOKES AI. 100% human-verified marks update.
-    Recalculates totals, updates audit logs, and notifies student via ORM.
+    Recalculates totals using Best-of-N and section constraints, updates audit logs, and notifies student via ORM.
     """
     if req.decision not in ["MARKS_REVISED", "MARKS_UPHELD"]:
         raise HTTPException(status_code=400, detail="Decision must be MARKS_REVISED or MARKS_UPHELD.")
@@ -352,6 +374,28 @@ def resolve_revaluation_request(
 
     sub_id = reval.submission_id
     now = get_iso_now()
+
+    sub = db.scalar(select(Submission).where(Submission.id == sub_id))
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found.")
+
+    # Compound tenancy check for branch managers and directors
+    user_role = current_user.get("role")
+    if user_role in ("BRANCH_MANAGER", "TEACHER"):
+        u_branch = current_user.get("branch_id")
+        u_inst = current_user.get("institute_id")
+        if u_branch and exam.branch_id and exam.branch_id != u_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another branch.")
+        if u_inst and exam.institute_id and exam.institute_id != u_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        u_inst = current_user.get("institute_id")
+        if u_inst and exam.institute_id and exam.institute_id != u_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
 
     # If marks revised, apply human overrides to the answers table
     if req.decision == "MARKS_REVISED" and req.revised_answers:
@@ -367,22 +411,25 @@ def resolve_revaluation_request(
                 )
             )
 
-        # Recalculate submission total and percentage
-        new_total = db.scalar(
-            select(func.sum(Answer.awarded_marks))
-            .where(Answer.submission_id == sub_id, Answer.is_extra_attempt == 0)
-        ) or 0.0
+        # Recalculate submission total and percentage via Best-of-N rules and section limits
+        rub_row = db.scalar(
+            select(RubricVersion)
+            .where(RubricVersion.exam_id == sub.exam_id, RubricVersion.is_approved == 1)
+            .order_by(RubricVersion.version_num.desc())
+            .limit(1)
+        )
+        rubric_data = json.loads(rub_row.rubric_data) if rub_row and rub_row.rubric_data else {}
+        from backend.app.services.grading_service import GradingService
+        tot_award, tot_max, percentage, overall_needs_review = GradingService.apply_best_of_n_and_compute_totals(
+            db, sub_id, rubric_data, now
+        )
 
-        sub = db.scalar(select(Submission).where(Submission.id == sub_id))
-        max_m = sub.max_marks or 1.0
-        new_pct = round((new_total / max_m) * 100, 2) if max_m > 0 else 0.0
-
-        if sub:
-            sub.total_awarded_marks = new_total
-            sub.percentage = new_pct
-            sub.is_manual_override = 1
-            sub.reviewed_at = now
-            sub.updated_at = now
+        sub.total_awarded_marks = tot_award
+        sub.max_marks = tot_max
+        sub.percentage = percentage
+        sub.is_manual_override = 1
+        sub.reviewed_at = now
+        sub.updated_at = now
 
     # Resolve request
     reval.status = 'RESOLVED'

@@ -505,6 +505,18 @@ def get_submissions_for_exam(
     db: Session = Depends(get_db)
 ):
     """Return all active submissions for an exam with their nested answer breakdown for the marks ledger."""
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role == "INSTITUTE_DIRECTOR":
+        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+
     subs = db.scalars(
         select(Submission)
         .where(Submission.exam_id == exam_id, Submission.submission_status == 'SUBMITTED')
@@ -655,6 +667,24 @@ def request_presigned_upload(
 
     exam, window = get_exam_and_active_window(exam_id, db, allow_grace=False)
 
+    # Reopen scope protection: reject resubmissions if window was reopened for unsubmitted only
+    if getattr(window, "reopen_scope", None) == "UNSUBMITTED_ONLY":
+        prior_sub = db.scalar(
+            select(Submission.id).where(
+                Submission.exam_id == exam_id,
+                or_(
+                    func.upper(Submission.roll_number) == clean_roll,
+                    Submission.student_id == (req.student_id or "")
+                ),
+                Submission.submission_status == 'SUBMITTED'
+            ).limit(1)
+        )
+        if prior_sub:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This submission window was reopened for unsubmitted students only. Re-submissions are not permitted."
+            )
+
     if exam.batch_scope in ("SPECIFIC", "BATCHES"):
         student_batch = req.batch_id or (current_user or {}).get("batch_id")
         if not student_batch:
@@ -756,6 +786,25 @@ def confirm_presigned_upload(
 
     if not storage.file_exists(req.storage_key):
         raise HTTPException(status_code=400, detail="Uploaded file was not found in storage. Please re-upload.")
+
+    # Reopen scope protection: reject resubmissions if window was reopened for unsubmitted only
+    if getattr(window, "reopen_scope", None) == "UNSUBMITTED_ONLY":
+        prior_sub = db.scalar(
+            select(Submission.id).where(
+                Submission.exam_id == exam_id,
+                or_(
+                    func.upper(Submission.roll_number) == clean_roll,
+                    Submission.student_id == (req.student_id or "")
+                ),
+                Submission.submission_status == 'SUBMITTED'
+            ).limit(1)
+        )
+        if prior_sub:
+            storage.delete_file(req.storage_key)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This submission window was reopened for unsubmitted students only. Re-submissions are not permitted."
+            )
 
     # Zero-Download Confirmation: Avoid downloading multi-megabyte cloud assets during exam submission window.
     # Validate existence via fast HEAD probe, assert client bounds, and defer rasterization to Phase 2 worker.
@@ -879,6 +928,11 @@ def confirm_presigned_upload(
     )
 
     db.commit()
+
+    if target_user_id:
+        PortalStateEpochManager.bump_user(target_user_id)
+    if exam_branch:
+        PortalStateEpochManager.bump_branch(exam_branch)
 
     return {
         "status": "success",
@@ -1131,15 +1185,26 @@ async def upload_single_multipart(
 @router.get("/{submission_id}")
 def get_submission_details(
     submission_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     sub = grading_service.get_submission_details(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    is_student = current_user and current_user.get("role") == "STUDENT"
+    user_role = current_user.get("role")
+    is_student = user_role == "STUDENT"
     is_published = sub.get("publication_status") == "PUBLISHED"
+
+    # Multi-tenancy check for staff roles
+    if not is_student:
+        exam = db.scalar(select(Exam).where(Exam.id == sub.get("exam_id")))
+        if user_role == "BRANCH_MANAGER":
+            if exam and (exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"))):
+                raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another branch.")
+        elif user_role == "INSTITUTE_DIRECTOR":
+            if exam and (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+                raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
 
     if is_student:
         stu_rows = db.scalars(select(Student).where(Student.user_id == current_user["sub"])).all()
@@ -1173,7 +1238,7 @@ def get_submission_details(
                 "submission_status": sub["submission_status"],
                 "student_status": student_status,
                 "is_published": False,
-                "pdf_url": f"/api/v1/submissions/{sub['id']}/pdf",
+                "pdf_url": f"/api/submissions/{sub['id']}/pdf",
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
         else:
@@ -1195,7 +1260,7 @@ def get_submission_details(
                 "revaluation_requests": sub.get("revaluation_requests", []),
                 "annotated_pdf_url": (
                     None if is_purged
-                    else (f"/api/v1/storage/download?key={sub.get('annotated_pdf_path')}" if sub.get("annotated_pdf_path") else None)
+                    else (f"/api/storage/download?key={sub.get('annotated_pdf_path')}" if sub.get("annotated_pdf_path") else None)
                 ),
                 "is_document_purged": is_purged,
                 "purged_at": sub.get("purged_at"),
@@ -1207,11 +1272,11 @@ def get_submission_details(
                 "revaluation_days_remaining": sub.get("revaluation_days_remaining"),
                 "revaluation_window_open": sub.get("revaluation_window_open"),
                 "storage_notice": sub.get("storage_notice"),
-                "pdf_url": f"/api/v1/submissions/{sub['id']}/pdf",
+                "pdf_url": f"/api/submissions/{sub['id']}/pdf",
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
 
-    sub["pdf_url"] = f"/api/v1/submissions/{sub['id']}/pdf"
+    sub["pdf_url"] = f"/api/submissions/{sub['id']}/pdf"
     return sub
 
 

@@ -84,6 +84,8 @@ export default function StudentSubmissionViewerPage() {
 
   useEffect(() => {
     setLocalSubmission(null);
+    setSelectedAnswer(null);
+    setIsModalOpen(false);
   }, [submissionId]);
 
   const submission: any = useMemo(() => {
@@ -103,7 +105,7 @@ export default function StudentSubmissionViewerPage() {
     if (submission?.answers && submission.answers.length > 0 && !selectedAnswer) {
       setSelectedAnswer(submission.answers[0]);
     }
-  }, [submission?.id, selectedAnswer]);
+  }, [submission?.id, submission?.answers, selectedAnswer]);
 
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = true) => {
     setSelectedAnswer(ans);

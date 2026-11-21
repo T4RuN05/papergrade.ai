@@ -51,7 +51,7 @@ class ExamBatch(Base, TimestampMixin):
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"eb_{uuid.uuid4().hex[:12]}")
-    exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
     batch_id: Mapped[str] = mapped_column(Text, ForeignKey("batches.id", ondelete="CASCADE"), nullable=False)
 
     # Relationships
@@ -64,7 +64,7 @@ class SubmissionWindow(Base, TimestampMixin):
     __tablename__ = "submission_windows"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"win_{uuid.uuid4().hex[:12]}")
-    exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
     branch_id: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True)
     window_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     opened_at: Mapped[str] = mapped_column(Text, nullable=False)
@@ -84,7 +84,7 @@ class RubricVersion(Base, TimestampMixin):
     __tablename__ = "rubric_versions"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"rub_{uuid.uuid4().hex[:12]}")
-    exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    exam_id: Mapped[str] = mapped_column(Text, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False, index=True)
     version_num: Mapped[int] = mapped_column(Integer, nullable=False)
     is_approved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     approved_by: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

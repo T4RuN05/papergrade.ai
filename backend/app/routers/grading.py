@@ -19,7 +19,14 @@ from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.auth import get_current_user, require_branch_manager
 
-_render_lock = threading.Lock()
+_render_locks: Dict[str, threading.Lock] = {}
+_render_locks_meta = threading.Lock()
+
+def _get_submission_render_lock(sub_id: str) -> threading.Lock:
+    with _render_locks_meta:
+        if sub_id not in _render_locks:
+            _render_locks[sub_id] = threading.Lock()
+        return _render_locks[sub_id]
 
 router = APIRouter(prefix="/api/grading", tags=["Grading & Overrides"])
 
@@ -214,7 +221,8 @@ def _ensure_submission_pages_rendered(
     """Render submission PDF pages locally (and sync to remote storage) if target image is missing."""
     if target_img_path.exists() or not sub:
         return
-    with _render_lock:
+    sub_lock = _get_submission_render_lock(submission_id)
+    with sub_lock:
         if target_img_path.exists():
             return
         candidate_keys = []

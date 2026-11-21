@@ -43,6 +43,7 @@ from backend.app.services.auth import (
     get_current_user,
     require_root_admin,
     require_branch_manager,
+    invalidate_user_auth_cache,
 )
 from backend.app.services.storage import get_storage_service
 
@@ -442,7 +443,7 @@ def add_institute_subjects(
 def _verify_branch_access(db: Session, current_user: Dict[str, Any], branch_id: Optional[str]) -> bool:
     """Check whether current_user is authorized to operate on branch_id."""
     if not branch_id:
-        return True
+        return current_user.get("role") == "ROOT_ADMIN"
     role = current_user.get("role")
     if role == "ROOT_ADMIN":
         return True
@@ -511,8 +512,11 @@ def list_batches(
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    user_role = current_user["role"]
-    if user_role == "BRANCH_MANAGER":
+    user_role = current_user.get("role")
+    if user_role == "STUDENT":
+        stu = db.scalar(select(Student.batch_id).where(Student.user_id == current_user["sub"]))
+        batches = db.scalars(select(Batch).where(Batch.id == stu)).all() if stu else []
+    elif user_role == "BRANCH_MANAGER":
         user_branch = current_user.get("branch_id")
         batches = db.scalars(
             select(Batch).where(Batch.branch_id == user_branch).order_by(Batch.created_at.desc())
@@ -524,11 +528,13 @@ def list_batches(
         if branch_id:
             stmt = stmt.where(Batch.branch_id == branch_id)
         batches = db.scalars(stmt.order_by(Batch.created_at.desc())).all()
-    else:
+    elif user_role == "ROOT_ADMIN":
         stmt = select(Batch)
         if branch_id:
             stmt = stmt.where(Batch.branch_id == branch_id)
         batches = db.scalars(stmt.order_by(Batch.created_at.desc())).all()
+    else:
+        batches = []
 
     return [_format_batch_dict(b) for b in batches]
 
@@ -852,7 +858,11 @@ def delete_student_from_batch(
 
     student = db.scalar(select(Student).where(Student.id == student_id, Student.batch_id == batch_id))
     if student:
+        user_id_to_clean = student.user_id
         db.delete(student)
+        if user_id_to_clean:
+            db.execute(delete(User).where(User.id == user_id_to_clean, User.role == "STUDENT"))
+            invalidate_user_auth_cache(user_id_to_clean)
         db.commit()
 
     return {"status": "success", "message": "Student removed successfully"}
@@ -993,10 +1003,11 @@ def purge_institute_cascade(
             if u.role != "ROOT_ADMIN":
                 user_ids_to_delete.add(u.id)
 
-    for u_id in student_user_ids:
-        u = db.scalar(select(User).where(User.id == u_id))
-        if u and u.role != "ROOT_ADMIN":
-            user_ids_to_delete.add(u.id)
+    if student_user_ids:
+        stu_users = db.scalars(
+            select(User.id).where(User.id.in_(student_user_ids), User.role != "ROOT_ADMIN")
+        ).all()
+        user_ids_to_delete.update(stu_users)
 
     user_ids_list = list(user_ids_to_delete)
 

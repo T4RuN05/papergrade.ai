@@ -230,34 +230,44 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 if batch_id and str(batch_id) in allowed_bids:
                     exam_rows.append(ex)
 
-        # 3. Check Windows for these exams (with short-lived memory cache to prevent pool exhaustion)
-        cache_key = f"windows_{branch_id or 'all'}"
+        # 3. Check Windows for these exams (keyed per exam to eliminate cross-cohort collisions)
+        windows_by_exam = {}
+        missing_exam_ids = []
         with _cache_lock:
-            cached_entry = _window_cache.get(cache_key)
-            if cached_entry and (now_ts - cached_entry["time"]) < CACHE_TTL_SECONDS:
-                windows_by_exam = cached_entry["data"]
-            else:
-                windows_by_exam = {}
-                if exam_rows:
-                    exam_ids = [e["id"] for e in exam_rows]
-                    windows = session.scalars(
-                        select(SubmissionWindow)
-                        .where(SubmissionWindow.exam_id.in_(exam_ids))
-                        .order_by(SubmissionWindow.created_at.desc())
-                    ).all()
-                    for w in windows:
-                        ex_id = w.exam_id
-                        if ex_id not in windows_by_exam:
-                            windows_by_exam[ex_id] = {
-                                "id": w.id,
-                                "exam_id": w.exam_id,
-                                "window_number": w.window_number,
-                                "status": w.status,
-                                "opened_at": w.opened_at,
-                                "deadline_at": w.deadline_at,
-                                "grace_deadline_at": w.grace_deadline_at,
-                            }
-                _window_cache[cache_key] = {"time": now_ts, "data": windows_by_exam}
+            for ex in exam_rows:
+                e_id = ex["id"]
+                cached = _window_cache.get(f"window_exam_{e_id}")
+                if cached and (now_ts - cached["time"]) < CACHE_TTL_SECONDS:
+                    if cached["data"] is not None:
+                        windows_by_exam[e_id] = cached["data"]
+                else:
+                    missing_exam_ids.append(e_id)
+
+        if missing_exam_ids:
+            windows = session.scalars(
+                select(SubmissionWindow)
+                .where(SubmissionWindow.exam_id.in_(missing_exam_ids))
+                .order_by(SubmissionWindow.created_at.desc())
+            ).all()
+            with _cache_lock:
+                for w in windows:
+                    ex_id = w.exam_id
+                    if ex_id not in windows_by_exam:
+                        w_data = {
+                            "id": w.id,
+                            "exam_id": w.exam_id,
+                            "window_number": w.window_number,
+                            "status": w.status,
+                            "opened_at": w.opened_at,
+                            "deadline_at": w.deadline_at,
+                            "grace_deadline_at": w.grace_deadline_at,
+                        }
+                        windows_by_exam[ex_id] = w_data
+                        _window_cache[f"window_exam_{ex_id}"] = {"time": now_ts, "data": w_data}
+                # Also cache None for exams that have no window yet
+                for e_id in missing_exam_ids:
+                    if e_id not in windows_by_exam:
+                        _window_cache[f"window_exam_{e_id}"] = {"time": now_ts, "data": None}
 
         # Match active exam windows
         active_windows = []
@@ -548,6 +558,21 @@ def _fetch_past_submissions_sync(
         exam_stmt = exam_stmt.order_by(Exam.created_at.desc())
 
         raw_exams = session.scalars(exam_stmt).all()
+
+        # D-03: Pre-fetch scoped exam batches in 1 bulk query to eliminate N+1 loops (HIGH-04)
+        scoped_ex_ids = [
+            ex.id for ex in raw_exams
+            if (ex.batch_scope or "ALL").upper() not in ("ALL", "") and not _parse_allowed_batch_ids(ex.batch_ids)
+        ]
+        batch_ids_by_exam: Dict[str, set] = {}
+        if scoped_ex_ids:
+            eb_rows = session.execute(
+                select(ExamBatch.exam_id, ExamBatch.batch_id).where(ExamBatch.exam_id.in_(scoped_ex_ids))
+            ).all()
+            for eid, bid in eb_rows:
+                if bid:
+                    batch_ids_by_exam.setdefault(eid, set()).add(bid)
+
         for ex in raw_exams:
             scope = (ex.batch_scope or "ALL").upper()
             is_visible = False
@@ -556,10 +581,7 @@ def _fetch_past_submissions_sync(
             else:
                 allowed_bids = _parse_allowed_batch_ids(ex.batch_ids)
                 if not allowed_bids:
-                    ex_batches = session.scalars(
-                        select(ExamBatch.batch_id).where(ExamBatch.exam_id == ex.id)
-                    ).all()
-                    allowed_bids = set(b_id for b_id in ex_batches if b_id)
+                    allowed_bids = batch_ids_by_exam.get(ex.id, set())
                 if batch_id and str(batch_id) in allowed_bids:
                     is_visible = True
 

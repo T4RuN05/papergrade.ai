@@ -94,7 +94,16 @@ def _enforce_evidence_grounding_and_verdict(
         return 0.0
 
     # Rule 2: Verify QUOTE substring exists in extracted_student_answer
-    quote_match = re.search(r'QUOTE:\s*["\']([^"\']*)["\']', ev, flags=re.IGNORECASE)
+    is_visual_or_diagram_tag = bool(
+        "[diagram" in ev_upper
+        or "visual:" in ev_upper
+        or "[visual" in ev_upper
+    )
+    quote_match = re.search(r'QUOTE:\s*["\']?([^"\'\n\r|]+)["\']?', ev, flags=re.IGNORECASE)
+    if not quote_match and not is_visual_or_diagram_tag:
+        # Grounding invariant: Every PASS or PARTIAL verdict must cite a direct quote or visual evidence tag
+        return 0.0
+
     if quote_match:
         raw_quote = quote_match.group(1).strip()
         norm_quote = " ".join(_normalize_newlines(raw_quote).lower().split())
@@ -284,7 +293,6 @@ class GradingService:
 
         tot_awarded = 0.0
         calculated_exam_max = 0.0
-        overall_needs_review = any(bool(a.get("needs_review")) for a in all_answers)
         new_extra_ids = set()
 
         # Process each section with Best-of-N
@@ -292,7 +300,6 @@ class GradingService:
             ans_list = sec_answers.get(s_id, [])
             attempt_limit = s_conf.get("attempt_limit")
             sec_max = float(s_conf.get("max_marks") or 0.0)
-            calculated_exam_max += sec_max
 
             if attempt_limit and attempt_limit > 0 and len(ans_list) > 0:
                 # D-25: An answer is attempted if it was present on paper (not missing), regardless of marks awarded (even 0 marks)
@@ -313,11 +320,19 @@ class GradingService:
                 for extra in extra_answers:
                     new_extra_ids.add(extra["id"])
 
+                # Dynamic fallback for sec_max if missing/zero
+                if sec_max <= 0.0:
+                    sec_max = sum(float(a.get("max_marks") or 0.0) for a in counted_answers)
+
+                calculated_exam_max += sec_max
                 sec_awarded = sum(float(a.get("awarded_marks") or 0.0) for a in counted_answers)
                 if sec_max > 0:
                     sec_awarded = min(sec_awarded, sec_max)
                 tot_awarded += sec_awarded
             else:
+                if sec_max <= 0.0:
+                    sec_max = sum(float(a.get("max_marks") or 0.0) for a in ans_list)
+                calculated_exam_max += sec_max
                 sec_awarded = sum(float(a.get("awarded_marks") or 0.0) for a in ans_list)
                 if sec_max > 0:
                     sec_awarded = min(sec_awarded, sec_max)
@@ -327,6 +342,9 @@ class GradingService:
         for a in unsectioned_answers:
             tot_awarded += float(a.get("awarded_marks") or 0.0)
             calculated_exam_max += float(a.get("max_marks") or 0.0)
+
+        # MED-09: Filter needs_review strictly to counted answers (exclude extra discarded attempts)
+        overall_needs_review = any(bool(a.get("needs_review")) for a in all_answers if a["id"] not in new_extra_ids)
 
         # Determine final total max marks
         final_max_marks = exam_max_marks if exam_max_marks > 0 else (calculated_exam_max if calculated_exam_max > 0 else 1.0)
@@ -392,8 +410,20 @@ class GradingService:
             total_awarded_submission = 0.0
             has_needs_review = False
 
+            # CRIT-EVAL-01: Discard hallucinated question IDs not in rubric
+            valid_model_answers = [ans for ans in grading_result.answers if ans.question_id in questions_dict]
+            returned_qids = {ans.question_id for ans in valid_model_answers}
+            missing_qids = set(questions_dict.keys()) - returned_qids
+            total_rubric_q_count = len(questions_dict)
+
+            # CRIT-EVAL-02: Truncated LLM JSON reconciler (> 40% missing triggers retry)
+            if total_rubric_q_count > 0 and (len(missing_qids) / total_rubric_q_count) > 0.40:
+                raise ValueError(
+                    f"AI extraction truncated: {len(missing_qids)}/{total_rubric_q_count} questions omitted from response (> 40%). Re-evaluating."
+                )
+
             # Process each answer from model result
-            for ans in grading_result.answers:
+            for ans in valid_model_answers:
                 qid = ans.question_id
                 rubric_q = questions_dict.get(qid, {})
                 max_m = float(rubric_q.get("max_marks", ans.max_marks))
@@ -487,6 +517,37 @@ class GradingService:
                         is_manual_override=0,
                         created_at=now,
                     ))
+
+            # Reconcile omitted questions (<= 40% omitted): mark as missing & needs review
+            for missing_qid in missing_qids:
+                if missing_qid in existing_overrides:
+                    continue
+                rq = questions_dict.get(missing_qid, {})
+                m_max = float(rq.get("max_marks", 1.0))
+                m_sec = rq.get("section_id")
+                m_subq = rq.get("subquestion_id")
+                ans_id = str(uuid.uuid4())
+                answers_to_insert.append(Answer(
+                    id=ans_id,
+                    submission_id=submission_id,
+                    question_id=missing_qid,
+                    subquestion_id=m_subq,
+                    section_id=m_sec,
+                    is_extra_attempt=0,
+                    page_number=1,
+                    extracted_text="",
+                    max_marks=m_max,
+                    awarded_marks=0.0,
+                    grading_rationale="Omitted from AI model response (flagged for manual review)",
+                    transcription_uncertainty=1.0,
+                    grading_uncertainty=1.0,
+                    needs_review=1,
+                    review_reason="Omitted from AI model response",
+                    is_missing=1,
+                    is_manual_override=0,
+                    created_at=now,
+                    updated_at=now,
+                ))
 
             # Delete old non-override answers (cascading deletes child regions & scores)
             if not existing_overrides:
@@ -683,6 +744,10 @@ class GradingService:
                 student_name=sub.student_name,
                 roll_number=sub.roll_number
             )
+
+            # Export is clean now that PDF has been generated
+            with _export_dirty_lock:
+                _export_dirty.discard(submission_id)
 
             storage = get_storage_service()
             if export_pdf.exists() and is_remote_storage(storage):

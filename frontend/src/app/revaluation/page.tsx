@@ -209,6 +209,8 @@ export default function RevaluationDeskPage() {
 
   useEffect(() => {
     setLocalSubmission(null);
+    setSelectedAnswer(null);
+    setEditingAnswerId(null);
   }, [activeSubId]);
 
   const submission = useMemo(() => {
@@ -240,7 +242,14 @@ export default function RevaluationDeskPage() {
         setCurrentPage(target.page_number);
       }
     }
-  }, [submission?.id, selectedReq?.id, selectedGroup?.submission_id]);
+  }, [
+    submission?.id,
+    submission?.answers,
+    selectedReq?.id,
+    selectedReq?.question_ids_json,
+    selectedGroup?.submission_id,
+    selectedGroup?.allChallengedQids,
+  ]);
 
   // Handle clicking on an answer (from viewer or sidebar)
   const handleSelectAnswer = (ans: GradedAnswer, openModal: boolean = false) => {

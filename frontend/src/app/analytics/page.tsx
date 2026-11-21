@@ -23,6 +23,7 @@ import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTelemetryMetrics, useExamsList, useBenchmarks } from "@/lib/queries";
+import { queryKeys } from "@/lib/queryKeys";
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -87,7 +88,7 @@ export default function AnalyticsPage() {
         notes: benchNotes,
       });
       toast.success("Ground-truth benchmark recorded successfully!", { title: "Benchmark Recorded" });
-      queryClient.invalidateQueries({ queryKey: ["benchmarks", selectedExamId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.telemetry.benchmarks(selectedExamId) });
       await refetchBenchmarks();
       setBenchSubId("");
       setBenchNotes("");

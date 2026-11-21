@@ -49,6 +49,7 @@ export const queryKeys = {
   submissions: {
     all: () => ["submissions"] as const,
     list: (examId?: string) => ["submissions", "list", examId || "all"] as const,
+    forExam: (examId?: string) => ["submissions", "for-exam", examId || "all"] as const,
     detail: (id: string) => ["submissions", "detail", id] as const,
     studentPortalState: () => ["submissions", "student-portal-state"] as const,
     studentPastSubmissions: (filters: { search?: string; subject?: string; status?: string }) =>
@@ -90,5 +91,12 @@ export const queryKeys = {
     systemStatus: () => ["telemetry", "system-status"] as const,
     usage: () => ["telemetry", "usage"] as const,
     benchmarks: (examId: string) => ["telemetry", "benchmarks", examId] as const,
+  },
+
+  // 11. Technical Issue Reports & Support
+  reports: {
+    all: () => ["reports"] as const,
+    technical: (statusFilter?: string, roleFilter?: string, branchId?: string) =>
+      ["reports", "technical", statusFilter || "ALL", roleFilter || "ALL", branchId || "all"] as const,
   },
 } as const;
