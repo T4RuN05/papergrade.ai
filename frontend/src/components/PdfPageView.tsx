@@ -31,6 +31,7 @@ export function PdfPageView({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [aspect, setAspect] = useState<number | null>(null);
 
   const onAspectCalculatedRef = useRef(onAspectCalculated);
   const onPageLoadedRef = useRef(onPageLoaded);
@@ -73,6 +74,7 @@ export function PdfPageView({
         // 1. Calculate natural aspect ratio
         const unscaledViewport = page.getViewport({ scale: 1.0 });
         const naturalAspect = unscaledViewport.width / unscaledViewport.height;
+        setAspect(naturalAspect);
         if (onAspectCalculatedRef.current) {
           onAspectCalculatedRef.current(naturalAspect);
         }
@@ -126,7 +128,12 @@ export function PdfPageView({
   }, [pdfUrl, cacheKey, pageNumber, targetWidth]);
 
   return (
-    <div className={`relative w-full h-full flex items-center justify-center ${className}`}>
+    <div
+      className={`relative w-full h-full max-w-full max-h-full flex items-center justify-center ${className}`}
+      style={{
+        aspectRatio: aspect ? `${aspect}` : undefined,
+      }}
+    >
       {isLoading && !hideLoader && (
         <div className="absolute inset-0 flex items-center justify-center bg-canvas-soft/40 dark:bg-zinc-950/40 z-10">
           <div className="w-full h-full skeleton rounded-sm" />
@@ -145,8 +152,11 @@ export function PdfPageView({
       ) : (
         <canvas
           ref={canvasRef}
-          className="w-full h-full block rounded-sm select-none pointer-events-none"
-          style={{ display: "block" }}
+          className="w-full h-full max-w-full max-h-full block object-contain rounded-sm select-none pointer-events-none"
+          style={{
+            display: "block",
+            aspectRatio: aspect ? `${aspect}` : undefined,
+          }}
         />
       )}
     </div>

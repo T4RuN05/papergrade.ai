@@ -71,11 +71,72 @@ export function DocumentViewer({
   pdfUrl,
 }: DocumentViewerProps) {
   const [internalPage, setInternalPage] = useState<number>(1);
-  const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({
-    width: 0,
-    height: 0,
+  const [containerDims, setContainerDims] = useState<{ width: number; height: number }>(() => {
+    if (typeof window !== "undefined") {
+      return { width: window.innerWidth, height: window.innerHeight };
+    }
+    return { width: 0, height: 0 };
   });
-  const [pageAspect, setPageAspect] = useState<number>(0.707); // Default A4 ratio
+  const [pageAspects, setPageAspects] = useState<Record<number, number>>({});
+  const getPageAspect = useCallback(
+    (pageNum: number) => pageAspects[pageNum] || pageAspects[1] || 0.707,
+    [pageAspects]
+  );
+  const handleAspectCalculated = useCallback((pageNum: number, aspect: number) => {
+    if (aspect > 0) {
+      setPageAspects((prev) => {
+        if (prev[pageNum] === aspect) return prev;
+        return { ...prev, [pageNum]: aspect };
+      });
+    }
+  }, []);
+
+  const getPageDimensions = useCallback(
+    (pageNum: number) => {
+      const aspect = getPageAspect(pageNum);
+      const isSm = typeof window !== "undefined" && window.innerWidth >= 640;
+      const padX = isSm ? 32 : 16;
+      const padY = isSm ? 32 : 16;
+      const cW =
+        containerDims.width > 0
+          ? containerDims.width
+          : typeof window !== "undefined"
+          ? window.innerWidth
+          : 800;
+      const cH =
+        containerDims.height > 0
+          ? containerDims.height
+          : typeof window !== "undefined"
+          ? window.innerHeight - 100
+          : 600;
+      const availW = Math.max(100, cW - padX);
+      const availH = Math.max(100, cH - padY);
+
+      const containerAspect = availW / availH;
+      let sheetWidth: number;
+      let sheetHeight: number;
+
+      if (containerAspect > aspect) {
+        // Height is the constraint
+        sheetHeight = availH;
+        sheetWidth = Math.round(availH * aspect);
+      } else {
+        // Width is the constraint
+        sheetWidth = availW;
+        sheetHeight = Math.round(availW / aspect);
+      }
+
+      return {
+        width: `${sheetWidth}px`,
+        height: `${sheetHeight}px`,
+        maxWidth: "100%",
+        maxHeight: "100%",
+        aspectRatio: `${aspect}`,
+      };
+    },
+    [containerDims.width, containerDims.height, getPageAspect]
+  );
+
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const [showAnnotations, setShowAnnotations] = useState<boolean>(initialShowAnnotations);
@@ -224,6 +285,7 @@ export function DocumentViewer({
     setIsPageImageLoading(true);
     loadedPagesRef.current.clear();
     setFailedPages(new Set());
+    setPageAspects({});
   }, [submissionId]);
 
   // Reset zoom & pan on page change so newly selected page is cleanly framed
@@ -832,11 +894,12 @@ export function DocumentViewer({
             const p = sheetIdx + 1;
             const isCurrent = p === currentPage;
             const isAdjacent = Math.abs(p - currentPage) <= 1;
+            const sheetDimStyle = getPageDimensions(p);
 
             return (
               <div
                 key={p}
-                className="flex items-center justify-center h-full px-2 sm:px-4"
+                className="flex items-center justify-center h-full px-2 sm:px-4 py-2 sm:py-4 box-border"
                 style={{ width: `${100 / totalPages}%` }}
               >
                 {isAdjacent ? (
@@ -844,11 +907,7 @@ export function DocumentViewer({
                     ref={isCurrent ? activeSheetRef : undefined}
                     className="relative bg-white shadow-xl rounded-lg sm:rounded-xl overflow-hidden flex items-center justify-center select-none"
                     style={{
-                      height: "100%",
-                      maxHeight: "100%",
-                      maxWidth: "100%",
-                      aspectRatio: `${pageAspect}`,
-                      width: "auto",
+                      ...sheetDimStyle,
                       transform:
                         isCurrent && zoomScale > 1.05
                           ? `translate(${pan.x}px, ${pan.y}px) scale(${zoomScale})`
@@ -914,9 +973,7 @@ export function DocumentViewer({
                           pageNumber={p}
                           targetWidth={1400}
                           hideLoader={true}
-                          onAspectCalculated={(aspect) => {
-                            if (aspect > 0) setPageAspect(aspect);
-                          }}
+                          onAspectCalculated={(aspect) => handleAspectCalculated(p, aspect)}
                           onRenderSuccess={() => {
                             loadedPagesRef.current.add(`${submissionId}_p_${p}`);
                             if (p === currentPage) {
@@ -1005,11 +1062,7 @@ export function DocumentViewer({
                     aria-hidden="true"
                     className="bg-white/70 rounded-lg sm:rounded-xl border border-hairline/60"
                     style={{
-                      height: "100%",
-                      maxHeight: "100%",
-                      maxWidth: "100%",
-                      aspectRatio: `${pageAspect}`,
-                      width: "auto",
+                      ...sheetDimStyle,
                     }}
                   />
                 )}

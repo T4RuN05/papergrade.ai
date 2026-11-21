@@ -65,7 +65,71 @@ export function ArtifactViewerModal({
   // Measure viewport container dimensions dynamically
   const viewportRef = useRef<HTMLDivElement>(null);
   const activeSheetRef = useRef<HTMLDivElement>(null);
-  const [containerDims, setContainerDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [containerDims, setContainerDims] = useState<{ width: number; height: number }>(() => {
+    if (typeof window !== "undefined") {
+      return { width: window.innerWidth, height: window.innerHeight };
+    }
+    return { width: 0, height: 0 };
+  });
+
+  const [pageAspects, setPageAspects] = useState<Record<number, number>>({});
+  const getPageAspect = useCallback(
+    (pageNum: number) => pageAspects[pageNum] || pageAspects[1] || 0.707,
+    [pageAspects]
+  );
+
+  const handleAspectCalculated = useCallback((pageNum: number, aspect: number) => {
+    if (aspect > 0) {
+      setPageAspects((prev) => {
+        if (prev[pageNum] === aspect) return prev;
+        return { ...prev, [pageNum]: aspect };
+      });
+    }
+  }, []);
+
+  const getPageDimensions = useCallback(
+    (pageNum: number) => {
+      const aspect = getPageAspect(pageNum);
+      const isSm = typeof window !== "undefined" && window.innerWidth >= 640;
+      const padX = isSm ? 40 : 16;
+      const padY = isSm ? 40 : 16;
+      const cW =
+        containerDims.width > 0
+          ? containerDims.width
+          : typeof window !== "undefined"
+          ? window.innerWidth
+          : 800;
+      const cH =
+        containerDims.height > 0
+          ? containerDims.height
+          : typeof window !== "undefined"
+          ? window.innerHeight - 150
+          : 600;
+      const availW = Math.max(100, cW - padX);
+      const availH = Math.max(100, cH - padY);
+
+      const containerAspect = availW / availH;
+      let sheetWidth: number;
+      let sheetHeight: number;
+
+      if (containerAspect > aspect) {
+        sheetHeight = availH;
+        sheetWidth = Math.round(availH * aspect);
+      } else {
+        sheetWidth = availW;
+        sheetHeight = Math.round(availW / aspect);
+      }
+
+      return {
+        width: `${sheetWidth}px`,
+        height: `${sheetHeight}px`,
+        maxWidth: "100%",
+        maxHeight: "100%",
+        aspectRatio: `${aspect}`,
+      };
+    },
+    [containerDims.width, containerDims.height, getPageAspect]
+  );
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -113,7 +177,8 @@ export function ArtifactViewerModal({
     setZoom(1.0);
     setTouchOffset(0);
     setIsSwiping(false);
-  }, [page, activeArtifact]);
+    setPageAspects({});
+  }, [page, activeArtifact, examId]);
 
   const handleZoomIn = () => {
     setZoom((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))));
@@ -895,21 +960,18 @@ export function ArtifactViewerModal({
                 >
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
                     const isNearby = Math.abs(p - page) <= 1;
+                    const sheetDimStyle = getPageDimensions(p);
                     return (
                       <div
                         key={p}
-                        className="h-full flex items-center justify-center p-2 sm:p-5 flex-shrink-0 overflow-hidden"
+                        className="h-full flex items-center justify-center p-2 sm:p-5 flex-shrink-0 overflow-hidden box-border"
                         style={{ width: `${100 / totalPages}%` }}
                       >
                         <div
                           ref={p === page ? activeSheetRef : undefined}
                           className="relative bg-white rounded-lg sm:rounded-xl shadow-lg border border-hairline overflow-hidden flex items-center justify-center"
                           style={{
-                            height: "100%",
-                            maxHeight: "100%",
-                            maxWidth: "100%",
-                            aspectRatio: "1 / 1.414",
-                            width: "auto",
+                            ...sheetDimStyle,
                             transform: p === page && zoom > 1.05 ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` : "none",
                             transformOrigin: "center center",
                             willChange: zoom > 1.05 || isSwiping ? "transform" : "auto",
@@ -923,6 +985,7 @@ export function ArtifactViewerModal({
                             targetWidth={1400}
                             className="w-full h-full object-contain"
                             hideLoader={true}
+                            onAspectCalculated={(aspect) => handleAspectCalculated(p, aspect)}
                             onPageLoaded={(_pageNum, total) => {
                               if (total > 0 && total !== totalPages) {
                                 setTotalPages(total);
