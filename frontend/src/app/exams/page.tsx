@@ -567,12 +567,12 @@ export default function ExamsPage() {
                 <div className="space-y-3">
                   <div className="space-y-2">
                     {/* Title and Badges */}
-                    <div className="flex items-start justify-between gap-2.5">
-                      <h3 className="text-sm sm:text-base font-bold text-ink leading-snug break-words min-w-0 flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2.5">
+                      <h3 className="text-sm sm:text-base font-bold text-ink leading-snug break-words min-w-0">
                         {exam.title}
                       </h3>
 
-                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:justify-end">
                         {isExamPublished ? (
                           <BadgePill label="Published" color="purple" />
                         ) : exam.status === "EVALUATED" || exam.lifecycle_status === "EVALUATED" ? (
