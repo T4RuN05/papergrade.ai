@@ -46,6 +46,7 @@ import {
   RefetchProgressLine,
   Skeleton,
 } from "@/components/ui";
+import { ExamSubmissionWindowModal } from "@/components/exams/modals/ExamSubmissionWindowModal";
 
 export default function ExamsPage() {
   const queryClient = useQueryClient();
@@ -66,9 +67,6 @@ export default function ExamsPage() {
   // Custom Open/Reopen Window Modal
   const [reopenModalOpen, setReopenModalOpen] = useState(false);
   const [targetExamForReopen, setTargetExamForReopen] = useState<Exam | null>(null);
-  const [reopenDuration, setReopenDuration] = useState("30");
-  const [reopenReason, setReopenReason] = useState("");
-  const [reopenScope, setReopenScope] = useState("ALL_STUDENTS");
   const [isSubmittingWindow, setIsSubmittingWindow] = useState(false);
 
   // Delete Exam State
@@ -222,13 +220,16 @@ export default function ExamsPage() {
     }
   };
 
-  // Submit Open / Custom Window
-  const handleOpenWindowSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Submit Open / Custom Window via Unified Modal
+  const handleOpenWindowSubmit = async (data: {
+    durationMinutes: number;
+    reason: string;
+    scope: string;
+  }) => {
     if (!targetExamForReopen) return;
 
-    const durationNum = parseInt(reopenDuration, 10) || 30;
-    const reasonText = reopenReason.trim() || "Scheduled examination upload session";
+    const durationNum = data.durationMinutes || 30;
+    const reasonText = data.reason.trim() || "Scheduled examination upload session";
     const examId = targetExamForReopen.id;
     const examTitle = targetExamForReopen.title;
     const hasPriorWindow = Boolean(windowsMap[examId]?.has_window);
@@ -240,7 +241,7 @@ export default function ExamsPage() {
           duration_minutes: durationNum,
           reason: reasonText,
           reopen_reason: reasonText,
-          reopen_scope: reopenScope,
+          reopen_scope: data.scope,
         });
       } else {
         await api.openWindow(examId, durationNum, 2);
@@ -668,9 +669,6 @@ export default function ExamsPage() {
                           type="button"
                           onClick={() => {
                             setTargetExamForReopen(exam);
-                            setReopenReason(windowsMap[exam.id]?.has_window ? "Reopened by administrator" : "Scheduled examination upload session");
-                            setReopenDuration("30");
-                            setReopenScope("ALL_STUDENTS");
                             setReopenModalOpen(true);
                           }}
                           className="shadow-2xs cursor-pointer"
@@ -777,86 +775,20 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {/* MODAL: Open / Reopen Submission Window */}
-      {reopenModalOpen && targetExamForReopen && (
-        <ModalCard
-          title={
-            windowsMap[targetExamForReopen.id]?.has_window
-              ? `Reopen Window: ${targetExamForReopen.title}`
-              : `Open Window: ${targetExamForReopen.title}`
+      {/* CANONICAL UNIFIED MODAL: Open / Reopen Submission Window */}
+      <ExamSubmissionWindowModal
+        isOpen={reopenModalOpen && Boolean(targetExamForReopen)}
+        onClose={() => {
+          if (!isSubmittingWindow) {
+            setReopenModalOpen(false);
+            setTargetExamForReopen(null);
           }
-          onClose={() => !isSubmittingWindow && setReopenModalOpen(false)}
-        >
-          <form onSubmit={handleOpenWindowSubmit} className="space-y-4">
-            <p className="text-xs text-ink-muted">
-              Configure submission window duration and target student scope. Once activated, the server-enforced countdown timer begins immediately for all eligible students.
-            </p>
-
-            <FormInput
-              label="Session Note / Audit Reason"
-              placeholder="e.g. Scheduled examination upload, network delay grace"
-              value={reopenReason}
-              onChange={(e) => setReopenReason(e.target.value)}
-              required
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-ink mb-1">Duration</label>
-                <AppleSelect
-                  value={reopenDuration}
-                  onChange={(val) => setReopenDuration(val)}
-                  disabled={isSubmittingWindow}
-                  options={[
-                    { value: "5", label: "5 Minutes" },
-                    { value: "10", label: "10 Minutes" },
-                    { value: "15", label: "15 Minutes" },
-                    { value: "30", label: "30 Minutes" },
-                    { value: "45", label: "45 Minutes" },
-                    { value: "60", label: "60 Minutes" },
-                  ]}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-ink mb-1">Target Scope</label>
-                <AppleSelect
-                  value={reopenScope}
-                  onChange={(val) => setReopenScope(val)}
-                  disabled={isSubmittingWindow}
-                  options={[
-                    { value: "ALL_STUDENTS", label: "All Students (Replacements Allowed)" },
-                    { value: "UNSUBMITTED_ONLY", label: "Unsubmitted Students Only" },
-                  ]}
-                  className="w-full"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <ButtonUtility
-                type="button"
-                onClick={() => setReopenModalOpen(false)}
-                disabled={isSubmittingWindow}
-              >
-                Cancel
-              </ButtonUtility>
-              <ButtonPrimary
-                type="submit"
-                isLoading={isSubmittingWindow}
-                disabled={isSubmittingWindow || !reopenReason.trim()}
-              >
-                {isSubmittingWindow
-                  ? "Opening Window..."
-                  : windowsMap[targetExamForReopen.id]?.has_window
-                  ? "Confirm Reopening"
-                  : "Open Window"}
-              </ButtonPrimary>
-            </div>
-          </form>
-        </ModalCard>
-      )}
+        }}
+        examTitle={targetExamForReopen?.title}
+        hasPriorWindow={Boolean(targetExamForReopen && windowsMap[targetExamForReopen.id]?.has_window)}
+        onSubmit={handleOpenWindowSubmit}
+        isStarting={isSubmittingWindow}
+      />
 
       {/* MODAL: Delete Exam Permanently */}
       {targetExamForDelete && (

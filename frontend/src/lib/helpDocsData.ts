@@ -153,7 +153,7 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
           pins: [
             { number: 1, label: "Live submission countdown timer" },
             { number: 2, label: "Scan Page (Camera) button" },
-            { number: 3, label: "Page thumbnails with up/down arrows" },
+            { number: 3, label: "Page thumbnails with drag-and-drop reordering" },
             { number: 4, label: "Replace Answer Sheet button" },
           ],
         },
@@ -185,20 +185,19 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
             uiPills: [{ label: "Choose Photos / PDF", variant: "utility" }],
           },
           {
-            title: "4. Rearrange & Delete Pages",
-            description: "Review the thumbnail strip below the camera button. Each page shows its order number (Page 1, Page 2...). Tap the [ ↑ ] (Up) and [ ↓ ] (Down) arrows to re-order pages if they were scanned out of sequence. Tap the [ Trash ] icon to remove any blurred page and retake it.",
+            title: "4. Rearrange & Delete Pages (Drag and Drop)",
+            description: "Review the thumbnail strip below the camera button. Each page shows its order number (Page 1, Page 2...). On mobile devices, simply press and hold any card to drag and drop it into the correct sequence with fluid swapping animation. On desktop, you can also use the [ ↑ ] and [ ↓ ] arrows. Tap the [ Trash ] icon to remove any blurred page and retake it.",
             uiPills: [
-              { label: "↑ Move Up", variant: "utility" },
-              { label: "↓ Move Down", variant: "utility" },
+              { label: "Hold & Drag to Reorder", variant: "primary" },
               { label: "Delete Page", variant: "danger" },
             ],
             screenshot: {
               suggestedPath: "/docs/student/page-rearranging.gif",
-              caption: "Animated demonstration of rearranging handwritten pages using up (↑) and down (↓) controls.",
+              caption: "Animated demonstration of rearranging handwritten pages using touch drag and drop with smooth card swapping.",
               pins: [
                 { number: 1, label: "Page order numbers (Page 1, Page 2, Page 3)" },
-                { number: 2, label: "Up arrow (↑) to move page earlier" },
-                { number: 3, label: "Down arrow (↓) to move page later" },
+                { number: 2, label: "Press & hold to drag and drop (mobile)" },
+                { number: 3, label: "Fluid 60fps card swapping animation" },
                 { number: 4, label: "Trash icon to delete and retake blurred page" },
               ],
             },

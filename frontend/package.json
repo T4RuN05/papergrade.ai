@@ -12,6 +12,7 @@
     "@supabase/supabase-js": "^2.119.0",
     "@tanstack/react-query": "^5.107.1",
     "@types/katex": "^0.16.8",
+    "@types/sortablejs": "^1.15.9",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.1.0",
     "katex": "^0.19.1",
@@ -20,7 +21,8 @@
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^3.11.174",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "sortablejs": "^1.15.7"
   },
   "devDependencies": {
     "@types/node": "^20",

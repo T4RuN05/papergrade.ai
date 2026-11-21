@@ -474,6 +474,8 @@ export default function ExamDetailPage() {
       <ExamSubmissionWindowModal
         isOpen={openWindowModalOpen}
         onClose={() => setOpenWindowModalOpen(false)}
+        examTitle={exam?.title}
+        hasPriorWindow={Boolean(windowStatus?.has_window || windowStatus?.deadline_at)}
         onSubmit={handleOpenWindow}
         isStarting={isOpeningWindow}
       />

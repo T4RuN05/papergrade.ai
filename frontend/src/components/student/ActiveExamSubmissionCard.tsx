@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   Clock,
@@ -19,7 +19,9 @@ import {
   RotateCcw,
   AlertCircle,
   Info,
+  GripVertical,
 } from "lucide-react";
+import Sortable from "sortablejs";
 import { FeatureCard, BadgePill, ButtonPrimary } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -74,6 +76,79 @@ export function ActiveExamSubmissionCard({
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const filePickerRef = useRef<HTMLInputElement | null>(null);
+  const sortableContainerRef = useRef<HTMLDivElement | null>(null);
+  const sortableInstanceRef = useRef<Sortable | null>(null);
+
+  // Setup mobile touch drag-and-drop using SortableJS
+  useEffect(() => {
+    if (!sortableContainerRef.current) return;
+
+    if (sortableInstanceRef.current) {
+      sortableInstanceRef.current.destroy();
+      sortableInstanceRef.current = null;
+    }
+
+    sortableInstanceRef.current = new Sortable(sortableContainerRef.current, {
+      animation: 200,
+      easing: "cubic-bezier(0.2, 0, 0, 1)",
+      delay: 150, // 150ms touch-and-hold before dragging on mobile
+      delayOnTouchOnly: true, // Instant dragging with mouse on desktop
+      touchStartThreshold: 5, // 5px movement tolerance before drag activates (allows smooth natural scroll)
+      filter: "button, a, input", // buttons can still be tapped without initiating drag
+      preventOnFilter: false,
+      draggable: ".sortable-page-card",
+      ghostClass: "sortable-page-ghost",
+      chosenClass: "sortable-page-chosen",
+      dragClass: "sortable-page-drag",
+      forceFallback: true, // Universal FLIP swapping across mobile browsers
+      fallbackClass: "sortable-page-fallback",
+      fallbackOnBody: true,
+      swapThreshold: 1, // Full threshold eliminates threshold jitter & double-state oscillation
+      invertSwap: false, // Prevents swap zone oscillation / flickering between two states
+      onChoose: () => {
+        if (typeof window !== "undefined" && "vibrate" in navigator) {
+          try {
+            navigator.vibrate?.(35);
+          } catch {
+            // Ignore vibrate failures
+          }
+        }
+      },
+      onEnd: (evt) => {
+        if (
+          evt.oldIndex === undefined ||
+          evt.newIndex === undefined ||
+          evt.oldIndex === evt.newIndex
+        ) {
+          return;
+        }
+
+        // Revert Sortable DOM modification so React reconciliation takes control of ordering
+        const parent = evt.from;
+        const item = evt.item;
+        item.remove();
+        if (evt.oldIndex < parent.children.length) {
+          parent.insertBefore(item, parent.children[evt.oldIndex]);
+        } else {
+          parent.appendChild(item);
+        }
+
+        setScannedPages((prev) => {
+          const copy = [...prev];
+          const [moved] = copy.splice(evt.oldIndex!, 1);
+          copy.splice(evt.newIndex!, 0, moved);
+          return copy;
+        });
+      },
+    });
+
+    return () => {
+      if (sortableInstanceRef.current) {
+        sortableInstanceRef.current.destroy();
+        sortableInstanceRef.current = null;
+      }
+    };
+  }, [scannedPages.length]);
 
   const cleanupPreviews = (items: typeof scannedPages) => {
     items.forEach((item) => {
@@ -603,51 +678,71 @@ export function ActiveExamSubmissionCard({
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
+                  <div className="space-y-2.5">
+                    {/* Mobile Touch & Hold Hint */}
+                    {scannedPages.length > 1 && (
+                      <div className="flex sm:hidden items-center justify-between text-[11px] text-ink-muted bg-canvas-soft/70 px-2.5 py-1.5 rounded-md border border-hairline select-none">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <GripVertical className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>Press & hold any card to drag & reorder pages</span>
+                        </span>
+                      </div>
+                    )}
+
+                    <div
+                      ref={sortableContainerRef}
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1"
+                    >
                       {scannedPages.map((page, idx) => (
                         <div
                           key={page.id}
-                          className={`flex items-center justify-between p-2.5 rounded-lg border border-hairline transition-all ${
+                          data-id={page.id}
+                          className={`sortable-page-card flex items-center justify-between p-2.5 rounded-lg border border-hairline transition-colors duration-150 select-none cursor-grab active:cursor-grabbing ${
                             uploading
                               ? "bg-canvas-soft/30 opacity-60 pointer-events-none select-none"
                               : "bg-canvas-soft/40 hover:bg-canvas-soft/80"
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            {/* Mobile drag grip handle */}
+                            <div className="flex sm:hidden items-center justify-center text-ink-muted/50 touch-none py-1 -ml-0.5 shrink-0">
+                              <GripVertical className="h-4 w-4" />
+                            </div>
+
                             {page.previewUrl ? (
                               <img
                                 src={page.previewUrl}
                                 alt={`Page ${idx + 1}`}
-                                className="h-12 w-9 rounded object-cover border border-hairline shrink-0 shadow-2xs"
+                                className="h-12 w-9 rounded object-cover border border-hairline shrink-0 shadow-2xs pointer-events-none"
                               />
                             ) : (
-                              <div className="h-12 w-9 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                              <div className="h-12 w-9 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0 pointer-events-none">
                                 <ImageIcon className="h-4 w-4" />
                               </div>
                             )}
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary pointer-events-none">
                                   Page {idx + 1}
                                 </span>
                               </div>
-                              <p className="text-[11px] font-mono text-ink-muted truncate break-all max-w-[120px] sm:max-w-[160px] mt-0.5">
+                              <p className="text-[11px] font-mono text-ink-muted truncate break-all max-w-[120px] sm:max-w-[160px] mt-0.5 pointer-events-none">
                                 {page.name}
                               </p>
-                              <p className="text-[10px] text-ink-faint">
+                              <p className="text-[10px] text-ink-faint pointer-events-none">
                                 {(page.size / 1024).toFixed(0)} KB
                               </p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
+                            {/* Arrow controls: hidden on mobile, visible on desktop */}
                             <button
                               type="button"
                               disabled={uploading || idx === 0}
                               onClick={() => handleMovePage(idx, "up")}
                               title="Move earlier"
-                              className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                              className="hidden sm:inline-flex p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                             >
                               <ArrowUp className="h-3.5 w-3.5" />
                             </button>
@@ -656,7 +751,7 @@ export function ActiveExamSubmissionCard({
                               disabled={uploading || idx === scannedPages.length - 1}
                               onClick={() => handleMovePage(idx, "down")}
                               title="Move later"
-                              className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                              className="hidden sm:inline-flex p-1 rounded text-ink-muted hover:text-ink hover:bg-surface disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                             >
                               <ArrowDown className="h-3.5 w-3.5" />
                             </button>
