@@ -139,7 +139,7 @@ export function Navbar() {
         title: "Logged Out",
         message: "You have signed out successfully.",
       });
-      window.location.href = "/auth/login";
+      window.location.replace("/auth/login");
     }
   };
 

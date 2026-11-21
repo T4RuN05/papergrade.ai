@@ -82,7 +82,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         title: "Logged Out",
         message: "You have securely signed out of PaperGrade AI.",
       });
-      window.location.href = "/auth/login";
+      window.location.replace("/auth/login");
     }
   }, [queryClient]);
 

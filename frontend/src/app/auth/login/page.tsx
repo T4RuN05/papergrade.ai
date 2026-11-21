@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -27,6 +28,7 @@ type AuthRole = "STUDENT" | "STAFF" | "CLAIM";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { refreshTenancy } = useTenant();
 
@@ -89,6 +91,12 @@ function LoginForm() {
 
   // Check if user is already authenticated or launched in standalone PWA
   useEffect(() => {
+    const isSwitchMode = searchParams.get("switch") === "true" || searchParams.get("mode") === "switch";
+    if (isSwitchMode) {
+      api.logout();
+      return;
+    }
+
     const token = getAuthToken();
     const storedUser = getStoredUser();
     if (token && storedUser) {
@@ -113,7 +121,7 @@ function LoginForm() {
         setLoginRole("STUDENT");
       }
     }
-  }, [router]);
+  }, [router, searchParams]);
 
   useEffect(() => {
     const handleBeforeInstall = (e: Event) => {
@@ -253,17 +261,22 @@ function LoginForm() {
         }
       }
 
+      // Purge query cache to ensure no data from previous accounts lingers
+      try {
+        queryClient.clear();
+      } catch {}
+
       if (user.role === "STUDENT") {
-        // Fast-path immediate redirect for students with local seed user
+        // Fast-path immediate redirect for students with local seed user (replace history)
         refreshTenancy(fullUser);
         startNavigationProgress();
-        router.push(dest);
+        router.replace(dest);
         return;
       }
 
-      // For staff and branch managers, do a clean top-level navigate to initialize full tenant state seamlessly
+      // For staff and branch managers, do a clean top-level navigate to initialize full tenant state seamlessly (replace history)
       startNavigationProgress();
-      window.location.href = dest;
+      window.location.replace(dest);
     } catch (err: any) {
       let defaultMsg =
         loginRole === "STUDENT"
