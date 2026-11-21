@@ -486,7 +486,7 @@ export default function GradingPage() {
       {/* Main Workspace: Document Viewer + Right Sidebar — Permanently Mounted (CLS = 0.00) */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* Left: Document Viewer Container (3 cols) */}
-        <div className="lg:col-span-3 h-[560px] sm:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative">
+        <div className="lg:col-span-3 h-[560px] sm:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative w-full max-w-full">
           {isColdLoading || !submission ? (
             <EvaluationViewerSkeleton />
           ) : (

@@ -452,7 +452,7 @@ export default function StudentSubmissionViewerPage() {
             </div>
           </div>
         ) : (
-          <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative">
+          <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative w-full max-w-full">
             {isColdLoading || !submission ? (
               <EvaluationViewerSkeleton isStudent />
             ) : (

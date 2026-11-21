@@ -50,7 +50,7 @@ export function ViewerToolbar({
   onSpawnDraftBox,
 }: ViewerToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs select-none">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs select-none w-full max-w-full">
       {/* Left: Page Navigation Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         <button

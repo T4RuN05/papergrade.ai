@@ -847,7 +847,7 @@ export function DocumentViewer({
   const scorePct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
 
   return (
-    <div className="flex h-full flex-col bg-surface select-none">
+    <div className="flex h-full w-full max-w-full flex-col bg-surface select-none overflow-x-hidden">
       {/* 1. Header Toolbar */}
       <ViewerToolbar
         currentPage={currentPage}

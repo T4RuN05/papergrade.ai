@@ -764,7 +764,7 @@ export default function RevaluationDeskPage() {
           {/* Interactive Workspace: PDF Viewer (3 cols) + Flagged Questions Sidebar (1 col) */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
             {/* Left: DocumentViewer with Revaluation Flags & Interactive Drag Handles (3 cols) */}
-            <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[700px] lg:h-[840px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative">
+            <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[700px] lg:h-[840px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative w-full max-w-full">
               {isSubmissionContentLoading || !submission ? (
                 <EvaluationViewerSkeleton />
               ) : (
