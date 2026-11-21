@@ -389,6 +389,9 @@ export default function ExamDetailPage() {
         branchName={selectedBranch?.name}
         isPublished={isPublished}
         isPublishing={isPublishing}
+        isRubricApproved={isRubricApproved}
+        hasRubric={Boolean(exam?.current_rubric_version_id)}
+        totalSubmissions={stats.total}
         isRootAdmin={isRootAdmin}
         isLoading={isExamLoading}
         onTogglePublish={handlePublishResults}

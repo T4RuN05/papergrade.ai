@@ -131,9 +131,12 @@ export function SubmissionWindowControlBar({
           <Clock className="h-4 w-4" />
         </div>
         <div>
-          <div className="text-xs font-bold text-ink">Submission Window is Closed</div>
+          <div className="text-xs font-bold text-ink flex items-center gap-1.5 flex-wrap">
+            <span>Submission Window:</span>
+            <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>
+          </div>
           <p className="text-[11px] text-ink-muted">
-            Students cannot upload answer sheets until an authorized session is started.
+            Uploads blocked until opened by operator.
           </p>
         </div>
       </div>
@@ -144,12 +147,11 @@ export function SubmissionWindowControlBar({
         <ButtonPrimary
           size="sm"
           onClick={onOpenWindowModal}
-          disabled={isOpeningWindow || !isRubricApproved}
-          title={!isRubricApproved ? "Rubric must be approved before opening submission window" : undefined}
-          className="self-start sm:self-auto shrink-0"
+          disabled={isOpeningWindow}
+          className="self-start sm:self-auto shrink-0 shadow-2xs cursor-pointer"
         >
-          <Play className="h-3.5 w-3.5 mr-1.5" />
-          {isOpeningWindow ? "Starting Session..." : "Open Submission Window"}
+          <Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+          {isOpeningWindow ? "Starting Session..." : "Open Window"}
         </ButtonPrimary>
       )}
     </div>

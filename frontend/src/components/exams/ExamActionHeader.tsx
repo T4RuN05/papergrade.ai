@@ -21,6 +21,9 @@ interface ExamActionHeaderProps {
   branchName?: string;
   isPublished?: boolean;
   isPublishing?: boolean;
+  isRubricApproved?: boolean;
+  hasRubric?: boolean;
+  totalSubmissions?: number;
   isRootAdmin?: boolean;
   isLoading?: boolean;
   onTogglePublish?: () => void;
@@ -35,6 +38,9 @@ export function ExamActionHeader({
   branchName,
   isPublished = false,
   isPublishing = false,
+  isRubricApproved = false,
+  hasRubric = false,
+  totalSubmissions,
   isRootAdmin = false,
   isLoading = false,
   onTogglePublish,
@@ -89,6 +95,15 @@ export function ExamActionHeader({
                   {branchName}
                 </span>
               )}
+              {isPublished ? (
+                <BadgePill label="Published" color="purple" />
+              ) : isRubricApproved ? (
+                <BadgePill label="Rubric Approved" color="green" />
+              ) : hasRubric ? (
+                <BadgePill label="Draft Rubric" color="orange" />
+              ) : (
+                <BadgePill label="No Rubric" color="gray" />
+              )}
             </>
           )}
         </div>
@@ -112,15 +127,16 @@ export function ExamActionHeader({
           <>
             {/* Publication Status Action */}
             {isPublished ? (
-              <div className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Published</span>
-              </div>
+              <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
+                <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                <span>Finalized</span>
+              </span>
             ) : onTogglePublish ? (
               <ButtonPrimary
                 size="sm"
                 onClick={onTogglePublish}
-                disabled={isPublishing}
+                disabled={isPublishing || (totalSubmissions !== undefined && totalSubmissions === 0)}
+                title={totalSubmissions === 0 ? "Submissions must be ingested before publishing results" : undefined}
                 className="text-xs"
               >
                 <Globe className="h-3.5 w-3.5 mr-1.5" />
