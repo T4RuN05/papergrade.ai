@@ -41,7 +41,7 @@ export function AddBoxDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-80 max-h-80 overflow-y-auto rounded-lg bg-surface border border-hairline shadow-lg z-50 p-2 space-y-1.5 animate-in fade-in zoom-in-95">
+        <div className="absolute top-full left-0 mt-1 w-80 max-h-80 overflow-y-auto rounded-lg bg-surface border border-hairline shadow-lg z-30 p-2 space-y-1.5 animate-in fade-in zoom-in-95">
           <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-1 py-1 border-b border-hairline flex items-center justify-between">
             <span>Add Box on Page {currentPage}</span>
             <button

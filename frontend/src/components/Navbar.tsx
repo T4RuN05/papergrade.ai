@@ -148,7 +148,7 @@ export function Navbar() {
 
   return (
     <header
-      className="sticky top-0 z-40 w-full border-b border-hairline bg-surface shadow-xs transition-colors"
+      className="sticky top-0 z-50 w-full border-b border-hairline bg-surface shadow-xs transition-colors"
     >
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
         {/* Brand & Mobile Toggle */}
@@ -398,7 +398,7 @@ export function Navbar() {
       {/* Ambient Backdrop - Clicking closes the menu (only mounted while open) */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-40 md:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
+          className="fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-50 md:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -406,7 +406,7 @@ export function Navbar() {
 
       {/* Floating Dropdown Panel (Respects Notion surface with Apple-style smooth slide & scale) */}
       <div
-        className={`md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-surface shadow-2xl z-50 max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
+        className={`md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-surface shadow-2xl z-[55] max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
           mobileMenuOpen
             ? "opacity-100 translate-y-0 scale-y-100 pointer-events-auto"
             : "opacity-0 -translate-y-2 scale-y-98 pointer-events-none"

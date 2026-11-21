@@ -118,7 +118,7 @@ export const TenancySwitchDropdown: React.FC<TenancySwitchDropdownProps> = ({ cl
       {/* Styled Apple-grade Floating Popover Dropdown Menu */}
       {dropdownOpen && mounted && (
         <div
-          className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-50 ${
+          className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-[55] ${
             isExiting ? "animate-apple-out" : "animate-apple-in"
           }`}
         >

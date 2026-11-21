@@ -25,6 +25,7 @@ export interface AppleSelectProps {
   align?: "left" | "right";
   icon?: React.ReactNode;
   "aria-label"?: string;
+  zIndex?: number;
 }
 
 export function AppleSelect({
@@ -40,17 +41,20 @@ export function AppleSelect({
   align = "left",
   icon,
   "aria-label": ariaLabel,
+  zIndex,
 }: AppleSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [menuCoords, setMenuCoords] = useState<{
-    top: number;
+    top?: number;
+    bottom?: number;
     left?: number;
     right?: number;
     minWidth: number;
+    maxHeight: number;
     openUpward?: boolean;
-  }>({ top: 0, left: 0, minWidth: 160 });
+  }>({ minWidth: 160, maxHeight: 240 });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -66,8 +70,20 @@ export function AppleSelect({
   const updateCoords = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUpward = spaceBelow < 220 && rect.top > 220;
+    
+    const NAVBAR_TOP_OFFSET = 60; // 56px sticky navbar + 4px clearance
+    const VIEWPORT_BOTTOM_PADDING = 12;
+
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - VIEWPORT_BOTTOM_PADDING);
+    const spaceAbove = Math.max(0, rect.top - NAVBAR_TOP_OFFSET);
+
+    // Auto-detect direction: prefer downward opening unless space below is tight (< 220px) AND space above is larger
+    const openUpward = spaceBelow < 220 && spaceAbove > spaceBelow;
+    
+    // Dynamically constrain max-height to the available space in the chosen direction
+    const availableSpace = openUpward ? spaceAbove : spaceBelow;
+    const dynamicMaxHeight = Math.max(100, Math.min(240, Math.floor(availableSpace)));
+
     const minWidth = Math.max(rect.width, 160);
 
     const isRightHalf = rect.right > window.innerWidth * 0.55;
@@ -83,10 +99,12 @@ export function AppleSelect({
     }
 
     setMenuCoords({
-      top: openUpward ? rect.top - 6 : rect.bottom + 6,
+      top: openUpward ? undefined : Math.max(NAVBAR_TOP_OFFSET, rect.bottom + 6),
+      bottom: openUpward ? Math.max(VIEWPORT_BOTTOM_PADDING, window.innerHeight - (rect.top - 6)) : undefined,
       left,
       right,
       minWidth,
+      maxHeight: dynamicMaxHeight,
       openUpward,
     });
   }, [align]);
@@ -117,20 +135,46 @@ export function AppleSelect({
     handleClose();
   };
 
-  // Recalculate coordinates on window scroll or resize while open
+  // Close or reposition on scroll or resize
   useEffect(() => {
     if (!isOpen) return;
     updateCoords();
-    const handleScrollOrResize = () => {
+
+    const handleScroll = (e: Event) => {
+      // Allow scrolling inside the dropdown menu items
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) {
+        return;
+      }
+
+      // If the trigger button has scrolled off-screen or under the sticky Navbar, close
+      if (buttonRef.current) {
+        const r = buttonRef.current.getBoundingClientRect();
+        if (r.bottom <= 56 || r.top >= window.innerHeight) {
+          handleClose();
+          return;
+        }
+      }
+
+      // On mobile viewports, scrolling the page closes the dropdown
+      if (window.innerWidth < 768) {
+        handleClose();
+        return;
+      }
+
       updateCoords();
     };
-    window.addEventListener("resize", handleScrollOrResize);
-    window.addEventListener("scroll", handleScrollOrResize, true);
-    return () => {
-      window.removeEventListener("resize", handleScrollOrResize);
-      window.removeEventListener("scroll", handleScrollOrResize, true);
+
+    const handleResize = () => {
+      updateCoords();
     };
-  }, [isOpen, updateCoords]);
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [isOpen, updateCoords, handleClose]);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
@@ -200,26 +244,39 @@ export function AppleSelect({
       {isOpen &&
         mounted &&
         typeof document !== "undefined" &&
-        createPortal(
-          <div
-            ref={menuRef}
-            role="listbox"
-            data-apple-select-portal="true"
-            style={{
-              position: "fixed",
-              top: menuCoords.openUpward ? undefined : `${menuCoords.top}px`,
-              bottom: menuCoords.openUpward ? `${Math.max(8, window.innerHeight - menuCoords.top)}px` : undefined,
-              left: menuCoords.left !== undefined ? `${menuCoords.left}px` : undefined,
-              right: menuCoords.right !== undefined ? `${menuCoords.right}px` : undefined,
-              minWidth: `${menuCoords.minWidth}px`,
-              maxWidth: "calc(100vw - 24px)",
-              zIndex: 99999,
-            }}
-            className={`bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-1 overflow-hidden ${
-              isExiting ? "animate-apple-out" : "animate-apple-in"
-            } ${menuClassName}`}
-          >
-            <div className="max-h-60 overflow-y-auto space-y-0.5">
+        (() => {
+          const computedZIndex =
+            zIndex ??
+            (buttonRef.current?.closest('[role="dialog"], [data-modal="true"], .modal, [aria-modal="true"]')
+              ? 110
+              : buttonRef.current?.closest('header, nav, [data-navbar="true"]')
+              ? 60
+              : 40);
+
+          return createPortal(
+            <div
+              ref={menuRef}
+              role="listbox"
+              data-apple-select-portal="true"
+              style={{
+                position: "fixed",
+                top: menuCoords.top !== undefined ? `${menuCoords.top}px` : undefined,
+                bottom: menuCoords.bottom !== undefined ? `${menuCoords.bottom}px` : undefined,
+                left: menuCoords.left !== undefined ? `${menuCoords.left}px` : undefined,
+                right: menuCoords.right !== undefined ? `${menuCoords.right}px` : undefined,
+                minWidth: `${menuCoords.minWidth}px`,
+                maxWidth: "calc(100vw - 24px)",
+                maxHeight: `${menuCoords.maxHeight}px`,
+                zIndex: computedZIndex,
+              }}
+              className={`bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-1 overflow-hidden flex flex-col ${
+                isExiting ? "animate-apple-out" : "animate-apple-in"
+              } ${menuClassName}`}
+            >
+              <div
+                style={{ maxHeight: `${Math.max(80, menuCoords.maxHeight - 8)}px` }}
+                className="overflow-y-auto space-y-0.5"
+              >
               {options.map((opt) => {
                 const isSelected = opt.value === value;
                 return (
@@ -252,7 +309,8 @@ export function AppleSelect({
             </div>
           </div>,
           document.body
-        )}
+        );
+      })()}
     </div>
   );
 }

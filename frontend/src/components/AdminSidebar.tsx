@@ -480,7 +480,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
 
       {/* Mobile Drawer Sidebar with Tailwind slide animation */}
       <div
-        className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-in-out ${
+        className={`fixed inset-0 z-[60] md:hidden transition-all duration-300 ease-in-out ${
           mobileOpen ? "visible pointer-events-auto" : "invisible pointer-events-none"
         }`}
         aria-hidden={!mobileOpen}

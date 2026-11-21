@@ -116,7 +116,7 @@ export function NotificationDrawer() {
 
   return (
     <div
-      className={`fixed inset-0 z-50 transition-all duration-300 ease-in-out ${
+      className={`fixed inset-0 z-[70] transition-all duration-300 ease-in-out ${
         isOpen ? "visible pointer-events-auto" : "invisible pointer-events-none"
       }`}
       role="dialog"
