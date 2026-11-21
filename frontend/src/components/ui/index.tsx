@@ -133,9 +133,10 @@ export function FeatureCard({
   className = "",
   ...props
 }: FeatureCardProps) {
+  const hasCustomPadding = /\bp(?:-[0-9.]+|x-[0-9.]+|y-[0-9.]+|t-[0-9.]+|b-[0-9.]+|l-[0-9.]+|r-[0-9.]+)\b/.test(className);
   return (
     <div
-      className={`bg-surface border border-hairline rounded-lg shadow-notion-card p-6 ${
+      className={`bg-surface border border-hairline rounded-lg shadow-notion-card ${hasCustomPadding ? "" : "p-4 sm:p-6"} ${
         hoverable ? "hover:border-[#d0d0d0] dark:hover:border-[#444444] transition-colors" : ""
       } ${className}`}
       {...props}

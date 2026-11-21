@@ -157,7 +157,7 @@ export function ExamActionHeader({
               </ButtonUtility>
 
               {moreMenuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-48 rounded-lg bg-surface border border-hairline shadow-lg py-1 z-30 text-xs text-ink animate-in fade-in zoom-in-95">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 max-w-[calc(100vw-2rem)] rounded-lg bg-surface border border-hairline shadow-lg py-1 z-30 text-xs text-ink animate-in fade-in zoom-in-95">
                   {onExportCsv && (
                     <button
                       type="button"
