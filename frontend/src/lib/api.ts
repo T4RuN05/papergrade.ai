@@ -338,7 +338,7 @@ export const api = {
           if (existing) return existing;
           throw new Error(`Server temporarily unavailable (${res.status})`);
         }
-        const meData = await res.json();
+        const meData = await safeJson(res, "Failed to fetch user profile");
         setStoredUser(meData);
         return meData;
       } catch (err: any) {
@@ -374,11 +374,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to submit reset request" }));
-      throw new Error(parseErrorDetail(err, "Failed to submit reset request"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to submit reset request");
   },
 
   async getPasswordResetStatus(requestId: string, sessionSecret?: string | null): Promise<{
@@ -396,11 +392,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/auth/forgot-password/status/${requestId}${query}`, {
       cache: "no-store",
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to check reset status" }));
-      throw new Error(parseErrorDetail(err, "Failed to check reset status"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to check reset status");
   },
 
   async completePasswordReset(data: {
@@ -413,11 +405,7 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to complete password reset" }));
-      throw new Error(parseErrorDetail(err, "Failed to complete password reset"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to complete password reset");
   },
 
   async changePassword(data: { current_password: string; new_password: string }): Promise<{ status: string; message: string }> {
@@ -426,11 +414,7 @@ export const api = {
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to change password" }));
-      throw new Error(parseErrorDetail(err, "Failed to change password"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to change password");
   },
 
   async listPasswordResets(statusFilter?: string, targetType?: "staff" | "student"): Promise<any[]> {
@@ -443,7 +427,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return res.json();
+    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
   },
 
   async approvePasswordReset(requestId: string): Promise<any> {
@@ -451,11 +435,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to approve password reset" }));
-      throw new Error(parseErrorDetail(err, "Failed to approve password reset"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to approve password reset");
   },
 
   async rejectPasswordReset(requestId: string): Promise<any> {
@@ -463,11 +443,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to reject password reset" }));
-      throw new Error(parseErrorDetail(err, "Failed to reject password reset"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to reject password reset");
   },
 
   // -------------------------------------------------------------
@@ -480,8 +456,7 @@ export const api = {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
-      if (!res.ok) throw new Error("Failed to list institutes");
-      return res.json();
+      return safeJson(res, "Failed to list institutes");
     }, 60000); // 60s cache
   },
 
@@ -491,13 +466,11 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to create institute" }));
-      throw new Error(parseErrorDetail(err, "Failed to create institute"));
-    }
+    const resData = await safeJson(res, "Failed to create institute");
     clearApiCache("tenancy:institutes");
     clearApiCache("tenancy:subjects");
-    return res.json();
+
+    return resData;
   },
 
   async listSubjects(branchId?: string, instituteId?: string, forceRefresh: boolean = false): Promise<string[]> {
@@ -513,7 +486,7 @@ export const api = {
         cache: "no-store",
       });
       if (!res.ok) return ["Physics", "Chemistry", "Maths", "Biology"];
-      const data = await res.json();
+      const data = await safeJson<string[]>(res, "Failed to list subjects").catch(() => ["Physics", "Chemistry", "Maths", "Biology"]);
       return Array.isArray(data) ? data : ["Physics", "Chemistry", "Maths", "Biology"];
     }, 30000);
   },
@@ -524,13 +497,11 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ subjects }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to add subjects" }));
-      throw new Error(parseErrorDetail(err, "Failed to add subjects"));
-    }
+    const resData = await safeJson(res, "Failed to add subjects");
     clearApiCache("tenancy:institutes");
     clearApiCache("tenancy:subjects");
-    return res.json();
+
+    return resData;
   },
 
   async deleteInstitute(instituteId: string): Promise<any> {
@@ -538,16 +509,14 @@ export const api = {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to delete institute" }));
-      throw new Error(parseErrorDetail(err, "Failed to delete institute"));
-    }
+    const resData = await safeJson(res, "Failed to delete institute");
     clearApiCache("tenancy:institutes");
     clearApiCache("tenancy:branches");
     clearApiCache("tenancy:batches");
     clearApiCache("tenancy:subjects");
     clearApiCache("exams:list");
-    return res.json();
+
+    return resData;
   },
 
   async listBranches(instituteId?: string, forceRefresh: boolean = false): Promise<any[]> {
@@ -558,8 +527,7 @@ export const api = {
         ? `${API_BASE}/api/tenancy/branches?institute_id=${instituteId}`
         : `${API_BASE}/api/tenancy/branches`;
       const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to list branches");
-      return res.json();
+      return safeJson(res, "Failed to list branches");
     }, 60000); // 60s cache
   },
 
@@ -569,12 +537,10 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to create branch" }));
-      throw new Error(parseErrorDetail(err, "Failed to create branch"));
-    }
+    const resData = await safeJson(res, "Failed to create branch");
     clearApiCache("tenancy:branches");
-    return res.json();
+
+    return resData;
   },
 
   async listUsers(role?: string, branchId?: string): Promise<any[]> {
@@ -586,7 +552,7 @@ export const api = {
 
     const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
     if (!res.ok) return [];
-    return res.json();
+    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
   },
 
   async createUser(data: {
@@ -602,11 +568,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to create user" }));
-      throw new Error(parseErrorDetail(err, "Failed to create user"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to create user");
   },
 
   async updateUser(userId: string, data: {
@@ -622,11 +584,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to update user" }));
-      throw new Error(parseErrorDetail(err, "Failed to update user"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to update user");
   },
 
   async deleteUser(userId: string): Promise<any> {
@@ -634,11 +592,7 @@ export const api = {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to delete user" }));
-      throw new Error(parseErrorDetail(err, "Failed to delete user"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to delete user");
   },
 
   async listBatches(branchId?: string, forceRefresh = false): Promise<any[]> {
@@ -649,8 +603,7 @@ export const api = {
         ? `${API_BASE}/api/tenancy/batches?branch_id=${branchId}`
         : `${API_BASE}/api/tenancy/batches`;
       const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to list batches");
-      return res.json();
+      return safeJson(res, "Failed to list batches");
     }, 30000); // 30s cache with auto-invalidation on create/delete/update
   },
 
@@ -660,12 +613,10 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to create batch" }));
-      throw new Error(parseErrorDetail(err, "Failed to create batch"));
-    }
+    const resData = await safeJson(res, "Failed to create batch");
     clearApiCache("tenancy:batches");
-    return res.json();
+
+    return resData;
   },
 
   async addStudent(batchId: string, data: { roll_number?: string; full_name: string; email?: string; phone?: string }): Promise<any> {
@@ -674,12 +625,10 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to add student" }));
-      throw new Error(parseErrorDetail(err, "Failed to add student"));
-    }
+    const resData = await safeJson(res, "Failed to add student");
     clearApiCache("tenancy:batches");
-    return res.json();
+
+    return resData;
   },
 
   async importRoster(batchId: string, file: File): Promise<any> {
@@ -690,12 +639,10 @@ export const api = {
       headers: { ...getAuthHeaders() },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to import roster" }));
-      throw new Error(parseErrorDetail(err, "Failed to import roster"));
-    }
+    const resData = await safeJson(res, "Failed to import roster");
     clearApiCache("tenancy:batches");
-    return res.json();
+
+    return resData;
   },
 
   async deleteBatch(batchId: string): Promise<any> {
@@ -703,12 +650,10 @@ export const api = {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to delete batch" }));
-      throw new Error(parseErrorDetail(err, "Failed to delete batch"));
-    }
+    const resData = await safeJson(res, "Failed to delete batch");
     clearApiCache("tenancy:batches");
-    return res.json();
+
+    return resData;
   },
 
   async deleteStudent(batchId: string, studentId: string): Promise<any> {
@@ -716,12 +661,10 @@ export const api = {
       method: "DELETE",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to delete student" }));
-      throw new Error(parseErrorDetail(err, "Failed to delete student"));
-    }
+    const resData = await safeJson(res, "Failed to delete student");
     clearApiCache("tenancy:batches");
-    return res.json();
+
+    return resData;
   },
 
   async listStudentsInBatch(batchId: string): Promise<any[]> {
@@ -730,7 +673,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return res.json();
+    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
   },
 
   // -------------------------------------------------------------
@@ -742,11 +685,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ duration_minutes: Number(durationMinutes), grace_minutes: Number(graceMinutes) }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to open window" }));
-      throw new Error(parseErrorDetail(err, "Failed to open window"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to open window");
   },
 
   async getWindowStatus(examId: string): Promise<WindowStatus> {
@@ -754,8 +693,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("Failed to fetch window status");
-    return res.json();
+    return safeJson(res, "Failed to fetch window status");
   },
 
   async reopenWindow(examId: string, data: { duration_minutes?: number; reason?: string; reopen_reason?: string; reopen_scope?: string }): Promise<any> {
@@ -771,11 +709,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to reopen window" }));
-      throw new Error(parseErrorDetail(err, "Failed to reopen window"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to reopen window");
   },
 
   async extendWindow(examId: string, additionalMinutes: number = 15, reason?: string): Promise<any> {
@@ -784,11 +718,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ additional_minutes: Number(additionalMinutes), reason: reason || "Extended by teacher" }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to extend window" }));
-      throw new Error(parseErrorDetail(err, "Failed to extend window"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to extend window");
   },
 
   async closeWindow(examId: string, reason?: string): Promise<any> {
@@ -797,11 +727,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ reason: reason || "Manually closed by administrator" }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to close window" }));
-      throw new Error(parseErrorDetail(err, "Failed to close window"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to close window");
   },
 
   // -------------------------------------------------------------
@@ -829,16 +755,11 @@ export const api = {
       return _cachedPortalState;
     }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to fetch student portal state" }));
-      throw new Error(parseErrorDetail(err, "Failed to fetch student portal state"));
-    }
-
+    const data = await safeJson<any>(res, "Failed to fetch student portal state");
     const etag = res.headers.get("ETag");
     if (etag) {
       _cachedPortalEtag = etag;
     }
-    const data = await res.json();
     _cachedPortalState = data;
     return data;
   },
@@ -868,11 +789,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to fetch past exam submissions" }));
-      throw new Error(parseErrorDetail(err, "Failed to fetch past exam submissions"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to fetch past exam submissions");
   },
 
   // -------------------------------------------------------------
@@ -904,11 +821,7 @@ export const api = {
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to request upload authorization" }));
-      throw new Error(parseErrorDetail(err, "Failed to request upload authorization"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to request upload authorization");
   },
 
   async confirmPresignedUpload(
@@ -943,11 +856,7 @@ export const api = {
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to confirm upload" }));
-      throw new Error(parseErrorDetail(err, "Failed to confirm upload"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to confirm upload");
   },
 
   async uploadSingleMultipart(examId: string, formData: FormData): Promise<any> {
@@ -956,11 +865,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to upload answer sheet" }));
-      throw new Error(parseErrorDetail(err, "Failed to upload answer sheet"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to upload answer sheet");
   },
 
   async getSubmissionsForExam(examId: string): Promise<any[]> {
@@ -968,11 +873,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to fetch exam submissions" }));
-      throw new Error(parseErrorDetail(err, "Failed to fetch exam submissions"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to fetch exam submissions");
   },
 
   async getSubmission(id: string, forceRefresh: boolean = false): Promise<any> {
@@ -983,8 +884,7 @@ export const api = {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
-      if (!res.ok) throw new Error("Failed to fetch submission");
-      return res.json();
+      return safeJson(res, "Failed to fetch submission");
     }, 60000); // 60s client cache for instant repeat opens
   },
 
@@ -1001,8 +901,7 @@ export const api = {
         ? `${API_BASE}/api/submissions?exam_id=${examId}`
         : `${API_BASE}/api/submissions`;
       const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch submissions");
-      return res.json();
+      return safeJson(res, "Failed to fetch submissions");
     }, 30000); // 30s cache for fast back-and-forth navigation
   },
 
@@ -1013,10 +912,10 @@ export const api = {
     const query = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : "";
     try {
       const res = await fetch(`${API_BASE}/api/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (res.ok) return await res.json();
+      if (res.ok) return await safeJson<Exam[]>(res, "Failed to list exams");
       // Fallback to legacy path if needed
       const fallback = await fetch(`${API_BASE}/api/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (fallback.ok) return await fallback.json();
+      if (fallback.ok) return await safeJson<Exam[]>(fallback, "Failed to list exams");
       return [];
     } catch {
       return [];
@@ -1030,10 +929,9 @@ export const api = {
       const res = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (!res.ok) {
         const fallback = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-        if (!fallback.ok) throw new Error("Failed to fetch exam");
-        return fallback.json();
+        return safeJson<Exam>(fallback, "Failed to fetch exam");
       }
-      return res.json();
+      return safeJson<Exam>(res, "Failed to fetch exam");
     }, 45000); // 45s cache for fast back-and-forth navigation
   },
 
@@ -1047,10 +945,9 @@ export const api = {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
-      if (!fallback.ok) throw new Error("Failed to fetch exam evaluation status");
-      return fallback.json();
+      return safeJson(fallback, "Failed to fetch exam evaluation status");
     }
-    return res.json();
+    return safeJson(res, "Failed to fetch exam evaluation status");
   },
 
   async getExamRankings(id: string): Promise<any> {
@@ -1063,13 +960,9 @@ export const api = {
         headers: { ...getAuthHeaders() },
         cache: "no-store",
       });
-      if (!fallback.ok) {
-        const err = await fallback.json().catch(() => ({}));
-        throw new Error(parseErrorDetail(err, "Failed to fetch exam standings"));
-      }
-      return fallback.json();
+      return safeJson(fallback, "Failed to fetch exam standings");
     }
-    return res.json();
+    return safeJson(res, "Failed to fetch exam standings");
   },
 
   async createExam(formData: FormData): Promise<Exam> {
@@ -1078,11 +971,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to create exam" }));
-      throw new Error(parseErrorDetail(err, "Failed to create exam"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to create exam");
   },
 
   async uploadQuestionPaper(examId: string, formData: FormData): Promise<any> {
@@ -1091,12 +980,10 @@ export const api = {
       headers: { ...getAuthHeaders() },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to upload question paper" }));
-      throw new Error(parseErrorDetail(err, "Failed to upload question paper"));
-    }
+    const resData = await safeJson(res, "Failed to upload question paper");
     clearApiCache("exams:");
-    return res.json();
+
+    return resData;
   },
 
   async uploadAnswerKey(examId: string, formData: FormData): Promise<any> {
@@ -1105,13 +992,11 @@ export const api = {
       headers: { ...getAuthHeaders() },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to upload answer key" }));
-      throw new Error(parseErrorDetail(err, "Failed to upload answer key"));
-    }
+    const resData = await safeJson(res, "Failed to upload answer key");
     clearApiCache("exams:");
     clearApiCache("submissions:");
-    return res.json();
+
+    return resData;
   },
 
   async getExamArtifactMeta(
@@ -1134,11 +1019,7 @@ export const api = {
         headers: getAuthHeaders(),
       }
     );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to fetch document metadata" }));
-      throw new Error(parseErrorDetail(err, "Failed to fetch document metadata"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to fetch document metadata");
   },
 
   getExamArtifactPageUrl(
@@ -1176,12 +1057,10 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to generate rubric" }));
-      throw new Error(parseErrorDetail(err, "Failed to generate rubric"));
-    }
+    const resData = await safeJson(res, "Failed to generate rubric");
     clearApiCache("exams:");
-    return res.json();
+
+    return resData;
   },
 
   async approveRubric(examId: string, rubricData: ExamRubric): Promise<any> {
@@ -1190,12 +1069,10 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ rubric_data: rubricData }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to approve rubric" }));
-      throw new Error(parseErrorDetail(err, "Failed to approve rubric"));
-    }
+    const resData = await safeJson(res, "Failed to approve rubric");
     clearApiCache("exams:");
-    return res.json();
+
+    return resData;
   },
 
   async unlockRubric(examId: string): Promise<Exam> {
@@ -1209,9 +1086,9 @@ export const api = {
         headers: { ...getAuthHeaders() },
       });
     }
-    if (!res.ok) throw new Error("Failed to unlock rubric");
+    const resData = await safeJson(res, "Failed to unlock rubric");
     clearApiCache("exams:");
-    return res.json();
+    return resData;
   },
 
   async loadSampleExam(): Promise<{ exam_id: string; batch_id: string; message: string }> {
@@ -1219,8 +1096,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error("Failed to load sample exam");
-    return res.json();
+    return safeJson(res, "Failed to load sample exam");
   },
 
   async regradeSubmission(submissionId: string): Promise<any> {
@@ -1228,8 +1104,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error("Failed to regrade submission");
-    return res.json();
+    return safeJson(res, "Failed to regrade submission");
   },
 
   async startEvaluation(examId: string): Promise<any> {
@@ -1269,11 +1144,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to submit revaluation request" }));
-      throw new Error(parseErrorDetail(err, "Failed to submit revaluation request"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to submit revaluation request");
   },
 
   async getMyRevaluations(): Promise<any[]> {
@@ -1282,7 +1153,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return res.json();
+    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
   },
 
   async listRevaluations(examId?: string, branchId?: string): Promise<any[]> {
@@ -1294,8 +1165,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("Failed to fetch revaluations");
-    return res.json();
+    return safeJson(res, "Failed to fetch revaluations");
   },
 
   async resolveRevaluation(requestId: string, data: {
@@ -1308,11 +1178,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to resolve revaluation" }));
-      throw new Error(parseErrorDetail(err, "Failed to resolve revaluation"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to resolve revaluation");
   },
 
   // -------------------------------------------------------------
@@ -1324,7 +1190,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return res.json();
+    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
   },
 
   async markNotificationRead(notifId: string): Promise<any> {
@@ -1332,8 +1198,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error("Failed to mark notification read");
-    return res.json();
+    return safeJson(res, "Failed to mark notification read");
   },
 
   async markAllNotificationsRead(): Promise<any> {
@@ -1341,8 +1206,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error("Failed to mark all notifications read");
-    return res.json();
+    return safeJson(res, "Failed to mark all notifications read");
   },
 
   async getVapidPublicKey(): Promise<string | null> {
@@ -1355,8 +1219,8 @@ export const api = {
     try {
       const res = await fetch(`${API_BASE}/api/notifications/vapid-public-key`);
       if (!res.ok) return null;
-      const data = await res.json();
-      _cachedVapidPublicKey = data.public_key || null;
+      const data = await safeJson<{ public_key?: string }>(res, "Failed to fetch VAPID public key").catch(() => null);
+      _cachedVapidPublicKey = data?.public_key || null;
       return _cachedVapidPublicKey;
     } catch {
       return null;
@@ -1369,8 +1233,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(sub),
     });
-    if (!res.ok) throw new Error("Failed to save push subscription");
-    return res.json();
+    return safeJson(res, "Failed to save push subscription");
   },
 
   async removePushSubscription(endpoint: string): Promise<any> {
@@ -1379,8 +1242,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ endpoint }),
     });
-    if (!res.ok) throw new Error("Failed to remove push subscription");
-    return res.json();
+    return safeJson(res, "Failed to remove push subscription");
   },
 
   async testClosedAppPush(): Promise<any> {
@@ -1388,8 +1250,7 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     });
-    if (!res.ok) throw new Error("Failed to dispatch cloud push test");
-    return res.json();
+    return safeJson(res, "Failed to dispatch cloud push test");
   },
 
   // -------------------------------------------------------------
@@ -1405,8 +1266,7 @@ export const api = {
     total_api_calls_recorded: number;
   }> {
     const res = await fetch(`${API_BASE}/api/status`, { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to fetch system status");
-    return res.json();
+    return safeJson(res, "Failed to fetch system status");
   },
 
   async getBatch(id: string): Promise<Batch> {
@@ -1414,8 +1274,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("Failed to fetch batch");
-    return res.json();
+    return safeJson(res, "Failed to fetch batch");
   },
 
   async getGradingDetails(submissionId: string): Promise<{
@@ -1428,8 +1287,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("Failed to fetch grading details");
-    return res.json();
+    return safeJson(res, "Failed to fetch grading details");
   },
 
   async manualEditAnswer(
@@ -1576,8 +1434,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to update quota settings");
-    return res.json();
+    return safeJson(res, "Failed to update quota settings");
   },
 
   async testGcpPaidConnection(): Promise<{
@@ -1594,11 +1451,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "GCP connection test failed" }));
-      throw new Error(parseErrorDetail(err, "GCP connection test failed"));
-    }
-    return res.json();
+    return safeJson(res, "GCP connection test failed");
   },
 
   async recordBenchmark(data: {
@@ -1618,8 +1471,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error("Failed to record benchmark");
-    return res.json();
+    return safeJson(res, "Failed to record benchmark");
   },
 
   async getBenchmarks(examId: string): Promise<BenchmarkSummary> {
@@ -1627,8 +1479,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("Failed to fetch benchmarks");
-    return res.json();
+    return safeJson(res, "Failed to fetch benchmarks");
   },
 
   // Export URLs
@@ -1749,11 +1600,7 @@ export const api = {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to purge expired submissions" }));
-      throw new Error(parseErrorDetail(err, "Failed to purge expired submissions"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to purge expired submissions");
   },
 
   // -------------------------------------------------------------
@@ -1765,11 +1612,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       body: formData,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to submit technical report" }));
-      throw new Error(parseErrorDetail(err, "Failed to submit technical report"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to submit technical report");
   },
 
   async getMyTechnicalReports(): Promise<{ reports: any[] }> {
@@ -1777,11 +1620,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to load reports" }));
-      throw new Error(parseErrorDetail(err, "Failed to load reports"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to load reports");
   },
 
   async listTechnicalReports(status?: string, role?: string, branchId?: string): Promise<{
@@ -1798,11 +1637,7 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to list technical reports" }));
-      throw new Error(parseErrorDetail(err, "Failed to list technical reports"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to list technical reports");
   },
 
   async updateTechnicalReport(
@@ -1814,11 +1649,7 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to update report status" }));
-      throw new Error(parseErrorDetail(err, "Failed to update report status"));
-    }
-    return res.json();
+    return safeJson(res, "Failed to update report status");
   },
 
   getReportImageUrl(reportId: string, filename: string): string {

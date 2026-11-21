@@ -398,18 +398,28 @@ def resolve_revaluation_request(
             raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
 
     # If marks revised, apply human overrides to the answers table
-    if req.decision == "MARKS_REVISED" and req.revised_answers:
-        for item in req.revised_answers:
-            db.execute(
-                update(Answer)
-                .where(Answer.submission_id == sub_id, Answer.question_id == item.question_id)
-                .values(
-                    awarded_marks=item.revised_marks,
-                    is_manual_override=1,
-                    override_reason=f"[Revaluation] {item.comment}",
-                    updated_at=now
-                )
+    if req.decision == "MARKS_REVISED":
+        if not req.revised_answers:
+            raise HTTPException(
+                status_code=400,
+                detail="Decision MARKS_REVISED requires at least one revised answer item."
             )
+        ans_list = db.scalars(select(Answer).where(Answer.submission_id == sub_id)).all()
+        ans_map = {a.question_id.strip().lower(): a for a in ans_list}
+
+        for item in req.revised_answers:
+            target_ans = ans_map.get(item.question_id.strip().lower())
+            if not target_ans:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question '{item.question_id}' not found in submission answers."
+                )
+            target_ans.awarded_marks = max(0.0, min(float(item.revised_marks), float(target_ans.max_marks)))
+            target_ans.is_manual_override = 1
+            target_ans.is_missing = 0
+            target_ans.override_reason = f"[Revaluation] {item.comment}"
+            target_ans.updated_at = now
+        db.flush()
 
         # Recalculate submission total and percentage via Best-of-N rules and section limits
         rub_row = db.scalar(

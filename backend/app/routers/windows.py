@@ -177,7 +177,7 @@ def open_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+    if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
             detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
@@ -297,12 +297,6 @@ def reopen_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
-        )
-
     # Tenancy guard (Branch Manager & Institute Director)
     user_inst = current_user.get("institute_id")
     user_branch = current_user.get("branch_id")
@@ -316,7 +310,7 @@ def reopen_submission_window(
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     # Disallow reopening only if evaluation is actively in progress or results are published
-    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+    if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
             detail="Cannot reopen submission window: evaluation has already commenced or completed."
@@ -420,12 +414,6 @@ def extend_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
-        )
-
     user_inst = current_user.get("institute_id")
     user_branch = current_user.get("branch_id")
     if user_inst and exam.institute_id and exam.institute_id != user_inst:
@@ -434,7 +422,7 @@ def extend_submission_window(
         if user_branch and exam.branch_id and exam.branch_id != user_branch:
             raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
 
-    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+    if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(status_code=400, detail="Cannot extend window: evaluation has already commenced or completed.")
 
     window = db.scalar(
@@ -443,8 +431,11 @@ def extend_submission_window(
         .order_by(SubmissionWindow.window_number.desc())
         .limit(1)
     )
-    if not window:
-        raise HTTPException(status_code=400, detail="No submission window exists to extend. Please open a window first.")
+    if not window or window.status != "OPEN":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot extend a closed or expired submission window. Please use reopen window with an audited reason."
+        )
 
     now_dt = datetime.now(timezone.utc)
     curr_deadline = parse_iso(window.deadline_at)
@@ -506,7 +497,7 @@ def close_submission_window(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    if exam.lifecycle_status in ["EVALUATING", "RESULTS_READY", "PUBLISHED"]:
+    if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
             detail="Cannot open submission window: evaluation has already commenced or completed for this examination."

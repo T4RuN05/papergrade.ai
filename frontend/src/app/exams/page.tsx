@@ -308,7 +308,7 @@ export default function ExamsPage() {
   };
 
   const promptDeleteExam = (exam: Exam) => {
-    const isPublished = Boolean(exam.is_published || ["PUBLISHED", "RESULTS_READY"].includes(exam.lifecycle_status || ""));
+    const isPublished = Boolean(exam.is_published || ["PUBLISHED", "EVALUATED"].includes(exam.lifecycle_status || ""));
     if (isPublished && !isRootAdmin) {
       toast.error(
         "Published academic records are protected by academic integrity policies. Only Root Administrators can permanently delete published exams. You can Archive this exam instead.",
@@ -324,7 +324,7 @@ export default function ExamsPage() {
     if (!targetExamForDelete) return;
     const isPublished = Boolean(
       targetExamForDelete.is_published ||
-      ["PUBLISHED", "RESULTS_READY"].includes(targetExamForDelete.lifecycle_status || "")
+      ["PUBLISHED", "EVALUATED"].includes(targetExamForDelete.lifecycle_status || "")
     );
     const requiredConfirmation = isPublished ? targetExamForDelete.title.trim() : "DELETE";
 
@@ -717,7 +717,7 @@ export default function ExamsPage() {
                           <span>Restore</span>
                         </button>
                       ) : (
-                        (exam.is_published || ["PUBLISHED", "RESULTS_READY", "COMPLETED"].includes(exam.status)) && (
+                        (exam.is_published || ["PUBLISHED", "EVALUATED", "COMPLETED"].includes(exam.status)) && (
                           <button
                             type="button"
                             onClick={() => handleArchiveExam(exam)}

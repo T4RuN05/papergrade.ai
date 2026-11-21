@@ -58,7 +58,21 @@ def download_file(
                 )
                 if not owns:
                     raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's graded export.")
-        elif not (clean_key.startswith("artifacts/") or clean_key.startswith("exams/")):
+        elif clean_key.startswith("exams/") or clean_key.startswith("artifacts/"):
+            parts = clean_key.split("/")
+            exam_id = parts[1] if len(parts) > 1 else ""
+            if "answer_key" in clean_key:
+                from backend.app.db.session import get_session
+                from backend.app.db.models import Exam
+                from sqlalchemy import select
+                with get_session() as session:
+                    ex = session.scalar(select(Exam).where(Exam.id == exam_id))
+                    if not ex or not (ex.is_published == 1 or ex.lifecycle_status == "PUBLISHED" or ex.status == "PUBLISHED"):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Forbidden: The official answer key is confidential until exam results are published."
+                        )
+        else:
             raise HTTPException(status_code=403, detail="Forbidden: Students may only access submissions, graded exports, and published exam materials.")
 
     storage = get_storage_service()

@@ -363,6 +363,7 @@ export default function RevaluationDeskPage() {
     notes: string
   ) => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.revaluations.all() });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.submissions.all() });
     if (selectedGroup?.submission_id) {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.submissions.detail(selectedGroup.submission_id),

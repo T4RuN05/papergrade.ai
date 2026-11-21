@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
-from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent, Branch
+from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent, Branch, Student
 from backend.app.services.auth import get_current_user
 from sqlalchemy import select, func
 from backend.app.database import init_db
@@ -110,7 +110,14 @@ def get_batches_shortcut(
     user_branch = current_user.get("branch_id")
     with get_session() as session:
         stmt = select(Batch)
-        if user_role == "BRANCH_MANAGER" and user_branch:
+        if user_role == "STUDENT":
+            stu = session.scalar(select(Student.batch_id).where(Student.user_id == current_user["sub"]).limit(1))
+            if not stu:
+                return []
+            stmt = stmt.where(Batch.id == stu)
+        elif user_role == "BRANCH_MANAGER":
+            if not user_branch:
+                return []
             stmt = stmt.where(Batch.branch_id == user_branch)
         elif user_role == "INSTITUTE_DIRECTOR":
             inst_id = current_user.get("institute_id")
@@ -146,8 +153,13 @@ def get_batch_by_id(
         batch = session.scalar(select(Batch).where(Batch.id == batch_id))
         if not batch:
             raise HTTPException(status_code=404, detail="Batch not found")
-        if user_role == "BRANCH_MANAGER" and user_branch and batch.branch_id != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
+        if user_role == "STUDENT":
+            stu = session.scalar(select(Student.batch_id).where(Student.user_id == current_user["sub"]).limit(1))
+            if not stu or batch.id != stu:
+                raise HTTPException(status_code=403, detail="Forbidden: You can only view your enrolled batch.")
+        if user_role == "BRANCH_MANAGER":
+            if not user_branch or batch.branch_id != user_branch:
+                raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch.")
         if user_role == "INSTITUTE_DIRECTOR":
             inst_id = current_user.get("institute_id")
             br = session.scalar(select(Branch).where(Branch.id == batch.branch_id))

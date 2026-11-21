@@ -170,6 +170,8 @@ export default function ExamDetailPage() {
         title: "Results Published",
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(examId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions.all() });
       await refetchExam();
     } catch (err: any) {
       toast.error(err.message || "Failed to publish results", { title: "Publish Failed" });
@@ -295,7 +297,7 @@ export default function ExamDetailPage() {
     if (!exam) return;
     setIsDeletingExam(true);
     try {
-      const res = await api.deleteExam(exam.id);
+      const res = await api.deleteExam(exam.id, exam.title);
       clearApiCache();
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
       toast.success(

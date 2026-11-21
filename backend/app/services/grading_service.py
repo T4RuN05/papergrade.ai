@@ -1144,6 +1144,8 @@ class GradingService:
             old_ans.question_id = new_qid
             old_ans.needs_review = new_needs_review
             old_ans.is_manual_override = 1
+            if new_awarded > 0 or (new_text and new_text.strip()):
+                old_ans.is_missing = 0
             old_ans.updated_at = now
 
             # Update criterion scores if supplied

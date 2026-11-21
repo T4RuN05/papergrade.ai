@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from backend.app.db.session import get_db
-from backend.app.db.models import Submission, Exam, Batch
+from backend.app.db.models import Submission, Exam, Batch, Branch
 from backend.app.services.export_service import export_service
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import (
@@ -152,11 +152,17 @@ def _resolve_zip_response(
 
     if current_user:
         user_role = current_user.get("role")
+        user_inst = current_user.get("institute_id")
+        user_branch = current_user.get("branch_id")
+
+        branch = db.scalar(select(Branch).where(Branch.id == batch.branch_id)) if batch.branch_id else None
+        batch_inst = branch.institute_id if branch else None
+
         if user_role == "BRANCH_MANAGER":
-            if batch.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and batch.institute_id != current_user.get("institute_id")):
+            if (user_branch and batch.branch_id != user_branch) or (user_inst and batch_inst and batch_inst != user_inst):
                 raise HTTPException(status_code=403, detail="Forbidden: Batch belongs to another branch/institute.")
         elif user_role == "INSTITUTE_DIRECTOR":
-            if current_user.get("institute_id") and batch.institute_id != current_user.get("institute_id"):
+            if user_inst and batch_inst and batch_inst != user_inst:
                 raise HTTPException(status_code=403, detail="Forbidden: Batch belongs to another institute.")
 
     zip_path = export_service.create_batch_zip(clean_batch_id)

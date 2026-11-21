@@ -1333,7 +1333,7 @@ def delete_exam(
             raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your institute.")
 
     # D-19: Two-Tier Exam Deletion Guard
-    is_published_exam = bool(exam.lifecycle_status in ["PUBLISHED", "RESULTS_READY"] or exam.is_published == 1)
+    is_published_exam = bool(exam.lifecycle_status in ["PUBLISHED", "EVALUATED"] or exam.is_published == 1)
     if is_published_exam:
         user_role = current_user.get("role")
         if user_role != "ROOT_ADMIN":
