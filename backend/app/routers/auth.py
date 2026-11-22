@@ -348,23 +348,9 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         br = db.scalar(select(Branch).where(Branch.id == branch_id))
         institute_id = br.institute_id if br else None
 
-    # 4. Atomic row lock to eliminate claim race conditions
-    claim_result = db.execute(
-        update(Student)
-        .where(Student.id == student.id, Student.account_claimed == 0)
-        .values(
-            user_id=new_user_id,
-            account_claimed=1,
-            claimed_at=now,
-            email=student_email if req.email else student.email
-        )
-    )
-    if claim_result.rowcount == 0:
-        raise HTTPException(
-            status_code=409,
-            detail="Account claim collision: This student account has already been claimed."
-        )
-
+    # 4. Create the user row first. students.user_id is a foreign key to users.id, so
+    # writing it during the claim UPDATE below would violate the constraint on
+    # PostgreSQL if the user row only existed in the session.
     user = User(
         id=new_user_id,
         institute_id=institute_id,
@@ -380,6 +366,27 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         last_login_at=now,
     )
     db.add(user)
+    db.flush()
+
+    # 4a. Atomic row lock to eliminate claim race conditions
+    claim_result = db.execute(
+        update(Student)
+        .where(Student.id == student.id, Student.account_claimed == 0)
+        .values(
+            user_id=new_user_id,
+            account_claimed=1,
+            claimed_at=now,
+            email=student_email if req.email else student.email
+        )
+    )
+    if claim_result.rowcount == 0:
+        # The user row inserted above belongs to this transaction; discard it so a
+        # losing claim race never leaves an orphan account behind.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Account claim collision: This student account has already been claimed."
+        )
 
     # 4b. Backfill notifications for any currently active submission windows in their batch or branch
     window_stmt = (
