@@ -66,9 +66,9 @@ export default function StudentSubmissionViewerPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push(`/auth/login?role=student&redirect=/student/submissions/${submissionId}`);
+      window.location.replace(`/auth/login?role=student&redirect=/student/submissions/${submissionId}`);
     }
-  }, [submissionId, router]);
+  }, [submissionId]);
 
   // TanStack Query: SWR cached submission detail
   const {

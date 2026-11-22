@@ -92,15 +92,15 @@ export default function TenancyManagementPage() {
     if (isLoggingOut) return;
     const token = getAuthToken();
     if (!token) {
-      router.replace("/auth/login?role=staff&redirect=/admin/tenancy");
+      window.location.replace("/auth/login?role=staff&redirect=/admin/tenancy");
       return;
     }
     if (isBranchManager || isInstituteDirector) {
-      router.replace("/branch/batches");
+      window.location.replace("/branch/batches");
       return;
     }
     loadStaffUsers();
-  }, [isBranchManager, isInstituteDirector, isLoggingOut, router]);
+  }, [isBranchManager, isInstituteDirector, isLoggingOut]);
 
   const pendingStaffResets = useMemo(() => {
     return (staffResets || []).filter((r: any) => r.status === "PENDING");

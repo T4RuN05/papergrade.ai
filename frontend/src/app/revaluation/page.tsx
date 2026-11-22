@@ -89,9 +89,9 @@ export default function RevaluationDeskPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push("/auth/login?role=staff&redirect=/revaluation");
+      window.location.replace("/auth/login?role=staff&redirect=/revaluation");
     }
-  }, [router]);
+  }, []);
 
   // TanStack Query: SWR cached revaluations list
   const {

@@ -63,9 +63,9 @@ export default function GradingPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push(`/auth/login?role=staff&redirect=/grading/${submissionId}`);
+      window.location.replace(`/auth/login?role=staff&redirect=/grading/${submissionId}`);
     }
-  }, [router, submissionId]);
+  }, [submissionId]);
 
   // TanStack Query: SWR cached submission
   const {

@@ -145,13 +145,13 @@ export function RouteGuard({ children }: RouteGuardProps) {
     };
   }, [isAdminRoute, isStudentRoute, pathname]);
 
-  // Execute client-side router replacement when redirection target is active
+  // Execute top-level replacement when redirection target is active
   useEffect(() => {
     if (!mounted || isLoggingOut) return;
     if (targetRedirect) {
-      router.replace(targetRedirect);
+      window.location.replace(targetRedirect);
     }
-  }, [mounted, targetRedirect, router, isLoggingOut]);
+  }, [mounted, targetRedirect, isLoggingOut]);
 
   // Zero-flicker barrier: prevent mounting unauthorized admin or student components
   if (targetRedirect) {

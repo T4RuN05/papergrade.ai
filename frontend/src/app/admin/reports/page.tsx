@@ -105,17 +105,17 @@ export default function AdminReportsPage() {
     const token = getAuthToken();
     const stored = getStoredUser();
     if (!token) {
-      router.replace("/auth/login?role=staff&redirect=/admin/reports");
+      window.location.replace("/auth/login?role=staff&redirect=/admin/reports");
       return;
     }
     if (stored && stored.role !== "ROOT_ADMIN") {
       if (stored.role === "BRANCH_MANAGER" || stored.role === "INSTITUTE_DIRECTOR") {
-        router.replace("/branch/batches");
+        window.location.replace("/branch/batches");
       } else {
-        router.replace("/student/portal");
+        window.location.replace("/student/portal");
       }
     }
-  }, [router]);
+  }, []);
 
   const handleUpdateStatus = async (reportId: string, newStatus: string) => {
     try {

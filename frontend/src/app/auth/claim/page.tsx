@@ -8,8 +8,8 @@ export default function ClaimAccountPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/auth/login?role=claim");
-  }, [router]);
+    window.location.replace("/auth/login?role=claim");
+  }, []);
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-3">

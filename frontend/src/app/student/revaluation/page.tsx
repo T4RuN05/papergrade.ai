@@ -131,9 +131,9 @@ export default function StudentRevaluationPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push("/auth/login?role=student&redirect=/student/revaluation");
+      window.location.replace("/auth/login?role=student&redirect=/student/revaluation");
     }
-  }, [router]);
+  }, []);
 
   // TanStack Query: SWR cached my appeals
   const {

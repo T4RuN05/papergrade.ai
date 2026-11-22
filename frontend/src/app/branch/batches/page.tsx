@@ -73,9 +73,9 @@ export default function BranchBatchesPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token && mounted) {
-      router.replace("/auth/login?role=staff&redirect=/branch/batches");
+      window.location.replace("/auth/login?role=staff&redirect=/branch/batches");
     }
-  }, [mounted, router]);
+  }, [mounted]);
 
   // TanStack Query: Batches for current branch
   const {
