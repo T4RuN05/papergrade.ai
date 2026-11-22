@@ -32,7 +32,13 @@ export default function AnalyticsPage() {
   const { isBranchManager, isInstituteDirector } = useTenant();
 
   // TanStack Queries (Cached in-memory, instant back-nav, CLS = 0.00)
-  const { data: metrics, isLoading: isMetricsLoading, error: metricsError, refetch: refetchMetrics } = useTelemetryMetrics();
+  const {
+    data: metrics,
+    isLoading: isMetricsLoading,
+    isRefetching: isMetricsRefetching,
+    error: metricsError,
+    refetch: refetchMetrics,
+  } = useTelemetryMetrics();
   const { data: exams = [] } = useExamsList();
 
   const [selectedExamId, setSelectedExamId] = useState<string>("");
@@ -135,7 +141,12 @@ export default function AnalyticsPage() {
       ) : (
         <>
           {/* Main Usage & Projection Component */}
-          <UsageCards metrics={metrics} onQuotaUpdated={() => refetchMetrics()} />
+          <UsageCards
+            metrics={metrics}
+            onQuotaUpdated={() => { refetchMetrics(); }}
+            onRefreshLogs={async () => { await refetchMetrics(); }}
+            isRefreshingLogs={isMetricsRefetching}
+          />
 
       {/* Experimental Evaluation & Ground Truth Benchmark Section */}
       <FeatureCard className="p-6 space-y-6">

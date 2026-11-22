@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   Activity,
   DollarSign,
+  IndianRupee,
   Clock,
   Cpu,
   Layers,
@@ -29,15 +30,29 @@ import { useToast } from "@/lib/ToastContext";
 interface UsageCardsProps {
   metrics: UsageMetrics;
   onQuotaUpdated?: () => void;
+  onRefreshLogs?: () => Promise<any> | void;
+  isRefreshingLogs?: boolean;
 }
 
-export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
+export function UsageCards({
+  metrics,
+  onQuotaUpdated,
+  onRefreshLogs,
+  isRefreshingLogs = false,
+}: UsageCardsProps) {
   const { toast } = useToast();
   const { summary, latency, per_paper_metrics, quota_settings, projections, recent_events, gcp_paid } = metrics;
   const activeKeyCount = metrics.active_key_count || 4;
 
   // Active Telemetry Tab: Free Tier Pool vs GCP Paid Account
   const [activeTab, setActiveTab] = useState<"free_pool" | "gcp_paid">("free_pool");
+
+  // Currency Display Mode: "INR" (Default), "USD", or "DUAL"
+  const [currencyMode, setCurrencyMode] = useState<"INR" | "USD" | "DUAL">("INR");
+  const [localRefreshingLogs, setLocalRefreshingLogs] = useState(false);
+
+  // Standard Google Cloud India Reference Conversion Rate (1 USD ≈ ₹88.00 INR)
+  const USD_TO_INR = 88.0;
 
   // Free Tier Quota Limits State
   const [rpm, setRpm] = useState(quota_settings?.rpm_limit || 15);
@@ -57,6 +72,23 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
     input_tokens?: number;
     output_tokens?: number;
   } | null>(null);
+
+  // Dedicated Refresh Handler for Log Section
+  const handleRefreshTelemetryLogs = async () => {
+    setLocalRefreshingLogs(true);
+    try {
+      if (onRefreshLogs) {
+        await onRefreshLogs();
+      } else if (onQuotaUpdated) {
+        onQuotaUpdated();
+      }
+      toast.success("Telemetry logs refreshed successfully!", { title: "Logs Updated" });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to refresh logs", { title: "Refresh Failed" });
+    } finally {
+      setLocalRefreshingLogs(false);
+    }
+  };
 
   const handleSaveQuotas = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,8 +142,9 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
 
   return (
     <div className="space-y-6">
-      {/* Telemetry Source Navigation Tabs */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-hairline pb-3">
+      {/* Telemetry Source Navigation Tabs & Currency Selector */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-hairline pb-3">
+        {/* Source Navigation Tabs */}
         <div className="flex items-center gap-2 bg-canvas-soft p-1 rounded-lg border border-hairline w-fit">
           <button
             type="button"
@@ -146,15 +179,53 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
           </button>
         </div>
 
-        <div className="text-xs text-ink-muted flex items-center gap-2">
-          {activeTab === "free_pool" ? (
-            <span>Load-balanced round-robin rotation across {activeKeyCount} API keys</span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
-              <CreditCard className="h-3.5 w-3.5" />
-              Real money billing ledger • Pay-as-you-go auditing
-            </span>
-          )}
+        {/* Currency Display Controls (INR / USD / Dual) */}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <div className="flex items-center gap-1 bg-canvas-soft p-1 rounded-lg border border-hairline text-xs font-semibold">
+            <span className="text-[11px] text-ink-muted px-1.5 hidden sm:inline">Currency:</span>
+            <button
+              type="button"
+              onClick={() => setCurrencyMode("INR")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer ${
+                currencyMode === "INR"
+                  ? "bg-surface text-emerald-700 dark:text-emerald-300 shadow-2xs border border-hairline font-bold"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+              title="Display all financial figures in Indian Rupee (INR)"
+            >
+              <IndianRupee className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              <span>INR (₹)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrencyMode("USD")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer ${
+                currencyMode === "USD"
+                  ? "bg-surface text-primary shadow-2xs border border-hairline font-bold"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+              title="Display all financial figures in US Dollars (USD)"
+            >
+              <DollarSign className="h-3 w-3 text-primary" />
+              <span>USD ($)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrencyMode("DUAL")}
+              className={`px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer ${
+                currencyMode === "DUAL"
+                  ? "bg-surface text-ink shadow-2xs border border-hairline font-bold"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+              title="Display both INR (₹) and USD ($) side by side"
+            >
+              Dual (₹ / $)
+            </button>
+          </div>
+
+          <span className="text-[10px] text-ink-muted hidden lg:inline font-mono">
+            1 USD ≈ ₹{USD_TO_INR.toFixed(2)} INR
+          </span>
         </div>
       </div>
 
@@ -245,23 +316,45 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             {/* Cost Estimation */}
             <FeatureCard className="p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink-muted">Est Equivalent Value</span>
+                <span className="text-xs font-semibold text-ink-muted">
+                  {currencyMode === "USD"
+                    ? "Est Equivalent Value (USD)"
+                    : currencyMode === "INR"
+                    ? "Est Equivalent Value (INR)"
+                    : "Est Value (INR / USD)"}
+                </span>
                 <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 text-purple-600 dark:text-purple-400 shadow-2xs">
-                  <DollarSign className="h-4 w-4" />
+                  {currencyMode === "USD" ? <DollarSign className="h-4 w-4" /> : <IndianRupee className="h-4 w-4" />}
                 </div>
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="font-mono text-2xl font-bold text-ink">
-                  ${per_paper_metrics.avg_cost_usd.toFixed(5)}
+                  {currencyMode === "USD"
+                    ? `$${per_paper_metrics.avg_cost_usd.toFixed(5)}`
+                    : `₹${(per_paper_metrics.avg_cost_usd * USD_TO_INR).toFixed(3)}`}
                 </span>
                 <span className="text-xs text-ink-muted">/ paper</span>
+                {currencyMode === "DUAL" && (
+                  <span className="text-[11px] font-mono text-ink-muted">
+                    (${per_paper_metrics.avg_cost_usd.toFixed(5)})
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between text-[11px] text-ink-muted border-t border-hairline pt-2">
                 <span>
                   Total:{" "}
-                  <span className="font-semibold text-ink">${summary.total_estimated_cost_usd.toFixed(4)}</span>
+                  <span className="font-semibold text-ink">
+                    {currencyMode === "USD"
+                      ? `$${summary.total_estimated_cost_usd.toFixed(4)}`
+                      : `₹${(summary.total_estimated_cost_usd * USD_TO_INR).toFixed(2)}`}
+                  </span>
+                  {currencyMode === "DUAL" && (
+                    <span className="ml-1 text-[10px] opacity-75">
+                      (${summary.total_estimated_cost_usd.toFixed(4)})
+                    </span>
+                  )}
                 </span>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Free Tier</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Free Tier Value</span>
               </div>
             </FeatureCard>
           </div>
@@ -369,7 +462,11 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                       {Math.round(projections.batch_40.average_case.total_tokens).toLocaleString()} tokens
                     </div>
                     <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
-                      ${projections.batch_40.average_case.cost_usd.toFixed(4)} USD
+                      {currencyMode === "USD"
+                        ? `$${projections.batch_40.average_case.cost_usd.toFixed(4)} USD`
+                        : currencyMode === "INR"
+                        ? `₹${(projections.batch_40.average_case.cost_usd * USD_TO_INR).toFixed(2)} INR`
+                        : `₹${(projections.batch_40.average_case.cost_usd * USD_TO_INR).toFixed(2)} ($${projections.batch_40.average_case.cost_usd.toFixed(4)})`}
                     </div>
                   </div>
 
@@ -379,7 +476,11 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                       {Math.round(projections.batch_40.conservative_case.total_tokens).toLocaleString()} tokens
                     </div>
                     <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 font-mono">
-                      ${projections.batch_40.conservative_case.cost_usd.toFixed(4)} USD
+                      {currencyMode === "USD"
+                        ? `$${projections.batch_40.conservative_case.cost_usd.toFixed(4)} USD`
+                        : currencyMode === "INR"
+                        ? `₹${(projections.batch_40.conservative_case.cost_usd * USD_TO_INR).toFixed(2)} INR`
+                        : `₹${(projections.batch_40.conservative_case.cost_usd * USD_TO_INR).toFixed(2)} ($${projections.batch_40.conservative_case.cost_usd.toFixed(4)})`}
                     </div>
                   </div>
                 </div>
@@ -428,7 +529,11 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                       {Math.round(projections.batch_50.average_case.total_tokens).toLocaleString()} tokens
                     </div>
                     <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
-                      ${projections.batch_50.average_case.cost_usd.toFixed(4)} USD
+                      {currencyMode === "USD"
+                        ? `$${projections.batch_50.average_case.cost_usd.toFixed(4)} USD`
+                        : currencyMode === "INR"
+                        ? `₹${(projections.batch_50.average_case.cost_usd * USD_TO_INR).toFixed(2)} INR`
+                        : `₹${(projections.batch_50.average_case.cost_usd * USD_TO_INR).toFixed(2)} ($${projections.batch_50.average_case.cost_usd.toFixed(4)})`}
                     </div>
                   </div>
 
@@ -438,7 +543,11 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                       {Math.round(projections.batch_50.conservative_case.total_tokens).toLocaleString()} tokens
                     </div>
                     <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 font-mono">
-                      ${projections.batch_50.conservative_case.cost_usd.toFixed(4)} USD
+                      {currencyMode === "USD"
+                        ? `$${projections.batch_50.conservative_case.cost_usd.toFixed(4)} USD`
+                        : currencyMode === "INR"
+                        ? `₹${(projections.batch_50.conservative_case.cost_usd * USD_TO_INR).toFixed(2)} INR`
+                        : `₹${(projections.batch_50.conservative_case.cost_usd * USD_TO_INR).toFixed(2)} ($${projections.batch_50.conservative_case.cost_usd.toFixed(4)})`}
                     </div>
                   </div>
                 </div>
@@ -474,12 +583,29 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
 
           {/* 4. Live API Experiment Log Table (Free Pool) */}
           <FeatureCard className="p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-hairline">
-              <h3 className="text-sm font-bold text-ink flex items-center gap-2">
-                <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Captured AI Studio API Log ({recent_events.length} attempts)
-              </h3>
-              <span className="text-xs text-ink-muted">Round-Robin Multi-Key Pool</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  Captured AI Studio API Log ({recent_events.length} attempts)
+                </h3>
+                <p className="text-[11px] text-ink-muted">
+                  Round-Robin Multi-Key Pool audit log
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRefreshTelemetryLogs}
+                  disabled={localRefreshingLogs || isRefreshingLogs}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink disabled:opacity-50 transition-colors shadow-2xs cursor-pointer"
+                  title="Refresh logs table"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 text-primary ${localRefreshingLogs || isRefreshingLogs ? "animate-spin" : ""}`} />
+                  <span>{localRefreshingLogs || isRefreshingLogs ? "Refreshing..." : "Refresh Logs"}</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -493,7 +619,9 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <th className="px-3 py-2 text-right">Out Tokens</th>
                     <th className="px-3 py-2 text-right">Duration</th>
                     <th className="px-3 py-2 text-center">Status</th>
-                    <th className="px-3 py-2 text-right">Est Cost</th>
+                    <th className="px-3 py-2 text-right">
+                      Est Cost ({currencyMode === "USD" ? "USD" : currencyMode === "INR" ? "INR ₹" : "₹ / $"})
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
@@ -538,8 +666,19 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                             color={ev.success === 1 ? "green" : "pink"}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                          ${(ev.estimated_cost_usd || 0).toFixed(5)}
+                        <td className="px-3 py-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap">
+                          {currencyMode === "USD" ? (
+                            `$${(ev.estimated_cost_usd || 0).toFixed(5)}`
+                          ) : currencyMode === "INR" ? (
+                            `₹${((ev.estimated_cost_usd || 0) * USD_TO_INR).toFixed(3)}`
+                          ) : (
+                            <div>
+                              <div>₹{((ev.estimated_cost_usd || 0) * USD_TO_INR).toFixed(3)}</div>
+                              <div className="text-[10px] text-ink-muted font-normal">
+                                ${(ev.estimated_cost_usd || 0).toFixed(5)}
+                              </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -660,25 +799,86 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
             )}
           </FeatureCard>
 
+          {/* GCP ₹28,000 INR Free Trial Budget Tracker */}
+          <FeatureCard className="p-5 border-emerald-300/60 bg-gradient-to-r from-emerald-500/5 via-surface to-surface space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs shrink-0">
+                  <IndianRupee className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-2">
+                    Google Cloud ₹28,000 INR Free Trial Credits Ledger
+                    <BadgePill label="₹28,000 INR Active" color="green" />
+                  </h4>
+                  <p className="text-[11px] text-ink-muted">
+                    90-day trial promotional quota covering all Vertex AI multimodal evaluation runs
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right font-mono text-xs">
+                <span className="text-ink-muted text-[10px] uppercase block">Remaining Balance</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                  ₹{(Math.max(0, 28000 - ((gcp_paid?.total_spent_usd || 0) * USD_TO_INR))).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-ink-muted block">
+                  of ₹28,000.00 Total Credits
+                </span>
+              </div>
+            </div>
+
+            {/* Trial Credit Progress Bar */}
+            <div className="space-y-1 pt-1">
+              <div className="w-full bg-canvas-soft h-2 rounded-full overflow-hidden border border-hairline">
+                <div
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, Math.max(0.1, (((gcp_paid?.total_spent_usd || 0) * USD_TO_INR) / 28000) * 100))}%`,
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-ink-muted">
+                <span>Consumed: ₹{(((gcp_paid?.total_spent_usd || 0) * USD_TO_INR)).toFixed(2)} ({((((gcp_paid?.total_spent_usd || 0) * USD_TO_INR) / 28000) * 100).toFixed(4)}%)</span>
+                <span>Available: {(100 - ((((gcp_paid?.total_spent_usd || 0) * USD_TO_INR) / 28000) * 100)).toFixed(2)}%</span>
+              </div>
+            </div>
+          </FeatureCard>
+
           {/* Paid KPI Scorecards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Money Spent */}
             <FeatureCard className="p-5 space-y-3 border-amber-300/40">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink-muted">Total Money Billed (USD)</span>
+                <span className="text-xs font-semibold text-ink-muted">
+                  {currencyMode === "USD"
+                    ? "Total Money Billed (USD)"
+                    : currencyMode === "INR"
+                    ? "Total Money Billed (INR)"
+                    : "Total Billed (INR / USD)"}
+                </span>
                 <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs">
-                  <DollarSign className="h-4 w-4" />
+                  {currencyMode === "USD" ? <DollarSign className="h-4 w-4" /> : <IndianRupee className="h-4 w-4" />}
                 </div>
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="font-mono text-2xl font-bold text-amber-600 dark:text-amber-400">
-                  ${(gcp_paid?.total_spent_usd || 0).toFixed(6)}
+                  {currencyMode === "USD"
+                    ? `$${(gcp_paid?.total_spent_usd || 0).toFixed(6)}`
+                    : `₹${((gcp_paid?.total_spent_usd || 0) * USD_TO_INR).toFixed(2)}`}
                 </span>
-                <span className="text-xs text-ink-muted">USD</span>
+                <span className="text-xs text-ink-muted">{currencyMode === "USD" ? "USD" : "INR"}</span>
+                {currencyMode === "DUAL" && (
+                  <span className="text-[11px] font-mono text-ink-muted">
+                    (${(gcp_paid?.total_spent_usd || 0).toFixed(6)} USD)
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between text-[11px] text-ink-muted border-t border-hairline pt-2">
                 <span>Account Billing: <span className="font-semibold text-ink">Active</span></span>
-                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Real Incurred Cost</span>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                  {currencyMode === "INR" ? "Billed against Trial" : "Real Incurred Cost"}
+                </span>
               </div>
             </FeatureCard>
 
@@ -836,14 +1036,29 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
 
           {/* Dedicated End-to-End GCP Paid Request & Response Ledger */}
           <FeatureCard className="p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-hairline">
-              <h3 className="text-sm font-bold text-ink flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-amber-500" />
-                Dedicated Google Cloud Paid Ledger ({gcpEvents.length} recorded events)
-              </h3>
-              <span className="text-xs text-ink-muted font-mono">
-                Key: {gcp_paid?.project_id}
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-amber-500" />
+                  Dedicated Google Cloud Paid Ledger ({gcpEvents.length} recorded events)
+                </h3>
+                <p className="text-[11px] text-ink-muted font-mono">
+                  Project: {gcp_paid?.project_id}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRefreshTelemetryLogs}
+                  disabled={localRefreshingLogs || isRefreshingLogs}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink disabled:opacity-50 transition-colors shadow-2xs cursor-pointer"
+                  title="Refresh GCP Paid event logs"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 text-primary ${localRefreshingLogs || isRefreshingLogs ? "animate-spin" : ""}`} />
+                  <span>{localRefreshingLogs || isRefreshingLogs ? "Refreshing..." : "Refresh Logs"}</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -857,7 +1072,9 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                     <th className="px-3 py-2 text-right">Out Tokens</th>
                     <th className="px-3 py-2 text-right">Duration</th>
                     <th className="px-3 py-2 text-center">Status / Error Code</th>
-                    <th className="px-3 py-2 text-right">Billed USD</th>
+                    <th className="px-3 py-2 text-right">
+                      Billed ({currencyMode === "USD" ? "USD" : currencyMode === "INR" ? "INR ₹" : "₹ / $"})
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
@@ -901,8 +1118,19 @@ export function UsageCards({ metrics, onQuotaUpdated }: UsageCardsProps) {
                             color={ev.success === 1 ? "green" : "pink"}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-amber-600 dark:text-amber-400 font-semibold">
-                          ${(ev.estimated_cost_usd || 0).toFixed(6)}
+                        <td className="px-3 py-2 text-right font-mono text-amber-600 dark:text-amber-400 font-semibold whitespace-nowrap">
+                          {currencyMode === "USD" ? (
+                            `$${(ev.estimated_cost_usd || 0).toFixed(6)}`
+                          ) : currencyMode === "INR" ? (
+                            `₹${((ev.estimated_cost_usd || 0) * USD_TO_INR).toFixed(4)}`
+                          ) : (
+                            <div>
+                              <div>₹{((ev.estimated_cost_usd || 0) * USD_TO_INR).toFixed(4)}</div>
+                              <div className="text-[10px] text-ink-muted font-normal">
+                                ${(ev.estimated_cost_usd || 0).toFixed(6)}
+                              </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
