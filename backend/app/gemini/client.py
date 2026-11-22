@@ -55,6 +55,14 @@ def is_rate_or_quota_error(e: Exception) -> bool:
     return False
 
 
+def is_auth_or_revoked_key_error(e: Exception) -> bool:
+    code = getattr(e, "code", None)
+    err_str = str(e).lower()
+    if code in (400, 401, 403):
+        return any(term in err_str for term in ("leaked", "permission_denied", "api key not valid", "api_key_invalid", "forbidden"))
+    return False
+
+
 class GeminiGradingClient:
     def __init__(self):
         # Canonical Flash Cascade: 3.8 Flash -> 3.6 Flash -> 3.5 Flash
@@ -237,6 +245,13 @@ class GeminiGradingClient:
     def mark_key_exhausted_for_model(self, api_key: str, model_name: str, cooldown_seconds: float = 120.0):
         with self._key_lock:
             self._key_cooldown_until[(api_key, model_name)] = time.time() + cooldown_seconds
+
+    def quarantine_key(self, api_key: str, reason: str = ""):
+        with self._key_lock:
+            now = time.time()
+            for m in self.candidate_models:
+                self._key_cooldown_until[(api_key, m)] = now + 86400 * 30  # 30-day quarantine
+            print(f"[GeminiClient] CRITICAL: Key {self.mask_key(api_key)} QUARANTINED (revoked/leaked). Reason: {reason}")
 
     def mark_model_cooldown(self, model_name: str, cooldown_seconds: float = 180.0):
         with self._key_lock:
@@ -494,6 +509,7 @@ class GeminiGradingClient:
         prompt_text = build_rubric_extraction_prompt(extra_notes)
         models_to_try = self.get_active_models()
         last_error = None
+        worker_id = 0
 
         for model_to_use in models_to_try:
             exhausted_keys = set()
@@ -564,6 +580,15 @@ class GeminiGradingClient:
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
                         is_mock=False, model_name=model_to_use, api_key=active_key
                     )
+
+                    if is_auth_or_revoked_key_error(e):
+                        self.quarantine_key(active_key, reason=str(e)[:150])
+                        exhausted_keys.add(active_key)
+                        if len(exhausted_keys) >= len(self._keys):
+                            print(f"[GeminiClient] All {len(self._keys)} keys exhausted or quarantined.")
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
+                        continue
 
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)
@@ -720,6 +745,7 @@ class GeminiGradingClient:
         backoff_sec = 2.0
         models_to_try = self.get_active_models()
         last_error = None
+        worker_id = 0
 
         for model_to_use in models_to_try:
             exhausted_keys = set()
@@ -794,6 +820,15 @@ class GeminiGradingClient:
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
                         is_mock=False, model_name=model_to_use, api_key=active_key
                     )
+
+                    if is_auth_or_revoked_key_error(e):
+                        self.quarantine_key(active_key, reason=str(e)[:150])
+                        exhausted_keys.add(active_key)
+                        if len(exhausted_keys) >= len(self._keys):
+                            print(f"[GeminiClient] All {len(self._keys)} keys exhausted or quarantined.")
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
+                        continue
 
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)
@@ -968,6 +1003,15 @@ class GeminiGradingClient:
                         error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
                         is_mock=False, model_name=model_to_use, api_key=active_key
                     )
+
+                    if is_auth_or_revoked_key_error(e):
+                        self.quarantine_key(active_key, reason=str(e)[:150])
+                        exhausted_keys.add(active_key)
+                        if len(exhausted_keys) >= len(self._keys):
+                            print(f"[GeminiClient] All {len(self._keys)} keys exhausted or quarantined.")
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
+                        continue
 
                     if is_rate_or_quota_error(e):
                         exhausted_keys.add(active_key)

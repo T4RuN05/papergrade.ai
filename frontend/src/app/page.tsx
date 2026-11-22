@@ -343,7 +343,6 @@ export default function LandingPage() {
                     src="https://res.cloudinary.com/dijssimbb/video/upload/v1793886472/papergrade_demo_walkthrough.mp4"
                     type="video/mp4"
                   />
-                  <source src="/demo.mp4" type="video/mp4" />
                   Your browser does not support HTML5 video streaming.
                 </video>
 

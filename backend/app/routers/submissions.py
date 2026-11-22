@@ -665,7 +665,7 @@ def request_presigned_upload(
                 detail=f"Forbidden: You are logged in as {user_roll}. You cannot submit for {clean_roll}."
             )
 
-    exam, window = get_exam_and_active_window(exam_id, db, allow_grace=False)
+    exam, window = get_exam_and_active_window(exam_id, db, allow_grace=True)
 
     # Reopen scope protection: reject resubmissions if window was reopened for unsubmitted only
     if getattr(window, "reopen_scope", None) == "UNSUBMITTED_ONLY":
@@ -959,7 +959,7 @@ def _process_submission_sync(
     storage = get_storage_service()
 
     with get_session() as session:
-        verify_active_submission_window(exam_id, session, allow_grace=False)
+        verify_active_submission_window(exam_id, session, allow_grace=True)
 
         exam = session.scalar(select(Exam).where(Exam.id == exam_id))
         exam_total = exam.total_marks if exam else 0.0
