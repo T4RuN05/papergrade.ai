@@ -67,9 +67,9 @@ export default function StudentPortalPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      router.push("/auth/login?role=student&redirect=/student/portal");
+      window.location.replace("/auth/login?role=student&redirect=/student/portal");
     }
-  }, [router]);
+  }, []);
 
   // TanStack Query: Consolidated Student Portal State with Weak ETag 304 fast-paths
   const {

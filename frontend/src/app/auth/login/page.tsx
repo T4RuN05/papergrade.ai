@@ -100,16 +100,17 @@ function LoginForm() {
     const token = getAuthToken();
     const storedUser = getStoredUser();
     if (token && storedUser) {
+      const redirectParam = searchParams.get("redirect");
+      let dest = "/overview";
       if (storedUser.role === "STUDENT") {
-        router.replace("/student/portal");
-        return;
+        dest = redirectParam && redirectParam.startsWith("/student") ? redirectParam : "/student/portal";
       } else if (storedUser.role === "BRANCH_MANAGER" || storedUser.role === "INSTITUTE_DIRECTOR") {
-        router.replace("/branch/batches");
-        return;
+        dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
       } else {
-        router.replace("/overview");
-        return;
+        dest = redirectParam && !redirectParam.startsWith("/student") ? redirectParam : "/overview";
       }
+      window.location.replace(dest);
+      return;
     }
 
     if (typeof window !== "undefined") {
@@ -249,7 +250,12 @@ function LoginForm() {
       }
 
       const welcomeMsg = `Signed in as ${user.full_name || enteredEmail}.`;
-      toast.success(welcomeMsg, { title: roleTitle, duration: 4500 });
+      queueToast({
+        type: "success",
+        title: roleTitle,
+        message: welcomeMsg,
+        duration: 4500,
+      });
 
       const fullUser = user.user ? { ...user, ...user.user } : user;
       if (typeof window !== "undefined") {
@@ -266,17 +272,11 @@ function LoginForm() {
         queryClient.clear();
       } catch {}
 
-      if (user.role === "STUDENT") {
-        // Fast-path immediate redirect for students with local seed user (replace history)
-        refreshTenancy(fullUser);
-        startNavigationProgress();
-        router.replace(dest);
-        return;
-      }
-
-      // For staff and branch managers, do a clean top-level navigate to initialize full tenant state seamlessly (replace history)
+      // Clean top-level navigate for all authenticated roles (Students, Faculty, Branch Managers, Root Admins)
+      // to eliminate client-side router transition race conditions, bfcache/history leaks, and stuttering.
       startNavigationProgress();
       window.location.replace(dest);
+      return;
     } catch (err: any) {
       let defaultMsg =
         loginRole === "STUDENT"
@@ -335,8 +335,8 @@ function LoginForm() {
       await refreshTenancy(res);
       startNavigationProgress();
       setTimeout(() => {
-        router.push("/student/portal");
-      }, 1200);
+        window.location.replace("/student/portal");
+      }, 800);
     } catch (err: any) {
       const msg = err.message || "Failed to claim account. Check your Roll Number and try again.";
       setClaimError(msg);
