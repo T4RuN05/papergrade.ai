@@ -179,7 +179,7 @@ export function AppleSelect({
   // Close when clicking outside or pressing Escape
   useEffect(() => {
     if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node;
       if (
         containerRef.current &&
@@ -196,9 +196,11 @@ export function AppleSelect({
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside, { passive: true });
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, handleClose]);

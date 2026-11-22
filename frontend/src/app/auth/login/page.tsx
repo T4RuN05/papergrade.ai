@@ -101,13 +101,22 @@ function LoginForm() {
     const storedUser = getStoredUser();
     if (token && storedUser) {
       const redirectParam = searchParams.get("redirect");
+      const isValidRedirect = Boolean(redirectParam && !redirectParam.startsWith("/auth"));
       let dest = "/overview";
       if (storedUser.role === "STUDENT") {
-        dest = redirectParam && redirectParam.startsWith("/student") ? redirectParam : "/student/portal";
-      } else if (storedUser.role === "BRANCH_MANAGER" || storedUser.role === "INSTITUTE_DIRECTOR") {
-        dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
+        dest = isValidRedirect && (redirectParam!.startsWith("/student") || redirectParam!.startsWith("/results"))
+          ? redirectParam!
+          : "/student/portal";
+      } else if (storedUser.role === "BRANCH_MANAGER") {
+        dest = isValidRedirect && !redirectParam!.startsWith("/student") && !redirectParam!.startsWith("/admin/reports") && !redirectParam!.startsWith("/admin/tenancy") && redirectParam !== "/overview"
+          ? redirectParam!
+          : "/branch/batches";
+      } else if (storedUser.role === "INSTITUTE_DIRECTOR") {
+        dest = isValidRedirect && !redirectParam!.startsWith("/student") && !redirectParam!.startsWith("/admin/tenancy") && redirectParam !== "/overview"
+          ? redirectParam!
+          : "/branch/batches";
       } else {
-        dest = redirectParam && !redirectParam.startsWith("/student") ? redirectParam : "/overview";
+        dest = isValidRedirect && !redirectParam!.startsWith("/student") ? redirectParam! : "/overview";
       }
       window.location.replace(dest);
       return;
@@ -234,19 +243,26 @@ function LoginForm() {
       const enteredEmail = email.trim();
       let roleTitle = "Welcome Administrator";
       const redirectParam = searchParams.get("redirect");
+      const isValidRedirect = Boolean(redirectParam && !redirectParam.startsWith("/auth"));
       let dest = "/overview";
 
       if (user.role === "STUDENT") {
         roleTitle = "Welcome Student";
-        dest = redirectParam && redirectParam.startsWith("/student") ? redirectParam : "/student/portal";
+        dest = isValidRedirect && (redirectParam!.startsWith("/student") || redirectParam!.startsWith("/results"))
+          ? redirectParam!
+          : "/student/portal";
       } else if (user.role === "BRANCH_MANAGER") {
         roleTitle = "Welcome Branch Manager";
-        dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
+        dest = isValidRedirect && !redirectParam!.startsWith("/student") && !redirectParam!.startsWith("/admin/reports") && !redirectParam!.startsWith("/admin/tenancy") && redirectParam !== "/overview"
+          ? redirectParam!
+          : "/branch/batches";
       } else if (user.role === "INSTITUTE_DIRECTOR") {
         roleTitle = "Welcome Institute Director";
-        dest = redirectParam && redirectParam.startsWith("/branch") ? redirectParam : "/branch/batches";
+        dest = isValidRedirect && !redirectParam!.startsWith("/student") && !redirectParam!.startsWith("/admin/tenancy") && redirectParam !== "/overview"
+          ? redirectParam!
+          : "/branch/batches";
       } else {
-        dest = redirectParam && !redirectParam.startsWith("/student") ? redirectParam : "/overview";
+        dest = isValidRedirect && !redirectParam!.startsWith("/student") ? redirectParam! : "/overview";
       }
 
       const welcomeMsg = `Signed in as ${user.full_name || enteredEmail}.`;

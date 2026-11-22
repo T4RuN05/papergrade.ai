@@ -11,9 +11,38 @@ import {
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Auth token storage in browser localStorage
+export function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const parsed = JSON.parse(jsonPayload);
+    if (parsed.exp && typeof parsed.exp === "number") {
+      // Expired if current time exceeds exp (with 5-second clock skew buffer)
+      return parsed.exp * 1000 <= Date.now() + 5000;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("papergrade_jwt");
+  const token = localStorage.getItem("papergrade_jwt");
+  if (!token) return null;
+  if (isTokenExpired(token)) {
+    removeAuthToken();
+    return null;
+  }
+  return token;
 }
 
 export function setAuthToken(token: string, user?: any): void {
@@ -84,6 +113,7 @@ export function clearApiCache(keyPrefix?: string): void {
   if (!keyPrefix) {
     memoryCache.clear();
     inFlightRequests.clear();
+    clearPortalStateCache();
   } else {
     for (const k of Array.from(memoryCache.keys())) {
       if (k.startsWith(keyPrefix)) {
@@ -94,6 +124,9 @@ export function clearApiCache(keyPrefix?: string): void {
       if (k.startsWith(keyPrefix)) {
         inFlightRequests.delete(k);
       }
+    }
+    if (keyPrefix.startsWith("submissions") || keyPrefix.startsWith("portal") || keyPrefix.startsWith("exams")) {
+      clearPortalStateCache();
     }
   }
 }
@@ -125,13 +158,18 @@ export async function fetchWithCache<T>(
   const promise = Promise.race([fetcher(), timeoutPromise])
     .then((data) => {
       if (timerId) clearTimeout(timerId);
-      setCached(key, data);
-      inFlightRequests.delete(key);
+      // Guard against stale cache resurrection if clearApiCache() was called in transit
+      if (inFlightRequests.get(key) === promise) {
+        setCached(key, data);
+        inFlightRequests.delete(key);
+      }
       return data;
     })
     .catch((err) => {
       if (timerId) clearTimeout(timerId);
-      inFlightRequests.delete(key);
+      if (inFlightRequests.get(key) === promise) {
+        inFlightRequests.delete(key);
+      }
       throw err;
     });
 
@@ -202,31 +240,53 @@ export async function safeJson<T = any>(res: Response, fallbackDetail = "Request
     text = await res.text();
   } catch (err: any) {
     if (!res.ok) {
-      throw new Error(`Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`);
+      if (res.status === 401) {
+        removeAuthToken();
+      }
+      const error: any = new Error(`Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`);
+      error.status = res.status;
+      throw error;
     }
     throw new Error(`Failed to read response: ${err.message}`);
   }
 
   if (!text || !text.trim()) {
     if (!res.ok) {
-      throw new Error(`Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`);
+      if (res.status === 401) {
+        removeAuthToken();
+      }
+      const error: any = new Error(`Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`);
+      error.status = res.status;
+      throw error;
     }
     return {} as T;
   }
 
+  let data: any;
   try {
-    const data = JSON.parse(text);
-    if (!res.ok) {
-      throw new Error(parseErrorDetail(data, `Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`));
-    }
-    return data as T;
+    data = JSON.parse(text);
   } catch (parseErr: any) {
     if (!res.ok) {
+      if (res.status === 401) {
+        removeAuthToken();
+      }
       const cleanSnippet = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
-      throw new Error(`Server returned HTTP ${res.status}: ${cleanSnippet || res.statusText || fallbackDetail}`);
+      const error: any = new Error(`Server returned HTTP ${res.status}: ${cleanSnippet || res.statusText || fallbackDetail}`);
+      error.status = res.status;
+      throw error;
     }
     throw new Error(`Invalid JSON received from server: ${parseErr.message}`);
   }
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      removeAuthToken();
+    }
+    const error: any = new Error(parseErrorDetail(data, `Server returned HTTP ${res.status}: ${res.statusText || fallbackDetail}`));
+    error.status = res.status;
+    throw error;
+  }
+  return data as T;
 }
 
 export interface WindowStatus {
@@ -552,7 +612,7 @@ export const api = {
 
     const res = await fetch(url, { headers: { ...getAuthHeaders() }, cache: "no-store" });
     if (!res.ok) return [];
-    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
+    return safeJson<any[]>(res, "Failed to list users").catch(() => []);
   },
 
   async createUser(data: {
@@ -673,7 +733,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
+    return safeJson<any[]>(res, "Failed to list batch students").catch(() => []);
   },
 
   // -------------------------------------------------------------
@@ -751,8 +811,12 @@ export const api = {
       cache: "no-store",
     });
 
-    if (res.status === 304 && _cachedPortalState) {
-      return _cachedPortalState;
+    if (res.status === 304) {
+      if (_cachedPortalState) {
+        return _cachedPortalState;
+      }
+      _cachedPortalEtag = null;
+      return this.getStudentPortalState();
     }
 
     const data = await safeJson<any>(res, "Failed to fetch student portal state");
@@ -1153,7 +1217,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
+    return safeJson<any[]>(res, "Failed to list my revaluation requests").catch(() => []);
   },
 
   async listRevaluations(examId?: string, branchId?: string): Promise<any[]> {
@@ -1178,7 +1242,10 @@ export const api = {
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
     });
-    return safeJson(res, "Failed to resolve revaluation");
+    const result = await safeJson(res, "Failed to resolve revaluation");
+    clearApiCache("submissions:");
+    clearApiCache("revaluation:");
+    return result;
   },
 
   // -------------------------------------------------------------
@@ -1190,7 +1257,7 @@ export const api = {
       cache: "no-store",
     });
     if (!res.ok) return [];
-    return safeJson<any[]>(res, "Failed to list password resets").catch(() => []);
+    return safeJson<any[]>(res, "Failed to list notifications").catch(() => []);
   },
 
   async markNotificationRead(notifId: string): Promise<any> {

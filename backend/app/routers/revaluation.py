@@ -33,6 +33,7 @@ from backend.app.services.notification_service import (
     notify_root_admins,
     get_branch_name,
 )
+from backend.app.services.portal_cache import PortalStateEpochManager
 
 router = APIRouter(prefix="/api/revaluation", tags=["Manual Revaluation (Strictly Human)"])
 
@@ -218,6 +219,11 @@ def request_revaluation(
     ))
 
     db.commit()
+
+    if student_id:
+        PortalStateEpochManager.bump_user(student_id)
+    if effective_branch:
+        PortalStateEpochManager.bump_branch(effective_branch)
 
     return {
         "status": "success",
@@ -545,6 +551,11 @@ def resolve_revaluation_request(
     ))
 
     db.commit()
+
+    if student_user_id:
+        PortalStateEpochManager.bump_user(student_user_id)
+    if exam_branch:
+        PortalStateEpochManager.bump_branch(exam_branch)
 
     # D-15: Ensure annotated PDF is re-stamped and re-synced to storage after human marks revision
     if req.decision == "MARKS_REVISED":

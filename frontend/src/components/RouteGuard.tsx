@@ -31,10 +31,12 @@ export function RouteGuard({ children }: RouteGuardProps) {
     return currentUser || getStoredUser() || getStoredUserPayload();
   }, [currentUser]);
 
+  // Re-evaluates on login/logout or when currentUser sync changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const hasToken = useMemo(() => {
     if (typeof window === "undefined") return false;
     return Boolean(getAuthToken());
-  }, []);
+  }, [currentUser]);
 
   const role = syncUser?.role;
 
@@ -70,13 +72,16 @@ export function RouteGuard({ children }: RouteGuardProps) {
     if (isLoggingOut) return null;
     if (typeof window === "undefined") return null;
 
+    const fullCurrentPath =
+      pathname + (typeof window !== "undefined" ? window.location.search : "");
+
     // 1. Unauthenticated barrier on protected routes
     if (!hasToken) {
       if (isAdminRoute) {
-        return `/auth/login?role=staff&redirect=${encodeURIComponent(pathname)}`;
+        return `/auth/login?role=staff&redirect=${encodeURIComponent(fullCurrentPath)}`;
       }
       if (isStudentRoute) {
-        return `/auth/login?role=student&redirect=${encodeURIComponent(pathname)}`;
+        return `/auth/login?role=student&redirect=${encodeURIComponent(fullCurrentPath)}`;
       }
       return null;
     }
@@ -98,25 +103,27 @@ export function RouteGuard({ children }: RouteGuardProps) {
       }
     }
 
-    if (role === "BRANCH_MANAGER" && pathname === "/admin/reports") {
+    if (role === "BRANCH_MANAGER" && (pathname === "/admin/reports" || pathname.startsWith("/analytics"))) {
       return "/branch/batches";
     }
 
     return null;
   }, [hasToken, role, isAdminRoute, isStudentRoute, pathname, isLoggingOut]);
 
-  // Handle browser back/forward (popstate) and mobile bfcache restoration (pageshow)
+  // Handle browser back/forward (popstate), mobile bfcache restoration (pageshow), and cross-tab logout (storage)
   useEffect(() => {
     const handleNavigationSync = () => {
       const liveToken = getAuthToken();
       const liveUser = getStoredUser() || getStoredUserPayload();
       const liveRole = liveUser?.role;
+      const fullPath =
+        pathname + (typeof window !== "undefined" ? window.location.search : "");
 
       if (!liveToken && (isAdminRoute || isStudentRoute)) {
         window.location.replace(
           isAdminRoute
-            ? `/auth/login?role=staff&redirect=${encodeURIComponent(pathname)}`
-            : `/auth/login?role=student&redirect=${encodeURIComponent(pathname)}`
+            ? `/auth/login?role=staff&redirect=${encodeURIComponent(fullPath)}`
+            : `/auth/login?role=student&redirect=${encodeURIComponent(fullPath)}`
         );
         return;
       }
@@ -135,13 +142,20 @@ export function RouteGuard({ children }: RouteGuardProps) {
         window.location.replace("/branch/batches");
         return;
       }
+
+      if (liveRole === "BRANCH_MANAGER" && (pathname === "/admin/reports" || pathname.startsWith("/analytics"))) {
+        window.location.replace("/branch/batches");
+        return;
+      }
     };
 
     window.addEventListener("pageshow", handleNavigationSync);
     window.addEventListener("popstate", handleNavigationSync);
+    window.addEventListener("storage", handleNavigationSync);
     return () => {
       window.removeEventListener("pageshow", handleNavigationSync);
       window.removeEventListener("popstate", handleNavigationSync);
+      window.removeEventListener("storage", handleNavigationSync);
     };
   }, [isAdminRoute, isStudentRoute, pathname]);
 

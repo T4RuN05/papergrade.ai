@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, X } from "lucide-react";
 import { GradedAnswer } from "@/lib/types";
 
@@ -17,6 +17,18 @@ export function AddBoxDropdown({
 }: AddBoxDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+        setSearch("");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
 
   const filteredAnswers = answers.filter((ans) => {
     if (!search.trim()) return true;

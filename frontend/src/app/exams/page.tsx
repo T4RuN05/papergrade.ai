@@ -557,6 +557,13 @@ export default function ExamsPage() {
               exam.status === "PUBLISHED" ||
               exam.lifecycle_status === "PUBLISHED"
             );
+            const isEvaluationLocked = Boolean(
+              isExamPublished ||
+              exam.status === "EVALUATED" ||
+              exam.lifecycle_status === "EVALUATED" ||
+              exam.status === "EVALUATING" ||
+              exam.lifecycle_status === "EVALUATING"
+            );
 
             return (
               <FeatureCard
@@ -643,6 +650,8 @@ export default function ExamsPage() {
                             </span>
                           ) : isExamPublished ? (
                             <span className="text-purple-700 dark:text-purple-400 font-semibold whitespace-nowrap">Closed (Published)</span>
+                          ) : isEvaluationLocked ? (
+                            <span className="text-teal-700 dark:text-teal-400 font-semibold whitespace-nowrap">Closed (Evaluated)</span>
                           ) : (
                             <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>
                           )}
@@ -652,13 +661,15 @@ export default function ExamsPage() {
                             ? "Eligible students can submit or replace PDF."
                             : isExamPublished
                             ? "Results published. Submissions closed permanently."
+                            : isEvaluationLocked
+                            ? "Evaluation underway or completed. Submissions locked."
                             : "Uploads blocked until opened by operator."}
                         </p>
                       </div>
                     </div>
 
                     <div className="shrink-0 flex items-center">
-                      {isExamPublished ? (
+                      {isEvaluationLocked ? (
                         <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
                           <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                           <span>Finalized</span>

@@ -978,30 +978,36 @@ export function ArtifactViewerModal({
                             transition: isSwiping ? "none" : "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)",
                           }}
                         >
-                          <PdfPageView
-                            pdfUrl={api.getExamArtifactPdfUrl(examId, activeArtifact)}
-                            cacheKey={`exam_${examId}_${activeArtifact}`}
-                            pageNumber={p}
-                            targetWidth={1400}
-                            className="w-full h-full object-contain"
-                            hideLoader={true}
-                            onAspectCalculated={(aspect) => handleAspectCalculated(p, aspect)}
-                            onPageLoaded={(_pageNum, total) => {
-                              if (total > 0 && total !== totalPages) {
-                                setTotalPages(total);
-                              }
-                            }}
-                            onRenderSuccess={() => {
-                              if (p === page) {
-                                setPageImgLoading(false);
-                              }
-                            }}
-                            onError={() => {
-                              if (p === page) {
-                                setPageImgLoading(false);
-                              }
-                            }}
-                          />
+                          {isNearby ? (
+                            <PdfPageView
+                              pdfUrl={api.getExamArtifactPdfUrl(examId, activeArtifact)}
+                              cacheKey={`exam_${examId}_${activeArtifact}`}
+                              pageNumber={p}
+                              targetWidth={1400}
+                              className="w-full h-full object-contain"
+                              hideLoader={true}
+                              onAspectCalculated={(aspect) => handleAspectCalculated(p, aspect)}
+                              onPageLoaded={(_pageNum, total) => {
+                                if (total > 0 && total !== totalPages) {
+                                  setTotalPages(total);
+                                }
+                              }}
+                              onRenderSuccess={() => {
+                                if (p === page) {
+                                  setPageImgLoading(false);
+                                }
+                              }}
+                              onError={() => {
+                                if (p === page) {
+                                  setPageImgLoading(false);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-surface-raised flex items-center justify-center">
+                              <span className="text-xs text-ink-muted">Page {p}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
