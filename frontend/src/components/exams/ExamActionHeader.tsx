@@ -11,6 +11,9 @@ import {
   FileSpreadsheet,
   Globe,
   Lock,
+  Play,
+  RefreshCw,
+  Check,
 } from "lucide-react";
 import { BadgePill, ButtonPrimary, ButtonUtility, Skeleton } from "@/components/ui";
 
@@ -26,6 +29,14 @@ interface ExamActionHeaderProps {
   totalSubmissions?: number;
   isRootAdmin?: boolean;
   isLoading?: boolean;
+  isEvaluating?: boolean;
+  canStartEvaluation?: boolean;
+  isStartingEval?: boolean;
+  unprocessedCount?: number;
+  evaluatedCount?: number;
+  hasFailedPapers?: boolean;
+  evaluationDisabledReason?: string;
+  onStartEvaluation?: () => void;
   onTogglePublish?: () => void;
   onExportCsv?: () => void;
   onDeleteExam?: () => void;
@@ -43,6 +54,14 @@ export function ExamActionHeader({
   totalSubmissions,
   isRootAdmin = false,
   isLoading = false,
+  isEvaluating = false,
+  canStartEvaluation = false,
+  isStartingEval = false,
+  unprocessedCount,
+  evaluatedCount,
+  hasFailedPapers = false,
+  evaluationDisabledReason,
+  onStartEvaluation,
   onTogglePublish,
   onExportCsv,
   onDeleteExam,
@@ -125,24 +144,64 @@ export function ExamActionHeader({
           </>
         ) : (
           <>
-            {/* Publication Status Action */}
-            {isPublished ? (
-              <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
-                <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                <span>Finalized</span>
-              </span>
-            ) : onTogglePublish ? (
-              <ButtonPrimary
-                size="sm"
-                onClick={onTogglePublish}
-                disabled={isPublishing || (totalSubmissions !== undefined && totalSubmissions === 0)}
-                title={totalSubmissions === 0 ? "Submissions must be ingested before publishing results" : undefined}
-                className="text-xs"
-              >
-                <Globe className="h-3.5 w-3.5 mr-1.5" />
-                {isPublishing ? "Publishing..." : "Publish Results"}
-              </ButtonPrimary>
-            ) : null}
+            {/* 1. Evaluating Status Pill */}
+            {isEvaluating ? (
+              <div className="inline-flex items-center gap-2 h-8 px-3 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-2xs select-none">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                <span>Evaluating ({evaluatedCount || 0}/{totalSubmissions || 0})</span>
+              </div>
+            ) : (
+              <>
+                {/* 2. Start / Retry Evaluation Primary Action */}
+                {unprocessedCount !== undefined && unprocessedCount > 0 && onStartEvaluation && (
+                  <ButtonPrimary
+                    size="sm"
+                    onClick={onStartEvaluation}
+                    disabled={!canStartEvaluation || isStartingEval}
+                    isLoading={isStartingEval}
+                    title={evaluationDisabledReason}
+                    className="text-xs shadow-xs"
+                  >
+                    <Play className="h-3.5 w-3.5 mr-1.5" />
+                    {hasFailedPapers
+                      ? `Retry Evaluation (${unprocessedCount})`
+                      : `Start Evaluation (${unprocessedCount})`}
+                  </ButtonPrimary>
+                )}
+
+                {/* 3. Publication Status Action */}
+                {isPublished ? (
+                  <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
+                    <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                    <span>Finalized</span>
+                  </span>
+                ) : onTogglePublish && (unprocessedCount === 0 || (evaluatedCount !== undefined && evaluatedCount > 0)) ? (
+                  unprocessedCount === 0 ? (
+                    <ButtonPrimary
+                      size="sm"
+                      onClick={onTogglePublish}
+                      disabled={isPublishing || (totalSubmissions !== undefined && totalSubmissions === 0)}
+                      title={totalSubmissions === 0 ? "Submissions must be ingested before publishing results" : undefined}
+                      className="text-xs"
+                    >
+                      <Globe className="h-3.5 w-3.5 mr-1.5" />
+                      {isPublishing ? "Publishing..." : "Publish Results"}
+                    </ButtonPrimary>
+                  ) : (
+                    <ButtonUtility
+                      size="sm"
+                      onClick={onTogglePublish}
+                      disabled={isPublishing}
+                      className="text-xs"
+                      title="Publish currently graded results"
+                    >
+                      <Globe className="h-3.5 w-3.5 mr-1.5" />
+                      {isPublishing ? "Publishing..." : "Publish Results"}
+                    </ButtonUtility>
+                  )
+                ) : null}
+              </>
+            )}
 
             {/* More Actions Dropdown Menu */}
             <div className="relative" ref={moreMenuRef}>
