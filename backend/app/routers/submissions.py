@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
@@ -501,6 +501,7 @@ def get_submission_pdf_stream(
 @router.get("/exam/{exam_id}")
 def get_submissions_for_exam(
     exam_id: str,
+    include_answers: bool = Query(True, description="Whether to include full nested answers for each submission"),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
     db: Session = Depends(get_db)
 ):
@@ -525,7 +526,7 @@ def get_submissions_for_exam(
 
     sub_ids = [s.id for s in subs]
     answers_by_sub: Dict[str, List[Dict[str, Any]]] = {}
-    if sub_ids:
+    if include_answers and sub_ids:
         all_ans = db.scalars(
             select(Answer).where(Answer.submission_id.in_(sub_ids)).order_by(Answer.question_id.asc())
         ).all()
@@ -772,23 +773,42 @@ def confirm_presigned_upload(
             detail="Invalid storage key for this examination."
         )
 
+    # Fast-fail asserted bounds before hitting DB or remote storage
+    if req.page_count and req.page_count > settings.MAX_PAGE_COUNT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"PDF exceeds maximum page limit of {settings.MAX_PAGE_COUNT} pages (claimed {req.page_count})."
+        )
+    if req.file_size_bytes and req.file_size_bytes > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds maximum upload limit of {settings.MAX_UPLOAD_SIZE_MB} MB."
+        )
+
     storage = get_storage_service()
 
     # D-18: Fast-fail: verify active window and fetch exam BEFORE probing cloud storage
+    # CRITICAL CONCURRENCY FIX: Release the database connection immediately after reading,
+    # ensuring no DB socket is held while waiting on Cloudinary's WAN HTTP HEAD probe.
     try:
         exam, window = get_exam_and_active_window(exam_id, db, allow_grace=True)
+        exam_total = exam.total_marks if exam else 0.0
+        window_reopen_scope = getattr(window, "reopen_scope", None)
+        db.rollback()  # Instantly closes/releases DB socket back before WAN network I/O
     except Exception:
+        db.rollback()
         try:
             storage.delete_file(req.storage_key)
         except Exception:
             pass
         raise
 
+    # WAN HTTP call executed with ZERO database connections held!
     if not storage.file_exists(req.storage_key):
         raise HTTPException(status_code=400, detail="Uploaded file was not found in storage. Please re-upload.")
 
     # Reopen scope protection: reject resubmissions if window was reopened for unsubmitted only
-    if getattr(window, "reopen_scope", None) == "UNSUBMITTED_ONLY":
+    if window_reopen_scope == "UNSUBMITTED_ONLY":
         prior_sub = db.scalar(
             select(Submission.id).where(
                 Submission.exam_id == exam_id,

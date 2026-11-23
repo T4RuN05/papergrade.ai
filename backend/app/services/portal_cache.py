@@ -29,15 +29,14 @@ class PortalStateEpochManager:
     def get_etag(cls, branch_id: Optional[str] = None, user_id: Optional[str] = None) -> str:
         """Returns a weak ETag representing the composite state of the branch and user.
         
-        Incorporates a 60-second coarse epoch bucket to prevent multi-worker desynchronization
-        from ever serving stale state for more than 60 seconds.
+        Evaluated entirely in-memory from process-local atomic version counters.
+        Returns true 304 Not Modified until state is actually mutated via bump_branch or bump_user.
         """
-        now_bucket = int(time.time() // 60)
         with cls._lock:
             g = cls._global_epoch
             b = cls._branch_epochs.get(branch_id or "all", 1)
             u = cls._user_epochs.get(user_id or "none", 1)
-            return f'W/"{g}-{b}-{u}-{now_bucket}"'
+            return f'W/"{g}-{b}-{u}"'
 
     @classmethod
     def bump_branch(cls, branch_id: Optional[str] = None) -> None:

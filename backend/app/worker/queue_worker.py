@@ -41,7 +41,8 @@ class PersistentQueueWorker:
     def start(self):
         if self.running:
             return
-        self.recover_stalled_jobs()
+        # Stale-only recovery: only reclaim jobs abandoned for > 10 min, preventing in-flight grading duplication
+        self.recover_stalled_jobs(stale_only=True)
         self.running = True
         self._threads = []
         for i in range(self.num_workers):

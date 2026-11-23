@@ -130,6 +130,8 @@ def _patch_storage(monkeypatch, mock_storage: StorageService):
 
 
 def _admin_headers() -> Dict[str, str]:
+    from backend.app.services.auth import _user_auth_cache
+    _user_auth_cache.set("usr_test_offload", (True, 0))
     token = create_access_token({"sub": "usr_test_offload", "role": "ROOT_ADMIN", "email": "admin@papergrade.ai"})
     return {"Authorization": f"Bearer {token}"}
 

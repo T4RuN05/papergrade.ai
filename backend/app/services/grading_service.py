@@ -635,7 +635,7 @@ class GradingService:
                 ans_id = row.ans_id
                 reg_id = row.reg_id
                 page_num = row.page_number
-                page_img = renders_dir / f"page_{page_num}.png"
+                page_img = pdf_service.get_page_image_path(renders_dir, page_num)
                 
                 # Region-specific crop (cached locally on server disk)
                 reg_crop_path = crops_dir / f"crop_{ans_id}_{reg_id}.png"
@@ -1329,7 +1329,7 @@ class GradingService:
         renders_dir = settings.RENDERS_DIR / submission_id
         crops_dir = renders_dir / "crops"
         crops_dir.mkdir(parents=True, exist_ok=True)
-        page_img = renders_dir / f"page_{edit_req.page_number}.png"
+        page_img = pdf_service.get_page_image_path(renders_dir, edit_req.page_number)
         crop_path = crops_dir / f"crop_{ans_id}.png"
         reg_crop_path = crops_dir / f"crop_{ans_id}_{actual_region_id}.png"
 
@@ -1343,6 +1343,7 @@ class GradingService:
                             storage = get_storage_service()
                             local_pdf = storage.get_local_path_or_download(key)
                             pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                            page_img = pdf_service.get_page_image_path(renders_dir, edit_req.page_number)
                         except Exception:
                             pass
 
@@ -1490,7 +1491,7 @@ class GradingService:
                 except Exception:
                     pass
             else:
-                page_img = renders_dir / f"page_{first_rem.page_number}.png"
+                page_img = pdf_service.get_page_image_path(renders_dir, first_rem.page_number)
                 if page_img.exists():
                     try:
                         pdf_service.crop_answer_region(
@@ -1761,7 +1762,8 @@ class GradingService:
 
                 if target_reg:
                     page_num = target_reg.page_number
-                    page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+                    renders_dir = settings.RENDERS_DIR / submission_id
+                    page_img = pdf_service.get_page_image_path(renders_dir, page_num)
                     if not page_img.exists():
                         storage = get_storage_service()
                         candidate_keys = [
@@ -1775,6 +1777,7 @@ class GradingService:
                                 local_pdf = storage.get_local_path_or_download(k)
                                 if local_pdf and local_pdf.exists():
                                     pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                                    page_img = pdf_service.get_page_image_path(renders_dir, page_num)
                                     if page_img.exists():
                                         break
                     if page_img.exists():
@@ -1793,7 +1796,7 @@ class GradingService:
                             pass
 
             if not target_crop_path or not target_crop_path.exists():
-                page_img = settings.RENDERS_DIR / submission_id / f"page_{old_ans.page_number or 1}.png"
+                page_img = pdf_service.get_page_image_path(settings.RENDERS_DIR / submission_id, old_ans.page_number or 1)
                 if page_img.exists():
                     target_crop_path = page_img
 

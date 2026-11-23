@@ -52,6 +52,7 @@ from backend.app.services.auth import (
     get_current_user_optional,
     require_root_admin,
     require_branch_manager,
+    require_staff,
 )
 from backend.app.services.notification_service import (
     background_dispatch_exam_created,
@@ -224,16 +225,27 @@ def list_exams(
 @router.get("/{exam_id}/evaluation-status")
 def get_exam_evaluation_status(
     exam_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    include_submissions: bool = Query(False, description="Whether to include detailed submissions array (staff only)"),
+    current_user: Dict[str, Any] = Depends(require_staff),
     db: Session = Depends(get_db)
 ):
     """
     Lightweight, single-query endpoint for real-time evaluation polling.
-    Returns exam status, aggregated counts, and submission progress in one fast DB call (<5ms).
+    Returns exam status and aggregated counts in one fast DB call (<5ms).
+    Restricted to authorized academic staff (ROOT_ADMIN, INSTITUTE_DIRECTOR, BRANCH_MANAGER, TEACHER).
     """
     exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    # Enforce strict tenancy boundaries
+    user_role = current_user.get("role")
+    if user_role == "BRANCH_MANAGER":
+        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
+    elif user_role in ("INSTITUTE_DIRECTOR", "TEACHER"):
+        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
 
     subs = db.scalars(
         select(Submission)
@@ -246,18 +258,19 @@ def get_exam_evaluation_status(
     for s in subs:
         st = s.status or "QUEUED"
         counts[st] = counts.get(st, 0) + 1
-        submissions_list.append({
-            "id": s.id,
-            "roll_number": s.roll_number,
-            "student_name": s.student_name,
-            "status": s.status,
-            "total_awarded_marks": s.total_awarded_marks,
-            "max_marks": s.max_marks,
-            "percentage": s.percentage,
-            "error_message": s.error_message,
-            "retry_count": s.retry_count,
-            "updated_at": s.updated_at,
-        })
+        if include_submissions:
+            submissions_list.append({
+                "id": s.id,
+                "roll_number": s.roll_number,
+                "student_name": s.student_name,
+                "status": s.status,
+                "total_awarded_marks": s.total_awarded_marks,
+                "max_marks": s.max_marks,
+                "percentage": s.percentage,
+                "error_message": s.error_message,
+                "retry_count": s.retry_count,
+                "updated_at": s.updated_at,
+            })
 
     total = len(subs)
     finished = counts["COMPLETED"] + counts["NEEDS_REVIEW"] + counts["FAILED"]
@@ -1284,7 +1297,7 @@ async def get_exam_artifact_page_image(
 
     render_key = f"exam_{exam_id}_{clean_art}"
     render_dir = settings.RENDERS_DIR / render_key
-    img_path = render_dir / f"page_{page_num}.png"
+    img_path = pdf_service.get_page_image_path(render_dir, page_num)
     cache_headers = {"Cache-Control": "public, max-age=604800, immutable"}
 
     if not img_path.exists():
@@ -1293,13 +1306,15 @@ async def get_exam_artifact_page_image(
             raise HTTPException(status_code=404, detail="Document not found.")
         # D-07: Offload CPU-heavy page rasterization from event loop to worker thread
         await asyncio.to_thread(pdf_service.render_pdf_pages_to_images, pdf_path, render_key)
+        img_path = pdf_service.get_page_image_path(render_dir, page_num)
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page {page_num} not found.")
 
+    media_type = "image/jpeg" if img_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
     return FileResponse(
         str(img_path),
-        media_type="image/png",
+        media_type=media_type,
         headers=cache_headers
     )
 

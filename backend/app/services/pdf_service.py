@@ -97,14 +97,33 @@ class PDFService:
         return output_pdf_path
 
     @staticmethod
-    def render_pdf_pages_to_images(pdf_path: Path, submission_id: str, dpi: int = 150) -> List[Path]:
+    def get_page_image_path(renders_dir: Path, page_num: int) -> Path:
         """
-        Renders each PDF page into a high-res PNG for fast web canvas display and cropping.
+        Returns the path to a rendered page image, preferring .jpg and falling back to .png.
+        """
+        jpg_path = renders_dir / f"page_{page_num}.jpg"
+        if jpg_path.exists():
+            return jpg_path
+        png_path = renders_dir / f"page_{page_num}.png"
+        if png_path.exists():
+            return png_path
+        return jpg_path
+
+    @staticmethod
+    def render_pdf_pages_to_images(pdf_path: Path, submission_id: str, dpi: int = 120) -> List[Path]:
+        """
+        Renders each PDF page into a high-res JPEG (quality=80, 120 DPI) for fast web canvas display and cropping.
+        Safeguards against server disk exhaustion with 2GB disk space guard.
         """
         if not pdf_path.exists():
             return []
         dest_dir = settings.RENDERS_DIR / submission_id
         dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # Disk space guard: ensure at least 2 GB free space
+        if shutil.disk_usage(dest_dir).free < 2 * 1024 * 1024 * 1024:
+            raise RuntimeError(f"Low disk space on server: < 2GB free space in {dest_dir}")
+
         rendered_paths = []
 
         doc = fitz.open(str(pdf_path))
@@ -112,8 +131,10 @@ class PDFService:
             for page_num in range(len(doc)):
                 page = doc[page_num]
                 pix = page.get_pixmap(dpi=dpi)
-                page_img_path = dest_dir / f"page_{page_num + 1}.png"
-                pix.save(str(page_img_path))
+                if pix.alpha:
+                    pix = fitz.Pixmap(fitz.csRGB, pix)
+                page_img_path = dest_dir / f"page_{page_num + 1}.jpg"
+                pix.pil_save(str(page_img_path), format="JPEG", quality=80)
                 rendered_paths.append(page_img_path)
                 del pix
         finally:

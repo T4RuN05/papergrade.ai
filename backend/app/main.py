@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
@@ -66,6 +67,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "Content-Type", "Content-Length"],
 )
+
+# Compression Middleware: gzip payloads >= 1KB to reduce WAN egress bandwidth and latency
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # OWASP Recommended HTTP Security Headers
 @app.middleware("http")

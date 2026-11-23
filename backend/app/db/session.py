@@ -32,18 +32,18 @@ is_sqlite = DATABASE_URL.startswith("sqlite")
 def is_postgres() -> bool:
     return not is_sqlite
 
-engine_kwargs = {
-    "pool_pre_ping": True,  # Liveness check prevents stale SSL/timeout socket drops
-}
+engine_kwargs = {}
 
 if is_sqlite:
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine_kwargs["pool_pre_ping"] = True
 else:
     # Supabase Transaction Mode Pooler (:6543) / PgBouncer tuning:
-    # Use NullPool so SQLAlchemy does not maintain an artificial client-side connection limit (which
-    # previously starved concurrent browsing at 40 connections). PgBouncer handles connection
-    # multiplexing at the server level for thousands of concurrent queries.
+    # Use NullPool so SQLAlchemy does not maintain an artificial client-side connection limit.
+    # PgBouncer/Supavisor handles connection multiplexing at the server level for thousands of concurrent queries.
     engine_kwargs["poolclass"] = NullPool
+    # Pre-ping disabled on NullPool: fresh sockets have zero risk of idle drop; saves 35ms WAN latency per checkout
+    engine_kwargs["pool_pre_ping"] = False
     engine_kwargs["connect_args"] = {
         "connect_timeout": 10,
         "keepalives": 1,

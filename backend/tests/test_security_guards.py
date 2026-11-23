@@ -2,7 +2,7 @@ import pytest
 import uuid
 from fastapi.testclient import TestClient
 from backend.app.main import app
-from backend.app.services.auth import create_access_token
+from backend.app.services.auth import create_access_token, _user_auth_cache
 from backend.app.db.session import get_session
 from backend.app.db.models import PasswordResetRequest, User, Submission, Exam
 from backend.app.db.base import get_iso_now
@@ -72,6 +72,7 @@ def test_unauthenticated_endpoints_rejected():
 
 def test_student_role_authorization_and_bola_isolation():
     """Verify that student tokens cannot access branch manager endpoints or modify other students' submissions."""
+    _user_auth_cache.set("user_student_101", (True, 0))
     student_token = create_access_token({
         "sub": "user_student_101",
         "role": "STUDENT",
@@ -165,6 +166,7 @@ def test_student_role_authorization_and_bola_isolation():
 
 def test_storage_proxy_security():
     """Verify path traversal blocking, key restriction, and magic byte validation in storage proxy."""
+    _user_auth_cache.set("user_student_102", (True, 0))
     student_token = create_access_token({
         "sub": "user_student_102",
         "role": "STUDENT",

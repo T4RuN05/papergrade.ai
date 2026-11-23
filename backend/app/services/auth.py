@@ -55,9 +55,9 @@ class BoundedTTLCache:
             return len(self._data)
 
 
-_active_user_cache = BoundedTTLCache(maxsize=5000, ttl=15.0)  # 15s TTL
-_user_auth_cache = BoundedTTLCache(maxsize=5000, ttl=15.0)    # (is_active, token_version)
-ACTIVE_CACHE_TTL = 15.0  # seconds
+_active_user_cache = BoundedTTLCache(maxsize=5000, ttl=300.0)  # 5m TTL
+_user_auth_cache = BoundedTTLCache(maxsize=5000, ttl=300.0)    # (is_active, token_version)
+ACTIVE_CACHE_TTL = 300.0  # seconds
 
 def invalidate_user_auth_cache(user_id: str) -> None:
     """Invalidate cached auth state for a user (e.g. upon password change or status update)."""
@@ -226,4 +226,5 @@ def require_role(allowed_roles: list[str]):
 require_root_admin = require_role(["ROOT_ADMIN"])
 require_institute_director = require_role(["ROOT_ADMIN", "INSTITUTE_DIRECTOR"])
 require_branch_manager = require_role(["ROOT_ADMIN", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER"])
+require_staff = require_role(["ROOT_ADMIN", "INSTITUTE_DIRECTOR", "BRANCH_MANAGER", "TEACHER"])
 require_student = require_role(["STUDENT"])

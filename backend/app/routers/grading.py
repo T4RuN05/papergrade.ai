@@ -298,13 +298,18 @@ def get_page_image(
         _verify_submission_tenancy(submission_id, current_user, db)
 
     storage = get_storage_service()
-    img_path = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+    renders_dir = settings.RENDERS_DIR / submission_id
+    img_path = pdf_service.get_page_image_path(renders_dir, page_num)
     _ensure_submission_pages_rendered(submission_id, sub, img_path, storage)
+
+    if not img_path.exists():
+        img_path = pdf_service.get_page_image_path(renders_dir, page_num)
 
     if not img_path.exists():
         raise HTTPException(status_code=404, detail=f"Page image {page_num} not found.")
 
-    return FileResponse(str(img_path), media_type="image/png", headers=PAGE_CACHE_HEADERS)
+    media_type = "image/jpeg" if img_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+    return FileResponse(str(img_path), media_type=media_type, headers=PAGE_CACHE_HEADERS)
 
 
 @router.get("/crop/{submission_id}/{answer_id}")
@@ -364,9 +369,12 @@ def get_answer_crop(
     # Dynamic fallback: regenerate crop locally from page render if missing from disk
     if target_reg:
         page_num = target_reg.page_number
-        page_img = settings.RENDERS_DIR / submission_id / f"page_{page_num}.png"
+        renders_dir = settings.RENDERS_DIR / submission_id
+        page_img = pdf_service.get_page_image_path(renders_dir, page_num)
         storage = get_storage_service()
         _ensure_submission_pages_rendered(submission_id, sub, page_img, storage)
+        if not page_img.exists():
+            page_img = pdf_service.get_page_image_path(renders_dir, page_num)
 
         if page_img.exists():
             try:

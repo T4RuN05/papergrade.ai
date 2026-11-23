@@ -82,12 +82,12 @@ def test_02_d01_reopen_window_validation():
 
 def test_03_d13_portal_cache_bounded_epoch():
     """Verify PortalStateEpochManager generates composite ETags and bounds user cache."""
-    # 1. Check composite ETag format W/"{global}-{branch}-{user}-{time_bucket}"
+    # 1. Check composite ETag format W/"{global}-{branch}-{user}"
     etag1 = PortalStateEpochManager.get_etag("br_test", "usr_test")
     assert etag1.startswith('W/"')
     assert etag1.endswith('"')
     parts = etag1.strip('W/"').split("-")
-    assert len(parts) >= 4, f"ETag should have composite components: {etag1}"
+    assert len(parts) >= 3, f"ETag should have composite components: {etag1}"
 
     # 2. Bumping user should change user epoch
     PortalStateEpochManager.bump_user("usr_test")
