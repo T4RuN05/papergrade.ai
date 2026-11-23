@@ -80,6 +80,7 @@ export function ActiveExamSubmissionCard({
   const filePickerRef = useRef<HTMLInputElement | null>(null);
   const sortableContainerRef = useRef<HTMLDivElement | null>(null);
   const sortableInstanceRef = useRef<Sortable | null>(null);
+  const isSubmittingRef = useRef<boolean>(false);
 
   // Setup mobile touch drag-and-drop using SortableJS
   useEffect(() => {
@@ -278,8 +279,9 @@ export function ActiveExamSubmissionCard({
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (uploading || scannedPages.length === 0 || !activeExam) return;
+    if (isSubmittingRef.current || uploading || scannedPages.length === 0 || !activeExam) return;
 
+    isSubmittingRef.current = true;
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(null);
@@ -425,6 +427,7 @@ export function ActiveExamSubmissionCard({
       setUploadError(errorMsg);
       toast.error(errorMsg, { title: "Upload Failed" });
     } finally {
+      isSubmittingRef.current = false;
       setUploading(false);
       setAssemblyProgress(null);
     }

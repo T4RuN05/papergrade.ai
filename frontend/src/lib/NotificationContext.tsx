@@ -382,14 +382,27 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, [toast, sendSystemNotification, queryClient]);
 
-  // Phase 1 + Phase 2 Hybrid Poller: 60s gentle heartbeat if Realtime is active, 30s adaptive if fallback
+  // Phase 1 + Phase 2 Hybrid Poller: 60s gentle heartbeat if Realtime is active, 30s adaptive if fallback (with +/- 5s jitter)
   useEffect(() => {
-    const pollIntervalMs = isRealtimeActive ? 60000 : 30000;
-    const timer = setInterval(() => {
-      if (typeof document !== "undefined" && !document.hidden) {
-        fetchNotifications();
-      }
-    }, pollIntervalMs);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let isCancelled = false;
+
+    const scheduleNextPoll = () => {
+      const baseMs = isRealtimeActive ? 60000 : 30000;
+      const jitterMs = (Math.random() * 10 - 5) * 1000; // +/- 5s jitter to prevent lockstep thundering herd
+      const pollIntervalMs = Math.max(15000, Math.round(baseMs + jitterMs));
+
+      timeoutId = setTimeout(() => {
+        if (!isCancelled && typeof document !== "undefined" && !document.hidden) {
+          fetchNotifications();
+        }
+        if (!isCancelled) {
+          scheduleNextPoll();
+        }
+      }, pollIntervalMs);
+    };
+
+    scheduleNextPoll();
 
     const handleVisibilityChange = () => {
       if (typeof document !== "undefined" && !document.hidden) {
@@ -406,7 +419,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
 
     return () => {
-      clearInterval(timer);
+      isCancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }

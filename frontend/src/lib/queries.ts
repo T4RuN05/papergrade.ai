@@ -131,20 +131,20 @@ export function useExamEvaluationStatus(examId: string, isEvalActive: boolean) {
     queryKey: queryKeys.exams.evaluationStatus(examId),
     queryFn: () => api.getExamEvaluationStatus(examId),
     enabled: Boolean(examId) && isEvalActive,
-    refetchInterval: isEvalActive ? 3000 : false,
+    refetchInterval: () => (isEvalActive ? Math.round(2500 + Math.random() * 1000) : false), // 3s base +/- 0.5s jitter
     staleTime: 1000,
   });
 }
 
 /**
- * Submission Window Status with 10s Server Background Sync
+ * Submission Window Status with Jittered Server Background Sync
  */
 export function useWindowStatus(examId: string, isActive = true) {
   return useQuery<WindowStatus>({
     queryKey: queryKeys.windows.status(examId),
     queryFn: () => api.getWindowStatus(examId),
     enabled: Boolean(examId),
-    refetchInterval: isActive ? 10 * 1000 : false,
+    refetchInterval: () => (isActive ? Math.round(8500 + Math.random() * 3000) : false), // 10s base +/- 1.5s jitter
     staleTime: 5 * 1000,
   });
 }
@@ -183,7 +183,7 @@ export function useStudentPortalState() {
     placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
     gcTime: 5 * 60 * 1000,
-    refetchInterval: 20 * 1000,
+    refetchInterval: () => Math.round(17000 + Math.random() * 6000), // 20s base +/- 3s jitter (17s - 23s) to prevent thundering herd
     refetchIntervalInBackground: false, // Automatically sleeps polling when tab is hidden
     refetchOnWindowFocus: true, // Immediate ETag revalidation when student returns
   });

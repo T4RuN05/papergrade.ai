@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
 import logging
+import threading
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete, update, func, or_
 
@@ -40,6 +41,7 @@ from backend.app.services.auth import (
     get_current_user_optional,
     require_root_admin,
     require_branch_manager,
+    BoundedTTLCache,
 )
 from backend.app.services.notification_service import (
     send_notification,
@@ -48,6 +50,11 @@ from backend.app.services.notification_service import (
 from backend.app.services.retention_service import RetentionService
 
 logger = logging.getLogger(__name__)
+
+# Double-submit debounce and idempotency guard (15s sliding TTL)
+_submission_confirm_cache = BoundedTTLCache(maxsize=2000, ttl=15.0)
+_submission_in_flight: set[str] = set()
+_submission_lock = threading.Lock()
 
 router = APIRouter(tags=["Submissions & Uploads"])
 
@@ -750,12 +757,43 @@ def confirm_presigned_upload(
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    clean_roll = req.roll_number.strip().upper()
+
+    # Double-submit debounce & idempotency fast path (15s sliding TTL)
+    debounce_key = f"{exam_id}:{clean_roll}:{req.upload_session_id or req.storage_key}"
+    cached_res = _submission_confirm_cache.get(debounce_key)
+    if cached_res:
+        return cached_res
+
+    with _submission_lock:
+        if debounce_key in _submission_in_flight:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A submission confirmation for this answer sheet is currently in progress. Please wait a moment."
+            )
+        _submission_in_flight.add(debounce_key)
+
+    try:
+        res = _do_confirm_presigned_upload(exam_id, req, current_user, db, clean_roll)
+        _submission_confirm_cache.set(debounce_key, res)
+        return res
+    finally:
+        with _submission_lock:
+            _submission_in_flight.discard(debounce_key)
+
+
+def _do_confirm_presigned_upload(
+    exam_id: str,
+    req: ConfirmUploadBody,
+    current_user: Dict[str, Any],
+    db: Session,
+    clean_roll: str
+) -> Dict[str, Any]:
     """
     Step 2 of Direct-to-Storage Upload:
     Validates file integrity with PyMuPDF, enforces bounds (<=15 pages, <=7MB),
     and executes atomic replacement (superseding any previous submission).
     """
-    clean_roll = req.roll_number.strip().upper()
 
     # BOLA / Student ownership enforcement
     if current_user.get("role") == "STUDENT":
@@ -1185,21 +1223,34 @@ async def upload_single_multipart(
     current_sub = current_user.get("sub") if current_user else None
     current_role = current_user.get("role") if current_user else None
 
-    res_payload, local_path, sub_id = await asyncio.to_thread(
-        _process_submission_sync,
-        exam_id,
-        clean_roll,
-        student_name,
-        batch_id,
-        content,
-        current_sub,
-        current_role
-    )
+    debounce_key = f"multipart:{exam_id}:{clean_roll}"
+    with _submission_lock:
+        if debounce_key in _submission_in_flight:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An upload for this student is currently being processed. Please wait a moment."
+            )
+        _submission_in_flight.add(debounce_key)
 
-    if current_sub:
-        PortalStateEpochManager.bump_user(current_sub)
+    try:
+        res_payload, local_path, sub_id = await asyncio.to_thread(
+            _process_submission_sync,
+            exam_id,
+            clean_roll,
+            student_name,
+            batch_id,
+            content,
+            current_sub,
+            current_role
+        )
 
-    return res_payload
+        if current_sub:
+            PortalStateEpochManager.bump_user(current_sub)
+
+        return res_payload
+    finally:
+        with _submission_lock:
+            _submission_in_flight.discard(debounce_key)
 
 
 @router.get("/{submission_id}")
