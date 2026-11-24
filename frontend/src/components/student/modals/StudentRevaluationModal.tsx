@@ -81,7 +81,6 @@ export function StudentRevaluationModal({
       onClose={onClose}
       title={`Submit Revaluation Request • ${submission.exam_title || "Examination"}`}
       maxWidth="max-w-lg"
-      className="h-[88vh] sm:h-auto sm:max-h-[85vh] flex flex-col"
     >
       <form onSubmit={handleRevalSubmit} className="space-y-4 text-xs">
         {/* Questions to Challenge */}

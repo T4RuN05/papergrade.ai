@@ -70,6 +70,24 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
   // My past reports state
   const [myReports, setMyReports] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTabSwitch = useCallback((newTab: "submit" | "history") => {
+    if (newTab === activeTab) return;
+    setIsTransitioning(true);
+    setActiveTab(newTab);
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+    transitionTimerRef.current = setTimeout(() => {
+      setIsTransitioning(false);
+    }, 280);
+  }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+    };
+  }, []);
 
   // Mobile horizontal swipe gesture tracking
   const touchStartX = useRef<number | null>(null);
@@ -114,9 +132,9 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
       const endX = e.changedTouches[0].clientX;
       const dx = endX - touchStartX.current;
       if (dx < -45 && activeTab === "submit") {
-        setActiveTab("history");
+        handleTabSwitch("history");
       } else if (dx > 45 && activeTab === "history") {
-        setActiveTab("submit");
+        handleTabSwitch("submit");
       }
     }
     touchStartX.current = null;
@@ -276,9 +294,8 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
       onClose={onClose}
       title="Technical Support & Issue Report"
       maxWidth="max-w-xl"
-      className="h-[88vh] sm:h-auto sm:max-h-[85vh] flex flex-col"
     >
-      <div className="flex flex-col h-full w-full max-w-full text-xs">
+      <div className="flex flex-col w-full max-w-full text-xs">
         {/* Navigation Tabs with Smooth Animated Gliding Pill */}
         <div className="relative flex items-center p-1 rounded-lg bg-canvas-soft border border-hairline shrink-0 mb-3">
           {/* Animated Sliding Pill */}
@@ -290,7 +307,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
 
           <button
             type="button"
-            onClick={() => setActiveTab("submit")}
+            onClick={() => handleTabSwitch("submit")}
             className={`relative z-10 flex-1 py-1.5 px-3 rounded-md font-semibold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5 ${
               activeTab === "submit"
                 ? "text-ink font-bold"
@@ -303,7 +320,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
 
           <button
             type="button"
-            onClick={() => setActiveTab("history")}
+            onClick={() => handleTabSwitch("history")}
             className={`relative z-10 flex-1 py-1.5 px-3 rounded-md font-semibold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5 ${
               activeTab === "history"
                 ? "text-ink font-bold"
@@ -325,10 +342,10 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="w-full flex-1 min-h-0 overflow-hidden"
+          className="w-full overflow-hidden"
         >
           <div
-            className="flex w-[200%] h-full transition-transform duration-300 ease-out"
+            className="flex items-start w-[200%] transition-transform duration-280 ease-out will-change-transform"
             style={{
               transform:
                 activeTab === "submit"
@@ -337,7 +354,15 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
             }}
           >
             {/* TAB 1: SUBMIT NEW REPORT */}
-            <div className="w-1/2 h-full overflow-y-auto px-1 pr-1.5 overscroll-contain">
+            <div
+              className={`w-1/2 shrink-0 min-w-0 px-1 pr-1.5 ${
+                activeTab === "submit"
+                  ? "block opacity-100"
+                  : isTransitioning
+                  ? "block opacity-100"
+                  : "h-0 max-h-0 overflow-hidden opacity-0 pointer-events-none"
+              }`}
+            >
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 {/* Category & Subject */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -502,20 +527,28 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
             </div>
 
             {/* TAB 2: MY PAST REPORTS */}
-            <div className="w-1/2 h-full overflow-y-auto px-1 pr-1.5 overscroll-contain flex flex-col justify-between">
-              <div className="space-y-3 flex-1">
+            <div
+              className={`w-1/2 shrink-0 min-w-0 px-1 pr-1.5 ${
+                activeTab === "history"
+                  ? "block opacity-100"
+                  : isTransitioning
+                  ? "block opacity-100"
+                  : "h-0 max-h-0 overflow-hidden opacity-0 pointer-events-none"
+              }`}
+            >
+              <div className="space-y-3">
                 {loadingHistory ? (
                   <HistorySkeleton />
                 ) : myReports.length === 0 ? (
-                  <div className="py-16 text-center text-ink-muted space-y-2">
-                    <CheckCircle2 className="h-9 w-9 text-emerald-500 mx-auto opacity-70" />
+                  <div className="py-10 text-center text-ink-muted space-y-2">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto opacity-70" />
                     <div className="font-semibold text-ink text-xs">No issue reports submitted</div>
                     <p className="text-[11px] text-ink-muted max-w-xs mx-auto">
                       Everything looks clear! If you ever face an issue, use the &ldquo;Report an Issue&rdquo; tab.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2.5 max-h-[55vh] overflow-y-auto pr-1">
                     {myReports.map((rep) => {
                       const isResolved = rep.status === "RESOLVED";
                       const isInProgress = rep.status === "IN_PROGRESS";

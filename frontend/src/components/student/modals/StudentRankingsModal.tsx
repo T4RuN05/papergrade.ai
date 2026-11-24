@@ -101,9 +101,9 @@ export function StudentRankingsModal({
         exam ? `Class Standings • ${exam.title || "Examination"}` : "Class Standings"
       }
       maxWidth="max-w-4xl"
-      className="h-[88vh] sm:h-[85vh] flex flex-col"
+      className="max-h-[90vh] sm:max-h-[85vh] flex flex-col"
     >
-      <div className="flex flex-col h-full w-full max-w-full overflow-hidden">
+      <div className="flex flex-col w-full max-w-full overflow-hidden">
         <div className="flex-1 overflow-y-auto min-h-0 pr-0.5">
           {isLoading ? (
             <RankingsSkeleton />
