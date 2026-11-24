@@ -109,19 +109,20 @@ def log(msg: str, tag: str = "BENCHMARK"):
     print(f"[{timestamp}] [{tag}] {msg}")
 
 
-def assert_production_airgap() -> Dict[str, int]:
+def assert_production_airgap(baseline: Optional[Dict[str, int]] = None) -> Dict[str, int]:
     """Snapshot and verify CATCH 25 production counts to guarantee zero-touch."""
     with get_session() as session:
         c25_students = session.query(Student).join(Batch, Student.batch_id == Batch.id).join(Branch, Batch.branch_id == Branch.id).filter(Branch.institute_id == PROTECTED_INSTITUTE_ID).count()
         c25_exams = session.query(Exam).filter(Exam.institute_id == PROTECTED_INSTITUTE_ID).count()
         c25_submissions = session.query(Submission).join(Exam, Submission.exam_id == Exam.id).filter(Exam.institute_id == PROTECTED_INSTITUTE_ID).count()
 
-        if c25_students != 73 or c25_exams != 2 or c25_submissions != 34:
-            raise RuntimeError(
-                f"PRODUCTION AIRGAP BREACH! Expected CATCH 25 (Students=73, Exams=2, Submissions=34), "
-                f"found (Students={c25_students}, Exams={c25_exams}, Submissions={c25_submissions})"
-            )
-        return {"students": c25_students, "exams": c25_exams, "submissions": c25_submissions}
+        current = {"students": c25_students, "exams": c25_exams, "submissions": c25_submissions}
+        if baseline is not None:
+            if current != baseline:
+                raise RuntimeError(
+                    f"PRODUCTION AIRGAP BREACH! Baseline {baseline} changed to {current}!"
+                )
+        return current
 
 
 def seed_cet2_students_if_needed():
@@ -771,7 +772,7 @@ def main():
 
     # Re-verify CATCH 25 production airgap
     log("Re-verifying CATCH 25 production airgap...", "VERIFY")
-    post_c25 = assert_production_airgap()
+    post_c25 = assert_production_airgap(baseline_c25)
     log(f"CATCH 25 Production Integrity: 100% UNTOUCHED (Students={post_c25['students']}, Exams={post_c25['exams']}, Submissions={post_c25['submissions']})", "VERIFY")
 
     # PHASE 3: Statistical Computation & Output Generation

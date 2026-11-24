@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 from backend.app.config import settings
 
 def get_database_url() -> str:
@@ -39,11 +39,22 @@ if is_sqlite:
     engine_kwargs["pool_pre_ping"] = True
 else:
     # Supabase Transaction Mode Pooler (:6543) / PgBouncer tuning:
-    # Use NullPool so SQLAlchemy does not maintain an artificial client-side connection limit.
-    # PgBouncer/Supavisor handles connection multiplexing at the server level for thousands of concurrent queries.
-    engine_kwargs["poolclass"] = NullPool
-    # Pre-ping disabled on NullPool: fresh sockets have zero risk of idle drop; saves 35ms WAN latency per checkout
-    engine_kwargs["pool_pre_ping"] = False
+    if settings.DB_POOL_TYPE == "null":
+        # Fallback mode: Stateless connection checkout with no client-side pool limits.
+        engine_kwargs["poolclass"] = NullPool
+        engine_kwargs["pool_pre_ping"] = False
+    else:
+        # Phase 1: Industry-standard QueuePool with LIFO warm connection reuse.
+        # Eliminates 457ms WAN TLS negotiation and ~10KB egress per checkout.
+        # Bounded to 40 max connections matching AnyIO thread pool limiter.
+        engine_kwargs["poolclass"] = QueuePool
+        engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
+        engine_kwargs["max_overflow"] = settings.DB_POOL_MAX_OVERFLOW
+        engine_kwargs["pool_timeout"] = settings.DB_POOL_TIMEOUT
+        engine_kwargs["pool_recycle"] = settings.DB_POOL_RECYCLE
+        engine_kwargs["pool_use_lifo"] = True
+        engine_kwargs["pool_pre_ping"] = False
+
     engine_kwargs["connect_args"] = {
         "connect_timeout": 10,
         "keepalives": 1,

@@ -48,6 +48,12 @@ class Settings:
     _raw_db: str = (os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL") or "").strip()
     DATABASE_URL: str = _raw_db.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543") if "pooler.supabase.com:5432" in _raw_db else _raw_db
     DATABASE_PATH: Path = DATA_DIR / "papergrade.db"
+    # Database Connection Pool Settings (Phase 1 QueuePool)
+    DB_POOL_TYPE: str = os.getenv("DB_POOL_TYPE", "queue").strip().lower()  # "queue" (default) or "null" (fallback)
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "20"))
+    DB_POOL_MAX_OVERFLOW: int = int(os.getenv("DB_POOL_MAX_OVERFLOW", "20"))
+    DB_POOL_TIMEOUT: float = float(os.getenv("DB_POOL_TIMEOUT", "5.0"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "900"))
 
     # Cloudflare R2 / S3 Object Storage Settings
     STORAGE_BACKEND: str = (os.getenv("STORAGE_BACKEND") or os.getenv("STORAGE_PROVIDER") or "cloudinary").strip().lower() # "auto", "cloudinary", "r2", "local"

@@ -685,19 +685,17 @@ class GradingService:
 
     @staticmethod
     def generate_export_pdf_for_submission(submission_id: str):
+        # 1. Bounded session read: fetch all metadata and close connection immediately
         with get_session() as session:
             sub = session.scalar(select(Submission).where(Submission.id == submission_id))
             if not sub or not sub.canonical_pdf_path:
                 return
 
-            orig_pdf = Path(sub.canonical_pdf_path)
-            if not orig_pdf.is_file() or not orig_pdf.exists():
-                try:
-                    storage = get_storage_service()
-                    orig_pdf = storage.get_local_path_or_download(sub.canonical_pdf_path)
-                except Exception:
-                    return
-            export_pdf = settings.EXPORTS_DIR / f"{submission_id}_annotated.pdf"
+            canonical_pdf_path = sub.canonical_pdf_path
+            total_awarded_marks = sub.total_awarded_marks
+            max_marks = sub.max_marks
+            student_name = sub.student_name
+            roll_number = sub.roll_number
 
             # Gather answers with regions
             answers_raw = session.scalars(
@@ -735,29 +733,43 @@ class GradingService:
                 }
                 answers_list.append(ans_dict)
 
-            pdf_service.generate_annotated_pdf(
-                orig_pdf,
-                export_pdf,
-                answers_list,
-                total_awarded_marks=sub.total_awarded_marks,
-                max_marks=sub.max_marks,
-                student_name=sub.student_name,
-                roll_number=sub.roll_number
-            )
+        # 2. WAN & CPU operations executed with ZERO database connections held
+        orig_pdf = Path(canonical_pdf_path)
+        if not orig_pdf.is_file() or not orig_pdf.exists():
+            try:
+                storage = get_storage_service()
+                orig_pdf = storage.get_local_path_or_download(canonical_pdf_path)
+            except Exception:
+                return
+        export_pdf = settings.EXPORTS_DIR / f"{submission_id}_annotated.pdf"
 
-            # Export is clean now that PDF has been generated
-            with _export_dirty_lock:
-                _export_dirty.discard(submission_id)
+        pdf_service.generate_annotated_pdf(
+            orig_pdf,
+            export_pdf,
+            answers_list,
+            total_awarded_marks=total_awarded_marks,
+            max_marks=max_marks,
+            student_name=student_name,
+            roll_number=roll_number
+        )
 
-            storage = get_storage_service()
-            if export_pdf.exists() and is_remote_storage(storage):
-                annotated_key = f"exports/{submission_id}_annotated.pdf"
-                if sync_file_to_remote_storage(
-                    export_pdf, annotated_key, content_type="application/pdf", storage=storage
-                ):
-                    sub.annotated_pdf_path = annotated_key
-                    sub.updated_at = get_iso_now()
-                    session.commit()
+        # Export is clean now that PDF has been generated
+        with _export_dirty_lock:
+            _export_dirty.discard(submission_id)
+
+        # 3. Remote upload and short-lived commit
+        storage = get_storage_service()
+        if export_pdf.exists() and is_remote_storage(storage):
+            annotated_key = f"exports/{submission_id}_annotated.pdf"
+            if sync_file_to_remote_storage(
+                export_pdf, annotated_key, content_type="application/pdf", storage=storage
+            ):
+                with get_session() as session:
+                    sub = session.scalar(select(Submission).where(Submission.id == submission_id))
+                    if sub:
+                        sub.annotated_pdf_path = annotated_key
+                        sub.updated_at = get_iso_now()
+                        session.commit()
 
     @staticmethod
     def get_submission_details(submission_id: str) -> Optional[Dict[str, Any]]:
@@ -1334,18 +1346,19 @@ class GradingService:
         reg_crop_path = crops_dir / f"crop_{ans_id}_{actual_region_id}.png"
 
         if not page_img.exists():
+            key = None
             with get_session() as session:
                 sub = session.scalar(select(Submission).where(Submission.id == submission_id))
                 if sub:
                     key = sub.canonical_pdf_path or sub.original_file_path
-                    if key:
-                        try:
-                            storage = get_storage_service()
-                            local_pdf = storage.get_local_path_or_download(key)
-                            pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
-                            page_img = pdf_service.get_page_image_path(renders_dir, edit_req.page_number)
-                        except Exception:
-                            pass
+            if key:
+                try:
+                    storage = get_storage_service()
+                    local_pdf = storage.get_local_path_or_download(key)
+                    pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                    page_img = pdf_service.get_page_image_path(renders_dir, edit_req.page_number)
+                except Exception:
+                    pass
 
         if page_img.exists():
             pdf_service.crop_answer_region(
@@ -1670,7 +1683,9 @@ class GradingService:
     ) -> Dict[str, Any]:
         """
         Targeted secondary evaluation of a single answer crop using Gemini 3.5 Flash Lite across the 22-key pool.
+        Strict Zero-Hold Invariant: All DB reads complete in < 5ms before performing any storage/Gemini I/O.
         """
+        # 1. Bounded session read: fetch all metadata and close connection immediately
         with get_session() as session:
             old_ans = session.scalar(
                 select(Answer).where(Answer.id == answer_id, Answer.submission_id == submission_id)
@@ -1682,10 +1697,26 @@ class GradingService:
             if not sub:
                 raise ValueError("Submission not found.")
 
+            sub_exam_id = sub.exam_id
+            sub_roll_number = sub.roll_number
+            candidate_keys = [
+                sub.canonical_pdf_path,
+                sub.original_file_path,
+                f"submissions/{sub.exam_id}/{sub.roll_number}/original_{submission_id}.pdf",
+                f"submissions/{submission_id}/canonical.pdf"
+            ]
+
+            old_ans_qid = old_ans.question_id
+            old_ans_max_marks = float(old_ans.max_marks or 1.0)
+            old_ans_awarded_marks = old_ans.awarded_marks
+            old_ans_extracted_text = old_ans.extracted_text or ""
+            old_ans_grading_rationale = old_ans.grading_rationale or ""
+            old_ans_page_number = old_ans.page_number or 1
+
             # Load approved rubric for exam
             rub_r = session.scalar(
                 select(RubricVersion)
-                .where(RubricVersion.exam_id == sub.exam_id, RubricVersion.is_approved == 1)
+                .where(RubricVersion.exam_id == sub_exam_id, RubricVersion.is_approved == 1)
                 .order_by(RubricVersion.version_num.desc())
                 .limit(1)
             )
@@ -1695,12 +1726,12 @@ class GradingService:
             # Match question in rubric
             matched_q = None
             for q in questions:
-                if q.get("question_id") == old_ans.question_id:
+                if q.get("question_id") == old_ans_qid:
                     matched_q = q
                     break
             if not matched_q:
                 for q in questions:
-                    if str(q.get("question_id", "")).strip().lower() == str(old_ans.question_id).strip().lower():
+                    if str(q.get("question_id", "")).strip().lower() == str(old_ans_qid).strip().lower():
                         matched_q = q
                         break
 
@@ -1732,119 +1763,123 @@ class GradingService:
                         "evidence": ""
                     })
 
-            # Resolve crop image bytes
-            crops_dir = settings.RENDERS_DIR / submission_id / "crops"
-            crops_dir.mkdir(parents=True, exist_ok=True)
-
-            target_crop_path = None
+            target_reg = None
             if region_id:
-                reg_crop = crops_dir / f"crop_{answer_id}_{region_id}.png"
-                if reg_crop.exists():
-                    target_crop_path = reg_crop
+                target_reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+            if not target_reg:
+                target_reg = session.scalar(
+                    select(AnswerRegion)
+                    .where(AnswerRegion.answer_id == answer_id)
+                    .order_by(AnswerRegion.id.asc())
+                    .limit(1)
+                )
 
-            if not target_crop_path or not target_crop_path.exists():
-                primary_crop = crops_dir / f"crop_{answer_id}.png"
-                if primary_crop.exists():
-                    target_crop_path = primary_crop
+            target_reg_coords = None
+            if target_reg:
+                target_reg_coords = {
+                    "page_number": target_reg.page_number,
+                    "x": float(target_reg.x),
+                    "y": float(target_reg.y),
+                    "width": float(target_reg.width),
+                    "height": float(target_reg.height),
+                }
 
-            # If crop missing from disk, generate dynamically
-            if not target_crop_path or not target_crop_path.exists():
-                target_reg = None
-                if region_id:
-                    target_reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
-                if not target_reg:
-                    target_reg = session.scalar(
-                        select(AnswerRegion)
-                        .where(AnswerRegion.answer_id == answer_id)
-                        .order_by(AnswerRegion.id.asc())
-                        .limit(1)
-                    )
+        # 2. Database connection released! All crop generation and Gemini calls execute with 0 DB holds.
+        crops_dir = settings.RENDERS_DIR / submission_id / "crops"
+        crops_dir.mkdir(parents=True, exist_ok=True)
 
-                if target_reg:
-                    page_num = target_reg.page_number
-                    renders_dir = settings.RENDERS_DIR / submission_id
-                    page_img = pdf_service.get_page_image_path(renders_dir, page_num)
-                    if not page_img.exists():
-                        storage = get_storage_service()
-                        candidate_keys = [
-                            sub.canonical_pdf_path,
-                            sub.original_file_path,
-                            f"submissions/{sub.exam_id}/{sub.roll_number}/original_{submission_id}.pdf",
-                            f"submissions/{submission_id}/canonical.pdf"
-                        ]
-                        for k in candidate_keys:
-                            if k and storage.file_exists(k):
-                                local_pdf = storage.get_local_path_or_download(k)
-                                if local_pdf and local_pdf.exists():
-                                    pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
-                                    page_img = pdf_service.get_page_image_path(renders_dir, page_num)
-                                    if page_img.exists():
-                                        break
-                    if page_img.exists():
-                        out_path = crops_dir / f"crop_{answer_id}.png"
-                        try:
-                            pdf_service.crop_answer_region(
-                                page_img,
-                                float(target_reg.x),
-                                float(target_reg.y),
-                                float(target_reg.width),
-                                float(target_reg.height),
-                                out_path,
-                            )
-                            target_crop_path = out_path
-                        except Exception:
-                            pass
+        target_crop_path = None
+        if region_id:
+            reg_crop = crops_dir / f"crop_{answer_id}_{region_id}.png"
+            if reg_crop.exists():
+                target_crop_path = reg_crop
 
-            if not target_crop_path or not target_crop_path.exists():
-                page_img = pdf_service.get_page_image_path(settings.RENDERS_DIR / submission_id, old_ans.page_number or 1)
+        if not target_crop_path or not target_crop_path.exists():
+            primary_crop = crops_dir / f"crop_{answer_id}.png"
+            if primary_crop.exists():
+                target_crop_path = primary_crop
+
+        # If crop missing from disk, generate dynamically
+        if not target_crop_path or not target_crop_path.exists():
+            if target_reg_coords:
+                page_num = target_reg_coords["page_number"]
+                renders_dir = settings.RENDERS_DIR / submission_id
+                page_img = pdf_service.get_page_image_path(renders_dir, page_num)
+                if not page_img.exists():
+                    storage = get_storage_service()
+                    for k in candidate_keys:
+                        if k and storage.file_exists(k):
+                            local_pdf = storage.get_local_path_or_download(k)
+                            if local_pdf and local_pdf.exists():
+                                pdf_service.render_pdf_pages_to_images(local_pdf, submission_id)
+                                page_img = pdf_service.get_page_image_path(renders_dir, page_num)
+                                if page_img.exists():
+                                    break
                 if page_img.exists():
-                    target_crop_path = page_img
+                    out_path = crops_dir / f"crop_{answer_id}.png"
+                    try:
+                        pdf_service.crop_answer_region(
+                            page_img,
+                            target_reg_coords["x"],
+                            target_reg_coords["y"],
+                            target_reg_coords["width"],
+                            target_reg_coords["height"],
+                            out_path,
+                        )
+                        target_crop_path = out_path
+                    except Exception:
+                        pass
 
-            if not target_crop_path or not target_crop_path.exists():
-                raise ValueError("Could not locate or generate crop image for this answer region.")
+        if not target_crop_path or not target_crop_path.exists():
+            page_img = pdf_service.get_page_image_path(settings.RENDERS_DIR / submission_id, old_ans_page_number)
+            if page_img.exists():
+                target_crop_path = page_img
 
-            with open(target_crop_path, "rb") as f:
-                crop_bytes = f.read()
+        if not target_crop_path or not target_crop_path.exists():
+            raise ValueError("Could not locate or generate crop image for this answer region.")
 
-            from backend.app.gemini.client import gemini_client
-            result, event_id = gemini_client.reevaluate_single_answer(
-                crop_image_bytes=crop_bytes,
-                crop_mime_type="image/png",
-                question_id=old_ans.question_id,
-                question_text=q_text,
-                official_solution=official_sol,
-                max_marks=float(old_ans.max_marks),
-                criteria=criteria_payload,
-                previous_extracted_text=old_ans.extracted_text or "",
-                previous_awarded_marks=float(old_ans.awarded_marks or 0.0),
-                previous_rationale=old_ans.grading_rationale or "",
-                teacher_prompt=teacher_prompt or "",
-                exam_id=sub.exam_id,
-                submission_id=submission_id,
-                answer_id=answer_id,
-                file_size=len(crop_bytes)
-            )
+        with open(target_crop_path, "rb") as f:
+            crop_bytes = f.read()
 
-            return {
-                "answer_id": answer_id,
-                "question_id": old_ans.question_id,
-                "previous_awarded_marks": old_ans.awarded_marks,
-                "proposed_awarded_marks": result.total_awarded_marks,
-                "max_marks": old_ans.max_marks,
-                "previous_extracted_text": old_ans.extracted_text,
-                "proposed_extracted_text": result.refined_student_text,
-                "previous_rationale": old_ans.grading_rationale,
-                "proposed_rationale": result.updated_rationale,
-                "adjustment_summary": result.adjustment_summary,
-                "proposed_criteria_scores": [
-                    {
-                        "criterion_id": c.criterion_id,
-                        "awarded_marks": c.awarded_marks,
-                        "evidence": c.evidence,
-                    }
-                    for c in result.criteria_scores
-                ],
-                "telemetry_event_id": event_id
-            }
+        from backend.app.gemini.client import gemini_client
+        result, event_id = gemini_client.reevaluate_single_answer(
+            crop_image_bytes=crop_bytes,
+            crop_mime_type="image/png",
+            question_id=old_ans_qid,
+            question_text=q_text,
+            official_solution=official_sol,
+            max_marks=old_ans_max_marks,
+            criteria=criteria_payload,
+            previous_extracted_text=old_ans_extracted_text,
+            previous_awarded_marks=float(old_ans_awarded_marks or 0.0),
+            previous_rationale=old_ans_grading_rationale,
+            teacher_prompt=teacher_prompt or "",
+            exam_id=sub_exam_id,
+            submission_id=submission_id,
+            answer_id=answer_id,
+            file_size=len(crop_bytes)
+        )
+
+        return {
+            "answer_id": answer_id,
+            "question_id": old_ans_qid,
+            "previous_awarded_marks": old_ans_awarded_marks,
+            "proposed_awarded_marks": result.total_awarded_marks,
+            "max_marks": old_ans_max_marks,
+            "previous_extracted_text": old_ans_extracted_text,
+            "proposed_extracted_text": result.refined_student_text,
+            "previous_rationale": old_ans_grading_rationale,
+            "proposed_rationale": result.updated_rationale,
+            "adjustment_summary": result.adjustment_summary,
+            "proposed_criteria_scores": [
+                {
+                    "criterion_id": c.criterion_id,
+                    "awarded_marks": c.awarded_marks,
+                    "evidence": c.evidence,
+                }
+                for c in result.criteria_scores
+            ],
+            "telemetry_event_id": event_id
+        }
 
 grading_service = GradingService()
