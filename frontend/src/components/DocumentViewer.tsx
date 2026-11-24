@@ -1006,56 +1006,63 @@ export function DocumentViewer({
 
                     {/* Co-located Bounding Box Overlays */}
                     {isCurrent &&
-                      pageRegions.map(({ region, answer }, idx) => {
-                        const regId = region.id || answer.id;
-                        const isSelected = selectedAnswerId === answer.id;
-                        const isHovered = hoveredAnswerId === answer.id;
-                        const isEditing =
-                          editingRegionId === regId ||
-                          (Boolean(propEditingAnswerId) && propEditingAnswerId === answer.id);
+                      (() => {
+                        const activeEditingId = editingRegionId || propEditingAnswerId;
+                        const isAnyBoxEditing = Boolean(activeEditingId);
 
-                        if (!showAnnotations && !isEditing) return null;
+                        return pageRegions.map(({ region, answer }, idx) => {
+                          const regId = region.id || answer.id;
+                          const isSelected = selectedAnswerId === answer.id;
+                          const isHovered = hoveredAnswerId === answer.id;
+                          const isEditing =
+                            editingRegionId === regId ||
+                            (Boolean(propEditingAnswerId) && propEditingAnswerId === answer.id);
+                          const isDimmed = isAnyBoxEditing && !isEditing;
 
-                        const coords = draftCoords[regId] || {
-                          x: region.x,
-                          y: region.y,
-                          width: region.width,
-                          height: region.height,
-                        };
+                          if (!showAnnotations && !isEditing) return null;
 
-                        return (
-                          <AnnotationBoundingBox
-                            key={regId}
-                            region={region}
-                            answer={answer}
-                            idx={idx}
-                            regId={regId}
-                            coords={coords}
-                            isSelected={isSelected}
-                            isHovered={isHovered}
-                            isEditing={isEditing}
-                            isActivelyDragging={activeDragRegionId === regId}
-                            isModified={Boolean(draftCoords[regId]?.isModified)}
-                            invScale={invScale}
-                            readOnly={readOnly}
-                            savingRegionId={savingRegionId}
-                            onSelect={() => onSelectAnswer(answer)}
-                            onInspect={onInspectAnswer ? () => onInspectAnswer(answer) : undefined}
-                            onMouseEnter={() => setHoveredAnswerId(answer.id)}
-                            onMouseLeave={() => setHoveredAnswerId(null)}
-                            onStartDrag={(e, handle) => handleStartDrag(e, handle, region, answer)}
-                            onEnterEditMode={(e) => {
-                              e.stopPropagation();
-                              setEditingRegionId(regId);
-                              if (onSetEditingAnswerId) onSetEditingAnswerId(answer.id);
-                            }}
-                            onExitEditMode={handleExitEditMode}
-                            onSaveRegion={handleSaveRegion}
-                            onRevertRegion={handleRevertRegion}
-                            onDeleteRegion={onDeleteRegion}
-                          />
-                        );
-                      })}
+                          const coords = draftCoords[regId] || {
+                            x: region.x,
+                            y: region.y,
+                            width: region.width,
+                            height: region.height,
+                          };
+
+                          return (
+                            <AnnotationBoundingBox
+                              key={regId}
+                              region={region}
+                              answer={answer}
+                              idx={idx}
+                              regId={regId}
+                              coords={coords}
+                              isSelected={isSelected}
+                              isHovered={isHovered}
+                              isEditing={isEditing}
+                              isDimmed={isDimmed}
+                              isActivelyDragging={activeDragRegionId === regId}
+                              isModified={Boolean(draftCoords[regId]?.isModified)}
+                              invScale={invScale}
+                              readOnly={readOnly}
+                              savingRegionId={savingRegionId}
+                              onSelect={() => onSelectAnswer(answer)}
+                              onInspect={onInspectAnswer ? () => onInspectAnswer(answer) : undefined}
+                              onMouseEnter={() => setHoveredAnswerId(answer.id)}
+                              onMouseLeave={() => setHoveredAnswerId(null)}
+                              onStartDrag={(e, handle) => handleStartDrag(e, handle, region, answer)}
+                              onEnterEditMode={(e) => {
+                                e.stopPropagation();
+                                setEditingRegionId(regId);
+                                if (onSetEditingAnswerId) onSetEditingAnswerId(answer.id);
+                              }}
+                              onExitEditMode={handleExitEditMode}
+                              onSaveRegion={handleSaveRegion}
+                              onRevertRegion={handleRevertRegion}
+                              onDeleteRegion={onDeleteRegion}
+                            />
+                          );
+                        });
+                      })()}
                   </div>
                 ) : (
                   <div

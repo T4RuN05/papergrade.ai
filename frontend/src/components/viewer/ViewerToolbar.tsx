@@ -108,17 +108,22 @@ export function ViewerToolbar({
 
       {/* Editing Mode or Instruction Notice */}
       {editingRegionId ? (
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/30 text-[11px] text-primary font-medium shadow-2xs animate-in fade-in">
-          <Sliders className="h-3 w-3 shrink-0" />
-          <span>Editing mode: Drag corners to resize • Drag inside to move</span>
+        <div className="w-full sm:w-auto flex items-center justify-between gap-2 px-2.5 py-1.5 min-h-[32px] rounded-md bg-primary/10 border border-primary/30 text-[11px] text-primary font-medium shadow-2xs animate-in fade-in overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0 truncate">
+            <Sliders className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="truncate">
+              <span className="sm:hidden">Drag handles to resize or move</span>
+              <span className="hidden sm:inline">Editing mode: Drag corners to resize • Drag inside to move</span>
+            </span>
+          </div>
           <button
             type="button"
             onClick={onExitEditMode}
-            className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface border border-primary/30 text-ink text-[10px] font-semibold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors cursor-pointer"
+            className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface border border-primary/30 text-ink text-[11px] font-semibold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer shadow-2xs"
             title="Exit edit mode"
           >
-            <X className="h-2.5 w-2.5" />
-            Exit Edit
+            <X className="h-3 w-3 text-ink-muted" />
+            <span>Exit Edit</span>
           </button>
         </div>
       ) : readOnly ? (

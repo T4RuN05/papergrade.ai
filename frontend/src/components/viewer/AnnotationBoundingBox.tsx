@@ -33,6 +33,7 @@ interface AnnotationBoundingBoxProps {
   isSelected: boolean;
   isHovered: boolean;
   isEditing: boolean;
+  isDimmed?: boolean;
   isActivelyDragging: boolean;
   isModified: boolean;
   invScale: number;
@@ -59,6 +60,7 @@ export function AnnotationBoundingBox({
   isSelected,
   isHovered,
   isEditing,
+  isDimmed = false,
   isActivelyDragging,
   isModified,
   invScale,
@@ -128,22 +130,26 @@ export function AnnotationBoundingBox({
     <div
       onClick={(e) => {
         e.stopPropagation();
-        if (isEditing) return;
+        if (isEditing || isDimmed) return;
         if (onInspect) {
           onInspect();
         } else {
           onSelect();
         }
       }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      className={`absolute rounded-xs box-border transition-colors ${
-        isModified
+      onMouseEnter={isDimmed ? undefined : onMouseEnter}
+      onMouseLeave={isDimmed ? undefined : onMouseLeave}
+      className={`absolute rounded-xs box-border transition-all duration-150 ${
+        isDimmed
+          ? "border-zinc-400/50 dark:border-zinc-600/50 bg-zinc-400/5 dark:bg-zinc-800/10 grayscale opacity-30 pointer-events-none border-dashed"
+          : isModified
           ? "border-dashed border-primary bg-primary/10 shadow-sm"
           : `${style.border} ${style.bg}`
       } ${
         isEditing
           ? "z-30 cursor-move"
+          : isDimmed
+          ? "z-0 pointer-events-none"
           : isSelected
           ? "z-20 cursor-pointer"
           : "z-10 hover:z-20 cursor-pointer"
@@ -156,7 +162,7 @@ export function AnnotationBoundingBox({
         borderWidth: `${Math.max(1, Number((2 * invScale).toFixed(2)))}px`,
         boxShadow: isEditing
           ? `0 0 0 ${Math.max(1, Number((2 * invScale).toFixed(2)))}px #2563eb`
-          : isSelected
+          : isSelected && !isDimmed
           ? `0 0 0 ${Math.max(1, Number((1.5 * invScale).toFixed(2)))}px rgba(37, 99, 235, 0.6)`
           : undefined,
       }}
@@ -168,7 +174,11 @@ export function AnnotationBoundingBox({
     >
       {/* Score badge at top-left of box */}
       <div
-        className={`absolute flex items-center gap-1.5 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs transition-all pointer-events-none select-none ${style.badge}`}
+        className={`absolute flex items-center gap-1.5 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs transition-all pointer-events-none select-none ${
+          isDimmed
+            ? "bg-zinc-500/70 text-white dark:bg-zinc-700/70 opacity-40 grayscale"
+            : style.badge
+        }`}
         style={{
           bottom: isNearPageTop ? undefined : "100%",
           top: isNearPageTop ? 0 : undefined,
@@ -191,7 +201,9 @@ export function AnnotationBoundingBox({
       {/* Revaluation Flag on Question */}
       {answer.revaluation && (
         <div
-          className={`absolute flex items-center gap-1 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs select-none z-30 ${
+          className={`absolute flex items-center gap-1 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs select-none ${
+            isDimmed ? "z-0 opacity-25 grayscale pointer-events-none" : "z-30"
+          } ${
             answer.revaluation.status === "SUBMITTED" || answer.revaluation.status === "UNDER_REVIEW"
               ? "bg-amber-500 text-white animate-pulse border border-amber-600"
               : answer.revaluation.decision === "MARKS_REVISED"
@@ -239,7 +251,7 @@ export function AnnotationBoundingBox({
       )}
 
       {/* Action Buttons Cluster (Inspect & Edit Buttons) */}
-      {!readOnly && (
+      {!readOnly && !isDimmed && (
         <div
           className="absolute z-40 flex items-center"
           style={{

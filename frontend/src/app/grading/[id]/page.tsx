@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -95,6 +95,19 @@ export default function GradingPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isClearingReview, setIsClearingReview] = useState(false);
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToViewer = useCallback(() => {
+    if (typeof window !== "undefined" && viewerContainerRef.current) {
+      const rect = viewerContainerRef.current.getBoundingClientRect();
+      if (rect.top < 0 || rect.top > window.innerHeight * 0.35) {
+        viewerContainerRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    }
+  }, []);
 
   useSetBreadcrumbs(
     submission
@@ -483,7 +496,10 @@ export default function GradingPage() {
       {/* Main Workspace: Document Viewer + Right Sidebar — Permanently Mounted (CLS = 0.00) */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* Left: Document Viewer Container (3 cols) */}
-        <div className="lg:col-span-3 h-[560px] sm:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative w-full max-w-full">
+        <div
+          ref={viewerContainerRef}
+          className="lg:col-span-3 h-[560px] sm:h-[680px] lg:h-[820px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative w-full max-w-full"
+        >
           {isColdLoading || !submission ? (
             <EvaluationViewerSkeleton />
           ) : (
@@ -629,6 +645,7 @@ export default function GradingPage() {
                                   e.stopPropagation();
                                   setSelectedAnswer(ans);
                                   setEditingAnswerId(ans.id);
+                                  scrollToViewer();
                                 }}
                                 className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors shrink-0 shadow-2xs"
                                 title={`Add bounding box for ${ans.question_id} on Page ${currentPage}`}
@@ -679,6 +696,7 @@ export default function GradingPage() {
                         e.stopPropagation();
                         setSelectedAnswer(mAns);
                         setEditingAnswerId(mAns.id);
+                        scrollToViewer();
                       }}
                       className="px-2.5 py-1 rounded text-[11px] font-semibold bg-primary hover:bg-primary-hover text-white transition-colors shrink-0 cursor-pointer shadow-2xs flex items-center gap-1"
                       title={`Add bounding box for ${mAns.question_id} on current page`}
@@ -707,6 +725,7 @@ export default function GradingPage() {
             setSelectedAnswer(ans);
             setEditingAnswerId(ans.id);
             if (pageNum && pageNum >= 1) setCurrentPage(pageNum);
+            scrollToViewer();
           }}
         />
       )}
