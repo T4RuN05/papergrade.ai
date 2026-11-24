@@ -457,6 +457,40 @@ body {
 }
 
 /* ==========================================================================
+   Mobile Bottom-Sheet Drawer Slide In / Out Animations
+   Silky deceleration curve for native iOS/Android bottom-drawer feel
+   ========================================================================== */
+@keyframes drawerSlideUp {
+  0% {
+    opacity: 0.6;
+    transform: translate3d(0, 100%, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes drawerSlideDown {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0.6;
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
+.animate-drawer-in {
+  animation: drawerSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-drawer-out {
+  animation: drawerSlideDown 0.22s cubic-bezier(0.32, 0, 0.67, 0) both;
+}
+
+/* ==========================================================================
    Notification Cascading Slide-Out Top-Down Exit Animation
    Smooth horizontal slide out with graceful vertical collapse
    ========================================================================== */
@@ -533,13 +567,16 @@ body {
   .animate-modal-backdrop-out,
   .animate-modal-content-in,
   .animate-modal-content-out,
+  .animate-drawer-in,
+  .animate-drawer-out,
   .animate-notification-slide-out {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
   .animate-modal-backdrop-out,
-  .animate-modal-content-out {
+  .animate-modal-content-out,
+  .animate-drawer-out {
     opacity: 0 !important;
   }
 }

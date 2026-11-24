@@ -27,6 +27,7 @@ import { api } from "@/lib/api";
 import { BadgePill, MathText, hasLatexMath, ButtonPrimary, ButtonUtility, StatusWell } from "./ui";
 import { ClippedAnswerCrop } from "./ClippedAnswerCrop";
 import { useToast } from "@/lib/ToastContext";
+import { useDrawerDrag } from "@/hooks/useDrawerDrag";
 
 interface GradingModalProps {
   submission: Submission;
@@ -106,6 +107,10 @@ export function GradingModal({
     }, 200);
   }, [isExiting, onClose]);
 
+  const { sheetRef, backdropRef, handleProps, resetStyles } = useDrawerDrag({
+    onClose: handleRequestClose,
+  });
+
   // Lock body scroll while modal is open & Escape to close
   useEffect(() => {
     if (!isRendered || !mounted) return;
@@ -129,6 +134,7 @@ export function GradingModal({
   // Pristine reset of all modal states whenever modal opens or inspected answer changes
   useEffect(() => {
     if (isOpen && answer) {
+      resetStyles();
       setAwardedMarks(answer.awarded_marks || 0);
       setExtractedText(answer.extracted_text || "");
       setRationale(answer.grading_rationale || "");
@@ -144,7 +150,7 @@ export function GradingModal({
       setShowAddPageDropdown(false);
       setShowTranscriptionMath(true);
     }
-  }, [isOpen, answer]);
+  }, [isOpen, answer, resetStyles]);
 
   // Secondary Evaluator Timer
   useEffect(() => {
@@ -276,24 +282,33 @@ export function GradingModal({
         }`}
     >
       <div
+        ref={backdropRef}
         className="fixed inset-0"
         onClick={handleRequestClose}
         aria-hidden="true"
       />
       <div
-        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+        ref={sheetRef}
+        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border-t border-x sm:border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${isExiting ? "animate-drawer-out sm:animate-modal-content-out" : "animate-drawer-in sm:animate-modal-content-in"
           }`}
       >
-        {/* Mobile drag affordance */}
-        <div className="sm:hidden w-10 h-1 bg-ink-muted/30 rounded-full mx-auto my-2 shrink-0" />
+        {/* Mobile Drawer Drag Handle Pill */}
+        <div
+          {...handleProps}
+          className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+          title="Drag down to close"
+          aria-label="Drag down to close"
+        >
+          <div className="w-12 h-1.5 bg-ink-muted/30 hover:bg-ink-muted/50 rounded-full transition-colors" />
+        </div>
 
         {/* Header - Clean Notion Style with Uncluttered Badges & Fixed Close Button */}
         <div className="flex items-start justify-between border-b border-hairline bg-canvas-soft/80 px-3.5 sm:px-6 py-2.5 sm:py-3.5 shrink-0 gap-3">
-          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
             <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-primary/10 text-primary font-bold text-xs sm:text-sm border border-primary/20 shrink-0 font-mono shadow-2xs mt-0.5 sm:mt-0">
               {answer.question_id}
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <h3 className="text-xs sm:text-base font-bold text-ink tracking-tight">
                   {answer.question_id} Assessment
@@ -326,7 +341,7 @@ export function GradingModal({
 
           <button
             onClick={handleRequestClose}
-            className="rounded-md p-1 text-ink-muted hover:bg-surface hover:text-ink transition-colors shrink-0 cursor-pointer -mr-1"
+            className="hidden sm:inline-flex rounded-md p-1 text-ink-muted hover:bg-surface hover:text-ink transition-colors shrink-0 cursor-pointer -mr-1"
             title="Close dialog"
             aria-label="Close dialog"
           >

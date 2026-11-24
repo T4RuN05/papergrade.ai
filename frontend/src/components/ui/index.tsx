@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { AlertTriangle, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { useDrawerDrag } from "@/hooks/useDrawerDrag";
 
 export interface ButtonPrimaryProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
@@ -347,20 +348,6 @@ export function ModalCard({
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      setIsRendered(true);
-      setIsExiting(false);
-    } else if (isRendered) {
-      setIsExiting(true);
-      const timer = setTimeout(() => {
-        setIsRendered(false);
-        setIsExiting(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, isRendered]);
-
   const handleRequestClose = useCallback(() => {
     if (disableClose || isExiting) return;
     setIsExiting(true);
@@ -370,6 +357,26 @@ export function ModalCard({
       setIsExiting(false);
     }, 200);
   }, [disableClose, isExiting, onClose]);
+
+  const { sheetRef, backdropRef, handleProps, resetStyles } = useDrawerDrag({
+    onClose: handleRequestClose,
+    disabled: disableClose,
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true);
+      setIsExiting(false);
+      resetStyles();
+    } else if (isRendered) {
+      setIsExiting(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsExiting(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isRendered, resetStyles]);
 
   // Lock body scroll and handle Escape key while modal is open
   useEffect(() => {
@@ -403,23 +410,37 @@ export function ModalCard({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-xs ${
+      className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs ${
         isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
       }`}
     >
       <div
+        ref={backdropRef}
         className="fixed inset-0"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
       <div
-        className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden ${
-          isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+        ref={sheetRef}
+        className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-t-2xl sm:rounded-xl shadow-notion-modal border-t border-x sm:border border-hairline z-10 overflow-hidden ${
+          isExiting
+            ? "animate-drawer-out sm:animate-modal-content-out"
+            : "animate-drawer-in sm:animate-modal-content-in"
         } ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-card-title"
       >
+        {/* Mobile Drawer Drag Handle Pill */}
+        <div
+          {...handleProps}
+          className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+          title="Drag down to close"
+          aria-label="Drag down to close"
+        >
+          <div className="w-12 h-1.5 bg-ink-muted/30 hover:bg-ink-muted/50 rounded-full transition-colors" />
+        </div>
+
         {/* Sticky Header */}
         <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b border-hairline bg-surface shrink-0">
           <h2 id="modal-card-title" className="text-xs sm:text-sm md:text-base font-bold text-ink truncate pr-2">
@@ -429,7 +450,7 @@ export function ModalCard({
             <button
               type="button"
               onClick={handleRequestClose}
-              className="text-ink-muted hover:text-ink p-1 rounded-md hover:bg-canvas-soft transition-colors cursor-pointer shrink-0 text-xs sm:text-sm"
+              className="hidden sm:inline-flex text-ink-muted hover:text-ink p-1 rounded-md hover:bg-canvas-soft transition-colors cursor-pointer shrink-0 text-xs sm:text-sm"
               title="Close modal"
             >
               ✕
