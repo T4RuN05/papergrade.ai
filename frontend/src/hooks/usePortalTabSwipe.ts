@@ -12,7 +12,16 @@ interface UsePortalTabSwipeOptions {
 export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
   const { initialTab = "dashboard", isModalOpen = false } = options;
 
-  const [activeTab, setActiveTab] = useState<PortalTab>(initialTab);
+  const [activeTab, setActiveTab] = useState<PortalTab>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab") === "exams") return "exams";
+    }
+    return initialTab;
+  });
+  const activeTabRef = useRef<PortalTab>(activeTab);
+  activeTabRef.current = activeTab;
+
   const tabTrackRef = useRef<HTMLDivElement>(null);
   const tabIndicatorPillRef = useRef<HTMLSpanElement>(null);
   const tabContainerRef = useRef<HTMLDivElement>(null);
@@ -27,8 +36,9 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
   const tabTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTabSwitch = useCallback(
-    (newTab: PortalTab, scrollToTop = false) => {
-      if (newTab === activeTab) {
+    (newTab: PortalTab, scrollToTop = true) => {
+      const currentTab = activeTabRef.current;
+      if (newTab === currentTab) {
         if (scrollToTop && typeof window !== "undefined" && window.scrollY > 100) {
           window.scrollTo({ top: 0, behavior: "smooth" });
         }
@@ -38,6 +48,7 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
 
       setIsTransitioning(true);
       setActiveTab(newTab);
+      activeTabRef.current = newTab;
 
       if (tabTrackRef.current) {
         tabTrackRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
@@ -57,15 +68,15 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
         window.dispatchEvent(new CustomEvent("papergrade:tab-changed", { detail: newTab }));
       }
 
-      if (scrollToTop && typeof window !== "undefined" && window.scrollY > 100) {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+      if (scrollToTop && typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "instant" });
       }
 
       tabTransitionTimerRef.current = setTimeout(() => {
         setIsTransitioning(false);
       }, 300);
     },
-    [activeTab]
+    []
   );
 
   useEffect(() => {
@@ -73,8 +84,8 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
         const tab = params.get("tab") === "exams" ? "exams" : "dashboard";
-        if (tab !== activeTab) {
-          handleTabSwitch(tab, false);
+        if (tab !== activeTabRef.current) {
+          handleTabSwitch(tab, true);
         }
       }
     };
@@ -82,7 +93,7 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
 
     const handleCustomTabSwitch = (e: Event) => {
       const ce = e as CustomEvent<PortalTab>;
-      if (ce.detail) {
+      if (ce.detail && ce.detail !== activeTabRef.current) {
         handleTabSwitch(ce.detail, true);
       }
     };
@@ -94,7 +105,7 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
       window.removeEventListener("popstate", handleUrlTab);
       if (tabTransitionTimerRef.current) clearTimeout(tabTransitionTimerRef.current);
     };
-  }, [activeTab, handleTabSwitch]);
+  }, [handleTabSwitch]);
 
   const handlePortalTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
@@ -144,13 +155,13 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
       const containerW = touchContainerWidthRef.current || 360;
 
       let effectiveDx = dx;
-      if (activeTab === "dashboard" && dx > 0) {
+      if (activeTabRef.current === "dashboard" && dx > 0) {
         effectiveDx = dx * 0.25;
-      } else if (activeTab === "exams" && dx < 0) {
+      } else if (activeTabRef.current === "exams" && dx < 0) {
         effectiveDx = dx * 0.25;
       }
 
-      const baseTrackPx = activeTab === "dashboard" ? 0 : -containerW;
+      const baseTrackPx = activeTabRef.current === "dashboard" ? 0 : -containerW;
       const currentTrackPx = baseTrackPx + effectiveDx;
       if (tabTrackRef.current) {
         tabTrackRef.current.style.transform = `translate3d(${currentTrackPx}px, 0, 0)`;
@@ -181,15 +192,16 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
     const containerW = touchContainerWidthRef.current || 360;
     const threshold = Math.max(50, containerW * 0.15);
 
-    let targetTab: PortalTab = activeTab;
+    const currentTab = activeTabRef.current;
+    let targetTab: PortalTab = currentTab;
 
-    if (activeTab === "dashboard" && dx < -threshold) {
+    if (currentTab === "dashboard" && dx < -threshold) {
       targetTab = "exams";
-    } else if (activeTab === "exams" && dx > threshold) {
+    } else if (currentTab === "exams" && dx > threshold) {
       targetTab = "dashboard";
     }
 
-    if (targetTab !== activeTab && typeof window !== "undefined" && "vibrate" in navigator) {
+    if (targetTab !== currentTab && typeof window !== "undefined" && "vibrate" in navigator) {
       try {
         navigator.vibrate(10);
       } catch (_) {}
@@ -207,12 +219,14 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
         targetTab === "dashboard" ? "translate3d(0%, 0, 0)" : "translate3d(100%, 0, 0)";
     }
 
-    if (targetTab !== activeTab) {
+    if (targetTab !== currentTab) {
       setActiveTab(targetTab);
+      activeTabRef.current = targetTab;
       const newUrl = targetTab === "exams" ? "/student/portal?tab=exams" : "/student/portal";
       window.history.replaceState(null, "", newUrl);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("papergrade:tab-changed", { detail: targetTab }));
+        window.scrollTo({ top: 0, behavior: "instant" });
       }
     }
 

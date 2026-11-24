@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, CheckSquare, Square } from "lucide-react";
-import { ModalCard, StatusWell, ButtonUtility, ButtonPrimary } from "@/components/ui";
+import { CheckSquare, Square } from "lucide-react";
+import { ModalCard, ButtonUtility, ButtonPrimary } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 
@@ -80,18 +80,10 @@ export function StudentRevaluationModal({
       isOpen={isOpen}
       onClose={onClose}
       title={`Submit Revaluation Request • ${submission.exam_title || "Examination"}`}
+      maxWidth="max-w-lg"
+      className="h-[88vh] sm:h-auto sm:max-h-[85vh] flex flex-col"
     >
       <form onSubmit={handleRevalSubmit} className="space-y-4 text-xs">
-        <StatusWell
-          variant="blue"
-          icon={<ShieldCheck className="h-3.5 w-3.5 text-primary" />}
-          title="Institutional Standard: Human Examiner Verification"
-          className="p-3"
-        >
-          Under faculty policy, all revaluation requests are{" "}
-          <strong className="text-ink font-semibold">manually reviewed by senior human examiners</strong>. Automated AI adjustments are strictly forbidden on student grievances.
-        </StatusWell>
-
         {/* Questions to Challenge */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">

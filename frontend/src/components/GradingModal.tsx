@@ -292,13 +292,12 @@ export function GradingModal({
     (allRegions.length > 0 ? answer.page_number : undefined);
 
   return createPortal(
-    <div
-      className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overflow-y-auto ${isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
-        }`}
-    >
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 overflow-hidden pointer-events-auto">
       <div
         ref={backdropRef}
-        className="fixed inset-0"
+        className={`fixed inset-0 bg-black/50 backdrop-blur-xs ${
+          isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+        }`}
         onClick={handleRequestClose}
         aria-hidden="true"
       />

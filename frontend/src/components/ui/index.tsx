@@ -420,14 +420,12 @@ export function ModalCard({
   };
 
   return createPortal(
-    <div
-      className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs ${
-        isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
-      }`}
-    >
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden pointer-events-auto">
       <div
         ref={backdropRef}
-        className="fixed inset-0"
+        className={`fixed inset-0 bg-black/50 backdrop-blur-xs ${
+          isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+        }`}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />

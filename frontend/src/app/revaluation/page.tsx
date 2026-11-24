@@ -13,7 +13,6 @@ import {
   AlertCircle,
   RefreshCw,
   Eye,
-  ShieldCheck,
   Flag,
   Check,
   Sliders,
@@ -909,17 +908,6 @@ export default function RevaluationDeskPage() {
                   )}
                 </div>
               </FeatureCard>
-
-              {/* Informational Callout */}
-              <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 text-xs text-ink-secondary space-y-1.5">
-                <div className="flex items-center gap-1.5 font-bold text-ink text-xs">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                  <span>Strict Human Evaluation Policy</span>
-                </div>
-                <p className="text-[11px] leading-relaxed text-ink-muted">
-                  Revaluations are human-verified by institutional policy. Automated AI modifications are strictly prohibited on student grievance appeals.
-                </p>
-              </div>
             </div>
           </div>
         </div>
