@@ -839,6 +839,11 @@ def start_evaluation(
 
     PortalStateEpochManager.bump_branch(exam.branch_id)
 
+    # Wake up the evaluation worker on-demand to process this newly enqueued batch
+    if enqueued_count > 0:
+        from backend.app.worker.queue_worker import queue_worker
+        queue_worker.wake_up()
+
     return {
         "status": "evaluation_started",
         "exam_id": exam_id,

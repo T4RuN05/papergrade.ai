@@ -37,30 +37,60 @@ class PersistentQueueWorker:
         self.running = False
         self._threads: List[threading.Thread] = []
         self._claim_lock = threading.Lock()
+        self._lifecycle_lock = threading.Lock()
+
+    def has_pending_jobs(self) -> bool:
+        """Checks if any submissions are currently in QUEUED, PROCESSING, or PAUSED_QUOTA state."""
+        try:
+            with get_session() as session:
+                count = session.scalar(
+                    select(func.count(Submission.id))
+                    .where(Submission.status.in_(('QUEUED', 'PROCESSING', 'PAUSED_QUOTA')))
+                )
+                return bool(count and count > 0)
+        except Exception as e:
+            print(f"[QueueWorker] Error checking pending jobs: {e}")
+            return False
+
+    def wake_up(self):
+        """
+        Wakes up the worker pool on-demand when an evaluation batch starts.
+        If already running, this is a thread-safe no-op.
+        """
+        with self._lifecycle_lock:
+            self._threads = [t for t in self._threads if t.is_alive()]
+            if self.running and len(self._threads) > 0:
+                print("[QueueWorker] Worker pool is already active and processing.")
+                return
+            print("[QueueWorker] Waking up worker pool on-demand for evaluation batch...")
+            self.start()
 
     def start(self):
-        if self.running:
-            return
-        # Stale-only recovery: only reclaim jobs abandoned for > 10 min, preventing in-flight grading duplication
-        self.recover_stalled_jobs(stale_only=True)
-        self.running = True
-        self._threads = []
-        for i in range(self.num_workers):
-            t = threading.Thread(target=self._run_worker_loop, args=(i,), daemon=True, name=f"QueueWorker-{i}")
-            t.start()
-            self._threads.append(t)
-        # Background watchdog to prevent infinite stuck jobs
-        watchdog = threading.Thread(target=self._run_watchdog_loop, daemon=True, name="QueueWorker-Watchdog")
-        watchdog.start()
-        self._threads.append(watchdog)
-        print(f"[QueueWorker] Background worker pool started with {self.num_workers} parallel workers and 1 watchdog.")
+        with self._lifecycle_lock:
+            if self.running:
+                return
+            # Stale-only recovery: only reclaim jobs abandoned for > 10 min, preventing in-flight grading duplication
+            self.recover_stalled_jobs(stale_only=True)
+            self.running = True
+            self._threads = []
+            for i in range(self.num_workers):
+                t = threading.Thread(target=self._run_worker_loop, args=(i,), daemon=True, name=f"QueueWorker-{i}")
+                t.start()
+                self._threads.append(t)
+            # Background watchdog to prevent infinite stuck jobs while active
+            watchdog = threading.Thread(target=self._run_watchdog_loop, daemon=True, name="QueueWorker-Watchdog")
+            watchdog.start()
+            self._threads.append(watchdog)
+            print(f"[QueueWorker] Background worker pool started with {self.num_workers} parallel workers and 1 watchdog.")
 
     def stop(self):
-        self.running = False
-        for t in self._threads:
-            t.join(timeout=3.0)
-        self._threads = []
-        print("[QueueWorker] Background worker pool stopped.")
+        with self._lifecycle_lock:
+            self.running = False
+            for t in self._threads:
+                if t.is_alive():
+                    t.join(timeout=3.0)
+            self._threads = []
+            print("[QueueWorker] Background worker pool stopped.")
 
     def recover_stalled_jobs(self, stale_only: bool = False, max_stale_minutes: int = 15):
         """
@@ -164,9 +194,11 @@ class PersistentQueueWorker:
             session.commit()
 
     def _run_watchdog_loop(self):
-        """Runs every 60 seconds to detect and recover stuck jobs in PROCESSING."""
+        """Runs every 60 seconds while worker is active to detect and recover stuck jobs in PROCESSING."""
         while self.running:
             time.sleep(60.0)
+            if not self.running:
+                break
             try:
                 self.recover_stalled_jobs(stale_only=True, max_stale_minutes=15)
             except Exception as e:
@@ -181,6 +213,16 @@ class PersistentQueueWorker:
                     # Enforce guaranteed 4.12s inter-request spacing to stay strictly within Gemini Free 15 RPM limit
                     time.sleep(4.12)
                 else:
+                    # No job claimed. Check if all queued and processing jobs are completely finished.
+                    if not self.has_pending_jobs():
+                        with self._lifecycle_lock:
+                            if self.running:
+                                self.running = False
+                                print(
+                                    f"[QueueWorker-{worker_id}] Evaluation queue empty (0 QUEUED/PROCESSING). "
+                                    f"Worker entering dormant sleep (0 DB queries)."
+                                )
+                        break
                     time.sleep(self.poll_interval_sec)
             except Exception as e:
                 print(f"[QueueWorker-{worker_id}] Unexpected loop error: {e}")

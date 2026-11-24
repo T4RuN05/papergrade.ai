@@ -31,9 +31,14 @@ from backend.app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure tables exist, start persistent queue worker and retention daemon
+    # Startup: ensure tables exist, start retention daemon
     init_db()
-    queue_worker.start()
+    # On startup, only wake queue_worker if there are unfinished evaluation jobs left in DB
+    if queue_worker.has_pending_jobs():
+        print("[QueueWorker] Unfinished evaluation jobs detected on startup. Waking worker pool...")
+        queue_worker.wake_up()
+    else:
+        print("[QueueWorker] Zero pending evaluation jobs on startup. Worker remaining dormant (0 DB queries).")
     retention_daemon.start()
     yield
     # Shutdown: stop daemons cleanly
