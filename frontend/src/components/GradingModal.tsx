@@ -93,8 +93,17 @@ export function GradingModal({
     }
   }, [isOpen, isRendered]);
 
-  const handleRequestClose = React.useCallback(() => {
+  const handleRequestClose = React.useCallback((fromDrag?: any) => {
     if (isExiting) return;
+    if (fromDrag === true) {
+      onClose();
+      setIsRendered(false);
+      setActiveTab("verification");
+      setShowAddPageDropdown(false);
+      setTeacherGuidancePrompt("");
+      setReevalResult(null);
+      return;
+    }
     setIsExiting(true);
     setTimeout(() => {
       onClose();
@@ -295,11 +304,11 @@ export function GradingModal({
         {/* Mobile Drawer Drag Handle Pill */}
         <div
           {...handleProps}
-          className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+          className="sm:hidden w-full flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
           title="Drag down to close"
           aria-label="Drag down to close"
         >
-          <div className="w-12 h-1.5 bg-ink-muted/30 hover:bg-ink-muted/50 rounded-full transition-colors" />
+          <div className="w-12 h-1.5 bg-ink-muted/30 hover:bg-ink-muted/50 rounded-full transition-colors pointer-events-none" />
         </div>
 
         {/* Header - Clean Notion Style with Uncluttered Badges & Fixed Close Button */}

@@ -348,8 +348,13 @@ export function ModalCard({
     setMounted(true);
   }, []);
 
-  const handleRequestClose = useCallback(() => {
+  const handleRequestClose = useCallback((fromDrag?: any) => {
     if (disableClose || isExiting) return;
+    if (fromDrag === true) {
+      onClose();
+      setIsRendered(false);
+      return;
+    }
     setIsExiting(true);
     setTimeout(() => {
       onClose();
@@ -434,11 +439,11 @@ export function ModalCard({
         {/* Mobile Drawer Drag Handle Pill */}
         <div
           {...handleProps}
-          className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+          className="sm:hidden w-full flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
           title="Drag down to close"
           aria-label="Drag down to close"
         >
-          <div className="w-12 h-1.5 bg-ink-muted/30 hover:bg-ink-muted/50 rounded-full transition-colors" />
+          <div className="w-12 h-1.5 bg-ink-muted/30 hover:bg-ink-muted/50 rounded-full transition-colors pointer-events-none" />
         </div>
 
         {/* Sticky Header */}
