@@ -272,9 +272,8 @@ export function GradingModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overflow-y-auto ${
-        isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
-      }`}
+      className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-black/50 backdrop-blur-xs overflow-y-auto ${isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
+        }`}
     >
       <div
         className="fixed inset-0"
@@ -282,9 +281,8 @@ export function GradingModal({
         aria-hidden="true"
       />
       <div
-        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${
-          isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
-        }`}
+        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
+          }`}
       >
         {/* Mobile drag affordance */}
         <div className="sm:hidden w-10 h-1 bg-ink-muted/30 rounded-full mx-auto my-2 shrink-0" />
@@ -340,11 +338,10 @@ export function GradingModal({
         <div className="flex border-b border-hairline bg-surface px-3 sm:px-6 gap-1 sm:gap-6 text-xs overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
           <button
             onClick={() => setActiveTab("verification")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
-              activeTab === "verification"
-                ? "border-primary text-primary"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "verification"
+              ? "border-primary text-primary"
+              : "border-transparent text-ink-muted hover:text-ink"
+              }`}
           >
             <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Handwriting</span>
@@ -352,11 +349,10 @@ export function GradingModal({
           </button>
           <button
             onClick={() => setActiveTab("rubric")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
-              activeTab === "rubric"
-                ? "border-primary text-primary"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "rubric"
+              ? "border-primary text-primary"
+              : "border-transparent text-ink-muted hover:text-ink"
+              }`}
           >
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Rubric</span>
@@ -364,11 +360,10 @@ export function GradingModal({
           </button>
           <button
             onClick={() => setActiveTab("reeval")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
-              activeTab === "reeval"
-                ? "border-amber-500 text-amber-500 dark:text-amber-400"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "reeval"
+              ? "border-amber-500 text-amber-500 dark:text-amber-400"
+              : "border-transparent text-ink-muted hover:text-ink"
+              }`}
           >
             <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
             <span className="sm:hidden">AI Opinion</span>
@@ -379,11 +374,10 @@ export function GradingModal({
           </button>
           <button
             onClick={() => setActiveTab("audit")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
-              activeTab === "audit"
-                ? "border-primary text-primary"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "audit"
+              ? "border-primary text-primary"
+              : "border-transparent text-ink-muted hover:text-ink"
+              }`}
           >
             <History className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Audit ({relevantAuditLogs.length})</span>
@@ -423,14 +417,14 @@ export function GradingModal({
 
                     return (
                       <>
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center justify-between gap-1.5 sm:gap-2 mb-2.5">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="text-xs font-bold text-ink flex items-center gap-1.5 shrink-0">
                               <ImageIcon className="h-4 w-4 text-primary" />
                               Handwriting Crop
                             </span>
                             {allRegions.length <= 1 && activePage && (
-                              <span className="text-[10px] text-ink-muted font-mono bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded">
+                              <span className="hidden sm:inline-flex text-[10px] text-ink-muted font-mono bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded whitespace-nowrap">
                                 Page {activePage}
                               </span>
                             )}
@@ -515,11 +509,10 @@ export function GradingModal({
                                 key={reg.id || rIdx}
                                 type="button"
                                 onClick={() => setSelectedRegionIndex(rIdx)}
-                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                                  selectedRegionIndex === rIdx
-                                    ? "bg-primary text-white shadow-2xs font-bold"
-                                    : "text-ink-secondary hover:text-ink hover:bg-surface"
-                                }`}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${selectedRegionIndex === rIdx
+                                  ? "bg-primary text-white shadow-2xs font-bold"
+                                  : "text-ink-secondary hover:text-ink hover:bg-surface"
+                                  }`}
                               >
                                 Part {rIdx + 1} (Page {reg.page_number})
                               </button>
@@ -552,7 +545,7 @@ export function GradingModal({
                         <p className="mt-2 text-[10px] text-ink-muted text-center">
                           {allRegions.length > 1
                             ? `Showing Part ${selectedRegionIndex + 1} of ${allRegions.length}. Click pills above to switch pages.`
-                            : "Cropped directly from student script using AI bounding box."}
+                            : `Page ${activePage || answer.page_number} • Cropped directly from student script using AI bounding box.`}
                         </p>
                       </>
                     );
@@ -739,13 +732,12 @@ export function GradingModal({
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-canvas-soft border border-hairline overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-300 ${
-                        (answer.transcription_uncertainty || 0) > 0.4
-                          ? "bg-[#872323] dark:bg-[#e87878]"
-                          : (answer.transcription_uncertainty || 0) > 0.15
+                      className={`h-full transition-all duration-300 ${(answer.transcription_uncertainty || 0) > 0.4
+                        ? "bg-[#872323] dark:bg-[#e87878]"
+                        : (answer.transcription_uncertainty || 0) > 0.15
                           ? "bg-[#7a4e18] dark:bg-[#e5ad68]"
                           : "bg-[#1e613b] dark:bg-[#86d4a4]"
-                      }`}
+                        }`}
                       style={{ width: `${Math.round((answer.transcription_uncertainty || 0) * 100)}%` }}
                     />
                   </div>
@@ -760,13 +752,12 @@ export function GradingModal({
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-canvas-soft border border-hairline overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-300 ${
-                        (answer.grading_uncertainty || 0) > 0.4
-                          ? "bg-[#872323] dark:bg-[#e87878]"
-                          : (answer.grading_uncertainty || 0) > 0.15
+                      className={`h-full transition-all duration-300 ${(answer.grading_uncertainty || 0) > 0.4
+                        ? "bg-[#872323] dark:bg-[#e87878]"
+                        : (answer.grading_uncertainty || 0) > 0.15
                           ? "bg-[#7a4e18] dark:bg-[#e5ad68]"
                           : "bg-[#1e613b] dark:bg-[#86d4a4]"
-                      }`}
+                        }`}
                       style={{ width: `${Math.round((answer.grading_uncertainty || 0) * 100)}%` }}
                     />
                   </div>
@@ -1067,11 +1058,10 @@ export function GradingModal({
               <button
                 type="button"
                 onClick={() => setNeedsReview((prev) => !prev)}
-                className={`inline-flex items-center gap-1 sm:gap-1.5 h-8 px-2.5 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-                  needsReview
-                    ? "bg-purple-500/15 border-purple-500/30 text-purple-700 dark:text-purple-300 font-bold shadow-2xs"
-                    : "bg-surface border-hairline text-ink-muted hover:text-ink hover:bg-canvas-soft"
-                }`}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 h-8 px-2.5 rounded-md text-xs font-semibold border transition-all cursor-pointer ${needsReview
+                  ? "bg-purple-500/15 border-purple-500/30 text-purple-700 dark:text-purple-300 font-bold shadow-2xs"
+                  : "bg-surface border-hairline text-ink-muted hover:text-ink hover:bg-canvas-soft"
+                  }`}
                 title="Flag this question for senior review"
               >
                 <Flag className={`h-3.5 w-3.5 ${needsReview ? "text-purple-600 fill-purple-600 dark:text-purple-400" : "text-ink-muted"}`} />
@@ -1082,11 +1072,10 @@ export function GradingModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("reeval")}
-                className={`inline-flex items-center gap-1 h-8 px-2 sm:px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                  activeTab === "reeval"
-                    ? "btn-glass-amber"
-                    : "btn-glass-utility text-ink hover:text-ink"
-                }`}
+                className={`inline-flex items-center gap-1 h-8 px-2 sm:px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${activeTab === "reeval"
+                  ? "btn-glass-amber"
+                  : "btn-glass-utility text-ink hover:text-ink"
+                  }`}
                 title="Open targeted AI Second Opinion re-evaluator"
               >
                 <Wand2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
