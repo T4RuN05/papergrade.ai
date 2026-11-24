@@ -348,6 +348,8 @@ export function ModalCard({
     setMounted(true);
   }, []);
 
+  const resetStylesRef = React.useRef<() => void>(() => {});
+
   const handleRequestClose = useCallback((fromDrag?: any) => {
     if (disableClose || isExiting) return;
     if (fromDrag === true) {
@@ -355,18 +357,22 @@ export function ModalCard({
       setIsRendered(false);
       return;
     }
+    // Clean up any gesture inline styles so CSS slide-down animation takes over immediately
+    resetStylesRef.current();
     setIsExiting(true);
     setTimeout(() => {
       onClose();
       setIsRendered(false);
       setIsExiting(false);
-    }, 200);
+    }, 250);
   }, [disableClose, isExiting, onClose]);
 
   const { sheetRef, backdropRef, handleProps, resetStyles } = useDrawerDrag({
     onClose: handleRequestClose,
     disabled: disableClose,
   });
+
+  resetStylesRef.current = resetStyles;
 
   useEffect(() => {
     if (isOpen) {
@@ -428,9 +434,7 @@ export function ModalCard({
       <div
         ref={sheetRef}
         className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-t-2xl sm:rounded-xl shadow-notion-modal border-t border-x sm:border border-hairline z-10 overflow-hidden ${
-          isExiting
-            ? "animate-drawer-out sm:animate-modal-content-out"
-            : "animate-drawer-in sm:animate-modal-content-in"
+          isExiting ? "animate-drawer-out" : "animate-drawer-in"
         } ${className}`}
         role="dialog"
         aria-modal="true"

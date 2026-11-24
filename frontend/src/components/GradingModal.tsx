@@ -93,6 +93,8 @@ export function GradingModal({
     }
   }, [isOpen, isRendered]);
 
+  const resetStylesRef = React.useRef<() => void>(() => {});
+
   const handleRequestClose = React.useCallback((fromDrag?: any) => {
     if (isExiting) return;
     if (fromDrag === true) {
@@ -104,6 +106,8 @@ export function GradingModal({
       setReevalResult(null);
       return;
     }
+    // Clean up any gesture inline styles so CSS slide-down animation takes over immediately
+    resetStylesRef.current();
     setIsExiting(true);
     setTimeout(() => {
       onClose();
@@ -113,12 +117,14 @@ export function GradingModal({
       setShowAddPageDropdown(false);
       setTeacherGuidancePrompt("");
       setReevalResult(null);
-    }, 200);
+    }, 250);
   }, [isExiting, onClose]);
 
   const { sheetRef, backdropRef, handleProps, resetStyles } = useDrawerDrag({
     onClose: handleRequestClose,
   });
+
+  resetStylesRef.current = resetStyles;
 
   // Lock body scroll while modal is open & Escape to close
   useEffect(() => {
@@ -298,7 +304,7 @@ export function GradingModal({
       />
       <div
         ref={sheetRef}
-        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border-t border-x sm:border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${isExiting ? "animate-drawer-out sm:animate-modal-content-out" : "animate-drawer-in sm:animate-modal-content-in"
+        className={`relative w-full max-w-4xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-lg border-t border-x sm:border border-hairline bg-surface shadow-notion-modal overflow-hidden text-ink z-10 ${isExiting ? "animate-drawer-out" : "animate-drawer-in"
           }`}
       >
         {/* Mobile Drawer Drag Handle Pill */}

@@ -445,7 +445,7 @@ body {
 }
 
 .animate-modal-backdrop-out {
-  animation: modalBackdropOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: modalBackdropOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-modal-content-in {
@@ -462,32 +462,28 @@ body {
    ========================================================================== */
 @keyframes drawerSlideUp {
   0% {
-    opacity: 0.6;
     transform: translate3d(0, 100%, 0);
   }
   100% {
-    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes drawerSlideDown {
   0% {
-    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
   100% {
-    opacity: 0.6;
     transform: translate3d(0, 100%, 0);
   }
 }
 
 .animate-drawer-in {
-  animation: drawerSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: drawerSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-drawer-out {
-  animation: drawerSlideDown 0.22s cubic-bezier(0.32, 0, 0.67, 0) both;
+  animation: drawerSlideDown 0.25s cubic-bezier(0.32, 0, 0.67, 0) both;
 }
 
 /* ==========================================================================
