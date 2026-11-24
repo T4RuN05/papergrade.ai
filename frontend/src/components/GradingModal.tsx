@@ -279,32 +279,38 @@ export function GradingModal({
         {/* Mobile drag affordance */}
         <div className="sm:hidden w-10 h-1 bg-ink-muted/30 rounded-full mx-auto my-2 shrink-0" />
 
-        {/* Header - Clean Notion Style */}
-        <div className="flex items-center justify-between border-b border-hairline bg-canvas-soft px-3.5 sm:px-6 py-2.5 sm:py-3.5 shrink-0">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-primary/10 text-primary font-bold text-xs border border-primary/20 shrink-0 font-mono">
+        {/* Header - Clean Notion Style with Uncluttered Badges & Fixed Close Button */}
+        <div className="flex items-start justify-between border-b border-hairline bg-canvas-soft/80 px-3.5 sm:px-6 py-2.5 sm:py-3.5 shrink-0 gap-3">
+          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0">
+            <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md bg-primary/10 text-primary font-bold text-xs sm:text-sm border border-primary/20 shrink-0 font-mono shadow-2xs mt-0.5 sm:mt-0">
               {answer.question_id}
             </span>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-base font-bold text-ink flex flex-wrap items-center gap-1 sm:gap-2">
-                <span>{answer.question_id} Assessment</span>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h3 className="text-xs sm:text-base font-bold text-ink tracking-tight">
+                  {answer.question_id} Assessment
+                </h3>
                 {Boolean(answer.is_manual_override) && (
-                  <BadgePill label="Overridden" color="orange" />
+                  <BadgePill label="Overridden" color="orange" rounded="full" className="text-[10px] py-0" />
                 )}
                 {Boolean(answer.is_missing) && (
-                  <BadgePill label="Unattempted" color="orange" />
+                  <BadgePill label="Unattempted" color="orange" rounded="full" className="text-[10px] py-0" />
                 )}
                 {Boolean(answer.is_extra_attempt) && (
-                  <BadgePill label="Extra Attempt" color="purple" />
+                  <BadgePill label="Extra Attempt" color="purple" rounded="full" className="text-[10px] py-0" />
                 )}
                 {(answer.regions || []).length > 1 && (
-                  <BadgePill label={`Spans ${(answer.regions || []).length} Regions`} color="teal" />
+                  <BadgePill label={`Spans ${(answer.regions || []).length} Regions`} color="teal" rounded="full" className="text-[10px] py-0" />
                 )}
-              </h3>
-              <p className="text-[11px] sm:text-xs text-ink-muted truncate">
-                Student: <span className="text-ink font-semibold">{submission.student_name}</span> ({submission.roll_number}) • Page {answer.page_number}
+              </div>
+              <p className="text-[11px] sm:text-xs text-ink-muted truncate mt-0.5">
+                Student: <span className="text-ink font-semibold">{submission.student_name}</span>{" "}
+                <span className="font-mono text-[10px] sm:text-xs text-ink-muted">({submission.roll_number})</span>{" "}
+                • Page {answer.page_number}
                 {(answer.regions || []).length > 1 && (
-                  <span className="hidden xs:inline"> (Pages: {Array.from(new Set((answer.regions || []).map((r) => r.page_number))).join(", ")})</span>
+                  <span className="text-ink-muted/80">
+                    {" "}(Pages: {Array.from(new Set((answer.regions || []).map((r) => r.page_number))).join(", ")})
+                  </span>
                 )}
               </p>
             </div>
@@ -312,18 +318,19 @@ export function GradingModal({
 
           <button
             onClick={handleRequestClose}
-            className="rounded-md p-1.5 text-ink-muted hover:bg-surface hover:text-ink transition-colors shrink-0 cursor-pointer"
+            className="rounded-md p-1 text-ink-muted hover:bg-surface hover:text-ink transition-colors shrink-0 cursor-pointer -mr-1"
             title="Close dialog"
+            aria-label="Close dialog"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Navigation Tabs - Responsive with Compact Mobile Labels */}
-        <div className="flex border-b border-hairline bg-surface px-3 sm:px-6 gap-2 sm:gap-6 text-xs overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
+        {/* Navigation Tabs - Streamlined Labels for Mobile to Prevent Clipping */}
+        <div className="flex border-b border-hairline bg-surface px-3 sm:px-6 gap-1 sm:gap-6 text-xs overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
           <button
             onClick={() => setActiveTab("verification")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 ${
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
               activeTab === "verification"
                 ? "border-primary text-primary"
                 : "border-transparent text-ink-muted hover:text-ink"
@@ -335,7 +342,7 @@ export function GradingModal({
           </button>
           <button
             onClick={() => setActiveTab("rubric")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 ${
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
               activeTab === "rubric"
                 ? "border-primary text-primary"
                 : "border-transparent text-ink-muted hover:text-ink"
@@ -343,26 +350,26 @@ export function GradingModal({
           >
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Rubric</span>
-            <span className="hidden sm:inline">Rubric & Grading Criteria</span>
+            <span className="hidden sm:inline">Rubric & Criteria</span>
           </button>
           <button
             onClick={() => setActiveTab("reeval")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 ${
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
               activeTab === "reeval"
                 ? "border-amber-500 text-amber-500 dark:text-amber-400"
                 : "border-transparent text-ink-muted hover:text-ink"
             }`}
           >
             <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
-            <span className="sm:hidden">AI Second Opinion</span>
+            <span className="sm:hidden">AI Opinion</span>
             <span className="hidden sm:inline">AI Second Opinion</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+            <span className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
               3.5 Flash Lite
             </span>
           </button>
           <button
             onClick={() => setActiveTab("audit")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 ${
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${
               activeTab === "audit"
                 ? "border-primary text-primary"
                 : "border-transparent text-ink-muted hover:text-ink"
@@ -406,97 +413,102 @@ export function GradingModal({
 
                     return (
                       <>
-                        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
-                          <span className="text-xs font-bold text-ink flex items-center gap-1.5">
-                            <ImageIcon className="h-4 w-4 text-primary" />
-                            Original Handwriting Crop
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-ink-muted font-mono font-medium">
-                              {activePage ? `Page ${activePage}` : "No Box"}
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs font-bold text-ink flex items-center gap-1.5 shrink-0">
+                              <ImageIcon className="h-4 w-4 text-primary" />
+                              Handwriting Crop
                             </span>
-                            {onAdjustOnCanvas && (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onClose();
-                                    if (allRegions.length === 0) {
-                                      onAdjustOnCanvas(answer, currentPage || undefined);
-                                    } else {
-                                      onAdjustOnCanvas(answer, activePage || undefined);
-                                    }
-                                  }}
-                                  className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-all"
-                                  title="Close modal and adjust box handles directly on canvas"
-                                >
-                                  <Move className="h-3 w-3 text-primary" />
-                                  {allRegions.length === 0 ? "Place Box" : "Adjust Box"}
-                                </button>
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowAddPageDropdown((prev) => !prev)}
-                                    className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-all"
-                                    title="Add an additional bounding box continuation on another sheet"
-                                  >
-                                    <Plus className="h-3 w-3 text-[#165651] dark:text-[#80cbc4]" />
-                                    <span>Add Sheet</span>
-                                  </button>
-                                  {showAddPageDropdown && (
-                                    <div className="absolute top-full right-0 mt-1 w-48 bg-surface border border-hairline shadow-lg rounded-lg p-1.5 z-50 space-y-1">
-                                      <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-2 py-1 border-b border-hairline flex items-center justify-between">
-                                        <span>Link on Sheet:</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => setShowAddPageDropdown(false)}
-                                          className="text-ink-muted hover:text-ink cursor-pointer"
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                      <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                        {Array.from({ length: submission.page_count || 1 }).map((_, pIdx) => {
-                                          const pNum = pIdx + 1;
-                                          const hasRegOnP = allRegions.some((r) => r.page_number === pNum);
-                                          return (
-                                            <button
-                                              key={pNum}
-                                              type="button"
-                                              onClick={() => {
-                                                setShowAddPageDropdown(false);
-                                                onClose();
-                                                onAdjustOnCanvas(answer, pNum);
-                                              }}
-                                              className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-canvas-soft transition-colors cursor-pointer"
-                                            >
-                                              <span className="font-medium text-ink">Page {pNum}</span>
-                                              <span className={`text-[10px] ${hasRegOnP ? "text-emerald-600 font-semibold" : "text-ink-muted"}`}>
-                                                {hasRegOnP ? "(Has Box)" : "+ Add Box"}
-                                              </span>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                            {allRegions.length <= 1 && activePage && (
+                              <span className="text-[10px] text-ink-muted font-mono bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded">
+                                Page {activePage}
+                              </span>
                             )}
                           </div>
+                          {onAdjustOnCanvas && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  if (allRegions.length === 0) {
+                                    onAdjustOnCanvas(answer, currentPage || undefined);
+                                  } else {
+                                    onAdjustOnCanvas(answer, activePage || undefined);
+                                  }
+                                }}
+                                className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold h-7 px-2.5 rounded-md cursor-pointer transition-all"
+                                title="Close modal and adjust box handles directly on canvas"
+                              >
+                                <Move className="h-3 w-3 text-primary" />
+                                <span>{allRegions.length === 0 ? "Place Box" : "Adjust Box"}</span>
+                              </button>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAddPageDropdown((prev) => !prev)}
+                                  className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold h-7 px-2.5 rounded-md cursor-pointer transition-all"
+                                  title="Add an additional bounding box continuation on another sheet"
+                                >
+                                  <Plus className="h-3 w-3 text-[#165651] dark:text-[#80cbc4]" />
+                                  <span>Add Sheet</span>
+                                </button>
+                                {showAddPageDropdown && (
+                                  <div className="absolute top-full right-0 mt-1 w-48 bg-surface border border-hairline shadow-lg rounded-lg p-1.5 z-50 space-y-1">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-2 py-1 border-b border-hairline flex items-center justify-between">
+                                      <span>Link on Sheet:</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowAddPageDropdown(false)}
+                                        className="text-ink-muted hover:text-ink cursor-pointer"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                    <div className="max-h-40 overflow-y-auto space-y-0.5">
+                                      {Array.from({ length: submission.page_count || 1 }).map((_, pIdx) => {
+                                        const pNum = pIdx + 1;
+                                        const hasRegOnP = allRegions.some((r) => r.page_number === pNum);
+                                        return (
+                                          <button
+                                            key={pNum}
+                                            type="button"
+                                            onClick={() => {
+                                              setShowAddPageDropdown(false);
+                                              onClose();
+                                              onAdjustOnCanvas(answer, pNum);
+                                            }}
+                                            className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-canvas-soft transition-colors cursor-pointer"
+                                          >
+                                            <span className="font-medium text-ink">Page {pNum}</span>
+                                            <span className={`text-[10px] ${hasRegOnP ? "text-emerald-600 font-semibold" : "text-ink-muted"}`}>
+                                              {hasRegOnP ? "(Has Box)" : "+ Add Box"}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {allRegions.length > 1 && (
-                          <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto pb-1">
+                          <div className="flex items-center gap-1.5 mb-2.5 p-1 bg-canvas-soft rounded-lg border border-hairline overflow-x-auto scrollbar-none">
+                            <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider px-1.5 shrink-0">
+                              Sheets:
+                            </span>
                             {allRegions.map((reg, rIdx) => (
                               <button
                                 key={reg.id || rIdx}
                                 type="button"
                                 onClick={() => setSelectedRegionIndex(rIdx)}
-                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                                   selectedRegionIndex === rIdx
-                                    ? "btn-glass-primary font-bold"
-                                    : "btn-glass-utility"
+                                    ? "bg-primary text-white shadow-2xs font-bold"
+                                    : "text-ink-secondary hover:text-ink hover:bg-surface"
                                 }`}
                               >
                                 Part {rIdx + 1} (Page {reg.page_number})
@@ -505,7 +517,7 @@ export function GradingModal({
                           </div>
                         )}
 
-                        <div className="flex-1 flex flex-col items-center justify-center min-h-[180px] rounded-md bg-canvas-soft border border-hairline p-2 overflow-hidden">
+                        <div className="flex-1 flex flex-col items-center justify-center rounded-lg bg-canvas-soft/40 border border-hairline p-1 sm:p-2 overflow-hidden">
                           {activeCropUrl && !answer.is_missing ? (
                             <ClippedAnswerCrop
                               submissionId={submission.id}
@@ -513,7 +525,7 @@ export function GradingModal({
                               region={activeRegion}
                               fallbackCropUrl={activeCropUrl}
                               alt="Student Handwriting Crop"
-                              maxContainerHeight="260px"
+                              maxContainerHeight="280px"
                             />
                           ) : (
                             <div className="text-center py-6 px-4">
@@ -527,7 +539,7 @@ export function GradingModal({
                             </div>
                           )}
                         </div>
-                        <p className="mt-2 text-[11px] text-ink-muted">
+                        <p className="mt-2 text-[10px] text-ink-muted text-center">
                           {allRegions.length > 1
                             ? `Showing Part ${selectedRegionIndex + 1} of ${allRegions.length}. Click pills above to switch pages.`
                             : "Cropped directly from student script using AI bounding box."}
@@ -554,7 +566,7 @@ export function GradingModal({
                           {showTranscriptionMath ? "Edit Raw" : "KaTeX View"}
                         </button>
                       )}
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-mono font-medium">Editable</span>
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60 px-1.5 py-0.5 rounded font-mono font-medium">Editable</span>
                     </div>
                   </div>
 
@@ -1020,12 +1032,12 @@ export function GradingModal({
           )}
         </div>
 
-        {/* Footer / Action Bar */}
-        <div className="border-t border-hairline bg-canvas-soft px-3.5 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 shrink-0">
-          {/* Quick Mark Adjustment */}
-          <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2.5 sm:gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-ink">Awarded Marks:</label>
+        {/* Footer / Action Bar - Compact & Non-Leaking Responsive Layout */}
+        <div className="border-t border-hairline bg-canvas-soft/95 backdrop-blur-xs px-3.5 sm:px-6 py-2.5 sm:py-3 shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4">
+          {/* Controls: Marks, Review Flag, & AI Second Opinion Shortcut */}
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <label className="text-xs font-bold text-ink whitespace-nowrap">Marks:</label>
               <input
                 type="number"
                 step="0.5"
@@ -1033,51 +1045,54 @@ export function GradingModal({
                 max={answer.max_marks}
                 value={awardedMarks}
                 onChange={(e) => setAwardedMarks(parseFloat(e.target.value) || 0)}
-                className="w-16 sm:w-20 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-center font-mono text-sm font-bold text-ink focus:border-primary focus:outline-none shadow-2xs"
+                className="w-14 sm:w-18 h-8 rounded-md border border-hairline bg-surface px-1.5 sm:px-2 text-center font-mono text-xs sm:text-sm font-bold text-ink focus:border-primary focus:outline-none shadow-2xs"
               />
-              <span className="text-xs font-bold text-ink-muted">
-                / {answer.max_marks} Max
+              <span className="text-xs font-bold text-ink-muted whitespace-nowrap">
+                / {answer.max_marks} <span className="hidden sm:inline">Max</span>
               </span>
             </div>
 
-            {/* Needs Review Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={needsReview}
-                onChange={(e) => setNeedsReview(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-              />
-              <span className="text-xs font-semibold text-ink flex items-center gap-1">
-                <Flag className="h-3.5 w-3.5 text-purple-600" />
-                Needs Review
-              </span>
-            </label>
+            <div className="flex items-center gap-1.5">
+              {/* Needs Review Toggle Pill */}
+              <button
+                type="button"
+                onClick={() => setNeedsReview((prev) => !prev)}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 h-8 px-2.5 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                  needsReview
+                    ? "bg-purple-500/15 border-purple-500/30 text-purple-700 dark:text-purple-300 font-bold shadow-2xs"
+                    : "bg-surface border-hairline text-ink-muted hover:text-ink hover:bg-canvas-soft"
+                }`}
+                title="Flag this question for senior review"
+              >
+                <Flag className={`h-3.5 w-3.5 ${needsReview ? "text-purple-600 fill-purple-600 dark:text-purple-400" : "text-ink-muted"}`} />
+                <span>Review</span>
+              </button>
 
-            {/* AI Second Opinion Shortcut */}
-            <button
-              type="button"
-              onClick={() => setActiveTab("reeval")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "reeval"
-                  ? "btn-glass-amber"
-                  : "btn-glass-utility text-ink hover:text-ink"
-              }`}
-              title="Open targeted AI Second Opinion re-evaluator"
-            >
-              <Wand2 className="h-3.5 w-3.5 text-amber-500" />
-              <span>AI Second Opinion</span>
-            </button>
+              {/* AI Second Opinion Shortcut */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("reeval")}
+                className={`inline-flex items-center gap-1 h-8 px-2 sm:px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === "reeval"
+                    ? "btn-glass-amber"
+                    : "btn-glass-utility text-ink hover:text-ink"
+                }`}
+                title="Open targeted AI Second Opinion re-evaluator"
+              >
+                <Wand2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <span className="hidden xs:inline sm:inline">AI Opinion</span>
+              </button>
+            </div>
           </div>
 
-          {/* Reason Input & Save Button */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          {/* Action Row: Optional Reason & Save Button */}
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <input
               type="text"
               value={editReason}
               onChange={(e) => setEditReason(e.target.value)}
               placeholder="Edit reason (optional)..."
-              className="rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none w-full sm:w-56 shadow-2xs"
+              className="flex-1 sm:w-52 md:w-60 h-8 rounded-md border border-hairline bg-surface px-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none shadow-2xs"
             />
 
             <ButtonPrimary
@@ -1086,17 +1101,18 @@ export function GradingModal({
               disabled={isSaving}
               isLoading={isSaving}
               size="sm"
-              className={`w-full sm:w-auto shrink-0 ${saveSuccess ? "btn-glass-emerald" : ""}`}
+              className={`h-8 px-3 sm:px-4 text-xs font-semibold shrink-0 cursor-pointer ${saveSuccess ? "btn-glass-emerald" : ""}`}
             >
               {saveSuccess ? (
                 <>
-                  <Check className="h-4 w-4 mr-1.5" />
-                  Saved!
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  <span>Saved!</span>
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4 mr-1.5" />
-                  Save & Update Marks
+                  <Save className="h-3.5 w-3.5 mr-1" />
+                  <span className="sm:hidden">Save</span>
+                  <span className="hidden sm:inline">Save & Update Marks</span>
                 </>
               )}
             </ButtonPrimary>
