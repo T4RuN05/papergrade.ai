@@ -1,6 +1,7 @@
 import time
 import json
 import threading
+from enum import Enum
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -28,16 +29,40 @@ from backend.app.gemini.client import (
 from backend.app.services.notification_service import notify_branch_managers, notify_root_admins
 
 
+class WorkerState(str, Enum):
+    DORMANT = "DORMANT"       # Zero worker threads. Zero DB queries.
+    STARTING = "STARTING"     # Transitioning, recovering stale jobs.
+    ACTIVE = "ACTIVE"         # Actively pulling & processing evaluation jobs.
+    DRAINING = "DRAINING"     # No QUEUED jobs left; awaiting in-flight jobs to complete.
+
+
 class PersistentQueueWorker:
     def __init__(self, poll_interval_sec: float = 3.0, max_workers: Optional[int] = None):
         self.poll_interval_sec = poll_interval_sec
         configured_keys = len(settings.configured_api_keys)
         default_workers = getattr(settings, "MAX_EVALUATION_WORKERS", 1)
         self.num_workers = max(1, min(default_workers, max(1, configured_keys))) if max_workers is None else max(1, max_workers)
-        self.running = False
+        
+        self.state: WorkerState = WorkerState.DORMANT
         self._threads: List[threading.Thread] = []
         self._claim_lock = threading.Lock()
         self._lifecycle_lock = threading.Lock()
+        self._wake_event = threading.Event()
+
+        # Guarantee B: Background Safety Net Heartbeat (Runs every 30 minutes, < 0.5 MB/mo)
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._heartbeat_stop = threading.Event()
+
+    @property
+    def running(self) -> bool:
+        return self.state in (WorkerState.ACTIVE, WorkerState.DRAINING, WorkerState.STARTING)
+
+    @running.setter
+    def running(self, value: bool):
+        if not value:
+            self.state = WorkerState.DORMANT
+        elif self.state == WorkerState.DORMANT:
+            self.state = WorkerState.ACTIVE
 
     def has_pending_jobs(self) -> bool:
         """Checks if any submissions are currently in QUEUED, PROCESSING, or PAUSED_QUOTA state."""
@@ -55,42 +80,113 @@ class PersistentQueueWorker:
     def wake_up(self):
         """
         Wakes up the worker pool on-demand when an evaluation batch starts.
-        If already running, this is a thread-safe no-op.
+        Thread-safe, idempotent, and guarantees zero duplicate threads.
         """
         with self._lifecycle_lock:
-            self._threads = [t for t in self._threads if t.is_alive()]
-            if self.running and len(self._threads) > 0:
-                print("[QueueWorker] Worker pool is already active and processing.")
+            # If in DRAINING state, resume active workers immediately
+            if self.state == WorkerState.DRAINING:
+                self.state = WorkerState.ACTIVE
+                self._wake_event.set()
+                print("[QueueWorker] New batch arrived while draining. Resumed to ACTIVE state.")
                 return
+
+            # If already active, trigger wake_event to interrupt any idle sleep
+            if self.state in (WorkerState.ACTIVE, WorkerState.STARTING):
+                self._wake_event.set()
+                print("[QueueWorker] Worker pool is already active; triggered immediate wake event.")
+                return
+
             print("[QueueWorker] Waking up worker pool on-demand for evaluation batch...")
-            self.start()
+            self._start_locked()
 
     def start(self):
+        """Backward-compatible entry point for explicit worker start."""
         with self._lifecycle_lock:
             if self.running:
                 return
-            # Stale-only recovery: only reclaim jobs abandoned for > 10 min, preventing in-flight grading duplication
-            self.recover_stalled_jobs(stale_only=True)
-            self.running = True
-            self._threads = []
-            for i in range(self.num_workers):
-                t = threading.Thread(target=self._run_worker_loop, args=(i,), daemon=True, name=f"QueueWorker-{i}")
-                t.start()
-                self._threads.append(t)
-            # Background watchdog to prevent infinite stuck jobs while active
-            watchdog = threading.Thread(target=self._run_watchdog_loop, daemon=True, name="QueueWorker-Watchdog")
-            watchdog.start()
-            self._threads.append(watchdog)
-            print(f"[QueueWorker] Background worker pool started with {self.num_workers} parallel workers and 1 watchdog.")
+            self._start_locked()
+
+    def _start_locked(self):
+        """Internal helper to start threads while holding _lifecycle_lock."""
+        # 1. Clean up and join any lingering dead threads
+        for t in self._threads:
+            if t.is_alive():
+                t.join(timeout=2.0)
+        self._threads = []
+
+        self.state = WorkerState.STARTING
+        self._wake_event.clear()
+
+        # Stale-only recovery: only reclaim jobs abandoned for > 15 min
+        try:
+            self.recover_stalled_jobs(stale_only=True, max_stale_minutes=15)
+        except Exception as e:
+            print(f"[QueueWorker] Error during stale job recovery on wake: {e}")
+
+        self.state = WorkerState.ACTIVE
+        for i in range(self.num_workers):
+            t = threading.Thread(target=self._run_worker_loop, args=(i,), daemon=True, name=f"QueueWorker-{i}")
+            t.start()
+            self._threads.append(t)
+
+        watchdog = threading.Thread(target=self._run_watchdog_loop, daemon=True, name="QueueWorker-Watchdog")
+        watchdog.start()
+        self._threads.append(watchdog)
+
+        print(f"[QueueWorker] Worker pool ACTIVE with {self.num_workers} parallel worker(s) and 1 watchdog.")
 
     def stop(self):
         with self._lifecycle_lock:
-            self.running = False
+            self.state = WorkerState.DORMANT
+            self._wake_event.set()
             for t in self._threads:
                 if t.is_alive():
                     t.join(timeout=3.0)
             self._threads = []
-            print("[QueueWorker] Background worker pool stopped.")
+            print("[QueueWorker] Background worker pool stopped (DORMANT).")
+
+    def start_safety_heartbeat(self):
+        """Starts the ultra-low-frequency 30-minute safety net daemon."""
+        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
+            return
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(
+            target=self._run_safety_heartbeat_loop,
+            daemon=True,
+            name="QueueWorker-SafetyHeartbeat"
+        )
+        self._heartbeat_thread.start()
+        print("[QueueWorker] Safety net heartbeat started (runs every 30m to catch orphaned jobs).")
+
+    def stop_safety_heartbeat(self):
+        """Stops the safety net heartbeat."""
+        self._heartbeat_stop.set()
+        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
+            self._heartbeat_thread.join(timeout=2.0)
+        self._heartbeat_thread = None
+
+    def _run_safety_heartbeat_loop(self):
+        """
+        Runs once every 30 minutes (only 48 checks/day = ~0.45 MB/month egress).
+        If the worker is DORMANT but orphan QUEUED jobs exist, it self-heals by waking up.
+        """
+        # Initial 60-second grace period after server boot
+        if self._heartbeat_stop.wait(60.0):
+            return
+
+        while not self._heartbeat_stop.is_set():
+            try:
+                # Only check if currently dormant (if active, normal worker is already grading)
+                if self.state == WorkerState.DORMANT:
+                    if self.has_pending_jobs():
+                        print("[QueueWorker-SafetyHeartbeat] Detected orphan jobs while DORMANT. Self-healing: waking worker pool...")
+                        self.wake_up()
+            except Exception as e:
+                print(f"[QueueWorker-SafetyHeartbeat] Heartbeat check failed: {e}")
+
+            # Wait 30 minutes (1800 seconds)
+            if self._heartbeat_stop.wait(1800.0):
+                break
 
     def recover_stalled_jobs(self, stale_only: bool = False, max_stale_minutes: int = 15):
         """
@@ -195,9 +291,9 @@ class PersistentQueueWorker:
 
     def _run_watchdog_loop(self):
         """Runs every 60 seconds while worker is active to detect and recover stuck jobs in PROCESSING."""
-        while self.running:
+        while self.state in (WorkerState.ACTIVE, WorkerState.DRAINING):
             time.sleep(60.0)
-            if not self.running:
+            if self.state not in (WorkerState.ACTIVE, WorkerState.DRAINING):
                 break
             try:
                 self.recover_stalled_jobs(stale_only=True, max_stale_minutes=15)
@@ -206,24 +302,30 @@ class PersistentQueueWorker:
 
     def _run_worker_loop(self, worker_id: int):
         time.sleep(worker_id * 0.75)
-        while self.running:
+        while self.state in (WorkerState.ACTIVE, WorkerState.DRAINING):
             try:
                 processed = self.process_next_job(worker_id=worker_id)
                 if processed:
                     # Enforce guaranteed 4.12s inter-request spacing to stay strictly within Gemini Free 15 RPM limit
                     time.sleep(4.12)
                 else:
-                    # No job claimed. Check if all queued and processing jobs are completely finished.
-                    if not self.has_pending_jobs():
-                        with self._lifecycle_lock:
-                            if self.running:
-                                self.running = False
+                    # No job claimed by this worker. Check if all queued and processing jobs are completely finished.
+                    with self._lifecycle_lock:
+                        if self.state in (WorkerState.ACTIVE, WorkerState.DRAINING):
+                            if not self.has_pending_jobs():
+                                self.state = WorkerState.DORMANT
+                                self._wake_event.set()
                                 print(
                                     f"[QueueWorker-{worker_id}] Evaluation queue empty (0 QUEUED/PROCESSING). "
                                     f"Worker entering dormant sleep (0 DB queries)."
                                 )
-                        break
-                    time.sleep(self.poll_interval_sec)
+                                break
+                            else:
+                                self.state = WorkerState.DRAINING
+
+                    # If other workers are still processing jobs, sleep briefly or wait for wake event
+                    self._wake_event.wait(timeout=self.poll_interval_sec)
+                    self._wake_event.clear()
             except Exception as e:
                 print(f"[QueueWorker-{worker_id}] Unexpected loop error: {e}")
                 time.sleep(self.poll_interval_sec)
