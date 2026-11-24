@@ -1,24 +1,16 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BarChart3,
-  TrendingUp,
-  Cpu,
-  Clock,
-  DollarSign,
   Activity,
-  CheckCircle,
-  HelpCircle,
+  Layers,
   Sparkles,
   ClipboardCheck,
-  Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { UsageMetrics, BenchmarkSummary, Exam } from "@/lib/types";
 import { UsageCards } from "@/components/UsageCards";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
+import { ButtonPrimary, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,6 +22,9 @@ export default function AnalyticsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isBranchManager, isInstituteDirector } = useTenant();
+
+  // Primary Tab: "telemetry" | "logs" | "benchmarks"
+  const [activeMainTab, setActiveMainTab] = useState<"telemetry" | "logs" | "benchmarks">("telemetry");
 
   // TanStack Queries (Cached in-memory, instant back-nav, CLS = 0.00)
   const {
@@ -106,19 +101,71 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12 cascade-group">
-      {/* Header */}
-      <div className="pb-3 border-b border-hairline">
-        <div className="flex items-center gap-2 mb-1">
-          <BadgePill label="Telemetry & Rate Limits" color="purple" />
-          <span className="text-xs text-ink-muted">• Google AI Studio Multi-Key Engine</span>
+    <div className="space-y-6 max-w-6xl mx-auto pb-12 cascade-group">
+      {/* Header & High-Level Navigation Segmented Control */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <BadgePill label="Telemetry & Observability" color="purple" />
+            <span className="text-xs text-ink-muted hidden sm:inline">• Gemini Multimodal Engine</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+            Telemetry & Quotas
+          </h1>
+          <p className="text-xs text-ink-muted mt-0.5">
+            API consumption, latency percentiles, dynamic pacing feasibility, and accuracy benchmarks.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">
-          API Consumption, Feasibility & Quota Telemetry
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-muted mt-1">
-          Observed Gemini multimodal API usage, latency percentiles, dynamic pacing calculations, and 40/50 paper feasibility simulations.
-        </p>
+
+        {/* Top-Level Navigation Segmented Control */}
+        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft border border-hairline rounded-xl w-full sm:w-auto overflow-x-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveMainTab("telemetry")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+              activeMainTab === "telemetry"
+                ? "bg-surface text-ink shadow-2xs border border-hairline"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            <Activity className="h-3.5 w-3.5 text-primary" />
+            <span>Telemetry</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMainTab("logs")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+              activeMainTab === "logs"
+                ? "bg-surface text-ink shadow-2xs border border-hairline"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 text-primary" />
+            <span>Request Ledger</span>
+            {metrics && (
+              <span className="rounded-full bg-primary/10 text-primary dark:text-sky-400 px-1.5 py-0.2 text-[10px] font-mono">
+                {metrics.recent_events.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMainTab("benchmarks")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+              activeMainTab === "benchmarks"
+                ? "bg-surface text-ink shadow-2xs border border-hairline"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+            <span>Benchmarks</span>
+            {benchmarks && (
+              <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.2 text-[10px] font-mono">
+                {benchmarks.sample_size}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {isMetricsLoading && !metrics ? (
@@ -140,202 +187,208 @@ export default function AnalyticsPage() {
         </div>
       ) : (
         <>
-          {/* Main Usage & Projection Component */}
-          <UsageCards
-            metrics={metrics}
-            onQuotaUpdated={() => { refetchMetrics(); }}
-            onRefreshLogs={async () => { await refetchMetrics(); }}
-            isRefreshingLogs={isMetricsRefetching}
-          />
-
-      {/* Experimental Evaluation & Ground Truth Benchmark Section */}
-      <FeatureCard className="p-6 space-y-6">
-        <div className="pb-3 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-bold text-ink">
-              Repeatable Accuracy & Teacher Ground-Truth Benchmark
-            </h2>
-            <p className="mt-0.5 text-xs text-ink-muted">
-              Empirically verify Gemini evaluation against human teacher marks without synthetic composites.
-            </p>
-          </div>
-
-          {exams.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-ink-muted">Active Exam:</span>
-              <AppleSelect
-                size="sm"
-                value={selectedExamId}
-                onChange={(val) => handleExamChange(val)}
-                options={exams.map((e) => ({ value: e.id, label: e.title }))}
-                className="max-w-[240px]"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Benchmark Scorecards */}
-        {benchmarks && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-              <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Evaluated</span>
-              <span className="font-mono text-lg font-bold text-ink mt-1 block">
-                {benchmarks.sample_size} papers
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-              <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Transcription</span>
-              <span className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
-                {benchmarks.transcription_accuracy_pct}%
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-              <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Question Map</span>
-              <span className="font-mono text-lg font-bold text-primary dark:text-sky-400 mt-1 block">
-                {benchmarks.question_mapping_accuracy_pct}%
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-              <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Boxes Accepted</span>
-              <span className="font-mono text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 block">
-                {benchmarks.localization_acceptance_pct}%
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-              <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Mark Agreement</span>
-              <span className="font-mono text-lg font-bold text-purple-600 dark:text-purple-400 mt-1 block">
-                {benchmarks.exact_score_agreement_pct}%
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-              <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Intervention</span>
-              <span className="font-mono text-lg font-bold text-pink-600 dark:text-pink-400 mt-1 block">
-                {benchmarks.manual_intervention_rate_pct}%
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Record Benchmark Form */}
-        <form onSubmit={handleRecordBenchmark} className="rounded-xl border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
-            Record Teacher Verification for a Paper
-          </h4>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Submission ID</label>
-              <input
-                type="text"
-                required
-                placeholder="Paste submission ID (e.g. sub_...)"
-                value={benchSubId}
-                onChange={(e) => setBenchSubId(e.target.value)}
-                className="w-full h-8.5 sm:h-9 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Teacher Reference Total Marks</label>
-              <AppleNumberStepper
-                value={benchMarks}
-                onChange={(val) => setBenchMarks(val)}
-                min={0}
-                max={500}
-                step={0.5}
-                allowDecimal
-                suffix="marks"
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-ink-secondary">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={benchTranscription}
-                onChange={(e) => setBenchTranscription(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary"
-              />
-              <span>Transcription Accepted As-is</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={benchMapping}
-                onChange={(e) => setBenchMapping(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary"
-              />
-              <span>Question Mapping Correct</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={benchBox}
-                onChange={(e) => setBenchBox(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary"
-              />
-              <span>Bounding Boxes Accepted</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={benchMarksMatch}
-                onChange={(e) => setBenchMarksMatch(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary"
-              />
-              <span>Marks Matched Teacher Key</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={benchExplanation}
-                onChange={(e) => setBenchExplanation(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary"
-              />
-              <span>Explanation Was Sufficient</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={benchIntervention}
-                onChange={(e) => setBenchIntervention(e.target.checked)}
-                className="rounded border-hairline text-primary focus:ring-primary"
-              />
-              <span>Manual Intervention Required</span>
-            </label>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input
-              type="text"
-              placeholder="Notes on model reasoning or bounding box alignment..."
-              value={benchNotes}
-              onChange={(e) => setBenchNotes(e.target.value)}
-              className="flex-1 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-2 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
+          {/* Main Telemetry & Request Ledger Component (Kept mounted to preserve state & prevent CLS) */}
+          <div className={activeMainTab === "benchmarks" ? "hidden" : "block"}>
+            <UsageCards
+              metrics={metrics}
+              activeView={activeMainTab === "logs" ? "logs" : "telemetry"}
+              onQuotaUpdated={() => { refetchMetrics(); }}
+              onRefreshLogs={async () => { await refetchMetrics(); }}
+              isRefreshingLogs={isMetricsRefetching}
             />
-            <ButtonPrimary
-              type="submit"
-              disabled={isSubmittingBench}
-              size="sm"
-            >
-              {isSubmittingBench ? "Saving..." : "Record Evaluation"}
-            </ButtonPrimary>
           </div>
-        </form>
-      </FeatureCard>
-      </>
+
+          {/* Repeatable Accuracy & Teacher Ground-Truth Benchmark Section */}
+          {activeMainTab === "benchmarks" && (
+            <FeatureCard className="p-4 sm:p-6 space-y-6">
+              <div className="pb-3 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Repeatable Accuracy & Teacher Ground-Truth Benchmark
+                  </h2>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    Empirically verify Gemini evaluation against human teacher marks without synthetic composites.
+                  </p>
+                </div>
+
+                {exams.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-ink-muted">Active Exam:</span>
+                    <AppleSelect
+                      size="sm"
+                      value={selectedExamId}
+                      onChange={(val) => handleExamChange(val)}
+                      options={exams.map((e) => ({ value: e.id, label: e.title }))}
+                      className="max-w-[240px]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Benchmark Scorecards */}
+              {benchmarks && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Evaluated</span>
+                    <span className="font-mono text-base sm:text-lg font-bold text-ink mt-1 block">
+                      {benchmarks.sample_size} papers
+                    </span>
+                  </div>
+
+                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Transcription</span>
+                    <span className="font-mono text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
+                      {benchmarks.transcription_accuracy_pct}%
+                    </span>
+                  </div>
+
+                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Question Map</span>
+                    <span className="font-mono text-base sm:text-lg font-bold text-primary dark:text-sky-400 mt-1 block">
+                      {benchmarks.question_mapping_accuracy_pct}%
+                    </span>
+                  </div>
+
+                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Boxes Accepted</span>
+                    <span className="font-mono text-base sm:text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 block">
+                      {benchmarks.localization_acceptance_pct}%
+                    </span>
+                  </div>
+
+                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Mark Agreement</span>
+                    <span className="font-mono text-base sm:text-lg font-bold text-purple-600 dark:text-purple-400 mt-1 block">
+                      {benchmarks.exact_score_agreement_pct}%
+                    </span>
+                  </div>
+
+                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
+                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Intervention</span>
+                    <span className="font-mono text-base sm:text-lg font-bold text-pink-600 dark:text-pink-400 mt-1 block">
+                      {benchmarks.manual_intervention_rate_pct}%
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Record Benchmark Form */}
+              <form onSubmit={handleRecordBenchmark} className="rounded-xl border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
+                  Record Teacher Verification for a Paper
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Submission ID</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Paste submission ID (e.g. sub_...)"
+                      value={benchSubId}
+                      onChange={(e) => setBenchSubId(e.target.value)}
+                      className="w-full h-8.5 sm:h-9 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Teacher Reference Total Marks</label>
+                    <AppleNumberStepper
+                      value={benchMarks}
+                      onChange={(val) => setBenchMarks(val)}
+                      min={0}
+                      max={500}
+                      step={0.5}
+                      allowDecimal
+                      suffix="marks"
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 text-xs text-ink-secondary">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={benchTranscription}
+                      onChange={(e) => setBenchTranscription(e.target.checked)}
+                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Transcription Accepted As-is</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={benchMapping}
+                      onChange={(e) => setBenchMapping(e.target.checked)}
+                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Question Mapping Correct</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={benchBox}
+                      onChange={(e) => setBenchBox(e.target.checked)}
+                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Bounding Boxes Accepted</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={benchMarksMatch}
+                      onChange={(e) => setBenchMarksMatch(e.target.checked)}
+                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Marks Matched Teacher Key</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={benchExplanation}
+                      onChange={(e) => setBenchExplanation(e.target.checked)}
+                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Explanation Was Sufficient</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={benchIntervention}
+                      onChange={(e) => setBenchIntervention(e.target.checked)}
+                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Manual Intervention Required</span>
+                  </label>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <input
+                    type="text"
+                    placeholder="Notes on model reasoning or bounding box alignment..."
+                    value={benchNotes}
+                    onChange={(e) => setBenchNotes(e.target.value)}
+                    className="flex-1 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-2 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
+                  />
+                  <ButtonPrimary
+                    type="submit"
+                    disabled={isSubmittingBench}
+                    size="sm"
+                  >
+                    {isSubmittingBench ? "Saving..." : "Record Evaluation"}
+                  </ButtonPrimary>
+                </div>
+              </form>
+            </FeatureCard>
+          )}
+        </>
       )}
     </div>
   );
