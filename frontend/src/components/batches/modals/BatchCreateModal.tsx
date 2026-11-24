@@ -19,6 +19,13 @@ export function BatchCreateModal({
   const [name, setName] = useState("");
   const [year, setYear] = useState("2026");
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setName("");
+      setYear("2026");
+    }
+  }, [isOpen]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;

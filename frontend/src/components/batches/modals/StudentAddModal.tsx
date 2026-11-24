@@ -25,6 +25,14 @@ export function StudentAddModal({
   const [stuEmail, setStuEmail] = useState("");
   const [assignedRoll, setAssignedRoll] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setAssignedRoll(null);
+      setStuName("");
+      setStuEmail("");
+    }
+  }, [isOpen]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stuName.trim()) return;

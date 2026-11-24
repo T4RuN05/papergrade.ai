@@ -31,6 +31,13 @@ export function StudentQuestionBreakdownModal({
 }: StudentQuestionBreakdownModalProps) {
   const [expandedQuestionIds, setExpandedQuestionIds] = useState<Record<string, boolean>>({});
 
+  // Reset all expanded question accordions when modal opens or submission changes
+  React.useEffect(() => {
+    if (isOpen) {
+      setExpandedQuestionIds({});
+    }
+  }, [isOpen, submission?.id]);
+
   const toggleQuestionExpand = (id: string) => {
     setExpandedQuestionIds((prev) => ({
       ...prev,

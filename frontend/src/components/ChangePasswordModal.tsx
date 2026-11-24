@@ -30,6 +30,12 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess, userEmail }: C
     setSuccess(false);
   };
 
+  React.useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
+
   const handleClose = () => {
     resetForm();
     onClose();

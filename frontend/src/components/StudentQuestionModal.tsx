@@ -41,11 +41,25 @@ export function StudentQuestionModal({
   const [showFullCrop, setShowFullCrop] = useState(false);
   const [selectedRegionIndex, setSelectedRegionIndex] = useState(0);
 
-  // Reset region index and expansion state whenever the inspected answer changes
+  // Pristine reset of all interactive states (appeal form expansion, grievance text, crop expansion, region index)
+  // whenever the modal opens or a different answer is inspected
   useEffect(() => {
-    setSelectedRegionIndex(0);
+    if (isOpen) {
+      setSelectedRegionIndex(0);
+      setShowFullCrop(false);
+      setShowAppealForm(false);
+      setRevalReason("");
+      setIsSubmitting(false);
+    }
+  }, [isOpen, answer]);
+
+  const handleClose = () => {
+    setShowAppealForm(false);
     setShowFullCrop(false);
-  }, [answer?.id]);
+    setRevalReason("");
+    setIsSubmitting(false);
+    onClose();
+  };
 
   const allRegions = useMemo(() => {
     if (!answer) return [];
@@ -139,7 +153,7 @@ export function StudentQuestionModal({
   return (
     <ModalCard
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={`Question ${answer.question_id} • Score & Review`}
       maxWidth="max-w-md"
     >
@@ -472,7 +486,7 @@ export function StudentQuestionModal({
         <div className="flex items-center justify-between pt-1 border-t border-hairline text-[10px] text-ink-muted">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="text-xs font-medium text-ink-secondary hover:text-ink px-2 py-1 rounded hover:bg-canvas-soft transition-colors cursor-pointer"
           >
             Close

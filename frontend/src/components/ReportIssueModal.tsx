@@ -54,6 +54,11 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
 
   useEffect(() => {
     if (isOpen) {
+      setActiveTab("submit");
+      setSubject("");
+      setDescription("");
+      setSelectedFiles([]);
+      setFilePreviews([]);
       loadHistory();
     }
   }, [isOpen]);

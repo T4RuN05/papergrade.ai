@@ -99,6 +99,10 @@ export function GradingModal({
       onClose();
       setIsRendered(false);
       setIsExiting(false);
+      setActiveTab("verification");
+      setShowAddPageDropdown(false);
+      setTeacherGuidancePrompt("");
+      setReevalResult(null);
     }, 200);
   }, [isExiting, onClose]);
 
@@ -122,19 +126,25 @@ export function GradingModal({
     };
   }, [isRendered, mounted, handleRequestClose]);
 
+  // Pristine reset of all modal states whenever modal opens or inspected answer changes
   useEffect(() => {
-    if (answer) {
-      setAwardedMarks(answer.awarded_marks);
-      setExtractedText(answer.extracted_text);
-      setRationale(answer.grading_rationale);
-      setNeedsReview(answer.needs_review);
+    if (isOpen && answer) {
+      setAwardedMarks(answer.awarded_marks || 0);
+      setExtractedText(answer.extracted_text || "");
+      setRationale(answer.grading_rationale || "");
+      setNeedsReview(Boolean(answer.needs_review));
       setCriterionScores(answer.criterion_scores || []);
       setEditReason("");
       setSaveSuccess(false);
       setSelectedRegionIndex(0);
-      setReevalResult(null);
+      setActiveTab("verification"); // Clean reset to Handwriting tab
+      setTeacherGuidancePrompt(""); // Reset AI Second Opinion guidance prompt
+      setIsReevaluating(false);
+      setReevalResult(null); // Clear previous AI reevaluation proposals
+      setShowAddPageDropdown(false);
+      setShowTranscriptionMath(true);
     }
-  }, [answer]);
+  }, [isOpen, answer]);
 
   // Secondary Evaluator Timer
   useEffect(() => {

@@ -61,10 +61,23 @@ export function AdminRevaluationModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [selectedRegionIndex, setSelectedRegionIndex] = useState(0);
 
-  // Reset region selection when inspected answer changes
+  // Cleanly initialize and reset form and region selection when modal opens or answer changes
   useEffect(() => {
-    setSelectedRegionIndex(0);
-  }, [answer?.id]);
+    if (isOpen) {
+      setSelectedRegionIndex(0);
+      setIsSubmitting(false);
+      if (answer) {
+        setRevisedMarks(Number(answer.awarded_marks || 0));
+      }
+      if (revaluationRequest) {
+        setDecision(revaluationRequest.decision || "MARKS_REVISED");
+        setReviewerNotes(revaluationRequest.reviewer_notes || "");
+      } else {
+        setDecision("MARKS_REVISED");
+        setReviewerNotes("");
+      }
+    }
+  }, [isOpen, answer, revaluationRequest]);
 
   const allRegions = useMemo(() => {
     if (!answer) return [];
@@ -95,25 +108,6 @@ export function AdminRevaluationModal({
       ? api.getAnswerCropUrl(submissionId, answer, activeRegion.id)
       : api.getAnswerCropUrl(submissionId, answer);
   }, [answer, submissionId, activeRegion?.id]);
-
-  // Initialize form when answer or request changes
-  useEffect(() => {
-    if (answer) {
-      setRevisedMarks(Number(answer.awarded_marks || 0));
-    }
-    if (revaluationRequest) {
-      if (revaluationRequest.decision) {
-        setDecision(revaluationRequest.decision);
-      }
-      if (revaluationRequest.reviewer_notes) {
-        setReviewerNotes(revaluationRequest.reviewer_notes);
-      } else {
-        setReviewerNotes("");
-      }
-    } else {
-      setReviewerNotes("");
-    }
-  }, [answer, revaluationRequest]);
 
   if (!isOpen || !answer) return null;
 
