@@ -99,15 +99,15 @@ export default function GradingPage() {
   useSetBreadcrumbs(
     submission
       ? {
-          group: "Academic Operations",
-          segments: [
-            { label: "Exams & Rubrics", href: "/exams" },
-            ...(submission.exam?.title
-              ? [{ label: submission.exam.title, href: `/exams/${submission.exam_id}` }]
-              : []),
-            { label: `${submission.student_name} (${submission.roll_number})` },
-          ],
-        }
+        group: "Academic Operations",
+        segments: [
+          { label: "Exams & Rubrics", href: "/exams" },
+          ...(submission.exam?.title
+            ? [{ label: submission.exam.title, href: `/exams/${submission.exam_id}` }]
+            : []),
+          { label: `${submission.student_name} (${submission.roll_number})` },
+        ],
+      }
       : null,
     [submission]
   );
@@ -214,11 +214,11 @@ export default function GradingPage() {
   if (!isColdLoading && !submission && loadError) {
     const isConnError = Boolean(
       loadError &&
-        (loadError.includes("temporarily") ||
-          loadError.includes("Failed to fetch") ||
-          loadError.includes("502") ||
-          loadError.includes("503") ||
-          loadError.includes("504"))
+      (loadError.includes("temporarily") ||
+        loadError.includes("Failed to fetch") ||
+        loadError.includes("502") ||
+        loadError.includes("503") ||
+        loadError.includes("504"))
     );
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
@@ -256,8 +256,8 @@ export default function GradingPage() {
   const backHref = submission?.exam_id
     ? `/exams/${submission.exam_id}`
     : submission?.batch_id
-    ? `/batches/${submission.batch_id}`
-    : "/branch/batches";
+      ? `/batches/${submission.batch_id}`
+      : "/branch/batches";
 
   const statusUpper = (submission?.status || "").toUpperCase();
   const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
@@ -326,9 +326,8 @@ export default function GradingPage() {
         ) : isUploaded ? (
           <a
             href={api.getSubmissionPdfUrl(submission.id)}
-            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${
-              submission.roll_number || "Roll"
-            }_Original.pdf`}
+            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
+              }_Original.pdf`}
             onClick={() =>
               toast.info("Downloading raw uploaded student PDF...", { title: "PDF Export" })
             }
@@ -341,20 +340,18 @@ export default function GradingPage() {
           <a
             href={api.getAnnotatedPdfUrl(
               submission.id,
-              `${(submission.student_name || "Student").replace(/\s+/g, "_")}_${
-                submission.roll_number || "Roll"
+              `${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
               }_Graded.pdf`
             )}
-            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${
-              submission.roll_number || "Roll"
-            }_Graded.pdf`}
+            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
+              }_Graded.pdf`}
             onClick={() =>
               toast.info("Downloading annotated evaluation PDF...", { title: "PDF Export" })
             }
             className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-active text-white px-4 py-2 text-xs font-semibold shadow-xs transition-all"
           >
             <Download className="h-3.5 w-3.5" />
-            Export Annotated PDF (PyMuPDF)
+            Export Annotated PDF
           </a>
         )}
       </div>
@@ -462,7 +459,7 @@ export default function GradingPage() {
 
                 <div className="sm:pl-2">
                   {submission.status === "NEEDS_REVIEW" ||
-                  answers.some((a) => a.needs_review) ? (
+                    answers.some((a) => a.needs_review) ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 text-xs font-semibold">
                       <Flag className="h-3.5 w-3.5" />
                       Needs Review{" "}
@@ -582,18 +579,17 @@ export default function GradingPage() {
                       ans.awarded_marks >= ans.max_marks
                         ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50"
                         : ans.awarded_marks > 0
-                        ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50"
-                        : "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50";
+                          ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50"
+                          : "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50";
 
                     return (
                       <button
                         key={ans.id}
                         onClick={() => handleSelectAnswer(ans, true)}
-                        className={`w-full flex items-center justify-between p-2.5 rounded-md border text-left transition-all ${
-                          isSelected
+                        className={`w-full flex items-center justify-between p-2.5 rounded-md border text-left transition-all ${isSelected
                             ? "border-primary bg-primary/5 shadow-2xs"
                             : "border-hairline bg-surface hover:bg-canvas-soft hover:border-[#d0d0d0]"
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-center gap-1.5">
@@ -607,13 +603,13 @@ export default function GradingPage() {
                           <span className="text-[10px] text-ink-muted">
                             {(ans.regions || []).length > 1
                               ? `Pages ${Array.from(
-                                  new Set((ans.regions || []).map((r: any) => r.page_number))
-                                )
-                                  .sort((a: any, b: any) => a - b)
-                                  .join(", ")}`
+                                new Set((ans.regions || []).map((r: any) => r.page_number))
+                              )
+                                .sort((a: any, b: any) => a - b)
+                                .join(", ")}`
                               : ans.page_number
-                              ? `Page ${ans.page_number}`
-                              : "Unassigned"}
+                                ? `Page ${ans.page_number}`
+                                : "Unassigned"}
                           </span>
                         </div>
 
@@ -627,19 +623,19 @@ export default function GradingPage() {
                           {!(ans.regions || []).some(
                             (r: any) => r.page_number === currentPage
                           ) && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedAnswer(ans);
-                                setEditingAnswerId(ans.id);
-                              }}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors shrink-0 shadow-2xs"
-                              title={`Add bounding box for ${ans.question_id} on Page ${currentPage}`}
-                            >
-                              + Sheet {currentPage}
-                            </button>
-                          )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAnswer(ans);
+                                  setEditingAnswerId(ans.id);
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors shrink-0 shadow-2xs"
+                                title={`Add bounding box for ${ans.question_id} on Page ${currentPage}`}
+                              >
+                                + Sheet {currentPage}
+                              </button>
+                            )}
                         </div>
                       </button>
                     );
