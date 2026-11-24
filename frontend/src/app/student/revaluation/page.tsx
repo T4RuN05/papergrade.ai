@@ -204,7 +204,7 @@ export default function StudentRevaluationPage() {
       {/* Background Refetch Line */}
       <RefetchProgressLine isFetching={isFetching} />
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 space-y-6">
         {/* Navigation Breadcrumb Bar — Permanently Mounted (CLS = 0.00) */}
         <div className="flex items-center justify-between pb-3 border-b border-hairline">
           <Link
