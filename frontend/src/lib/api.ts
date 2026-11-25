@@ -919,9 +919,13 @@ export const api = {
     }, 60000); // 60s client cache for instant repeat opens
   },
 
-  getSubmissionPdfUrl(submissionId: string): string {
+  getSubmissionPdfUrl(submissionId: string, download: boolean = false): string {
+    const params = new URLSearchParams();
+    if (download) params.set("download", "1");
     const token = getAuthToken();
-    return `${API_BASE}/api/submissions/${submissionId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    if (token) params.set("token", token);
+    const qs = params.toString();
+    return `${API_BASE}/api/submissions/${submissionId}/pdf${qs ? `?${qs}` : ""}`;
   },
 
   async listSubmissions(examId?: string, forceRefresh: boolean = false): Promise<any[]> {

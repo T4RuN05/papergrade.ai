@@ -341,7 +341,7 @@ export default function GradingPage() {
           <Skeleton className="h-8 w-44 rounded-full" />
         ) : isUploaded ? (
           <a
-            href={api.getSubmissionPdfUrl(submission.id)}
+            href={api.getSubmissionPdfUrl(submission.id, true)}
             download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
               }_Original.pdf`}
             onClick={() =>

@@ -23,6 +23,7 @@ from backend.app.services.storage import (
 )
 import backend.app.routers.storage as storage_router
 import backend.app.routers.exams as exams_router
+import backend.app.routers.submissions as submissions_router
 import backend.app.routers.grading as grading_router
 import backend.app.routers.exports as exports_router
 import backend.app.services.grading_service as grading_service_mod
@@ -118,6 +119,7 @@ def _patch_storage(monkeypatch, mock_storage: StorageService):
     for mod in (
         storage_router,
         exams_router,
+        submissions_router,
         grading_router,
         exports_router,
         grading_service_mod,
@@ -296,6 +298,21 @@ def test_all_endpoints_offload_to_remote_storage_without_proxying(monkeypatch, t
         r = client.get(f"/api/v1/exams/{exam_id}/answer-key", headers=headers, follow_redirects=False)
         assert r.status_code == 307
         assert "attachment=0" in r.headers["location"]
+
+        # 2b. ?format=json resolves direct presigned URLs without a cross-origin 307 redirect
+        r_qp_json = client.get(f"/api/v1/exams/{exam_id}/question-paper?format=json", headers=headers)
+        assert r_qp_json.status_code == 200
+        assert r_qp_json.json()["direct"] is True
+        assert "cdn.example.test/raw/" in r_qp_json.json()["url"]
+
+        r_sub_json = client.get(f"/api/submissions/{sub_id}/pdf?format=json", headers=headers)
+        assert r_sub_json.status_code == 200
+        assert r_sub_json.json()["direct"] is True
+        assert "cdn.example.test/raw/" in r_sub_json.json()["url"]
+
+        r_sub_dl = client.get(f"/api/submissions/{sub_id}/pdf?download=1", headers=headers, follow_redirects=False)
+        assert r_sub_dl.status_code == 307
+        assert "attachment=1" in r_sub_dl.headers["location"]
 
         # 3. /api/exports/pdf/{sub_id} -> 307 attachment redirect
         r = client.get(f"/api/exports/pdf/{sub_id}/Custom_Graded.pdf", headers=headers, follow_redirects=False)

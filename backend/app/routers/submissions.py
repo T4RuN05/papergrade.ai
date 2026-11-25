@@ -501,11 +501,15 @@ def list_submissions(
 @router.get("/{submission_id}/pdf")
 def get_submission_pdf_stream(
     submission_id: str,
+    download: bool = Query(False),
+    format: Optional[str] = Query(None),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Direct zero-RAM PDF delivery endpoint (Zero-Hold DB session boundary).
-    Redirects (307) directly to Cloudinary / R2 pre-signed CDN URL so zero PDF bytes buffer in server RAM.
+    Redirects (307) directly to R2 pre-signed CDN URL (or returns it as JSON when
+    `?format=json` is passed so browser PDF.js fetches R2 without a cross-origin
+    307 redirect tainting `Origin` to `null`).
     """
     with get_session() as db:
         result = db.execute(
@@ -554,24 +558,42 @@ def get_submission_pdf_stream(
         key = sub.canonical_pdf_path or sub.original_file_path
         if not key:
             raise HTTPException(status_code=404, detail="PDF path not found for submission.")
+        safe_roll = (sub.roll_number or submission_id).strip().replace(" ", "_")
 
+    out_filename = f"{safe_roll}_Original.pdf"
     storage = get_storage_service()
     if hasattr(storage, "generate_presigned_download_url"):
         try:
-            download_url = storage.generate_presigned_download_url(key)
+            try:
+                download_url = storage.generate_presigned_download_url(
+                    key,
+                    filename=out_filename if download else None,
+                    attachment=download,
+                )
+            except TypeError:
+                download_url = storage.generate_presigned_download_url(key)
             if download_url and (download_url.startswith("http://") or download_url.startswith("https://")):
+                if format == "json":
+                    return {"url": download_url, "direct": True}
                 return RedirectResponse(url=download_url, status_code=307)
         except Exception:
             pass
+
+    if format == "json":
+        return {"url": None, "direct": False}
 
     local_path = storage.get_local_path_or_download(key)
     if not local_path or not local_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found in storage.")
 
+    disp = "attachment" if download else "inline"
     return FileResponse(
         str(local_path),
         media_type="application/pdf",
-        headers={"Cache-Control": "private, no-cache"}
+        headers={
+            "Content-Disposition": f'{disp}; filename="{out_filename}"',
+            "Cache-Control": "private, no-cache",
+        },
     )
 
 

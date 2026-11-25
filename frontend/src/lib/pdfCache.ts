@@ -43,11 +43,35 @@ class PdfDocumentCache {
 
     const loadPromise = (async () => {
       try {
+        let resolvedUrl = url;
+        // Resolve direct signed R2 URL via JSON so PDF.js fetches R2 directly without
+        // a cross-origin 307 redirect hop (which taints Origin to "null" per Fetch spec).
+        if (
+          (url.includes("/api/submissions/") && url.includes("/pdf")) ||
+          (url.includes("/api/exams/") &&
+            (url.includes("/question-paper") || url.includes("/answer-key")))
+        ) {
+          const base = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+          const probeUrl = new URL(url, base);
+          probeUrl.searchParams.set("format", "json");
+          const resp = await fetch(probeUrl.toString(), { cache: "no-store" });
+          if (!resp.ok) {
+            throw new Error(`Failed to resolve PDF URL (${resp.status})`);
+          }
+          const payload = await resp.json();
+          if (payload?.direct && typeof payload?.url === "string" && payload.url.startsWith("http")) {
+            resolvedUrl = payload.url;
+          }
+        }
+
         const loadingTask = pdfjsLib.getDocument({
-          url,
+          url: resolvedUrl,
           withCredentials: false,
           cMapUrl: "/cmaps/",
           cMapPacked: true,
+          disableRange: true,
+          disableStream: true,
+          disableAutoFetch: true,
         });
         const doc = await loadingTask.promise;
         return doc;

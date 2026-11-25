@@ -1170,6 +1170,7 @@ def _serve_exam_artifact_pdf(
     artifact_type: str,
     current_user: Dict[str, Any],
     download: bool = False,
+    as_json: bool = False,
 ):
     """Shared handler to validate permissions and serve or CDN-redirect exam PDF artifacts."""
     exam = exam_service.get_exam(exam_id)
@@ -1207,16 +1208,33 @@ def _serve_exam_artifact_pdf(
 
     out_filename = f"{'question_paper' if is_qp else 'answer_key'}_{exam_id}.pdf"
     storage = get_storage_service()
+
+    def _remote_response(storage_key: str):
+        if as_json:
+            try:
+                try:
+                    direct_url = storage.generate_presigned_download_url(
+                        storage_key, filename=out_filename, attachment=download
+                    )
+                except TypeError:
+                    direct_url = storage.generate_presigned_download_url(storage_key)
+                if direct_url and (direct_url.startswith("http://") or direct_url.startswith("https://")):
+                    return {"url": direct_url, "direct": True}
+            except Exception as exc:
+                logger.warning("Failed remote presigned JSON lookup for key %s: %s", storage_key, exc)
+            return None
+        return build_remote_redirect_response(
+            storage, storage_key, filename=out_filename, attachment=download
+        )
+
     if is_remote_storage(storage):
         raw_path = exam.get("question_paper_path") if is_qp else exam.get("answer_key_path")
         for key in _build_exam_artifact_storage_keys(exam_id, raw_path, is_qp):
             try:
                 if storage.file_exists(key):
-                    redirect_resp = build_remote_redirect_response(
-                        storage, key, filename=out_filename, attachment=download
-                    )
-                    if redirect_resp is not None:
-                        return redirect_resp
+                    resp = _remote_response(key)
+                    if resp is not None:
+                        return resp
             except Exception as exc:
                 logger.warning("Failed remote redirect lookup for key %s: %s", key, exc)
 
@@ -1228,11 +1246,12 @@ def _serve_exam_artifact_pdf(
     if is_remote_storage(storage):
         fallback_key = f"exams/{exam_id}/{'question_paper' if is_qp else 'answer_key'}.pdf"
         if sync_file_to_remote_storage(pdf_path, fallback_key, content_type="application/pdf", storage=storage):
-            redirect_resp = build_remote_redirect_response(
-                storage, fallback_key, filename=out_filename, attachment=download
-            )
-            if redirect_resp is not None:
-                return redirect_resp
+            resp = _remote_response(fallback_key)
+            if resp is not None:
+                return resp
+
+    if as_json:
+        return {"url": None, "direct": False}
 
     disp = "attachment" if download else "inline"
     return FileResponse(
@@ -1246,18 +1265,24 @@ def _serve_exam_artifact_pdf(
 def get_exam_question_paper(
     exam_id: str,
     download: bool = False,
+    format: Optional[str] = Query(None),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    return _serve_exam_artifact_pdf(exam_id, "question-paper", current_user, download=download)
+    return _serve_exam_artifact_pdf(
+        exam_id, "question-paper", current_user, download=download, as_json=(format == "json")
+    )
 
 
 @router.get("/{exam_id}/answer-key")
 def get_exam_answer_key(
     exam_id: str,
     download: bool = False,
+    format: Optional[str] = Query(None),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    return _serve_exam_artifact_pdf(exam_id, "answer-key", current_user, download=download)
+    return _serve_exam_artifact_pdf(
+        exam_id, "answer-key", current_user, download=download, as_json=(format == "json")
+    )
 
 
 @router.get("/{exam_id}/{artifact_type}/meta")
