@@ -96,9 +96,106 @@ function LoginForm() {
     }
   }, [searchParams]);
 
+  // Handle Popup window bridge (if Google OAuth callback lands inside a popup)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.opener && window.opener !== window) {
+      const oauthToken = searchParams.get("oauth_token");
+      const oauthError = searchParams.get("oauth_error");
+      const roleParam = searchParams.get("role");
+      const nameParam = searchParams.get("name");
+      const branchIdParam = searchParams.get("branch_id");
+      const instituteIdParam = searchParams.get("institute_id");
+      const emailParam = searchParams.get("email");
+
+      if (oauthToken) {
+        try {
+          window.opener.postMessage(
+            {
+              type: "PG_OAUTH_SUCCESS",
+              token: oauthToken,
+              role: roleParam || "STUDENT",
+              name: nameParam || "User",
+              branch_id: branchIdParam || "",
+              institute_id: instituteIdParam || "",
+            },
+            window.location.origin
+          );
+        } catch {}
+        window.close();
+        return;
+      }
+
+      if (oauthError) {
+        try {
+          window.opener.postMessage(
+            {
+              type: "PG_OAUTH_ERROR",
+              error: oauthError,
+              email: emailParam || "",
+              role: roleParam || "",
+            },
+            window.location.origin
+          );
+        } catch {}
+        window.close();
+        return;
+      }
+    }
+  }, [searchParams]);
+
+  // Handle Parent window listening for popup message
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "PG_OAUTH_SUCCESS") {
+        const { token, role, name, branch_id, institute_id } = event.data;
+        setAuthToken(token, {
+          role,
+          full_name: name,
+          branch_id,
+          institute_id,
+        });
+
+        if (branch_id) localStorage.setItem("papergrade_selected_branch_id", branch_id);
+        if (institute_id) localStorage.setItem("papergrade_selected_institute_id", institute_id);
+        try { queryClient.clear(); } catch {}
+
+        queueToast({
+          type: "success",
+          title: role === "STUDENT" ? "Welcome Student" : "Welcome Back",
+          message: `Signed in with Google as ${name}.`,
+          duration: 4500,
+        });
+
+        let dest = "/overview";
+        if (role === "STUDENT") dest = "/student/portal";
+        else if (role === "BRANCH_MANAGER" || role === "INSTITUTE_DIRECTOR") dest = "/branch/batches";
+        startNavigationProgress();
+        window.location.replace(dest);
+      } else if (event.data?.type === "PG_OAUTH_ERROR") {
+        setGoogleLoading(false);
+        const { error, email: em, role: r } = event.data;
+        if (error === "unregistered_email") {
+          setError(`No account found matching ${em || "your Google email"}. Please activate your account first using your roll number.`);
+        } else if (error === "role_mismatch_student") {
+          setError(`${em || "This Google account"} is registered as ${r || "Faculty / Staff"}. Please switch to the Faculty/Staff tab to sign in.`);
+        } else if (error === "role_mismatch_staff") {
+          setError(`${em || "This Google account"} is registered as a Student. Please switch to the Student tab to sign in.`);
+        } else {
+          setError("Google authentication could not be completed. Please try again or sign in with your credentials.");
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [queryClient]);
+
   // Check if user is already authenticated or launched in standalone PWA
   useEffect(() => {
-    // 1. Check for incoming Google OAuth redirect token or error
+    // 1. Check for incoming Google OAuth redirect token or error (Fallback for full redirects)
     const oauthToken = searchParams.get("oauth_token");
     if (oauthToken) {
       const roleParam = searchParams.get("role") || "STUDENT";
@@ -150,6 +247,13 @@ function LoginForm() {
       if (oauthError === "unregistered_email") {
         const em = searchParams.get("email");
         setError(`No account found matching ${em || "your Google email"}. Please activate your account first using your roll number.`);
+      } else if (oauthError === "role_mismatch_student") {
+        const em = searchParams.get("email");
+        const r = searchParams.get("role") || "Faculty / Staff";
+        setError(`${em || "This Google account"} is registered as ${r}. Please switch to the Faculty/Staff tab to sign in.`);
+      } else if (oauthError === "role_mismatch_staff") {
+        const em = searchParams.get("email");
+        setError(`${em || "This Google account"} is registered as a Student. Please switch to the Student tab to sign in.`);
       } else {
         setError("Google authentication could not be completed. Please try again or sign in with your credentials.");
       }
@@ -274,9 +378,23 @@ function LoginForm() {
     try {
       setGoogleLoading(true);
       setError(null);
-      const res = await api.getGoogleAuthUrl("login");
+      const res = await api.getGoogleAuthUrl("login", loginRole);
       if (res?.authorization_url) {
-        window.location.href = res.authorization_url;
+        // PWA Optimization: Open in a centered popup so the PWA never loses standalone mode
+        const width = 500;
+        const height = 650;
+        const left = typeof window !== "undefined" ? window.screenX + (window.outerWidth - width) / 2 : 100;
+        const top = typeof window !== "undefined" ? window.screenY + (window.outerHeight - height) / 2 : 100;
+        const popup = window.open(
+          res.authorization_url,
+          "google_oauth_popup",
+          `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+        );
+
+        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+          // If popup is blocked by browser, fallback to standard redirect
+          window.location.href = res.authorization_url;
+        }
       }
     } catch (err: any) {
       setError(err?.message || "Failed to initiate Google Sign-In. Please check your network connection.");

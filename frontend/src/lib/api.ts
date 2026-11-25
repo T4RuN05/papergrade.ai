@@ -475,9 +475,12 @@ export const api = {
     return safeJson(res, "Failed to change password");
   },
 
-  async getGoogleAuthUrl(mode: "login" | "byos" = "login"): Promise<{ status: string; authorization_url: string }> {
+  async getGoogleAuthUrl(mode: "login" | "byos" = "login", role?: string): Promise<{ status: string; authorization_url: string }> {
     const token = getAuthToken();
     const query = new URLSearchParams({ mode });
+    if (role) {
+      query.set("role", role);
+    }
     if (mode === "byos" && token) {
       query.set("user_token", token);
     }

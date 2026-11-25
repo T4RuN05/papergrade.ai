@@ -80,9 +80,8 @@ def get_google_auth_url(state: str, prompt_consent: bool = True) -> str:
         "access_type": "offline",  # Required to receive refresh_token
         "state": state,
         "include_granted_scopes": "true",
+        "prompt": "select_account consent",
     }
-    if prompt_consent:
-        params["prompt"] = "consent"
 
     import urllib.parse
     query_str = urllib.parse.urlencode(params)

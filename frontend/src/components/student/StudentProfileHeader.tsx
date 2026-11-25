@@ -49,7 +49,68 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
   });
 
   useEffect(() => {
-    // Check if coming back from OAuth redirect
+    // 1. Popup bridge: if Google callback returned into this window as a popup
+    if (typeof window !== "undefined" && window.opener && window.opener !== window) {
+      const params = new URLSearchParams(window.location.search);
+      const byos = params.get("byos");
+      const byosError = params.get("byos_error");
+      const conflictEmail = params.get("email");
+
+      if (byos === "connected") {
+        try {
+          window.opener.postMessage({ type: "PG_BYOS_SUCCESS" }, window.location.origin);
+        } catch {}
+        window.close();
+        return;
+      }
+      if (byosError) {
+        try {
+          window.opener.postMessage(
+            { type: "PG_BYOS_ERROR", error: byosError, email: conflictEmail },
+            window.location.origin
+          );
+        } catch {}
+        window.close();
+        return;
+      }
+    }
+
+    // 2. Parent listener: handle popup completion messages
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "PG_BYOS_SUCCESS") {
+        toast.success(
+          "Google Drive successfully linked! Your graded exam papers will now be automatically archived to My Drive/PaperGrade AI.",
+          { title: "Drive Connected", duration: 5000 }
+        );
+        api.getGoogleConnectionStatus().then((status) => {
+          setByosState({
+            isConnected: Boolean(status?.is_connected),
+            googleEmail: status?.google_email,
+            loading: false,
+          });
+        });
+      } else if (event.data?.type === "PG_BYOS_ERROR") {
+        setByosState((prev) => ({ ...prev, loading: false }));
+        const em = event.data?.email || "This account";
+        if (event.data?.error === "already_linked_elsewhere") {
+          toast.error(`${em} is already linked to another account in PaperGrade AI. Please use a different Google account.`, {
+            title: "Account Conflict",
+            duration: 6000,
+          });
+        } else {
+          toast.error("Could not link Google Drive. Please try again.", {
+            title: "Connection Failed",
+          });
+        }
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("message", handleMessage);
+    }
+
+    // 3. Fallback for full page redirects
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("byos") === "connected") {
@@ -58,6 +119,17 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
           { title: "Drive Connected", duration: 5000 }
         );
         // Clean URL parameter
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      } else if (params.get("byos_error")) {
+        const err = params.get("byos_error");
+        const conflictEmail = params.get("email");
+        if (err === "already_linked_elsewhere") {
+          toast.error(`${conflictEmail || "This account"} is already linked to another user account. Please use a different Google account.`, {
+            title: "Account Conflict",
+            duration: 6000,
+          });
+        }
         const newUrl = window.location.pathname;
         window.history.replaceState({}, document.title, newUrl);
       }
@@ -83,6 +155,9 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
 
     return () => {
       isMounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("message", handleMessage);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -92,7 +167,20 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
       setByosState((prev) => ({ ...prev, loading: true }));
       const res = await api.getGoogleAuthUrl("byos");
       if (res?.authorization_url) {
-        window.location.href = res.authorization_url;
+        // PWA Optimization: Open in a centered popup so the PWA never loses standalone mode
+        const width = 500;
+        const height = 650;
+        const left = typeof window !== "undefined" ? window.screenX + (window.outerWidth - width) / 2 : 100;
+        const top = typeof window !== "undefined" ? window.screenY + (window.outerHeight - height) / 2 : 100;
+        const popup = window.open(
+          res.authorization_url,
+          "google_byos_popup",
+          `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+        );
+
+        if (!popup || popup.closed || typeof popup.closed === "undefined") {
+          window.location.href = res.authorization_url;
+        }
       }
     } catch (err: any) {
       toast.error(err?.message || "Could not connect to Google Drive. Please try again.", {

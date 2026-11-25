@@ -34,12 +34,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/oauth/google", tags=["Google OAuth & BYOS"])
 
 
-def _generate_oauth_state(mode: str, user_id: Optional[str] = None) -> str:
+def _generate_oauth_state(mode: str, user_id: Optional[str] = None, role: Optional[str] = None) -> str:
     """Generate a tamper-proof state payload signed with HMAC-SHA256."""
     now = int(datetime.now(timezone.utc).timestamp())
     payload = {
         "mode": mode,  # "login" or "byos"
         "uid": user_id or "",
+        "role": role or "",
         "ts": now,
     }
     raw_json = json.dumps(payload, separators=(",", ":"))
@@ -82,12 +83,13 @@ def _verify_oauth_state(state_encoded: str) -> Dict[str, Any]:
 @router.get("/authorize")
 def authorize_google(
     mode: str = Query("login", pattern="^(login|byos)$"),
+    role: Optional[str] = Query(None),
     user_token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """
     Initiates Google OAuth 2.0 flow.
-    - mode='login': For 1-click Google Sign-In.
+    - mode='login': For 1-click Google Sign-In with desired role.
     - mode='byos': For connecting Google Drive to an existing student/staff account.
     """
     if not settings.GOOGLE_CLIENT_ID:
@@ -113,7 +115,7 @@ def authorize_google(
                 detail="Invalid session token for Google Drive connection.",
             )
 
-    state = _generate_oauth_state(mode=mode, user_id=uid)
+    state = _generate_oauth_state(mode=mode, user_id=uid, role=role)
     auth_url = get_google_auth_url(state=state)
     return {"status": "success", "authorization_url": auth_url}
 
@@ -141,6 +143,7 @@ async def google_oauth_callback(
     state_data = _verify_oauth_state(state)
     mode = state_data.get("mode", "login")
     user_id = state_data.get("uid")
+    desired_role = state_data.get("role")
 
     try:
         # 1. Exchange code for tokens
@@ -168,12 +171,31 @@ async def google_oauth_callback(
             if not user:
                 return RedirectResponse(url=f"{frontend_base}/student/portal?byos_error=user_not_found")
 
+            # Check if google_sub or google_email is already linked to another user account
+            existing_sub_user = db.scalar(
+                select(User).where(
+                    or_(
+                        User.google_sub == google_sub,
+                        func.lower(User.email) == google_email,
+                        func.lower(User.google_email) == google_email,
+                    ),
+                    User.id != user.id,
+                )
+            )
+            if existing_sub_user:
+                from urllib.parse import urlencode
+                err_params = urlencode({
+                    "byos_error": "already_linked_elsewhere",
+                    "email": google_email,
+                    "existing_role": existing_sub_user.role,
+                })
+                return RedirectResponse(url=f"{frontend_base}/student/portal?{err_params}")
+
             # Link Google sub & email to User
             user.google_sub = google_sub
             user.google_email = google_email
             user.google_picture = google_picture
             user.google_linked_at = now
-            user.updated_at = now
 
             # Save / update GoogleStorageConnection
             if refresh_token:
@@ -247,6 +269,25 @@ async def google_oauth_callback(
 
         if user.is_active != 1:
             return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=account_deactivated")
+
+        # Role enforcement if desired_role was provided from login tab
+        if desired_role == "STUDENT" and user.role != "STUDENT":
+            from urllib.parse import urlencode
+            err_params = urlencode({
+                "oauth_error": "role_mismatch_student",
+                "email": google_email,
+                "role": user.role,
+            })
+            return RedirectResponse(url=f"{frontend_base}/auth/login?{err_params}")
+
+        if desired_role == "STAFF" and user.role == "STUDENT":
+            from urllib.parse import urlencode
+            err_params = urlencode({
+                "oauth_error": "role_mismatch_staff",
+                "email": google_email,
+                "role": user.role,
+            })
+            return RedirectResponse(url=f"{frontend_base}/auth/login?{err_params}")
 
         # Automatically link Google identity if not linked yet
         if not user.google_sub or user.google_sub != google_sub:
