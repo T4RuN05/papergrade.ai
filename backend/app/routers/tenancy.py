@@ -1124,7 +1124,7 @@ def purge_institute_cascade(
     deleted_files_count = 0
     for sub in subs_list:
         s_id = sub["id"]
-        for path_key in [sub.get("original_file_path"), sub.get("canonical_pdf_path"), sub.get("annotated_pdf_path")]:
+        for path_key in [sub.get("original_file_path"), sub.get("canonical_pdf_path"), sub.get("annotated_pdf_path"), f"exports/{s_id}_annotated.pdf"]:
             if path_key:
                 try:
                     storage.delete_file(path_key)
@@ -1156,6 +1156,13 @@ def purge_institute_cascade(
                     deleted_files_count += 1
                 except Exception as e:
                     logger.warning(f"Failed to delete exam cloud file {art_key}: {e}")
+
+        try:
+            deleted_files_count += storage.delete_prefix(f"submissions/{ex_id}/")
+            deleted_files_count += storage.delete_prefix(f"exams/{ex_id}/")
+            deleted_files_count += storage.delete_prefix(f"renders/exam_{ex_id}_")
+        except Exception as e:
+            logger.warning(f"Failed to delete exam cloud prefixes {ex_id}: {e}")
 
         local_exam_dir = settings.UPLOADS_DIR / f"exam_{ex_id}"
         if local_exam_dir.exists():

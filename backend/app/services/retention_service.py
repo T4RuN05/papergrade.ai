@@ -138,8 +138,16 @@ class RetentionService:
             except Exception:
                 pass
 
+        if is_purged:
+            storage_notice = "Document permanently purged after 15-day retention policy. Question marks and scores are permanently archived."
+        elif is_expired:
+            storage_notice = "Retention period has elapsed. Document is queued for scheduled overnight purge."
+        else:
+            storage_notice = f"Graded PDF document will be permanently deleted {days_remaining} days post-evaluation to optimize storage. Download your copy to avoid losing access."
+
         return {
-            "is_document_purged": is_purged or is_expired,
+            "is_document_purged": is_purged,
+            "is_pending_purge": is_expired and not is_purged,
             "purged_at": purged_at,
             "graded_at": graded_at,
             "ttl_days": ttl_days,
@@ -149,11 +157,7 @@ class RetentionService:
             "is_expired": is_expired,
             "revaluation_days_remaining": reval_days_left,
             "revaluation_window_open": reval_open,
-            "storage_notice": (
-                "Document permanently purged after 15-day retention policy. Question marks and scores are permanently archived."
-                if (is_purged or is_expired)
-                else f"Graded PDF document will be permanently deleted {days_remaining} days post-evaluation to optimize storage. Download your copy to avoid losing access."
-            )
+            "storage_notice": storage_notice,
         }
 
     @staticmethod
@@ -250,6 +254,7 @@ class RetentionService:
             except Exception:
                 pass
         try:
+            storage.delete_prefix(f"exams/{exam_id}/")
             storage.delete_prefix(f"renders/exam_{exam_id}_")
         except Exception:
             pass

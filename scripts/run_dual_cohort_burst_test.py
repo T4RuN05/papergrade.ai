@@ -245,6 +245,15 @@ def purge_and_reopen_exam_for_cet2() -> str:
             deleted_subs = session.query(Submission).filter(Submission.exam_id == TARGET_EXAM_ID).delete(synchronize_session=False)
             log(f"Surgically purged {deleted_subs} previous submissions for {TARGET_EXAM_ID}.", "EXAM")
 
+        try:
+            from backend.app.services.storage import get_storage_service
+            storage = get_storage_service()
+            purged_objs = storage.delete_prefix(f"submissions/{TARGET_EXAM_ID}/")
+            if purged_objs > 0:
+                log(f"Surgically purged {purged_objs} remote storage objects for {TARGET_EXAM_ID}.", "EXAM")
+        except Exception as e:
+            log(f"Notice on remote storage cleanup for {TARGET_EXAM_ID}: {e}", "EXAM")
+
         # 2. Close old windows
         session.query(SubmissionWindow).filter(SubmissionWindow.exam_id == TARGET_EXAM_ID).update({"status": "CLOSED"})
 

@@ -96,7 +96,14 @@ def reset_test_database():
     print("  -> Bootstrap quota/default seed re-verified.")
 
     # Clean ONLY local render/export artifacts belonging to deleted synthetic exams/submissions
+    from backend.app.services.storage import get_storage_service
+    storage = get_storage_service()
     for ex_id in test_exam_ids:
+        try:
+            storage.delete_prefix(f"submissions/{ex_id}/")
+            storage.delete_prefix(f"exams/{ex_id}/")
+        except Exception as e:
+            logger.warning(f"Failed to delete test exam storage prefix {ex_id}: {e}")
         for art_dir in (
             settings.RENDERS_DIR / f"exam_{ex_id}_question-paper",
             settings.RENDERS_DIR / f"exam_{ex_id}_answer-key",

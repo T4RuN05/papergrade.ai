@@ -1453,6 +1453,8 @@ def delete_exam(
         ]:
             if art_key:
                 keys_to_delete.append(art_key)
+        prefixes_to_delete.append(f"submissions/{exam_id}/")
+        prefixes_to_delete.append(f"exams/{exam_id}/")
         prefixes_to_delete.append(f"renders/exam_{exam_id}_")
 
         # Atomic DB cleanup via ORM

@@ -303,11 +303,14 @@ class CloudflareR2StorageService(StorageService):
             for page in paginator.paginate(Bucket=self.bucket_name, Prefix=clean_prefix):
                 objs = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
                 if objs:
-                    self.s3_client.delete_objects(
+                    resp = self.s3_client.delete_objects(
                         Bucket=self.bucket_name,
                         Delete={"Objects": objs, "Quiet": True},
                     )
-                    deleted += len(objs)
+                    errs = resp.get("Errors", [])
+                    if errs:
+                        logger.error("R2 delete_prefix errors for %s: %s", clean_prefix, errs)
+                    deleted += len(objs) - len(errs)
         except Exception as exc:
             logger.warning("R2 delete_prefix failed for %s: %s", clean_prefix, exc)
         return deleted
