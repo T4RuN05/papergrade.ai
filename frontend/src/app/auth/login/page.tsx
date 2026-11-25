@@ -16,7 +16,7 @@ import {
   Lock,
   GraduationCap,
 } from "lucide-react";
-import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import { api, getAuthToken, getStoredUser, setAuthToken, setStoredUser } from "@/lib/api";
 import { ButtonPrimary, FormInput, FeatureCard } from "@/components/ui";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
@@ -101,13 +101,46 @@ function LoginForm() {
     // 1. Check for incoming Google OAuth redirect token or error
     const oauthToken = searchParams.get("oauth_token");
     if (oauthToken) {
-      localStorage.setItem("token", oauthToken);
       const roleParam = searchParams.get("role") || "STUDENT";
       const nameParam = searchParams.get("name") || "User";
-      localStorage.setItem("user", JSON.stringify({ role: roleParam, full_name: nameParam }));
+      const branchIdParam = searchParams.get("branch_id") || "";
+      const instituteIdParam = searchParams.get("institute_id") || "";
+
+      const userObj = {
+        role: roleParam,
+        full_name: nameParam,
+        branch_id: branchIdParam,
+        institute_id: instituteIdParam,
+      };
+
+      // Store JWT token to 'papergrade_jwt' and user payload to 'papergrade_user'
+      setAuthToken(oauthToken, userObj);
+
+      if (typeof window !== "undefined") {
+        if (branchIdParam) {
+          localStorage.setItem("papergrade_selected_branch_id", branchIdParam);
+        }
+        if (instituteIdParam) {
+          localStorage.setItem("papergrade_selected_institute_id", instituteIdParam);
+        }
+      }
+
+      try {
+        queryClient.clear();
+      } catch {}
+
+      queueToast({
+        type: "success",
+        title: roleParam === "STUDENT" ? "Welcome Student" : "Welcome Back",
+        message: `Signed in with Google as ${nameParam}.`,
+        duration: 4500,
+      });
+
       let dest = "/overview";
       if (roleParam === "STUDENT") dest = "/student/portal";
       else if (roleParam === "BRANCH_MANAGER" || roleParam === "INSTITUTE_DIRECTOR") dest = "/branch/batches";
+
+      startNavigationProgress();
       window.location.replace(dest);
       return;
     }

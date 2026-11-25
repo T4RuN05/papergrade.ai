@@ -205,15 +205,29 @@ async def google_oauth_callback(
             return RedirectResponse(url=f"{frontend_base}{redirect_target}?byos=connected")
 
         # 3b. Mode: Login (1-Click Google Sign-In)
-        # Search by google_sub or institutional email
+        # Search by google_sub, google_email, or institutional email
         user = db.scalar(
             select(User).where(
                 or_(
                     User.google_sub == google_sub,
                     func.lower(User.email) == google_email,
+                    func.lower(User.google_email) == google_email,
                 )
             ).limit(1)
         )
+
+        if not user:
+            # Check if linked via GoogleStorageConnection
+            conn_match = db.scalar(
+                select(GoogleStorageConnection).where(
+                    or_(
+                        GoogleStorageConnection.google_sub == google_sub,
+                        func.lower(GoogleStorageConnection.google_email) == google_email,
+                    )
+                ).limit(1)
+            )
+            if conn_match and conn_match.user_id:
+                user = db.scalar(select(User).where(User.id == conn_match.user_id))
 
         if not user:
             # Check if matching student exists by email to link account
@@ -225,8 +239,10 @@ async def google_oauth_callback(
 
         if not user:
             # User not found in system
+            from urllib.parse import urlencode
+            err_params = urlencode({"oauth_error": "unregistered_email", "email": google_email})
             return RedirectResponse(
-                url=f"{frontend_base}/auth/login?oauth_error=unregistered_email&email={google_email}"
+                url=f"{frontend_base}/auth/login?{err_params}"
             )
 
         if user.is_active != 1:
@@ -271,7 +287,7 @@ async def google_oauth_callback(
         token_payload = {
             "sub": user.id,
             "role": user.role,
-            "email": user.email,
+            "email": user.email or user.google_email or "",
             "full_name": user.full_name,
             "institute_id": user.institute_id,
             "branch_id": user.branch_id,
@@ -279,9 +295,17 @@ async def google_oauth_callback(
         }
         token = create_access_token(token_payload)
 
-        # Redirect user directly to landing view with token in query params
+        # Redirect user directly to landing view with properly encoded query parameters
+        from urllib.parse import urlencode
+        query_params = urlencode({
+            "oauth_token": token,
+            "role": user.role,
+            "name": user.full_name or "User",
+            "branch_id": user.branch_id or "",
+            "institute_id": user.institute_id or "",
+        })
         return RedirectResponse(
-            url=f"{frontend_base}/auth/login?oauth_token={token}&role={user.role}&name={user.full_name}"
+            url=f"{frontend_base}/auth/login?{query_params}"
         )
 
     except Exception as e:
