@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Archive } from "lucide-react";
 import { GradedAnswer, AnswerRegion } from "@/lib/types";
 import { api } from "@/lib/api";
+import { pdfCache } from "@/lib/pdfCache";
 import { PdfPageView } from "@/components/PdfPageView";
 import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
@@ -935,6 +936,7 @@ export function DocumentViewer({
                           <button
                             type="button"
                             onClick={() => {
+                              pdfCache.evict(`submission_${submissionId}`);
                               setFailedPages((prev) => {
                                 const next = new Set(prev);
                                 next.delete(p);
@@ -968,6 +970,7 @@ export function DocumentViewer({
 
                         {/* Client-Side Canvas Vector Renderer with hideLoader={true} to suppress raw skeleton */}
                         <PdfPageView
+                          key={`pdf_${submissionId}_p_${p}_${imageRetryNonce}`}
                           pdfUrl={pdfUrl || api.getSubmissionPdfUrl(submissionId)}
                           cacheKey={`submission_${submissionId}`}
                           pageNumber={p}

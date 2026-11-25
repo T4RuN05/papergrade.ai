@@ -26,9 +26,10 @@ export interface WorkerInputMessage {
 async function compressImageInWorker(
   buffer: ArrayBuffer,
   type: string,
+  name: string,
   maxDimension: number,
   quality: number
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; isPng: boolean }> {
   const blob = new Blob([buffer], { type: type || "image/jpeg" });
   const bitmap = await createImageBitmap(blob);
 
@@ -67,10 +68,11 @@ async function compressImageInWorker(
       // Explicitly zero out dimensions to release offscreen raster buffers
       canvas.width = 0;
       canvas.height = 0;
-      return new Uint8Array(ab);
+      return { bytes: new Uint8Array(ab), isPng: false };
     } else {
-      // If OffscreenCanvas is not present in worker context, return original bytes
-      return new Uint8Array(buffer);
+      // Preserve actual image MIME when OffscreenCanvas is unavailable in worker context
+      const isPng = type === "image/png" || name.toLowerCase().endsWith(".png");
+      return { bytes: new Uint8Array(buffer), isPng };
     }
   } finally {
     bitmap.close();
@@ -124,9 +126,10 @@ ctx.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
         copiedPages.forEach((page) => pdfDoc.addPage(page));
       } else {
         // Compress and downscale image
-        const jpegBytes = await compressImageInWorker(
+        const { bytes: imgBytes, isPng } = await compressImageInWorker(
           fileData.buffer,
           fileData.type,
+          fileData.name,
           maxDimension,
           quality
         );
@@ -142,13 +145,15 @@ ctx.onmessage = async (event: MessageEvent<WorkerInputMessage>) => {
           },
         });
 
-        const embeddedJpg = await pdfDoc.embedJpg(jpegBytes);
-        const page = pdfDoc.addPage([embeddedJpg.width, embeddedJpg.height]);
-        page.drawImage(embeddedJpg, {
+        const embeddedImg = isPng
+          ? await pdfDoc.embedPng(imgBytes)
+          : await pdfDoc.embedJpg(imgBytes);
+        const page = pdfDoc.addPage([embeddedImg.width, embeddedImg.height]);
+        page.drawImage(embeddedImg, {
           x: 0,
           y: 0,
-          width: embeddedJpg.width,
-          height: embeddedJpg.height,
+          width: embeddedImg.width,
+          height: embeddedImg.height,
         });
       }
     }

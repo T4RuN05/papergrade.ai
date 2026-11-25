@@ -94,16 +94,29 @@ export function GradingModal({
   }, [isOpen, isRendered]);
 
   const resetStylesRef = React.useRef<() => void>(() => {});
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const handleRequestClose = React.useCallback((fromDrag?: any) => {
     if (isExiting) return;
-    if (fromDrag === true) {
-      onClose();
-      setIsRendered(false);
+    const resetModalTransientState = () => {
       setActiveTab("verification");
       setShowAddPageDropdown(false);
       setTeacherGuidancePrompt("");
       setReevalResult(null);
+      setReevalElapsedSec(0);
+      setEditReason("");
+      setSaveSuccess(false);
+    };
+    if (fromDrag === true) {
+      onClose();
+      setIsRendered(false);
+      resetModalTransientState();
       return;
     }
     // Clean up any gesture inline styles so CSS slide-down animation takes over immediately
@@ -113,10 +126,7 @@ export function GradingModal({
       onClose();
       setIsRendered(false);
       setIsExiting(false);
-      setActiveTab("verification");
-      setShowAddPageDropdown(false);
-      setTeacherGuidancePrompt("");
-      setReevalResult(null);
+      resetModalTransientState();
     }, 250);
   }, [isExiting, onClose]);
 
@@ -207,7 +217,8 @@ export function GradingModal({
       });
       setIsSaving(false);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => setSaveSuccess(false), 2000);
       toast.success(
         `Marks override saved for Question ${answer.question_id}: ${Number(awardedMarks)}/${answer.max_marks} marks`,
         { title: "Marks Updated" }
@@ -853,9 +864,9 @@ export function GradingModal({
                     { label: "⚖️ Lenient on Minor Slip", text: "Be lenient on minor arithmetic slip or unsimplified fraction; award partial credit if conceptual steps and formulas are correct." },
                     { label: "🔍 Re-read Handwriting", text: "Handwriting in the crop was ambiguous. Carefully re-examine handwritten mathematical symbols and indices." },
                     { label: "🎯 Verify Final Answer", text: "Verify whether the student's final boxed expression is mathematically equivalent to the required solution." },
-                  ].map((chip, idx) => (
+                  ].map((chip) => (
                     <button
-                      key={idx}
+                      key={chip.label}
                       type="button"
                       onClick={() => {
                         setTeacherGuidancePrompt((prev) => (prev ? `${prev}\n${chip.text}` : chip.text));
@@ -954,7 +965,7 @@ export function GradingModal({
                           const origCrit = criterionScores.find((c) => c.criterion_id === cs.criterion_id);
                           const maxM = origCrit?.max_marks || 1;
                           return (
-                            <div key={idx} className="p-3 text-xs space-y-1.5">
+                            <div key={cs.criterion_id || idx} className="p-3 text-xs space-y-1.5">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-semibold text-ink">
                                   Criterion {cs.criterion_id}

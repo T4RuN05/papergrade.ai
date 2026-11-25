@@ -1,50 +1,16 @@
 "use client";
 
-import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { api, type WindowStatus } from "@/lib/api";
 import type { Exam, Submission, Batch } from "@/lib/types";
 import { queryKeys } from "@/lib/queryKeys";
 
 // ============================================================================
-// 1. STATIC CONFIGURATION QUERIES
+// 1. AUTHENTICATION & IDENTITY QUERIES
 // ============================================================================
 
-/**
- * Static configuration (e.g. VAPID public key) never changes during runtime.
- * staleTime: Infinity ensures it is fetched at most once and cached permanently.
- */
-export function useVapidPublicKey() {
-  return useQuery({
-    queryKey: queryKeys.config.vapidKey(),
-    queryFn: () => api.getVapidPublicKey(),
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
-}
-
 // ============================================================================
-// 2. AUTHENTICATION & IDENTITY QUERIES
-// ============================================================================
-
-export function useCurrentUser(forceRefresh = false) {
-  return useQuery({
-    queryKey: queryKeys.auth.me(),
-    queryFn: () => api.getMe(forceRefresh),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useBranchUsers(branchId?: string) {
-  return useQuery({
-    queryKey: queryKeys.auth.users(branchId),
-    queryFn: () => api.listUsers(undefined, branchId),
-    enabled: Boolean(branchId),
-    staleTime: 30 * 1000,
-  });
-}
-
-// ============================================================================
-// 3. TENANCY QUERIES
+// 2. TENANCY QUERIES
 // Stale-while-revalidate caching for instant tenancy selector rendering.
 // ============================================================================
 
@@ -72,16 +38,8 @@ export function useTenancyBatches(branchId?: string, forceRefresh = false) {
   });
 }
 
-export function useTenancySubjects(branchId?: string, instituteId?: string, forceRefresh = false) {
-  return useQuery({
-    queryKey: queryKeys.tenancy.subjects(branchId, instituteId),
-    queryFn: () => api.listSubjects(branchId, instituteId, forceRefresh),
-    staleTime: 60 * 1000,
-  });
-}
-
 // ============================================================================
-// 4. EXAMS & CONDUCTION QUERIES
+// 3. EXAMS & CONDUCTION QUERIES
 // ============================================================================
 
 export function useExamsList(branchId?: string) {
@@ -113,15 +71,6 @@ export function useSubmissionsForExam(examId?: string) {
   });
 }
 
-export function useExamRankings(examId: string) {
-  return useQuery({
-    queryKey: queryKeys.exams.rankings(examId),
-    queryFn: () => api.getExamRankings(examId),
-    enabled: Boolean(examId),
-    staleTime: 15 * 1000,
-  });
-}
-
 /**
  * Real-time Evaluation Progress Poller
  * Polls status every 3 seconds only while grading queue is actively processing.
@@ -131,26 +80,31 @@ export function useExamEvaluationStatus(examId: string, isEvalActive: boolean) {
     queryKey: queryKeys.exams.evaluationStatus(examId),
     queryFn: () => api.getExamEvaluationStatus(examId),
     enabled: Boolean(examId) && isEvalActive,
-    refetchInterval: () => (isEvalActive ? Math.round(2500 + Math.random() * 1000) : false), // 3s base +/- 0.5s jitter
+    refetchInterval: () => (isEvalActive ? Math.round(2500 + Math.random() * 1000) : false),
     staleTime: 1000,
   });
 }
 
 /**
- * Submission Window Status with Jittered Server Background Sync
+ * Submission Window Status with Gated Server Background Sync
+ * Only polls periodically when the exam is unpublished and the window is currently open.
  */
-export function useWindowStatus(examId: string, isActive = true) {
+export function useWindowStatus(examId: string, isPublished = false) {
   return useQuery<WindowStatus>({
     queryKey: queryKeys.windows.status(examId),
     queryFn: () => api.getWindowStatus(examId),
     enabled: Boolean(examId),
-    refetchInterval: () => (isActive ? Math.round(8500 + Math.random() * 3000) : false), // 10s base +/- 1.5s jitter
+    refetchInterval: (query) => {
+      if (isPublished) return false;
+      return query.state.data?.is_active ? Math.round(8500 + Math.random() * 3000) : false;
+    },
+    refetchOnWindowFocus: !isPublished,
     staleTime: 5 * 1000,
   });
 }
 
 // ============================================================================
-// 5. SUBMISSIONS QUERIES (Shared across Student & Faculty)
+// 4. SUBMISSIONS QUERIES (Shared across Student & Faculty)
 // ============================================================================
 
 export function useSubmissionsList(examId?: string, forceRefresh = false) {
@@ -183,40 +137,14 @@ export function useStudentPortalState() {
     placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
     gcTime: 5 * 60 * 1000,
-    refetchInterval: () => Math.round(17000 + Math.random() * 6000), // 20s base +/- 3s jitter (17s - 23s) to prevent thundering herd
-    refetchIntervalInBackground: false, // Automatically sleeps polling when tab is hidden
-    refetchOnWindowFocus: true, // Immediate ETag revalidation when student returns
-  });
-}
-
-/**
- * Infinite Query for Student Past Submissions
- * Replaces manual scroll event listeners with declarative cursor pagination.
- */
-export function useStudentPastSubmissionsInfinite(filters: {
-  search?: string;
-  subject?: string;
-  status?: string;
-}) {
-  return useInfiniteQuery({
-    queryKey: queryKeys.submissions.studentPastSubmissions(filters),
-    queryFn: ({ pageParam = 1 }) =>
-      api.getStudentPastSubmissions({
-        page: pageParam,
-        limit: 5,
-        search: filters.search,
-        subject: filters.subject,
-        status: filters.status,
-      }),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage: any) => (lastPage?.has_more ? (lastPage.page || 1) + 1 : undefined),
-    placeholderData: keepPreviousData,
-    staleTime: 30 * 1000,
+    refetchInterval: () => Math.round(17000 + Math.random() * 6000),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 
 // ============================================================================
-// 6. BATCHES & STUDENT ROSTER QUERIES
+// 5. BATCHES & STUDENT ROSTER QUERIES
 // ============================================================================
 
 export function useBatchDetail(batchId: string) {
@@ -250,7 +178,7 @@ export function usePasswordResets(statusFilter = "PENDING", targetType: "staff" 
 }
 
 // ============================================================================
-// 7. GRIEVANCES & REVALUATIONS QUERIES
+// 6. GRIEVANCES & REVALUATIONS QUERIES
 // ============================================================================
 
 export function useRevaluationsList(examId?: string, branchId?: string) {
@@ -272,7 +200,7 @@ export function useMyAppeals() {
 }
 
 // ============================================================================
-// 8. TECHNICAL REPORTS QUERY
+// 7. TECHNICAL REPORTS QUERY
 // ============================================================================
 
 export function useTechnicalReports(statusFilter?: string, roleFilter?: string, branchId?: string) {
@@ -285,7 +213,7 @@ export function useTechnicalReports(statusFilter?: string, roleFilter?: string, 
 }
 
 // ============================================================================
-// 9. TELEMETRY & SYSTEM HEALTH QUERIES
+// 8. TELEMETRY & SYSTEM HEALTH QUERIES
 // ============================================================================
 
 export function useTelemetryMetrics() {
@@ -313,18 +241,5 @@ export function useBenchmarks(examId: string) {
     enabled: Boolean(examId),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
-}
-
-// ============================================================================
-// 10. REAL-TIME NOTIFICATIONS QUERY
-// ============================================================================
-
-export function useNotificationsQuery() {
-  return useQuery({
-    queryKey: queryKeys.notifications.list(),
-    queryFn: () => api.listNotifications(),
-    staleTime: 10 * 1000,
-    refetchInterval: 30 * 1000,
   });
 }

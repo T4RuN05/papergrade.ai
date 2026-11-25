@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   RotateCcw,
@@ -28,7 +27,11 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useRevaluationsList, useSubmissionDetail } from "@/lib/queries";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
-import { AdminRevaluationModal } from "@/components/AdminRevaluationModal";
+
+const AdminRevaluationModal = dynamic(
+  () => import("@/components/AdminRevaluationModal").then((mod) => mod.AdminRevaluationModal),
+  { ssr: false }
+);
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -79,7 +82,6 @@ function parseQuestionIds(raw: any): string[] {
 }
 
 export default function RevaluationDeskPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedBranch, loading: tenantLoading } = useTenant();

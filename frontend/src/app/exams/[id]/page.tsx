@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -90,6 +90,15 @@ export default function ExamDetailPage() {
     refetch: refetchExam,
   } = useExamDetail(examId);
 
+  const isPublished = exam
+    ? Boolean(
+        exam.is_published ||
+        exam.is_published === 1 ||
+        exam.status === "PUBLISHED" ||
+        exam.lifecycle_status === "PUBLISHED"
+      )
+    : false;
+
   // TanStack Query: Submissions list
   const {
     data: submissions = [],
@@ -98,11 +107,11 @@ export default function ExamDetailPage() {
     refetch: refetchSubmissions,
   } = useSubmissionsList(examId);
 
-  // TanStack Query: Submission window status
+  // TanStack Query: Submission window status (polls ONLY while !isPublished && window.is_active)
   const {
     data: windowStatus,
     refetch: refetchWindow,
-  } = useWindowStatus(examId);
+  } = useWindowStatus(examId, isPublished);
 
   // Active evaluation detection
   const isQueueActive = useMemo(() => {
@@ -117,7 +126,25 @@ export default function ExamDetailPage() {
   );
 
   // TanStack Query: Lightweight evaluation poller (<5ms, auto-stops when finished)
-  useExamEvaluationStatus(examId, isEvalActive);
+  const { data: evalStatus } = useExamEvaluationStatus(examId, isEvalActive);
+  const lastEvalFinishedRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!evalStatus) return;
+    const finishedCount = evalStatus.summary?.finished ?? 0;
+    const prevFinished = lastEvalFinishedRef.current;
+    lastEvalFinishedRef.current = finishedCount;
+
+    if (prevFinished !== null && finishedCount > prevFinished) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions.list(examId) });
+    }
+    if (evalStatus.is_active === false && (exam?.status === "EVALUATING" || exam?.lifecycle_status === "EVALUATING" || isQueueActive)) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(examId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions.list(examId) });
+      refetchExam();
+      refetchSubmissions();
+    }
+  }, [evalStatus, examId, exam?.status, exam?.lifecycle_status, isQueueActive, queryClient, refetchExam, refetchSubmissions]);
 
   useSetBreadcrumbs(
     {
@@ -421,14 +448,6 @@ export default function ExamDetailPage() {
     );
   }
 
-  const isPublished = exam
-    ? Boolean(
-        exam.is_published ||
-        exam.is_published === 1 ||
-        exam.status === "PUBLISHED" ||
-        exam.lifecycle_status === "PUBLISHED"
-      )
-    : false;
   const isWindowOpen = Boolean(windowStatus?.is_active);
   const hasQp = Boolean(exam?.question_paper_path || (exam as any)?.has_question_paper);
   const hasAk = Boolean(exam?.answer_key_path || (exam as any)?.has_answer_key);
@@ -545,7 +564,7 @@ export default function ExamDetailPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="font-mono font-bold text-ink text-sm bg-surface px-3 py-1.5 rounded-md border border-hairline shadow-2xs">
-              {stats.completed} / {stats.total} Evaluated
+              {evalStatus?.summary?.finished ?? stats.completed} / {evalStatus?.summary?.total ?? stats.total} Evaluated
             </span>
           </div>
         </div>

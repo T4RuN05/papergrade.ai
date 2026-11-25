@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -34,7 +33,6 @@ import {
 } from "@/components/ui";
 
 export default function AdminReportsPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { setTrail } = useBreadcrumbs();

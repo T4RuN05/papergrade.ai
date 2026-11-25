@@ -22,6 +22,18 @@ interface RubricQuestionCardProps {
   ) => void;
 }
 
+const _criterionUiKeys = new WeakMap<object, string>();
+let _criterionUiCounter = 0;
+function getCriterionUiKey(c: RubricCriterion): string {
+  let k = _criterionUiKeys.get(c);
+  if (!k) {
+    _criterionUiCounter += 1;
+    k = `rubric_crit_${_criterionUiCounter}`;
+    _criterionUiKeys.set(c, k);
+  }
+  return k;
+}
+
 export function RubricQuestionCard({
   question,
   qIdx,
@@ -181,7 +193,7 @@ export function RubricQuestionCard({
           <div className="space-y-2">
             {criteriaList.map((criterion, cIdx) => (
               <CriterionRow
-                key={cIdx}
+                key={getCriterionUiKey(criterion)}
                 qIdx={qIdx}
                 cIdx={cIdx}
                 criterion={criterion}

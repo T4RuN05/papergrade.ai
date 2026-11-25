@@ -239,30 +239,39 @@ async function assembleWithWorker(
   files: File[],
   options?: AssembleOptions
 ): Promise<File> {
-  return new Promise(async (resolve, reject) => {
+  const outputFilename = options?.outputFilename || `answersheet_${Date.now()}.pdf`;
+  const maxPageDimension = options?.maxPageDimension ?? 1920;
+  const jpegQuality = options?.jpegQuality ?? 0.80;
+
+  // Read file buffers BEFORE spawning Worker so read failures never leak a running Worker thread
+  const filePayloads: Array<{ name: string; type: string; buffer: ArrayBuffer }> = [];
+  const transferables: ArrayBuffer[] = [];
+
+  for (const f of files) {
+    const buf = await f.arrayBuffer();
+    filePayloads.push({
+      name: f.name,
+      type: f.type,
+      buffer: buf,
+    });
+    transferables.push(buf);
+  }
+
+  return new Promise((resolve, reject) => {
     let worker: Worker | null = null;
+    const cleanupWorker = () => {
+      if (worker) {
+        worker.terminate();
+        worker = null;
+      }
+    };
+
     try {
       worker = new Worker(new URL("../workers/pdfWorker.ts", import.meta.url));
     } catch (e) {
-      return reject(e);
-    }
-
-    const outputFilename = options?.outputFilename || `answersheet_${Date.now()}.pdf`;
-    const maxPageDimension = options?.maxPageDimension ?? 1920;
-    const jpegQuality = options?.jpegQuality ?? 0.80;
-
-    // Read all files to ArrayBuffers to pass to worker
-    const filePayloads: Array<{ name: string; type: string; buffer: ArrayBuffer }> = [];
-    const transferables: ArrayBuffer[] = [];
-
-    for (const f of files) {
-      const buf = await f.arrayBuffer();
-      filePayloads.push({
-        name: f.name,
-        type: f.type,
-        buffer: buf,
-      });
-      transferables.push(buf);
+      cleanupWorker();
+      reject(e);
+      return;
     }
 
     worker.onmessage = (event) => {
@@ -270,37 +279,41 @@ async function assembleWithWorker(
       if (type === "PROGRESS" && options?.onProgress) {
         options.onProgress(payload);
       } else if (type === "SUCCESS") {
+        cleanupWorker();
         const { pdfBuffer, filename } = payload;
         const blob = new Blob([pdfBuffer], { type: "application/pdf" });
         const finalFile = new File([blob], filename, { type: "application/pdf" });
-        if (worker) worker.terminate();
         resolve(finalFile);
       } else if (type === "ERROR") {
-        if (worker) worker.terminate();
+        cleanupWorker();
         reject(new Error(payload.error || "Web Worker failed during assembly."));
       }
     };
 
     worker.onerror = (err) => {
-      if (worker) worker.terminate();
+      cleanupWorker();
       reject(new Error(`Web Worker error: ${err.message || "Unknown worker error"}`));
     };
 
-    // Send the task to worker with zero-copy transferable ArrayBuffers
-    worker.postMessage(
-      {
-        type: "ASSEMBLE",
-        payload: {
-          files: filePayloads,
-          options: {
-            outputFilename,
-            maxPageDimension,
-            jpegQuality,
+    try {
+      worker.postMessage(
+        {
+          type: "ASSEMBLE",
+          payload: {
+            files: filePayloads,
+            options: {
+              outputFilename,
+              maxPageDimension,
+              jpegQuality,
+            },
           },
         },
-      },
-      transferables
-    );
+        transferables
+      );
+    } catch (postErr) {
+      cleanupWorker();
+      reject(postErr);
+    }
   });
 }
 

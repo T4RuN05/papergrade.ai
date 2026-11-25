@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -57,7 +57,6 @@ const DocumentViewer = dynamic(
 
 export default function StudentSubmissionViewerPage() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const submissionId = params.id as string;

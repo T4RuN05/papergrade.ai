@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Layers,
@@ -17,7 +18,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { BadgePill, ButtonUtility, AppleSelect, TableSkeletonRows, RefetchProgressLine } from "@/components/ui";
-import { ExamRankedTable } from "@/components/ExamRankedTable";
+
+const ExamRankedTable = dynamic(
+  () => import("@/components/ExamRankedTable").then((m) => m.ExamRankedTable),
+  { ssr: false }
+);
 
 interface SubmissionRow {
   id: string;

@@ -286,7 +286,16 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   }, [refreshTenancy]);
 
   useEffect(() => {
-    const handleStorageChange = () => {
+    const relevantKeys = new Set([
+      "papergrade_jwt",
+      "papergrade_user",
+      STORAGE_INST_KEY,
+      STORAGE_BRANCH_KEY,
+    ]);
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key !== null && !relevantKeys.has(e.key)) {
+        return;
+      }
       refreshTenancy();
     };
     window.addEventListener("storage", handleStorageChange);

@@ -65,6 +65,17 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
   const [description, setDescription] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<string[]>([]);
+  const filePreviewsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    filePreviewsRef.current = filePreviews;
+  }, [filePreviews]);
+
+  useEffect(() => {
+    return () => {
+      filePreviewsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // My past reports state
@@ -160,8 +171,16 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
       setSubject("");
       setDescription("");
       setSelectedFiles([]);
-      setFilePreviews([]);
+      setFilePreviews((prev) => {
+        prev.forEach((url) => URL.revokeObjectURL(url));
+        return [];
+      });
       loadHistory();
+    } else {
+      setFilePreviews((prev) => {
+        prev.forEach((url) => URL.revokeObjectURL(url));
+        return prev.length > 0 ? [] : prev;
+      });
     }
   }, [isOpen, loadHistory]);
 

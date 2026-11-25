@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
 export default function ClaimAccountPage() {
-  const router = useRouter();
-
   useEffect(() => {
     window.location.replace("/auth/login?role=claim");
   }, []);

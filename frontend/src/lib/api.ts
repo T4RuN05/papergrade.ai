@@ -79,12 +79,6 @@ export function removeAuthToken(): void {
   clearPortalStateCache();
 }
 
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
-
-const memoryCache = new Map<string, CacheEntry<any>>();
 const inFlightRequests = new Map<string, Promise<any>>();
 let _cachedVapidPublicKey: string | null = null;
 let _cachedPortalEtag: string | null = null;
@@ -95,31 +89,11 @@ export function clearPortalStateCache(): void {
   _cachedPortalState = null;
 }
 
-export function getCached<T>(key: string, ttlMs: number = 30000): T | null {
-  const entry = memoryCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > ttlMs) {
-    memoryCache.delete(key);
-    return null;
-  }
-  return entry.data as T;
-}
-
-export function setCached<T>(key: string, data: T): void {
-  memoryCache.set(key, { data, timestamp: Date.now() });
-}
-
 export function clearApiCache(keyPrefix?: string): void {
   if (!keyPrefix) {
-    memoryCache.clear();
     inFlightRequests.clear();
     clearPortalStateCache();
   } else {
-    for (const k of Array.from(memoryCache.keys())) {
-      if (k.startsWith(keyPrefix)) {
-        memoryCache.delete(k);
-      }
-    }
     for (const k of Array.from(inFlightRequests.keys())) {
       if (k.startsWith(keyPrefix)) {
         inFlightRequests.delete(k);
@@ -134,14 +108,9 @@ export function clearApiCache(keyPrefix?: string): void {
 export async function fetchWithCache<T>(
   key: string,
   fetcher: () => Promise<T>,
-  ttlMs: number = 30000,
+  _ttlMs: number = 30000,
   timeoutMs: number = 10000
 ): Promise<T> {
-  const cached = getCached<T>(key, ttlMs);
-  if (cached !== null) {
-    return cached;
-  }
-
   if (inFlightRequests.has(key)) {
     return inFlightRequests.get(key) as Promise<T>;
   }
@@ -158,9 +127,7 @@ export async function fetchWithCache<T>(
   const promise = Promise.race([fetcher(), timeoutPromise])
     .then((data) => {
       if (timerId) clearTimeout(timerId);
-      // Guard against stale cache resurrection if clearApiCache() was called in transit
       if (inFlightRequests.get(key) === promise) {
-        setCached(key, data);
         inFlightRequests.delete(key);
       }
       return data;
@@ -977,9 +944,6 @@ export const api = {
     try {
       const res = await fetch(`${API_BASE}/api/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
       if (res.ok) return await safeJson<Exam[]>(res, "Failed to list exams");
-      // Fallback to legacy path if needed
-      const fallback = await fetch(`${API_BASE}/api/exams${query}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (fallback.ok) return await safeJson<Exam[]>(fallback, "Failed to list exams");
       return [];
     } catch {
       return [];
@@ -991,12 +955,8 @@ export const api = {
     if (forceRefresh) clearApiCache(cacheKey);
     return fetchWithCache(cacheKey, async () => {
       const res = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-      if (!res.ok) {
-        const fallback = await fetch(`${API_BASE}/api/exams/${id}`, { headers: { ...getAuthHeaders() }, cache: "no-store" });
-        return safeJson<Exam>(fallback, "Failed to fetch exam");
-      }
       return safeJson<Exam>(res, "Failed to fetch exam");
-    }, 45000); // 45s cache for fast back-and-forth navigation
+    });
   },
 
   async getExamEvaluationStatus(id: string): Promise<any> {
@@ -1004,13 +964,6 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) {
-      const fallback = await fetch(`${API_BASE}/api/exams/${id}/evaluation-status`, {
-        headers: { ...getAuthHeaders() },
-        cache: "no-store",
-      });
-      return safeJson(fallback, "Failed to fetch exam evaluation status");
-    }
     return safeJson(res, "Failed to fetch exam evaluation status");
   },
 
@@ -1019,13 +972,6 @@ export const api = {
       headers: { ...getAuthHeaders() },
       cache: "no-store",
     });
-    if (!res.ok) {
-      const fallback = await fetch(`${API_BASE}/api/exams/${id}/rankings`, {
-        headers: { ...getAuthHeaders() },
-        cache: "no-store",
-      });
-      return safeJson(fallback, "Failed to fetch exam standings");
-    }
     return safeJson(res, "Failed to fetch exam standings");
   },
 
@@ -1140,16 +1086,10 @@ export const api = {
   },
 
   async unlockRubric(examId: string): Promise<Exam> {
-    let res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/unlock`, {
+    const res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/unlock`, {
       method: "POST",
       headers: { ...getAuthHeaders() },
     });
-    if (!res.ok) {
-      res = await fetch(`${API_BASE}/api/exams/${examId}/rubric/unlock`, {
-        method: "POST",
-        headers: { ...getAuthHeaders() },
-      });
-    }
     const resData = await safeJson(res, "Failed to unlock rubric");
     clearApiCache("exams:");
     return resData;
@@ -1161,14 +1101,6 @@ export const api = {
       headers: { ...getAuthHeaders() },
     });
     return safeJson(res, "Failed to load sample exam");
-  },
-
-  async regradeSubmission(submissionId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/api/grading/regrade/${submissionId}`, {
-      method: "POST",
-      headers: { ...getAuthHeaders() },
-    });
-    return safeJson(res, "Failed to regrade submission");
   },
 
   async startEvaluation(examId: string): Promise<any> {
@@ -1342,19 +1274,6 @@ export const api = {
       cache: "no-store",
     });
     return safeJson(res, "Failed to fetch batch");
-  },
-
-  async getGradingDetails(submissionId: string): Promise<{
-    submission: Submission;
-    exam: Exam;
-    answers: GradedAnswer[];
-    audit_logs: any[];
-  }> {
-    const res = await fetch(`${API_BASE}/api/grading/${submissionId}`, {
-      headers: { ...getAuthHeaders() },
-      cache: "no-store",
-    });
-    return safeJson(res, "Failed to fetch grading details");
   },
 
   async manualEditAnswer(

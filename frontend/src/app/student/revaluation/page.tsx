@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   RotateCcw,
@@ -124,7 +123,6 @@ function RevaluationListSkeleton() {
 }
 
 export default function StudentRevaluationPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

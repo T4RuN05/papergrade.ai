@@ -8,7 +8,11 @@ let katexPromise: Promise<any> | null = null;
 function loadKatexAsync(): Promise<any> {
   if (cachedKatex) return Promise.resolve(cachedKatex);
   if (!katexPromise) {
-    katexPromise = import("katex").then((mod) => {
+    katexPromise = Promise.all([
+      import("katex"),
+      // @ts-expect-error -- Next.js bundles CSS side-effect imports dynamically even without TS CSS declarations
+      import("katex/dist/katex.min.css"),
+    ]).then(([mod]) => {
       cachedKatex = mod.default || mod;
       return cachedKatex;
     });

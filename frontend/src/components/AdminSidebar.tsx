@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Layers,
   Building2,
@@ -29,7 +30,11 @@ import { Skeleton } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
-import { ReportIssueModal } from "./ReportIssueModal";
+
+const ReportIssueModal = dynamic(
+  () => import("./ReportIssueModal").then((mod) => mod.ReportIssueModal),
+  { ssr: false }
+);
 
 interface AdminSidebarProps {
   mobileOpen?: boolean;
@@ -38,7 +43,6 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { toast } = useToast();
   const { currentUser, isRootAdmin, isInstituteDirector, isBranchManager, selectedBranch, logout } = useTenant();
   const [mounted, setMounted] = useState(false);

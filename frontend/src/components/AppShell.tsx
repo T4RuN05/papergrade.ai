@@ -13,14 +13,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <NotificationProvider>
-          <TenantProvider>
+        <TenantProvider>
+          <NotificationProvider>
             <BreadcrumbProvider>
               <NavigationProgressBar />
               <RouteGuard>{children}</RouteGuard>
             </BreadcrumbProvider>
-          </TenantProvider>
-        </NotificationProvider>
+          </NotificationProvider>
+        </TenantProvider>
       </ConfirmProvider>
     </ToastProvider>
   );

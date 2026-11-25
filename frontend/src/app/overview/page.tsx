@@ -29,7 +29,6 @@ import { useTenant } from "@/lib/TenantContext";
 import {
   useSystemStatus,
   useExamsList,
-  useTelemetryMetrics,
 } from "@/lib/queries";
 import {
   ButtonPrimary,
@@ -48,7 +47,6 @@ export default function RootAdminOverviewPage() {
   // TanStack Queries (Cached in-memory, instant back-nav, CLS = 0.00)
   const { data: status, isLoading: isStatusLoading } = useSystemStatus();
   const { data: exams = [], isLoading: isExamsLoading } = useExamsList();
-  const { data: metrics, isLoading: isMetricsLoading } = useTelemetryMetrics();
 
   const handleInspectExam = (e: React.MouseEvent, exam: Exam) => {
     e.preventDefault();

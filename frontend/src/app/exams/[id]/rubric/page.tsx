@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,7 +22,6 @@ const RubricEditor = dynamic(
 
 export default function ExamRubricPage() {
   const params = useParams();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { currentUser } = useTenant();

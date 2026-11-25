@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -59,7 +58,6 @@ const ArtifactViewerModal = dynamic(
 );
 
 export default function StudentPortalPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -180,13 +178,6 @@ export default function StudentPortalPage() {
     handlePortalTouchEnd,
   } = usePortalTabSwipe({ initialTab: "dashboard", isModalOpen: isAnyModalOpen });
 
-  // 15-second live ticker
-  const [currentTick, setCurrentTick] = useState<number>(Date.now());
-  useEffect(() => {
-    const ticker = setInterval(() => setCurrentTick(Date.now()), 15000);
-    return () => clearInterval(ticker);
-  }, []);
-
   const shouldShowExamWindowCard = Boolean(
     activeExam &&
       windowStatus &&
@@ -199,7 +190,7 @@ export default function StudentPortalPage() {
           if (!closedIso) return false;
           const closedTime = new Date(closedIso).getTime();
           if (isNaN(closedTime)) return false;
-          const diffMs = currentTick - closedTime;
+          const diffMs = Date.now() - closedTime;
           const twoHoursMs = 2 * 60 * 60 * 1000;
           return diffMs >= 0 && diffMs <= twoHoursMs;
         })())
@@ -690,7 +681,6 @@ export default function StudentPortalPage() {
                   windowStatus={windowStatus}
                   activeExamSubmission={activeExamSubmission}
                   user={user}
-                  currentTick={currentTick}
                   onUploadSuccess={handleUploadSuccess}
                 />
               </div>

@@ -34,6 +34,7 @@ import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
 import { useExamsList } from "@/lib/queries";
 import { queryKeys } from "@/lib/queryKeys";
+import { useWindowCountdown } from "@/hooks/useWindowCountdown";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -47,6 +48,41 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { ExamSubmissionWindowModal } from "@/components/exams/modals/ExamSubmissionWindowModal";
+
+function ExamWindowCountdownLabel({
+  win,
+  isExamPublished,
+  isEvaluationLocked,
+}: {
+  win: any;
+  isExamPublished: boolean;
+  isEvaluationLocked: boolean;
+}) {
+  const { remainingSeconds } = useWindowCountdown(win);
+  const minutesRemaining = Math.max(0, Math.floor(remainingSeconds / 60));
+
+  if (win?.is_active && remainingSeconds > 0) {
+    return (
+      <span className="text-emerald-700 dark:text-emerald-400 font-bold whitespace-nowrap">
+        Active ({minutesRemaining}m left)
+      </span>
+    );
+  }
+  if (win?.is_in_grace) {
+    return (
+      <span className="text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
+        Grace ({win?.grace_seconds_remaining || 0}s)
+      </span>
+    );
+  }
+  if (isExamPublished) {
+    return <span className="text-purple-700 dark:text-purple-400 font-semibold whitespace-nowrap">Closed (Published)</span>;
+  }
+  if (isEvaluationLocked) {
+    return <span className="text-teal-700 dark:text-teal-400 font-semibold whitespace-nowrap">Closed (Evaluated)</span>;
+  }
+  return <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>;
+}
 
 export default function ExamsPage() {
   const queryClient = useQueryClient();
@@ -148,7 +184,7 @@ export default function ExamsPage() {
   );
 
 
-  // Synchronize initial window status map whenever exams cache updates
+  // Synchronize initial window status map whenever exams cache updates (per-card hooks handle live countdown ticking)
   useEffect(() => {
     if (exams.length > 0) {
       setWindowsMap((prev) => {
@@ -164,36 +200,6 @@ export default function ExamsPage() {
       });
     }
   }, [exams]);
-
-  // Real-time smooth local countdown ticker for active windows
-  useEffect(() => {
-    const hasActive = Object.values(windowsMap).some((w) => w?.is_active && w.seconds_remaining > 0);
-    if (!hasActive) return;
-
-    const ticker = setInterval(() => {
-      setWindowsMap((prev) => {
-        let changed = false;
-        const next: Record<string, any> = {};
-        for (const [id, win] of Object.entries(prev)) {
-          if (win?.is_active && win.seconds_remaining > 0) {
-            const rem = win.seconds_remaining - 1;
-            next[id] = {
-              ...win,
-              seconds_remaining: rem,
-              is_active: rem > 0,
-              status: rem > 0 ? "OPEN" : "CLOSED",
-            };
-            changed = true;
-          } else {
-            next[id] = win;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }, 1000);
-
-    return () => clearInterval(ticker);
-  }, [windowsMap]);
 
   // Close active window
   const handleHardCloseWindow = async (examId: string, examTitle: string) => {
@@ -548,8 +554,6 @@ export default function ExamsPage() {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;
             const isInGrace = win?.is_in_grace;
-            const secondsRemaining = win?.seconds_remaining || 0;
-            const minutesRemaining = Math.max(0, Math.floor(secondsRemaining / 60));
 
             const isRubricApproved = checkIsRubricApproved(exam);
             const isExamPublished = Boolean(
@@ -640,21 +644,11 @@ export default function ExamsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-ink flex items-center gap-1.5 flex-wrap">
                           <span className="whitespace-nowrap">Submission Window:</span>
-                          {isWindowActive ? (
-                            <span className="text-emerald-700 dark:text-emerald-400 font-bold whitespace-nowrap">
-                              Active ({minutesRemaining}m left)
-                            </span>
-                          ) : isInGrace ? (
-                            <span className="text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
-                              Grace ({win?.grace_seconds_remaining || 0}s)
-                            </span>
-                          ) : isExamPublished ? (
-                            <span className="text-purple-700 dark:text-purple-400 font-semibold whitespace-nowrap">Closed (Published)</span>
-                          ) : isEvaluationLocked ? (
-                            <span className="text-teal-700 dark:text-teal-400 font-semibold whitespace-nowrap">Closed (Evaluated)</span>
-                          ) : (
-                            <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>
-                          )}
+                          <ExamWindowCountdownLabel
+                            win={win}
+                            isExamPublished={isExamPublished}
+                            isEvaluationLocked={isEvaluationLocked}
+                          />
                         </div>
                         <p className="text-[10.5px] sm:text-[11px] text-ink-muted leading-tight mt-0.5">
                           {isWindowActive

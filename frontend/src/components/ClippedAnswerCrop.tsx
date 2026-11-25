@@ -65,6 +65,7 @@ export function ClippedAnswerCrop({
 
   useEffect(() => {
     let isCancelled = false;
+    setUseFallback(false);
     if (!hasValidRegion) {
       setIsLoading(false);
       return;

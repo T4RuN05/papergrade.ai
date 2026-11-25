@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Menu,
   Bell,
@@ -22,9 +23,13 @@ import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
-import { ReportIssueModal } from "./ReportIssueModal";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 import { TenancySwitchDropdown } from "./tenancy/TenancySwitchDropdown";
+
+const ReportIssueModal = dynamic(
+  () => import("./ReportIssueModal").then((mod) => mod.ReportIssueModal),
+  { ssr: false }
+);
 
 interface AdminHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -32,7 +37,6 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { toast } = useToast();
   const { unreadCount, openDrawer } = useNotifications();
   const { trail } = useBreadcrumbs();

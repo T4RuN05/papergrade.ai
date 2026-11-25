@@ -21,7 +21,6 @@ import {
   Info,
   GripVertical,
 } from "lucide-react";
-import Sortable from "sortablejs";
 import { FeatureCard, BadgePill, ButtonPrimary } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -44,7 +43,6 @@ export interface ActiveExamSubmissionCardProps {
   } | null;
   activeExamSubmission: any | null;
   user: any;
-  currentTick: number;
   onUploadSuccess: () => Promise<void>;
 }
 
@@ -53,7 +51,6 @@ export function ActiveExamSubmissionCard({
   windowStatus,
   activeExamSubmission,
   user,
-  currentTick,
   onUploadSuccess,
 }: ActiveExamSubmissionCardProps) {
   const { toast } = useToast();
@@ -79,73 +76,103 @@ export function ActiveExamSubmissionCard({
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const filePickerRef = useRef<HTMLInputElement | null>(null);
   const sortableContainerRef = useRef<HTMLDivElement | null>(null);
-  const sortableInstanceRef = useRef<Sortable | null>(null);
+  const sortableInstanceRef = useRef<any>(null);
   const isSubmittingRef = useRef<boolean>(false);
+  const scannedPagesRef = useRef(scannedPages);
+  const [postCloseTick, setPostCloseTick] = useState<number>(() => Date.now());
 
-  // Setup mobile touch drag-and-drop using SortableJS
   useEffect(() => {
-    if (!sortableContainerRef.current) return;
+    scannedPagesRef.current = scannedPages;
+  }, [scannedPages]);
 
-    if (sortableInstanceRef.current) {
-      sortableInstanceRef.current.destroy();
-      sortableInstanceRef.current = null;
-    }
+  useEffect(() => {
+    return () => {
+      scannedPagesRef.current.forEach((item) => {
+        if (item.previewUrl && !item.isPdf) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, []);
 
-    sortableInstanceRef.current = new Sortable(sortableContainerRef.current, {
-      animation: 200,
-      easing: "cubic-bezier(0.2, 0, 0, 1)",
-      delay: 150, // 150ms touch-and-hold before dragging on mobile
-      delayOnTouchOnly: true, // Instant dragging with mouse on desktop
-      touchStartThreshold: 5, // 5px movement tolerance before drag activates (allows smooth natural scroll)
-      filter: "button, a, input", // buttons can still be tapped without initiating drag
-      preventOnFilter: false,
-      draggable: ".sortable-page-card",
-      ghostClass: "sortable-page-ghost",
-      chosenClass: "sortable-page-chosen",
-      dragClass: "sortable-page-drag",
-      forceFallback: true, // Universal FLIP swapping across mobile browsers
-      fallbackClass: "sortable-page-fallback",
-      fallbackOnBody: true,
-      swapThreshold: 1, // Full threshold eliminates threshold jitter & double-state oscillation
-      invertSwap: false, // Prevents swap zone oscillation / flickering between two states
-      onChoose: () => {
-        if (typeof window !== "undefined" && "vibrate" in navigator) {
-          try {
-            navigator.vibrate?.(35);
-          } catch {
-            // Ignore vibrate failures
+  // Localized post-close notice countdown ticker (only ticks when window is closed)
+  useEffect(() => {
+    if (!windowStatus || windowStatus.is_active) return;
+    setPostCloseTick(Date.now());
+    const ticker = setInterval(() => setPostCloseTick(Date.now()), 15000);
+    return () => clearInterval(ticker);
+  }, [windowStatus]);
+
+  // Setup mobile touch drag-and-drop via dynamic SortableJS import (only when reordering 2+ pages)
+  useEffect(() => {
+    if (!sortableContainerRef.current || scannedPages.length <= 1) return;
+
+    let isCancelled = false;
+
+    import("sortablejs").then(({ default: Sortable }) => {
+      if (isCancelled || !sortableContainerRef.current) return;
+
+      if (sortableInstanceRef.current) {
+        sortableInstanceRef.current.destroy();
+        sortableInstanceRef.current = null;
+      }
+
+      sortableInstanceRef.current = new Sortable(sortableContainerRef.current, {
+        animation: 200,
+        easing: "cubic-bezier(0.2, 0, 0, 1)",
+        delay: 150,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 5,
+        filter: "button, a, input",
+        preventOnFilter: false,
+        draggable: ".sortable-page-card",
+        ghostClass: "sortable-page-ghost",
+        chosenClass: "sortable-page-chosen",
+        dragClass: "sortable-page-drag",
+        forceFallback: true,
+        fallbackClass: "sortable-page-fallback",
+        fallbackOnBody: true,
+        swapThreshold: 1,
+        invertSwap: false,
+        onChoose: () => {
+          if (typeof window !== "undefined" && "vibrate" in navigator) {
+            try {
+              navigator.vibrate?.(35);
+            } catch {
+              // Ignore vibrate failures
+            }
           }
-        }
-      },
-      onEnd: (evt) => {
-        if (
-          evt.oldIndex === undefined ||
-          evt.newIndex === undefined ||
-          evt.oldIndex === evt.newIndex
-        ) {
-          return;
-        }
+        },
+        onEnd: (evt: any) => {
+          if (
+            evt.oldIndex === undefined ||
+            evt.newIndex === undefined ||
+            evt.oldIndex === evt.newIndex
+          ) {
+            return;
+          }
 
-        // Revert Sortable DOM modification so React reconciliation takes control of ordering
-        const parent = evt.from;
-        const item = evt.item;
-        item.remove();
-        if (evt.oldIndex < parent.children.length) {
-          parent.insertBefore(item, parent.children[evt.oldIndex]);
-        } else {
-          parent.appendChild(item);
-        }
+          const parent = evt.from;
+          const item = evt.item;
+          item.remove();
+          if (evt.oldIndex < parent.children.length) {
+            parent.insertBefore(item, parent.children[evt.oldIndex]);
+          } else {
+            parent.appendChild(item);
+          }
 
-        setScannedPages((prev) => {
-          const copy = [...prev];
-          const [moved] = copy.splice(evt.oldIndex!, 1);
-          copy.splice(evt.newIndex!, 0, moved);
-          return copy;
-        });
-      },
+          setScannedPages((prev) => {
+            const copy = [...prev];
+            const [moved] = copy.splice(evt.oldIndex!, 1);
+            copy.splice(evt.newIndex!, 0, moved);
+            return copy;
+          });
+        },
+      });
     });
 
     return () => {
+      isCancelled = true;
       if (sortableInstanceRef.current) {
         sortableInstanceRef.current.destroy();
         sortableInstanceRef.current = null;
@@ -265,7 +292,7 @@ export function ActiveExamSubmissionCard({
     if (!closedIso) return null;
     const closedTime = new Date(closedIso).getTime();
     if (isNaN(closedTime)) return null;
-    const elapsedMs = currentTick - closedTime;
+    const elapsedMs = postCloseTick - closedTime;
     const remainingMs = 2 * 60 * 60 * 1000 - elapsedMs;
     if (remainingMs <= 0) return null;
     const mins = Math.ceil(remainingMs / 60000);

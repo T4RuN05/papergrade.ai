@@ -2,10 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, getAuthToken, getStoredUser } from "@/lib/api";
+import { api, getAuthToken } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { useToast } from "@/lib/ToastContext";
 import { getSupabaseClient } from "@/lib/supabase";
+import { useTenant } from "@/lib/TenantContext";
 
 export interface AppNotification {
   id: string;
@@ -18,7 +19,7 @@ export interface AppNotification {
   created_at: string;
 }
 
-interface NotificationContextType {
+export interface NotificationStateContextType {
   notifications: AppNotification[];
   unreadCount: number;
   isOpen: boolean;
@@ -26,6 +27,9 @@ interface NotificationContextType {
   isRealtimeActive: boolean;
   permission: NotificationPermission;
   isSupported: boolean;
+}
+
+export interface NotificationActionsContextType {
   requestPermission: () => Promise<boolean>;
   sendSystemNotification: (title: string, options?: NotificationOptions) => Promise<void>;
   sendTestNotification: () => Promise<void>;
@@ -37,7 +41,10 @@ interface NotificationContextType {
   refreshNotifications: () => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+export type NotificationContextType = NotificationStateContextType & NotificationActionsContextType;
+
+const NotificationStateContext = createContext<NotificationStateContextType | undefined>(undefined);
+const NotificationActionsContext = createContext<NotificationActionsContextType | undefined>(undefined);
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -53,14 +60,40 @@ function urlBase64ToUint8Array(base64String: string) {
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { currentUser, isLoggingOut } = useTenant();
+  const activeUserId: string | null = !isLoggingOut
+    ? (currentUser?.id || currentUser?.sub || null)
+    : null;
+
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [isSupported, setIsSupported] = useState(false);
+
   const isInitialMount = useRef(true);
   const knownIdsRef = useRef<Set<string>>(new Set());
+  const isRealtimeActiveRef = useRef(false);
+
+  useEffect(() => {
+    isRealtimeActiveRef.current = isRealtimeActive;
+  }, [isRealtimeActive]);
+
+  // Reset notification state cleanly on logout or user switch
+  useEffect(() => {
+    if (!activeUserId) {
+      knownIdsRef.current = new Set();
+      isInitialMount.current = true;
+      setNotifications([]);
+      setIsOpen(false);
+      setIsRealtimeActive(false);
+      queryClient.setQueryData(queryKeys.notifications.list(), []);
+    } else {
+      isInitialMount.current = true;
+      knownIdsRef.current = new Set();
+    }
+  }, [activeUserId, queryClient]);
 
   // Synchronize device Web Push subscription token with backend (enables closed-app delivery)
   const syncWebPushSubscription = useCallback(async () => {
@@ -72,7 +105,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       return;
     }
     const token = getAuthToken();
-    if (!token || Notification.permission !== "granted") return;
+    if (!token || !activeUserId || Notification.permission !== "granted") return;
 
     try {
       let reg = await navigator.serviceWorker.getRegistration();
@@ -89,7 +122,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       let sub = await reg.pushManager.getSubscription();
 
       if (sub) {
-        // If an existing subscription has mismatched applicationServerKey, unsubscribe and recreate
         const rawKey = sub.options?.applicationServerKey;
         if (rawKey) {
           const currentKey = new Uint8Array(rawKey);
@@ -131,18 +163,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } catch (err) {
       console.warn("Web Push registration notice:", err);
     }
-  }, []);
+  }, [activeUserId]);
 
-  // Sync initial notification permission status & WebPush on client mount
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setIsSupported(true);
       setPermission(Notification.permission);
-      if (Notification.permission === "granted") {
+      if (Notification.permission === "granted" && activeUserId) {
         syncWebPushSubscription();
       }
     }
-  }, [syncWebPushSubscription]);
+  }, [activeUserId, syncWebPushSubscription]);
 
   const sendSystemNotification = useCallback(
     async (title: string, options?: NotificationOptions) => {
@@ -160,7 +191,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         ...options,
       };
 
-      // 1. Mobile PWA / Android ServiceWorker approach (MANDATORY for Android Chrome & WebAPKs)
       if ("serviceWorker" in navigator) {
         try {
           let reg = await navigator.serviceWorker.getRegistration();
@@ -168,7 +198,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
           }
 
-          // If the service worker is installing, wait up to 1.5s for it to become ready
           if (reg && reg.installing) {
             await Promise.race([
               new Promise<void>((resolve) => {
@@ -198,7 +227,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       }
 
-      // 2. Desktop Fallback (PC Chrome, Edge, Safari, Firefox)
       try {
         new Notification(title, notifOptions);
       } catch (err) {
@@ -248,16 +276,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const granted = await requestPermission();
         if (!granted) return;
       }
-      // 1. Immediate local confirmation notification
       await sendSystemNotification("PaperGrade AI Alert", {
         body: "Local alert delivered! Synchronizing Cloud WebPush gateway...",
         data: { url: "/student/portal" },
       });
 
-      // 2. Register Web Push with browser push gateway (Google/Apple)
       await syncWebPushSubscription();
-
-      // 3. Trigger true server-side cloud push test
       await api.testClosedAppPush().catch(() => {});
 
       toast.success("Cloud WebPush test dispatched! Alerts will trigger even when closed.", {
@@ -273,7 +297,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const fetchNotifications = useCallback(async () => {
     const token = getAuthToken();
-    if (!token) {
+    if (!token || !activeUserId) {
       setNotifications([]);
       queryClient.setQueryData(queryKeys.notifications.list(), []);
       return;
@@ -305,22 +329,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [toast, sendSystemNotification, queryClient]);
+  }, [activeUserId, toast, sendSystemNotification, queryClient]);
 
-  // Phase 2: Supabase Realtime WebSocket Connection (0ms instant delivery, 0% Render load)
+  // Realtime WebSocket subscription scoped strictly to authenticated activeUserId
   useEffect(() => {
     const supabase = getSupabaseClient();
     const token = getAuthToken();
-    const user = getStoredUser();
-    const userId = user?.id || user?.sub;
 
-    if (!supabase || !token || !userId) {
+    if (!supabase || !token || !activeUserId) {
       setIsRealtimeActive(false);
       return;
     }
 
     let isSubscribed = true;
-    const channelName = `notifs_${userId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+    const channelName = `notifs_${activeUserId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
     const channel = supabase
       .channel(channelName)
@@ -330,12 +352,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${userId}`,
+          filter: `user_id=eq.${activeUserId}`,
         },
         (payload) => {
           if (!isSubscribed) return;
           const row = payload.new as any;
           if (!row || !row.id) return;
+
+          // Record ID before any subsequent poll so Realtime alerts are never double-toasted
+          knownIdsRef.current.add(row.id);
 
           const newNotif: AppNotification = {
             id: row.id,
@@ -348,17 +373,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             created_at: row.created_at || new Date().toISOString(),
           };
 
-          // 1. Immediately prepend to in-memory notification state & sync query cache
           setNotifications((prev) => {
             const next = [newNotif, ...prev.filter((n) => n.id !== newNotif.id)];
             queryClient.setQueryData(queryKeys.notifications.list(), next);
             return next;
           });
 
-          // 2. Immediate in-app visual toast
           toast.info(newNotif.message, { title: newNotif.title });
 
-          // 3. Desktop / PWA OS alert
           sendSystemNotification(newNotif.title, {
             body: newNotif.message,
             data: { url: newNotif.link_url || "/student/portal" },
@@ -380,16 +402,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         supabase.removeChannel(channel).catch(() => {});
       }
     };
-  }, [toast, sendSystemNotification, queryClient]);
+  }, [activeUserId, toast, sendSystemNotification, queryClient]);
 
-  // Phase 1 + Phase 2 Hybrid Poller: 60s gentle heartbeat if Realtime is active, 30s adaptive if fallback (with +/- 5s jitter)
+  // Adaptive poller: runs ONLY when authenticated; reads isRealtimeActiveRef to avoid double-fetch on connect
   useEffect(() => {
+    const token = getAuthToken();
+    if (!token || !activeUserId) {
+      return;
+    }
+
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let isCancelled = false;
 
     const scheduleNextPoll = () => {
-      const baseMs = isRealtimeActive ? 60000 : 30000;
-      const jitterMs = (Math.random() * 10 - 5) * 1000; // +/- 5s jitter to prevent lockstep thundering herd
+      const baseMs = isRealtimeActiveRef.current ? 60000 : 30000;
+      const jitterMs = (Math.random() * 10 - 5) * 1000;
       const pollIntervalMs = Math.max(15000, Math.round(baseMs + jitterMs));
 
       timeoutId = setTimeout(() => {
@@ -402,6 +429,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }, pollIntervalMs);
     };
 
+    if (typeof document === "undefined" || !document.hidden) {
+      fetchNotifications();
+    }
     scheduleNextPoll();
 
     const handleVisibilityChange = () => {
@@ -409,10 +439,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         fetchNotifications();
       }
     };
-
-    if (typeof document === "undefined" || !document.hidden) {
-      fetchNotifications();
-    }
 
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -425,11 +451,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
-  }, [fetchNotifications, isRealtimeActive]);
+  }, [activeUserId, fetchNotifications]);
 
-  const openDrawer = () => setIsOpen(true);
-  const closeDrawer = () => setIsOpen(false);
-  const toggleDrawer = () => setIsOpen((prev) => !prev);
+  const openDrawer = useCallback(() => setIsOpen(true), []);
+  const closeDrawer = useCallback(() => setIsOpen(false), []);
+  const toggleDrawer = useCallback(() => setIsOpen((prev) => !prev), []);
 
   const markAsRead = useCallback(async (id: string) => {
     setNotifications((prev) => {
@@ -462,7 +488,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     [notifications]
   );
 
-  const contextValue = useMemo(
+  const stateValue = useMemo<NotificationStateContextType>(
     () => ({
       notifications,
       unreadCount,
@@ -471,6 +497,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       isRealtimeActive,
       permission,
       isSupported,
+    }),
+    [notifications, unreadCount, isOpen, loading, isRealtimeActive, permission, isSupported]
+  );
+
+  const actionsValue = useMemo<NotificationActionsContextType>(
+    () => ({
       requestPermission,
       sendSystemNotification,
       sendTestNotification,
@@ -482,16 +514,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       refreshNotifications: fetchNotifications,
     }),
     [
-      notifications,
-      unreadCount,
-      isOpen,
-      loading,
-      isRealtimeActive,
-      permission,
-      isSupported,
       requestPermission,
       sendSystemNotification,
       sendTestNotification,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
       markAsRead,
       markAllRead,
       fetchNotifications,
@@ -499,16 +527,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 
   return (
-    <NotificationContext.Provider value={contextValue}>
-      {children}
-    </NotificationContext.Provider>
+    <NotificationActionsContext.Provider value={actionsValue}>
+      <NotificationStateContext.Provider value={stateValue}>
+        {children}
+      </NotificationStateContext.Provider>
+    </NotificationActionsContext.Provider>
   );
 }
 
-export function useNotifications() {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error("useNotifications must be used within a NotificationProvider");
+export function useNotificationState(): NotificationStateContextType {
+  const ctx = useContext(NotificationStateContext);
+  if (!ctx) {
+    throw new Error("useNotificationState must be used within a NotificationProvider");
   }
-  return context;
+  return ctx;
+}
+
+export function useNotificationActions(): NotificationActionsContextType {
+  const ctx = useContext(NotificationActionsContext);
+  if (!ctx) {
+    throw new Error("useNotificationActions must be used within a NotificationProvider");
+  }
+  return ctx;
+}
+
+export function useNotifications(): NotificationContextType {
+  const state = useNotificationState();
+  const actions = useNotificationActions();
+  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
 }

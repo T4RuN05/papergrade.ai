@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
@@ -30,8 +30,12 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useSubmissionDetail } from "@/lib/queries";
 import { Submission, GradedAnswer } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
-import { GradingModal } from "@/components/GradingModal";
 import { useToast } from "@/lib/ToastContext";
+
+const GradingModal = dynamic(
+  () => import("@/components/GradingModal").then((mod) => mod.GradingModal),
+  { ssr: false }
+);
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -53,7 +57,6 @@ const DocumentViewer = dynamic(
 
 export default function GradingPage() {
   const params = useParams();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();

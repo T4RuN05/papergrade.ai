@@ -33,7 +33,7 @@ export function RubricSectionsCard({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {sections.map((sec, idx) => (
           <div
-            key={idx}
+            key={sec.section_id || idx}
             className="rounded-md border border-hairline bg-surface p-3 flex flex-col justify-between shadow-xs"
           >
             <div>

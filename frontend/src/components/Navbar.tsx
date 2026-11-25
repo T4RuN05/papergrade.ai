@@ -20,31 +20,23 @@ import {
   RotateCcw,
   HelpCircle,
 } from "lucide-react";
-import { api, getAuthToken, getStoredUser, setStoredUser } from "@/lib/api";
+import { getAuthToken, setStoredUser } from "@/lib/api";
 import { BadgePill } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
-import { useToast, queueToast } from "@/lib/ToastContext";
+import { useTenant } from "@/lib/TenantContext";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { toast } = useToast();
   const { unreadCount, openDrawer } = useNotifications();
+  const { currentUser, isMounted, loading: tenantLoading, refreshTenancy, logout } = useTenant();
 
-  const [currentUser, setCurrentUser] = useState<{
-    id: string;
-    email: string;
-    role: string;
-    full_name: string;
-    has_changed_password?: number;
-  } | null>(null);
-  const [hasToken, setHasToken] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [activeStudentTab, setActiveStudentTab] = useState<"dashboard" | "exams">("dashboard");
+  const hasToken = isMounted && Boolean(currentUser || getAuthToken() || tenantLoading);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -83,26 +75,6 @@ export function Navbar() {
   };
 
   useEffect(() => {
-    setIsMounted(true);
-    const token = getAuthToken();
-    setHasToken(Boolean(token));
-    if (token) {
-      // Synchronously restore cached user to prevent UI flash
-      const cached = getStoredUser();
-      if (cached) {
-        setCurrentUser(cached);
-      }
-      api
-        .getMe()
-        .then((user) => setCurrentUser(user))
-        .catch(() => {
-          setCurrentUser(null);
-          setHasToken(false);
-        });
-    } else {
-      setCurrentUser(null);
-    }
-    // Close mobile menu on route change
     setMobileMenuOpen(false);
   }, [pathname]);
 
@@ -130,17 +102,7 @@ export function Navbar() {
   }, [mobileMenuOpen]);
 
   const handleLogout = () => {
-    api.logout();
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("papergrade_selected_institute_id");
-      localStorage.removeItem("papergrade_selected_branch_id");
-      queueToast({
-        type: "success",
-        title: "Logged Out",
-        message: "You have signed out successfully.",
-      });
-      window.location.replace("/auth/login");
-    }
+    logout();
   };
 
   const isStudent = isMounted && currentUser?.role === "STUDENT";
@@ -679,11 +641,11 @@ export function Navbar() {
         isOpen={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}
         onSuccess={() => {
-          setCurrentUser((prev: any) => (prev ? { ...prev, has_changed_password: 1 } : prev));
           try {
-            const stored = getStoredUser();
-            if (stored) {
-              setStoredUser({ ...stored, has_changed_password: 1 });
+            if (currentUser) {
+              const updated = { ...currentUser, has_changed_password: 1 };
+              setStoredUser(updated);
+              refreshTenancy(updated);
             }
           } catch {}
         }}

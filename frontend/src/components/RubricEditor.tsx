@@ -54,6 +54,18 @@ const normalizeRubric = (r?: ExamRubric): ExamRubric => {
   };
 };
 
+const _questionUiKeys = new WeakMap<object, string>();
+let _questionUiCounter = 0;
+function getQuestionUiKey(q: RubricQuestion): string {
+  let k = _questionUiKeys.get(q);
+  if (!k) {
+    _questionUiCounter += 1;
+    k = `rubric_q_${_questionUiCounter}`;
+    _questionUiKeys.set(q, k);
+  }
+  return k;
+}
+
 export function RubricEditor({
   initialRubric,
   isApproved,
@@ -206,7 +218,7 @@ export function RubricEditor({
         <div className="space-y-5">
           {(rubric.questions || []).map((q, qIdx) => (
             <RubricQuestionCard
-              key={qIdx}
+              key={getQuestionUiKey(q)}
               question={q}
               qIdx={qIdx}
               isReadOnly={isReadOnly}

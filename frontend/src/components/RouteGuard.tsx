@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTenant } from "@/lib/TenantContext";
 import { getAuthToken, getStoredUser, getStoredUserPayload } from "@/lib/api";
 import { GraduationCap, ShieldCheck, Lock, RefreshCw } from "lucide-react";
@@ -16,7 +16,6 @@ interface RouteGuardProps {
 
 export function RouteGuard({ children }: RouteGuardProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { currentUser, isLoggingOut } = useTenant();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);

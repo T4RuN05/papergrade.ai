@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,7 +26,6 @@ import { BadgePill, ButtonUtility } from "@/components/ui";
 
 export default function HelpArticlePage() {
   const params = useParams();
-  const router = useRouter();
   const role = params.role as RoleId;
   const slug = params.slug as string;
 

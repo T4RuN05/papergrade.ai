@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   Layers,
@@ -26,6 +26,7 @@ import {
 import { api } from "@/lib/api";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
 import { useToast } from "@/lib/ToastContext";
+import { useTenant } from "@/lib/TenantContext";
 import { useBatchDetail, useExamDetail } from "@/lib/queries";
 import {
   ButtonUtility,
@@ -40,8 +41,8 @@ import {
 
 export default function SingleBatchPage() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
+  const { selectedInstitute, selectedBranch } = useTenant();
   const batchId = params.id as string;
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -173,7 +174,11 @@ export default function SingleBatchPage() {
               </h1>
             )}
             <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
-              Enrolled evaluation batch for <span className="font-semibold text-ink">Apex Engineering Institute</span> (Main Campus). Total registered scripts:{" "}
+              Enrolled evaluation batch for{" "}
+              <span className="font-semibold text-ink">
+                {selectedInstitute?.name || "Coaching Institute"}
+              </span>
+              {selectedBranch?.name ? ` (${selectedBranch.name})` : ""}. Total registered scripts:{" "}
               {isBatchLoading && !batch ? (
                 <span className="font-mono font-bold text-ink">...</span>
               ) : (
@@ -218,8 +223,12 @@ export default function SingleBatchPage() {
             <Building2 className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
             <div>
               <span className="text-ink-muted block text-[11px]">Academic Institution</span>
-              <span className="font-semibold text-ink">Apex Engineering Institute</span>
-              <span className="text-ink-secondary block text-[11px]">Main Campus (Mumbai)</span>
+              <span className="font-semibold text-ink">
+                {selectedInstitute?.name || "Coaching Institute"}
+              </span>
+              <span className="text-ink-secondary block text-[11px]">
+                {selectedBranch ? `${selectedBranch.name}${selectedBranch.city ? ` (${selectedBranch.city})` : ""}` : "Assigned Branch"}
+              </span>
             </div>
           </div>
 

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, KeyRound } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
@@ -34,7 +33,6 @@ import { RosterCsvImportModal } from "@/components/batches/modals/RosterCsvImpor
 import { PasswordResetRequestsModal } from "@/components/batches/modals/PasswordResetRequestsModal";
 
 export default function BranchBatchesPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { confirm } = useConfirm();
