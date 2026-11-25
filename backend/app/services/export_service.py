@@ -1,11 +1,13 @@
 import io
+import os
 import csv
 import shutil
+import threading
+import uuid
 import zipfile
 import json
 from pathlib import Path
-from typing import Optional, Dict, List, Any
-from sqlalchemy.orm import Session
+from typing import Optional, Dict, Any
 from sqlalchemy import select
 
 from backend.app.config import settings
@@ -13,6 +15,31 @@ from backend.app.db.session import get_session
 from backend.app.db.models import Submission, RubricVersion, Answer
 from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service, is_remote_storage
+
+_export_locks_guard = threading.Lock()
+_export_locks: Dict[str, threading.Lock] = {}
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _get_batch_lock(batch_id: str) -> threading.Lock:
+    with _export_locks_guard:
+        lock = _export_locks.get(batch_id)
+        if lock is None:
+            lock = threading.Lock()
+            _export_locks[batch_id] = lock
+        return lock
+
+
+def _sanitize_csv_cell(value: Any) -> Any:
+    """Escape leading spreadsheet formula characters to neutralize CSV injection."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        return value
+    text = str(value)
+    if text.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + text
+    return text
 
 
 class ExportService:
@@ -43,14 +70,16 @@ class ExportService:
     @staticmethod
     def create_batch_zip(batch_id: str) -> Optional[Path]:
         """
-        Creates a ZIP archive containing all annotated PDFs for the batch.
+        Creates an atomic ZIP archive containing annotated PDFs for graded, non-purged submissions in the batch.
         """
         zip_path = settings.EXPORTS_DIR / f"batch_{batch_id}_graded_pdfs.zip"
         with get_session() as session:
             submissions = session.scalars(
                 select(Submission).where(
                     Submission.batch_id == batch_id,
-                    Submission.submission_status == 'SUBMITTED'
+                    Submission.submission_status == 'SUBMITTED',
+                    Submission.is_document_purged == 0,
+                    Submission.status.in_(["COMPLETED", "NEEDS_REVIEW", "GRADED"]),
                 )
             ).all()
 
@@ -66,15 +95,28 @@ class ExportService:
                 for s in submissions
             ]
 
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for sub in sub_records:
-                sub_id = sub["id"]
-                roll = sub["roll"]
-                name = sub["name"]
-                pdf_path = ExportService.get_submission_pdf_path(sub_id)
-                if pdf_path and pdf_path.exists():
-                    arc_name = f"{roll}_{name}_graded.pdf"
-                    zip_file.write(pdf_path, arcname=arc_name)
+        lock = _get_batch_lock(batch_id)
+        tmp_zip = settings.EXPORTS_DIR / f".batch_{batch_id}_graded_pdfs.{uuid.uuid4().hex}.tmp"
+        with lock:
+            try:
+                settings.EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(tmp_zip, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for sub in sub_records:
+                        sub_id = sub["id"]
+                        roll = sub["roll"]
+                        name = sub["name"]
+                        pdf_path = ExportService.get_submission_pdf_path(sub_id)
+                        if pdf_path and pdf_path.exists():
+                            arc_name = f"{roll}_{name}_graded.pdf"
+                            zip_file.write(pdf_path, arcname=arc_name)
+                os.replace(tmp_zip, zip_path)
+            except Exception:
+                if tmp_zip.exists():
+                    try:
+                        tmp_zip.unlink()
+                    except OSError:
+                        pass
+                raise
 
         return zip_path
 
@@ -122,7 +164,9 @@ class ExportService:
             writer = csv.writer(output)
 
             # CSV Headers
-            headers = ["Roll Number", "Student Name"] + questions + ["Total Marks", "Max Marks", "Percentage (%)", "Status", "Needs Review"]
+            headers = ["Roll Number", "Student Name"] + [_sanitize_csv_cell(q) for q in questions] + [
+                "Total Marks", "Max Marks", "Percentage (%)", "Status", "Needs Review"
+            ]
             writer.writerow(headers)
 
             for sub in submissions:
@@ -130,11 +174,11 @@ class ExportService:
                 has_review = has_review_by_sub.get(sub.id, False)
 
                 row = [
-                    sub.roll_number,
-                    sub.student_name
+                    _sanitize_csv_cell(sub.roll_number),
+                    _sanitize_csv_cell(sub.student_name),
                 ]
                 for q in questions:
-                    row.append(ans_map.get(q, "N/A"))
+                    row.append(_sanitize_csv_cell(ans_map.get(q, "N/A")))
 
                 total_awarded = round(sub.total_awarded_marks or 0.0, 2)
                 max_m = round(sub.max_marks or 0.0, 2)
@@ -143,7 +187,7 @@ class ExportService:
                     total_awarded,
                     max_m,
                     pct,
-                    sub.status,
+                    _sanitize_csv_cell(sub.status),
                     "YES" if has_review or sub.status == "NEEDS_REVIEW" else "NO"
                 ])
                 writer.writerow(row)

@@ -1,13 +1,9 @@
-import uuid
 import json
-from pathlib import Path
 from typing import Optional, Dict, Any, List
-from sqlalchemy import select, func, update, and_, or_
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.app.config import settings
 from backend.app.db.session import get_session
-from backend.app.db.base import get_iso_now
 from backend.app.db.models import (
     Exam,
     ExamBatch,
@@ -16,109 +12,9 @@ from backend.app.db.models import (
     Institute,
     RubricVersion,
 )
-from backend.app.schemas import ExamRubricExtractionResult, RubricQuestion
-from backend.app.gemini.client import gemini_client
 
 
 class ExamService:
-    @staticmethod
-    def create_exam(
-        title: str,
-        subject: str,
-        question_paper_path: Optional[Path] = None,
-        answer_key_path: Optional[Path] = None,
-        extra_notes: str = ""
-    ) -> Dict[str, Any]:
-        exam_id = str(uuid.uuid4())
-        now = get_iso_now()
-
-        with get_session() as session:
-            exam = Exam(
-                id=exam_id,
-                title=title,
-                subject=subject,
-                total_marks=0.0,
-                question_paper_path=str(question_paper_path) if question_paper_path else None,
-                answer_key_path=str(answer_key_path) if answer_key_path else None,
-                lifecycle_status="DRAFT",
-                status="DRAFT",
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(exam)
-
-        # If documents are supplied, extract draft rubric
-        if question_paper_path and answer_key_path and question_paper_path.exists() and answer_key_path.exists():
-            rubric_res, _ = gemini_client.extract_exam_rubric(
-                exam_id=exam_id,
-                question_paper_path=question_paper_path,
-                answer_key_path=answer_key_path,
-                extra_notes=extra_notes
-            )
-            ExamService.save_rubric_version(exam_id, rubric_res, is_approved=False)
-
-        return ExamService.get_exam(exam_id)
-
-    @staticmethod
-    def save_rubric_version(
-        exam_id: str,
-        rubric: ExamRubricExtractionResult,
-        is_approved: bool = False
-    ) -> str:
-        version_id = str(uuid.uuid4())
-        now = get_iso_now()
-
-        with get_session() as session:
-            max_ver = session.scalar(
-                select(func.max(RubricVersion.version_num)).where(RubricVersion.exam_id == exam_id)
-            )
-            next_ver = (max_ver or 0) + 1
-
-            rubric_row = RubricVersion(
-                id=version_id,
-                exam_id=exam_id,
-                version_num=next_ver,
-                is_approved=1 if is_approved else 0,
-                rubric_data=rubric.model_dump_json(),
-                created_at=now,
-                approved_at=now if is_approved else None,
-            )
-            session.add(rubric_row)
-
-            if is_approved:
-                total_m = float(rubric.total_marks) if rubric.total_marks and rubric.total_marks > 0 else sum(q.max_marks for q in rubric.questions)
-                exam = session.scalar(select(Exam).where(Exam.id == exam_id))
-                if exam:
-                    exam.status = "RUBRIC_APPROVED"
-                    exam.lifecycle_status = "APPROVED"
-                    exam.total_marks = total_m
-                    exam.current_rubric_version_id = version_id
-                    exam.updated_at = now
-
-        return version_id
-
-    @staticmethod
-    def approve_rubric(exam_id: str, rubric: ExamRubricExtractionResult) -> Dict[str, Any]:
-        """Approves a teacher-reviewed rubric and marks the exam ready for grading."""
-        ExamService.save_rubric_version(exam_id, rubric, is_approved=True)
-        return ExamService.get_exam(exam_id)
-
-    @staticmethod
-    def unlock_rubric(exam_id: str) -> Dict[str, Any]:
-        """Unlocks an approved rubric back to draft state so the teacher can modify sections/questions."""
-        now = get_iso_now()
-        with get_session() as session:
-            session.execute(
-                update(RubricVersion).where(RubricVersion.exam_id == exam_id).values(is_approved=0)
-            )
-            exam = session.scalar(select(Exam).where(Exam.id == exam_id))
-            if exam:
-                exam.status = "RUBRIC_DRAFT"
-                exam.lifecycle_status = "SETUP"
-                exam.updated_at = now
-
-        return ExamService.get_exam(exam_id)
-
     @staticmethod
     def get_exam(exam_id: str) -> Optional[Dict[str, Any]]:
         with get_session() as session:
@@ -270,14 +166,15 @@ class ExamService:
                     "academic_year": b_year,
                 })
 
-            # Pre-fetch latest rubric versions for all exams in one query
-            rv_rows = session.scalars(
-                select(RubricVersion).order_by(RubricVersion.is_approved.desc(), RubricVersion.version_num.desc())
+            # Pre-fetch latest rubric versions via light column projection (no rubric_data JSON blob)
+            rv_rows = session.execute(
+                select(RubricVersion.exam_id, RubricVersion.is_approved)
+                .order_by(RubricVersion.is_approved.desc(), RubricVersion.version_num.desc())
             ).all()
             rv_map: Dict[str, bool] = {}
-            for rv in rv_rows:
-                if rv.exam_id not in rv_map:
-                    rv_map[rv.exam_id] = bool(rv.is_approved)
+            for rv_exam_id, rv_is_approved in rv_rows:
+                if rv_exam_id not in rv_map:
+                    rv_map[rv_exam_id] = bool(rv_is_approved)
 
             exams = []
             for exam, b_name, b_code, b_city, b_inst_id, i_name, i_code in rows:

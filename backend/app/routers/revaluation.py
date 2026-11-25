@@ -2,10 +2,10 @@ import uuid
 import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update, func, or_
+from sqlalchemy import select, func, or_
 
 from backend.app.config import settings
 from backend.app.db.session import get_db
@@ -23,8 +23,6 @@ from backend.app.db.models import (
 )
 from backend.app.services.auth import (
     get_current_user,
-    require_root_admin,
-    require_student,
     require_branch_manager,
 )
 from backend.app.services.notification_service import (

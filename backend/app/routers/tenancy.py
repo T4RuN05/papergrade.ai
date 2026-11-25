@@ -6,7 +6,7 @@ import shutil
 import logging
 import asyncio
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, delete, update, or_
@@ -103,7 +103,8 @@ def allocate_next_roll_numbers(db: Session, branch_id: str, count: int = 1) -> L
     branch_code = branch.code.strip().upper()
     prefix = f"{inst_code}-{branch_code}-"
 
-    # If last_roll_sequence is uninitialized (0), seed it from any existing students
+    from sqlalchemy import update, func
+    # If last_roll_sequence is uninitialized (0), atomically seed it from existing students once
     if (getattr(branch, "last_roll_sequence", 0) or 0) == 0:
         existing_rolls = db.scalars(
             select(Student.roll_number).where(Student.roll_number.like(f"{prefix}%"))
@@ -117,14 +118,17 @@ def allocate_next_roll_numbers(db: Session, branch_id: str, count: int = 1) -> L
             except ValueError:
                 pass
         if current_seq > 0:
-            branch.last_roll_sequence = current_seq
+            db.execute(
+                update(Branch)
+                .where(Branch.id == branch_id, func.coalesce(Branch.last_roll_sequence, 0) == 0)
+                .values(last_roll_sequence=current_seq)
+            )
             db.flush()
 
-    from sqlalchemy import update
     stmt = (
         update(Branch)
         .where(Branch.id == branch_id)
-        .values(last_roll_sequence=Branch.last_roll_sequence + count)
+        .values(last_roll_sequence=func.coalesce(Branch.last_roll_sequence, 0) + count)
         .returning(Branch.last_roll_sequence)
     )
     new_max_seq = db.scalar(stmt)
@@ -637,10 +641,11 @@ def add_single_student(
 
 def _parse_excel_sheet_rows(content: bytes) -> List[tuple]:
     workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-    sheet = workbook.active
-    rows = list(sheet.iter_rows(values_only=True))
-    workbook.close()
-    return rows
+    try:
+        sheet = workbook.active
+        return list(sheet.iter_rows(values_only=True))
+    finally:
+        workbook.close()
 
 
 @router.post("/batches/{batch_id}/import-students")
@@ -767,18 +772,23 @@ async def import_students_excel(
                 valid_rows.append((r_num, row_data))
 
         needed_count = len(valid_rows)
-        if needed_count > 0:
-            candidate_pool = set()
-            while len(candidate_pool) < needed_count * 2:
-                candidate_pool.add(str(random.randint(100000, 999999)))
+        avail_id_nums: List[str] = []
+        chosen_ids: set[str] = set()
+        while len(avail_id_nums) < needed_count:
+            remaining = needed_count - len(avail_id_nums)
+            candidate_pool: set[str] = set()
+            while len(candidate_pool) < max(remaining * 2, 16):
+                cand = str(random.randint(100000, 999999))
+                if cand not in chosen_ids:
+                    candidate_pool.add(cand)
             colliding = set(
                 db.scalars(
                     select(Student.student_id_num).where(Student.student_id_num.in_(list(candidate_pool)))
                 ).all()
             )
-            avail_id_nums = list(candidate_pool - colliding)
-        else:
-            avail_id_nums = []
+            fresh = [cid for cid in candidate_pool - colliding if cid not in chosen_ids]
+            chosen_ids.update(fresh)
+            avail_id_nums.extend(fresh)
 
         imported_students = []
         new_student_objs = []

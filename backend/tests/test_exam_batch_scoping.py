@@ -4,8 +4,12 @@ import uuid
 import fitz
 from fastapi.testclient import TestClient
 
+from sqlalchemy import delete
 from backend.app.main import app
-from backend.app.database import get_db, init_db, get_iso_now
+from backend.app.db.session import get_session
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import Batch, Exam, Student, SubmissionWindow, User
+from backend.app.scripts.seed_bootstrap import init_test_schema
 from backend.app.services.auth import create_access_token
 
 client = TestClient(app)
@@ -19,7 +23,7 @@ def create_dummy_pdf(title: str = "Test PDF") -> bytes:
     return b
 
 def test_exam_batch_scoping_lifecycle():
-    init_db()
+    init_test_schema()
 
     # 1. Admin login
     admin_login = client.post("/api/v1/auth/login", json={
@@ -78,37 +82,34 @@ def test_exam_batch_scoping_lifecycle():
         user_b_id = f"user_stu_b_{uuid.uuid4().hex[:8]}"
         user_c_id = f"user_stu_c_{uuid.uuid4().hex[:8]}"
     
-        with get_db() as conn:
-            cursor = conn.cursor()
+        with get_session() as session:
             for uid, uname in [(user_a_id, "Student Alpha"), (user_b_id, "Student Beta"), (user_c_id, "Student Gamma")]:
-                cursor.execute("""
-                    INSERT INTO users (id, institute_id, branch_id, full_name, email, password_hash, role, is_active, created_at)
-                    VALUES (?, NULL, ?, ?, ?, 'hash', 'STUDENT', 1, ?)
-                """, (uid, branch_id, uname, f"{uid}@test.edu", now))
-    
+                session.add(User(
+                    id=uid,
+                    institute_id=None,
+                    branch_id=branch_id,
+                    full_name=uname,
+                    email=f"{uid}@test.edu",
+                    password_hash="hash",
+                    role="STUDENT",
+                    is_active=1,
+                    created_at=now,
+                ))
+
             sid_a = f"SIDA_{uuid.uuid4().hex[:6]}"
             sid_b = f"SIDB_{uuid.uuid4().hex[:6]}"
             sid_c = f"SIDC_{uuid.uuid4().hex[:6]}"
             roll_a = f"ROLL_A_{uuid.uuid4().hex[:6]}"
             roll_b = f"ROLL_B_{uuid.uuid4().hex[:6]}"
             roll_c = f"ROLL_C_{uuid.uuid4().hex[:6]}"
-    
+
             # Insert student enrollment records
-            cursor.execute("""
-                INSERT INTO students (id, batch_id, user_id, student_id_num, roll_number, full_name, created_at)
-                VALUES (?, ?, ?, ?, ?, 'Student Alpha', ?)
-            """, (f"st_{uuid.uuid4().hex[:8]}", batch_a_id, user_a_id, sid_a, roll_a, now))
-    
-            cursor.execute("""
-                INSERT INTO students (id, batch_id, user_id, student_id_num, roll_number, full_name, created_at)
-                VALUES (?, ?, ?, ?, ?, 'Student Beta', ?)
-            """, (f"st_{uuid.uuid4().hex[:8]}", batch_b_id, user_b_id, sid_b, roll_b, now))
-    
-            cursor.execute("""
-                INSERT INTO students (id, batch_id, user_id, student_id_num, roll_number, full_name, created_at)
-                VALUES (?, ?, ?, ?, ?, 'Student Gamma', ?)
-            """, (f"st_{uuid.uuid4().hex[:8]}", batch_c_id, user_c_id, sid_c, roll_c, now))
-            conn.commit()
+            session.add_all([
+                Student(id=f"st_{uuid.uuid4().hex[:8]}", batch_id=batch_a_id, user_id=user_a_id, student_id_num=sid_a, roll_number=roll_a, full_name="Student Alpha", created_at=now),
+                Student(id=f"st_{uuid.uuid4().hex[:8]}", batch_id=batch_b_id, user_id=user_b_id, student_id_num=sid_b, roll_number=roll_b, full_name="Student Beta", created_at=now),
+                Student(id=f"st_{uuid.uuid4().hex[:8]}", batch_id=batch_c_id, user_id=user_c_id, student_id_num=sid_c, roll_number=roll_c, full_name="Student Gamma", created_at=now),
+            ])
+            session.commit()
     
         headers_a = {"Authorization": f"Bearer {create_access_token({'sub': user_a_id, 'role': 'STUDENT', 'roll_number': roll_a})}"}
         headers_b = {"Authorization": f"Bearer {create_access_token({'sub': user_b_id, 'role': 'STUDENT', 'roll_number': roll_b})}"}
@@ -224,16 +225,16 @@ def test_exam_batch_scoping_lifecycle():
         assert ex3_in_list["batch_scope"] == "SPECIFIC"
         assert len(ex3_in_list.get("scoped_batches", [])) == 2
     finally:
-        with get_db() as conn:
+        with get_session() as session:
             for ex in [ex1, ex2, ex3]:
                 if ex and isinstance(ex, dict) and ex.get("id"):
-                    conn.execute("DELETE FROM submission_windows WHERE exam_id = ?", (ex["id"],))
-                    conn.execute("DELETE FROM exams WHERE id = ?", (ex["id"],))
+                    session.execute(delete(SubmissionWindow).where(SubmissionWindow.exam_id == ex["id"]))
+                    session.execute(delete(Exam).where(Exam.id == ex["id"]))
             for b_id in [batch_a_id, batch_b_id, batch_c_id]:
                 if b_id:
-                    conn.execute("DELETE FROM students WHERE batch_id = ?", (b_id,))
-                    conn.execute("DELETE FROM batches WHERE id = ?", (b_id,))
+                    session.execute(delete(Student).where(Student.batch_id == b_id))
+                    session.execute(delete(Batch).where(Batch.id == b_id))
             for u_id in [user_a_id, user_b_id, user_c_id]:
                 if u_id:
-                    conn.execute("DELETE FROM users WHERE id = ?", (u_id,))
-            conn.commit()
+                    session.execute(delete(User).where(User.id == u_id))
+            session.commit()

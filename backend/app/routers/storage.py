@@ -214,15 +214,22 @@ async def upload_file_proxy(
                 if ex:
                     verify_staff_exam_scope(current_user, ex.institute_id, ex.branch_id, exam_id=ex.id)
 
-    body = await request.body()
+    chunks = []
+    total_bytes = 0
+    async for chunk in request.stream():
+        if not chunk:
+            continue
+        total_bytes += len(chunk)
+        if total_bytes > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_MB} MB.",
+            )
+        chunks.append(chunk)
+
+    body = b"".join(chunks)
     if not body:
         raise HTTPException(status_code=400, detail="Empty file payload")
-
-    if len(body) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_MB} MB."
-        )
 
     # Validate file magic bytes
     content_type = request.headers.get("content-type", "application/pdf").lower()

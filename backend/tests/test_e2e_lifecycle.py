@@ -4,8 +4,22 @@ import fitz
 import uuid
 from fastapi.testclient import TestClient
 
+from sqlalchemy import delete, update
 from backend.app.main import app
-from backend.app.database import get_db, init_db
+from backend.app.db.session import get_session
+from backend.app.db.models import (
+    Answer,
+    Batch,
+    Branch,
+    Exam,
+    Institute,
+    Notification,
+    RevaluationRequest,
+    Student,
+    Submission,
+    SubmissionWindow,
+    User,
+)
 
 client = TestClient(app)
 
@@ -148,14 +162,13 @@ def test_full_academic_lifecycle():
         
         # 11. Root Admin publishes results
         # Simulate exam evaluation completion in database
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE submissions 
-                SET status = 'GRADED', total_awarded_marks = 42.5, max_marks = 50.0, percentage = 85.0
-                WHERE id = ?
-            """, (sub_id,))
-            conn.commit()
+        with get_session() as session:
+            session.execute(
+                update(Submission)
+                .where(Submission.id == sub_id)
+                .values(status="GRADED", total_awarded_marks=42.5, max_marks=50.0, percentage=85.0)
+            )
+            session.commit()
         
         pub_res = client.post(f"/api/v1/exams/{exam_id}/publish", headers=admin_headers)
         assert pub_res.status_code == 200
@@ -192,23 +205,23 @@ def test_full_academic_lifecycle():
         assert resolve_res.status_code == 200
         assert resolve_res.json()["decision"] == "MARKS_REVISED"
     finally:
-        with get_db() as conn:
+        with get_session() as session:
             if req_id:
-                conn.execute("DELETE FROM revaluation_requests WHERE id = ?", (req_id,))
+                session.execute(delete(RevaluationRequest).where(RevaluationRequest.id == req_id))
             if sub_id:
-                conn.execute("DELETE FROM answers WHERE submission_id = ?", (sub_id,))
-                conn.execute("DELETE FROM submissions WHERE id = ?", (sub_id,))
+                session.execute(delete(Answer).where(Answer.submission_id == sub_id))
+                session.execute(delete(Submission).where(Submission.id == sub_id))
             if exam_id:
-                conn.execute("DELETE FROM submission_windows WHERE exam_id = ?", (exam_id,))
-                conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
+                session.execute(delete(SubmissionWindow).where(SubmissionWindow.exam_id == exam_id))
+                session.execute(delete(Exam).where(Exam.id == exam_id))
             if batch_id:
-                conn.execute("DELETE FROM students WHERE batch_id = ?", (batch_id,))
-                conn.execute("DELETE FROM batches WHERE id = ?", (batch_id,))
+                session.execute(delete(Student).where(Student.batch_id == batch_id))
+                session.execute(delete(Batch).where(Batch.id == batch_id))
             if student_user_id:
-                conn.execute("DELETE FROM notifications WHERE user_id = ?", (student_user_id,))
-                conn.execute("DELETE FROM users WHERE id = ?", (student_user_id,))
-            conn.execute("DELETE FROM users WHERE email = ?", (bm_email,))
+                session.execute(delete(Notification).where(Notification.user_id == student_user_id))
+                session.execute(delete(User).where(User.id == student_user_id))
+            session.execute(delete(User).where(User.email == bm_email))
             if inst_id and inst_id not in ["inst_e1eeda3473c3", "inst_test_institute"]:
-                conn.execute("DELETE FROM branches WHERE institute_id = ?", (inst_id,))
-                conn.execute("DELETE FROM institutes WHERE id = ?", (inst_id,))
-            conn.commit()
+                session.execute(delete(Branch).where(Branch.institute_id == inst_id))
+                session.execute(delete(Institute).where(Institute.id == inst_id))
+            session.commit()

@@ -9,7 +9,6 @@ from typing import Optional, Dict, Any, Tuple, List
 from pathlib import Path
 from google import genai
 from google.genai import types
-from google.genai.errors import APIError
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
@@ -269,7 +268,7 @@ class GeminiGradingClient:
 
     @property
     def is_live(self) -> bool:
-        return len(self._clients) > 0
+        return len(self._clients) > 0 or self._gcp_client is not None
 
     @property
     def active_key_count(self) -> int:
@@ -359,6 +358,8 @@ class GeminiGradingClient:
     ) -> str:
         actual_model = model_name or self.model_name
         masked_key = self.mask_key(api_key) if api_key else "default"
+        gcp_paid_key = getattr(settings, "GCP_PAID_API_KEY", "")
+        is_paid_tier = 1 if (api_key and (api_key.startswith("GCP_PAID") or (gcp_paid_key and api_key == gcp_paid_key))) else 0
         cost = calculate_paid_equivalent_cost(
             input_tokens=input_tokens or 0,
             output_tokens=output_tokens or 0,
@@ -392,7 +393,8 @@ class GeminiGradingClient:
                     retry_attempt=retry_attempt,
                     estimated_cost_usd=cost,
                     pricing_version=settings.PRICING_VERSION,
-                    is_mock=1 if is_mock else 0
+                    is_mock=1 if is_mock else 0,
+                    is_paid_tier=is_paid_tier,
                 )
                 session.add(event)
                 session.commit()
@@ -409,6 +411,237 @@ class GeminiGradingClient:
         print(telemetry_line)
         return event_id
 
+    def _execute_with_failover(
+        self,
+        *,
+        models_to_try: List[str],
+        response_schema: Any,
+        contents: Any,
+        config: types.GenerateContentConfig,
+        request_purpose: str,
+        exam_id: Optional[str],
+        batch_id: Optional[str],
+        submission_id: Optional[str],
+        page_count: Optional[int],
+        file_size_bytes: Optional[int],
+        worker_id: int = 0,
+        backoff_sec: float = 2.0,
+        failover_jitter_max: float = 0.5,
+        include_thinking_tokens: bool = False,
+    ) -> Tuple[Any, str]:
+        """Shared key-rotation, GCP Paid fallback, and model-cascade execution loop."""
+        num_free_keys = len(self._keys)
+        max_free_attempts = max(2, num_free_keys) if num_free_keys > 0 else 0
+        last_error: Optional[Exception] = None
+
+        for model_to_use in models_to_try:
+            exhausted_keys = set()
+            free_exhausted = num_free_keys == 0
+
+            for attempt in range(max_free_attempts):
+                start_time = time.time()
+                try:
+                    active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
+                    if active_key in exhausted_keys:
+                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Key already tried for {model_to_use}")
+                        active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
+                except AllGeminiKeysExhaustedError as cooled_err:
+                    last_error = cooled_err
+                    free_exhausted = True
+                    break
+
+                try:
+                    response = client.models.generate_content(
+                        model=model_to_use,
+                        contents=contents,
+                        config=config,
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    raw_text = response.text or ""
+                    try:
+                        parsed = response_schema.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = response_schema.model_validate_json(repaired)
+                        else:
+                            raise parse_err
+
+                    usage = response.usage_metadata
+                    in_tok = usage.prompt_token_count if usage else None
+                    out_tok = usage.candidates_token_count if usage else None
+                    tot_tok = usage.total_token_count if usage else None
+                    cached_tok = usage.cached_content_token_count if usage else None
+                    thk_tok = None
+                    if include_thinking_tokens and usage:
+                        thk_tok = getattr(usage, "thoughts_token_count", None)
+                        if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
+                            inferred = tot_tok - (in_tok + out_tok)
+                            thk_tok = inferred if inferred > 0 else 0
+
+                    event_id = self._record_usage_event(
+                        exam_id=exam_id,
+                        batch_id=batch_id,
+                        submission_id=submission_id,
+                        request_purpose=request_purpose,
+                        duration_ms=duration_ms,
+                        success=True,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                        total_tokens=tot_tok,
+                        thinking_tokens=thk_tok,
+                        cached_tokens=cached_tok,
+                        page_count=page_count,
+                        file_size_bytes=file_size_bytes,
+                        retry_attempt=attempt,
+                        is_mock=False,
+                        model_name=model_to_use,
+                        api_key=active_key,
+                    )
+                    self.clear_model_cooldown(model_to_use, active_key)
+                    self.rotate_to_next_key(worker_id=worker_id, reason="Round-robin post-success")
+                    return parsed, event_id
+
+                except Exception as e:
+                    last_error = e
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    err_code = type(e).__name__
+                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
+
+                    self._record_usage_event(
+                        exam_id=exam_id,
+                        batch_id=batch_id,
+                        submission_id=submission_id,
+                        request_purpose=request_purpose,
+                        duration_ms=duration_ms,
+                        success=False,
+                        page_count=page_count,
+                        file_size_bytes=file_size_bytes,
+                        http_status=http_status,
+                        error_code=f"{err_code}: {str(e)[:150]}",
+                        retry_attempt=attempt,
+                        is_mock=False,
+                        model_name=model_to_use,
+                        api_key=active_key,
+                    )
+
+                    if is_auth_or_revoked_key_error(e):
+                        self.quarantine_key(active_key, reason=str(e)[:150])
+                        exhausted_keys.add(active_key)
+                        if len(exhausted_keys) >= num_free_keys:
+                            print(f"[GeminiClient] All {num_free_keys} keys exhausted or quarantined.")
+                            free_exhausted = True
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
+                        continue
+
+                    if is_rate_or_quota_error(e):
+                        exhausted_keys.add(active_key)
+                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
+                        if len(exhausted_keys) >= num_free_keys:
+                            print(
+                                f"[GeminiClient] All {num_free_keys} keys hit quota limits for '{model_to_use}'. "
+                                f"Placing '{model_to_use}' on 180s cooldown and falling back."
+                            )
+                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
+                            free_exhausted = True
+                            break
+                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
+                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
+                        time.sleep(failover_delay)
+                        continue
+
+                    if attempt == max_free_attempts - 1:
+                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_free_attempts} attempts: {e}. Trying fallback.")
+                        free_exhausted = True
+                        break
+
+                    sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, failover_jitter_max)
+                    time.sleep(sleep_time)
+
+            # Fallback to GCP Paid Vertex AI client when configured and free pool is unavailable/exhausted
+            if free_exhausted and self._gcp_client is not None:
+                start_time = time.time()
+                try:
+                    response = self._gcp_client.models.generate_content(
+                        model=model_to_use,
+                        contents=contents,
+                        config=config,
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    raw_text = response.text or ""
+                    try:
+                        parsed = response_schema.model_validate_json(raw_text)
+                    except Exception as parse_err:
+                        repaired = self._repair_truncated_json(raw_text)
+                        if repaired:
+                            parsed = response_schema.model_validate_json(repaired)
+                        else:
+                            raise parse_err
+
+                    usage = response.usage_metadata
+                    in_tok = usage.prompt_token_count if usage else None
+                    out_tok = usage.candidates_token_count if usage else None
+                    tot_tok = usage.total_token_count if usage else None
+                    cached_tok = usage.cached_content_token_count if usage else None
+                    thk_tok = None
+                    if include_thinking_tokens and usage:
+                        thk_tok = getattr(usage, "thoughts_token_count", None)
+                        if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
+                            inferred = tot_tok - (in_tok + out_tok)
+                            thk_tok = inferred if inferred > 0 else 0
+
+                    event_id = self._record_usage_event(
+                        exam_id=exam_id,
+                        batch_id=batch_id,
+                        submission_id=submission_id,
+                        request_purpose=request_purpose,
+                        duration_ms=duration_ms,
+                        success=True,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                        total_tokens=tot_tok,
+                        thinking_tokens=thk_tok,
+                        cached_tokens=cached_tok,
+                        page_count=page_count,
+                        file_size_bytes=file_size_bytes,
+                        retry_attempt=max_free_attempts,
+                        is_mock=False,
+                        model_name=model_to_use,
+                        api_key="GCP_PAID",
+                    )
+                    return parsed, event_id
+                except Exception as gcp_err:
+                    last_error = gcp_err
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    err_code = type(gcp_err).__name__
+                    http_status = getattr(gcp_err, "code", 500) if hasattr(gcp_err, "code") else 500
+                    self._record_usage_event(
+                        exam_id=exam_id,
+                        batch_id=batch_id,
+                        submission_id=submission_id,
+                        request_purpose=request_purpose,
+                        duration_ms=duration_ms,
+                        success=False,
+                        page_count=page_count,
+                        file_size_bytes=file_size_bytes,
+                        http_status=http_status,
+                        error_code=f"{err_code}: {str(gcp_err)[:150]}",
+                        retry_attempt=max_free_attempts,
+                        is_mock=False,
+                        model_name=model_to_use,
+                        api_key="GCP_PAID",
+                    )
+
+        if last_error and not is_rate_or_quota_error(last_error) and not isinstance(last_error, AllGeminiKeysExhaustedError):
+            raise last_error
+
+        raise AllGeminiKeysExhaustedError(
+            f"All {num_free_keys} Gemini API keys{' and GCP Paid' if self._gcp_client else ''} have exhausted quota across candidate models {models_to_try}: {last_error}"
+        )
+
     def extract_exam_rubric(
         self,
         exam_id: str = "",
@@ -419,6 +652,7 @@ class GeminiGradingClient:
         question_paper_pdf: Optional[Path] = None,
         answer_key_pdf: Optional[Path] = None,
         subject: Optional[str] = None,
+        worker_id: int = 0,
         **kwargs: Any
     ) -> Tuple[ExamRubricExtractionResult, str]:
         """
@@ -507,120 +741,36 @@ class GeminiGradingClient:
             )
             return mock_result, event_id
 
-        # Live Gemini execution with multi-key failover and model fallback
-        num_keys = max(1, len(self._keys))
-        max_attempts = max(2, num_keys)
-        backoff_sec = 2.0
-        prompt_text = build_rubric_extraction_prompt(extra_notes)
+        # Live Gemini execution with multi-key failover, GCP Paid fallback, and model cascade
+        prompt_text = build_rubric_extraction_prompt(notes)
         models_to_try = self.get_active_models()
-        last_error = None
-
-        for model_to_use in models_to_try:
-            exhausted_keys = set()
-            for attempt in range(max_attempts):
-                start_time = time.time()
-                active_key, client = self.get_current_client(worker_id=0, model_name=model_to_use)
-                if active_key in exhausted_keys:
-                    self.rotate_to_next_key(worker_id=0, reason=f"Key already tried for {model_to_use}")
-                    active_key, client = self.get_current_client(worker_id=0, model_name=model_to_use)
-
-                try:
-                    contents = [
-                        types.Part.from_bytes(data=qp_bytes, mime_type="application/pdf"),
-                        types.Part.from_bytes(data=ak_bytes, mime_type="application/pdf"),
-                        prompt_text
-                    ]
-                    config = types.GenerateContentConfig(
-                        system_instruction=RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION,
-                        response_mime_type="application/json",
-                        response_schema=ExamRubricExtractionResult,
-                        temperature=0.1,
-                        max_output_tokens=65536
-                    )
-                    response = client.models.generate_content(
-                        model=model_to_use,
-                        contents=contents,
-                        config=config
-                    )
-                    duration_ms = int((time.time() - start_time) * 1000)
-
-                    # Validate JSON before recording success
-                    raw_text = response.text or ""
-                    try:
-                        parsed = ExamRubricExtractionResult.model_validate_json(raw_text)
-                    except Exception as parse_err:
-                        repaired = self._repair_truncated_json(raw_text)
-                        if repaired:
-                            parsed = ExamRubricExtractionResult.model_validate_json(repaired)
-                        else:
-                            raise parse_err
-
-                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
-                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
-                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
-
-                    event_id = self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=None,
-                        request_purpose="EXAM_SETUP", duration_ms=duration_ms, success=True,
-                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
-                        cached_tokens=cached_tok, page_count=None, file_size_bytes=file_size,
-                        retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-                    self.clear_model_cooldown(model_to_use, active_key)
-                    self.rotate_to_next_key(worker_id=0, reason="Round-robin post-success")
-                    return parsed, event_id
-
-                except Exception as e:
-                    last_error = e
-                    duration_ms = int((time.time() - start_time) * 1000)
-                    err_code = type(e).__name__
-                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
-
-                    self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=None,
-                        request_purpose="EXAM_SETUP", duration_ms=duration_ms, success=False,
-                        page_count=None, file_size_bytes=file_size, http_status=http_status,
-                        error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-
-                    if is_auth_or_revoked_key_error(e):
-                        self.quarantine_key(active_key, reason=str(e)[:150])
-                        exhausted_keys.add(active_key)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] All {len(self._keys)} keys exhausted or quarantined.")
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
-                        continue
-
-                    if is_rate_or_quota_error(e):
-                        exhausted_keys.add(active_key)
-                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(
-                                f"[GeminiClient] All {len(self._keys)} keys hit quota limits for '{model_to_use}'. "
-                                f"Placing '{model_to_use}' on 180s cooldown and falling back to next candidate model."
-                            )
-                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
-                            break
-                        self.rotate_to_next_key(worker_id=0, reason=f"Rate limit / unavailability: {e}")
-                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
-                        time.sleep(failover_delay)
-                        continue
-
-                    if attempt == max_attempts - 1:
-                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_attempts} attempts: {e}. Trying fallback model.")
-                        break
-
-                    sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)
-                    time.sleep(sleep_time)
-
-        if last_error and not is_rate_or_quota_error(last_error):
-            raise last_error
-
-        raise AllGeminiKeysExhaustedError(
-            f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
+        contents = [
+            types.Part.from_bytes(data=qp_bytes, mime_type="application/pdf"),
+            types.Part.from_bytes(data=ak_bytes, mime_type="application/pdf"),
+            prompt_text,
+        ]
+        config = types.GenerateContentConfig(
+            system_instruction=RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
+            response_schema=ExamRubricExtractionResult,
+            temperature=0.1,
+            max_output_tokens=65536,
+        )
+        return self._execute_with_failover(
+            models_to_try=models_to_try,
+            response_schema=ExamRubricExtractionResult,
+            contents=contents,
+            config=config,
+            request_purpose="EXAM_SETUP",
+            exam_id=exam_id,
+            batch_id=None,
+            submission_id=None,
+            page_count=None,
+            file_size_bytes=file_size,
+            worker_id=worker_id,
+            backoff_sec=2.0,
+            failover_jitter_max=0.5,
+            include_thinking_tokens=False,
         )
 
     @staticmethod
@@ -746,123 +896,34 @@ class GeminiGradingClient:
         # Minified JSON without whitespace tokens to save ~1,000 tokens
         rubric_str = json.dumps(rubric_json, separators=(",", ":"), ensure_ascii=False)
         prompt_text = build_student_grading_prompt(rubric_str)
-
-        num_keys = max(1, len(self._keys))
-        max_attempts = max(2, num_keys)
-        backoff_sec = 2.0
         models_to_try = self.get_active_models()
-        last_error = None
-
-        for model_to_use in models_to_try:
-            exhausted_keys = set()
-            for attempt in range(max_attempts):
-                start_time = time.time()
-                active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
-                if active_key in exhausted_keys:
-                    self.rotate_to_next_key(worker_id=worker_id, reason=f"Key already tried for {model_to_use}")
-                    active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
-                try:
-                    contents = [
-                        types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                        prompt_text
-                    ]
-                    config = types.GenerateContentConfig(
-                        system_instruction=STUDENT_GRADING_SYSTEM_INSTRUCTION,
-                        temperature=0.0,
-                        max_output_tokens=65536,
-                        thinking_config=types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET),
-                        response_mime_type="application/json",
-                        response_schema=StudentGradingExtractionResult,
-                    )
-                    response = client.models.generate_content(
-                        model=model_to_use,
-                        contents=contents,
-                        config=config
-                    )
-                    duration_ms = int((time.time() - start_time) * 1000)
-
-                    # Validate JSON before recording success
-                    raw_text = response.text or ""
-                    try:
-                        parsed = StudentGradingExtractionResult.model_validate_json(raw_text)
-                    except Exception as parse_err:
-                        repaired = self._repair_truncated_json(raw_text)
-                        if repaired:
-                            parsed = StudentGradingExtractionResult.model_validate_json(repaired)
-                        else:
-                            raise parse_err
-
-                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
-                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
-                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
-                    thk_tok = getattr(response.usage_metadata, "thoughts_token_count", None) if response.usage_metadata else None
-                    if thk_tok is None and tot_tok is not None and in_tok is not None and out_tok is not None:
-                        inferred = tot_tok - (in_tok + out_tok)
-                        thk_tok = inferred if inferred > 0 else 0
-
-                    event_id = self._record_usage_event(
-                        exam_id=exam_id, batch_id=batch_id, submission_id=submission_id,
-                        request_purpose="STUDENT_GRADING", duration_ms=duration_ms, success=True,
-                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
-                        thinking_tokens=thk_tok, cached_tokens=cached_tok, page_count=page_count,
-                        file_size_bytes=file_size, retry_attempt=attempt, is_mock=False,
-                        model_name=model_to_use, api_key=active_key
-                    )
-                    self.clear_model_cooldown(model_to_use, active_key)
-                    self.rotate_to_next_key(worker_id=worker_id, reason="Round-robin post-success")
-                    return parsed, event_id
-
-                except Exception as e:
-                    last_error = e
-                    duration_ms = int((time.time() - start_time) * 1000)
-                    err_code = type(e).__name__
-                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
-
-                    self._record_usage_event(
-                        exam_id=exam_id, batch_id=batch_id, submission_id=submission_id,
-                        request_purpose="STUDENT_GRADING", duration_ms=duration_ms, success=False,
-                        page_count=page_count, file_size_bytes=file_size, http_status=http_status,
-                        error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-
-                    if is_auth_or_revoked_key_error(e):
-                        self.quarantine_key(active_key, reason=str(e)[:150])
-                        exhausted_keys.add(active_key)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] All {len(self._keys)} keys exhausted or quarantined.")
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
-                        continue
-
-                    if is_rate_or_quota_error(e):
-                        exhausted_keys.add(active_key)
-                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(
-                                f"[GeminiClient] All {len(self._keys)} keys hit quota limits for '{model_to_use}'. "
-                                f"Placing '{model_to_use}' on 180s cooldown and falling back to next candidate model."
-                            )
-                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
-                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
-                        time.sleep(failover_delay)
-                        continue
-
-                    if attempt == max_attempts - 1:
-                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_attempts} attempts: {e}. Trying fallback model.")
-                        break
-
-                    sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.5)
-                    time.sleep(sleep_time)
-
-        if last_error and not is_rate_or_quota_error(last_error):
-            raise last_error
-
-        raise AllGeminiKeysExhaustedError(
-            f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
+        contents = [
+            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+            prompt_text,
+        ]
+        config = types.GenerateContentConfig(
+            system_instruction=STUDENT_GRADING_SYSTEM_INSTRUCTION,
+            temperature=0.0,
+            max_output_tokens=65536,
+            thinking_config=types.ThinkingConfig(thinking_budget=settings.GEMINI_THINKING_BUDGET),
+            response_mime_type="application/json",
+            response_schema=StudentGradingExtractionResult,
+        )
+        return self._execute_with_failover(
+            models_to_try=models_to_try,
+            response_schema=StudentGradingExtractionResult,
+            contents=contents,
+            config=config,
+            request_purpose="STUDENT_GRADING",
+            exam_id=exam_id,
+            batch_id=batch_id,
+            submission_id=submission_id,
+            page_count=page_count,
+            file_size_bytes=file_size,
+            worker_id=worker_id,
+            backoff_sec=2.0,
+            failover_jitter_max=0.5,
+            include_thinking_tokens=True,
         )
 
     def reevaluate_single_answer(
@@ -889,7 +950,10 @@ class GeminiGradingClient:
         Rotates through the 22-key pool with automatic 429 cooldowns and fallback.
         """
         if not self.is_live:
-            # Fallback mock for offline dev mode
+            is_test = bool(os.environ.get("PYTEST_CURRENT_TEST")) or getattr(settings, "ENVIRONMENT", "").lower() == "test"
+            if not is_test:
+                raise RuntimeError("GeminiGradingClient is offline: no live API keys available in production environment.")
+            # Fallback mock ONLY under test runtime
             mock_crit = []
             total_m = 0.0
             for c in criteria:
@@ -937,115 +1001,32 @@ class GeminiGradingClient:
         active_models = [m for m in candidate_models if self._model_cooldown_until.get(m, 0) <= now]
         models_to_try = active_models if active_models else candidate_models
 
-        num_keys = max(1, len(self._keys))
-        max_attempts = max(2, num_keys)
-        backoff_sec = 1.0
-        last_error = None
-
-        for model_to_use in models_to_try:
-            exhausted_keys = set()
-            for attempt in range(max_attempts):
-                start_time = time.time()
-                active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
-                if active_key in exhausted_keys:
-                    self.rotate_to_next_key(worker_id=worker_id, reason=f"Key already tried for {model_to_use}")
-                    active_key, client = self.get_current_client(worker_id=worker_id, model_name=model_to_use)
-
-                try:
-                    contents = [
-                        types.Part.from_bytes(data=crop_image_bytes, mime_type=crop_mime_type),
-                        prompt_text
-                    ]
-                    config = types.GenerateContentConfig(
-                        system_instruction=SECONDARY_REEVALUATION_SYSTEM_INSTRUCTION,
-                        temperature=0.1,
-                        max_output_tokens=8192,
-                        response_mime_type="application/json",
-                        response_schema=SingleAnswerReevaluationResult,
-                    )
-                    response = client.models.generate_content(
-                        model=model_to_use,
-                        contents=contents,
-                        config=config
-                    )
-                    duration_ms = int((time.time() - start_time) * 1000)
-
-                    raw_text = response.text or ""
-                    try:
-                        parsed = SingleAnswerReevaluationResult.model_validate_json(raw_text)
-                    except Exception as parse_err:
-                        repaired = self._repair_truncated_json(raw_text)
-                        if repaired:
-                            parsed = SingleAnswerReevaluationResult.model_validate_json(repaired)
-                        else:
-                            raise parse_err
-
-                    in_tok = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-                    out_tok = response.usage_metadata.candidates_token_count if response.usage_metadata else None
-                    tot_tok = response.usage_metadata.total_token_count if response.usage_metadata else None
-                    cached_tok = response.usage_metadata.cached_content_token_count if response.usage_metadata else None
-
-                    event_id = self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
-                        request_purpose="SECONDARY_REEVALUATION", duration_ms=duration_ms, success=True,
-                        input_tokens=in_tok, output_tokens=out_tok, total_tokens=tot_tok,
-                        cached_tokens=cached_tok, page_count=1, file_size_bytes=file_size,
-                        retry_attempt=attempt, is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-                    self.clear_model_cooldown(model_to_use, active_key)
-                    self.rotate_to_next_key(worker_id=worker_id, reason="Round-robin post-success")
-                    return parsed, event_id
-
-                except Exception as e:
-                    last_error = e
-                    duration_ms = int((time.time() - start_time) * 1000)
-                    err_code = type(e).__name__
-                    http_status = getattr(e, "code", 500) if hasattr(e, "code") else 500
-
-                    self._record_usage_event(
-                        exam_id=exam_id, batch_id=None, submission_id=submission_id,
-                        request_purpose="SECONDARY_REEVALUATION", duration_ms=duration_ms, success=False,
-                        page_count=1, file_size_bytes=file_size, http_status=http_status,
-                        error_code=f"{err_code}: {str(e)[:150]}", retry_attempt=attempt,
-                        is_mock=False, model_name=model_to_use, api_key=active_key
-                    )
-
-                    if is_auth_or_revoked_key_error(e):
-                        self.quarantine_key(active_key, reason=str(e)[:150])
-                        exhausted_keys.add(active_key)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(f"[GeminiClient] All {len(self._keys)} keys exhausted or quarantined.")
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason="Quarantined revoked/leaked API key")
-                        continue
-
-                    if is_rate_or_quota_error(e):
-                        exhausted_keys.add(active_key)
-                        self.mark_key_exhausted_for_model(active_key, model_to_use, cooldown_seconds=120.0)
-                        if len(exhausted_keys) >= len(self._keys):
-                            print(
-                                f"[GeminiClient] All {len(self._keys)} keys hit quota limits for '{model_to_use}'. "
-                                f"Placing '{model_to_use}' on 180s cooldown and falling back to next candidate model."
-                            )
-                            self.mark_model_cooldown(model_to_use, cooldown_seconds=180.0)
-                            break
-                        self.rotate_to_next_key(worker_id=worker_id, reason=f"Rate limit / unavailability: {e}")
-                        failover_delay = min(10.0, 4.0 + attempt * 0.5) + random.uniform(0.2, 0.8)
-                        time.sleep(failover_delay)
-                        continue
-
-                    if attempt == max_attempts - 1:
-                        print(f"[GeminiClient] Non-quota error on model '{model_to_use}' after {max_attempts} attempts: {e}. Trying fallback model.")
-                        break
-
-                    sleep_time = backoff_sec * (1.5 ** attempt) + random.uniform(0.1, 0.4)
-                    time.sleep(sleep_time)
-
-        if last_error and not is_rate_or_quota_error(last_error):
-            raise last_error
-
-        raise AllGeminiKeysExhaustedError(
-            f"All {len(self._keys)} Gemini API keys have exhausted quota across candidate models {models_to_try}: {last_error}"
+        contents = [
+            types.Part.from_bytes(data=crop_image_bytes, mime_type=crop_mime_type),
+            prompt_text,
+        ]
+        config = types.GenerateContentConfig(
+            system_instruction=SECONDARY_REEVALUATION_SYSTEM_INSTRUCTION,
+            temperature=0.1,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
+            response_schema=SingleAnswerReevaluationResult,
+        )
+        return self._execute_with_failover(
+            models_to_try=models_to_try,
+            response_schema=SingleAnswerReevaluationResult,
+            contents=contents,
+            config=config,
+            request_purpose="SECONDARY_REEVALUATION",
+            exam_id=exam_id,
+            batch_id=None,
+            submission_id=submission_id,
+            page_count=1,
+            file_size_bytes=file_size,
+            worker_id=worker_id,
+            backoff_sec=1.0,
+            failover_jitter_max=0.4,
+            include_thinking_tokens=False,
         )
 
 

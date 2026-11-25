@@ -31,6 +31,9 @@ jobs:
             chown -R papergrade:papergrade /opt/papergrade/app
             echo "📦 Installing updated dependencies..."
             /opt/papergrade/venv/bin/pip install --no-cache-dir -r backend/requirements.txt
+            echo "🗄️ Running database migrations..."
+            cd /opt/papergrade/app/backend && /opt/papergrade/venv/bin/alembic upgrade head
+            cd /opt/papergrade/app
             echo "🔄 Restarting papergrade-backend service..."
             systemctl restart papergrade-backend
             echo "🩺 Verifying backend health (polling up to 60s for DB startup)..."

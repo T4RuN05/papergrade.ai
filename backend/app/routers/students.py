@@ -15,7 +15,6 @@ import threading
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy.orm import Session
 from sqlalchemy import select, or_, func
 
 from backend.app.services.portal_cache import PortalStateEpochManager, register_window_cache_invalidator

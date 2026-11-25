@@ -72,6 +72,8 @@ router = APIRouter(tags=["Exams, Rubrics & Publication"])
 @router.get("")
 def list_exams(
     branch_id: Optional[str] = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -126,7 +128,7 @@ def list_exams(
         else:
             stmt = stmt.where(Exam.branch_id == branch_id)
 
-    stmt = stmt.order_by(Exam.created_at.desc())
+    stmt = stmt.order_by(Exam.created_at.desc()).offset(offset).limit(limit)
     rows = db.execute(stmt).all()
 
     exam_ids = [r[0].id for r in rows]
@@ -176,16 +178,16 @@ def list_exams(
             "academic_year": b_year,
         })
 
-    # Pre-fetch latest approved rubric flag
-    rubric_approved_rows = db.scalars(
-        select(RubricVersion)
+    # Pre-fetch latest approved rubric flag via light column projection (no rubric_data JSON blob)
+    rubric_approved_rows = db.execute(
+        select(RubricVersion.exam_id, RubricVersion.is_approved)
         .where(RubricVersion.exam_id.in_(exam_ids))
         .order_by(RubricVersion.is_approved.desc(), RubricVersion.version_num.desc())
-    ).all()
+    ).all() if exam_ids else []
     rubric_map: Dict[str, bool] = {}
-    for rv in rubric_approved_rows:
-        if rv.exam_id not in rubric_map:
-            rubric_map[rv.exam_id] = bool(rv.is_approved)
+    for rv_exam_id, rv_is_approved in rubric_approved_rows:
+        if rv_exam_id not in rubric_map:
+            rubric_map[rv_exam_id] = bool(rv_is_approved)
 
     exams = []
     for exam, b_name, b_code, b_city, b_inst_id, i_name, i_code in rows:
@@ -262,18 +264,28 @@ def get_exam_evaluation_status(
         if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
             raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
 
-    subs = db.scalars(
-        select(Submission)
-        .where(Submission.exam_id == exam_id, Submission.submission_status == "SUBMITTED")
-        .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
-    ).all()
-
     counts = {"QUEUED": 0, "PROCESSING": 0, "COMPLETED": 0, "NEEDS_REVIEW": 0, "FAILED": 0, "PAUSED_QUOTA": 0}
     submissions_list = []
-    for s in subs:
-        st = s.status or "QUEUED"
-        counts[st] = counts.get(st, 0) + 1
-        if include_submissions:
+    if include_submissions:
+        subs = db.execute(
+            select(
+                Submission.id,
+                Submission.roll_number,
+                Submission.student_name,
+                Submission.status,
+                Submission.total_awarded_marks,
+                Submission.max_marks,
+                Submission.percentage,
+                Submission.error_message,
+                Submission.retry_count,
+                Submission.updated_at,
+            )
+            .where(Submission.exam_id == exam_id, Submission.submission_status == "SUBMITTED")
+            .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
+        ).all()
+        for s in subs:
+            st = s.status or "QUEUED"
+            counts[st] = counts.get(st, 0) + 1
             submissions_list.append({
                 "id": s.id,
                 "roll_number": s.roll_number,
@@ -286,8 +298,19 @@ def get_exam_evaluation_status(
                 "retry_count": s.retry_count,
                 "updated_at": s.updated_at,
             })
+        total = len(subs)
+    else:
+        status_rows = db.execute(
+            select(Submission.status, func.count(Submission.id))
+            .where(Submission.exam_id == exam_id, Submission.submission_status == "SUBMITTED")
+            .group_by(Submission.status)
+        ).all()
+        total = 0
+        for raw_st, cnt in status_rows:
+            st = raw_st or "QUEUED"
+            counts[st] = counts.get(st, 0) + int(cnt or 0)
+            total += int(cnt or 0)
 
-    total = len(subs)
     finished = counts["COMPLETED"] + counts["NEEDS_REVIEW"] + counts["FAILED"]
     active = counts["QUEUED"] + counts["PROCESSING"]
     progress_pct = round((finished / total * 100), 1) if total > 0 else 0.0
@@ -1302,8 +1325,10 @@ def get_exam_artifact_meta(
         }
 
     doc = fitz.open(str(pdf_path))
-    page_count = len(doc)
-    doc.close()
+    try:
+        page_count = len(doc)
+    finally:
+        doc.close()
 
     return {
         "exam_id": exam_id,

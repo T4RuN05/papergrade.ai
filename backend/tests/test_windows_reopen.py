@@ -2,7 +2,8 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
-from backend.app.database import init_db, get_iso_now
+from backend.app.scripts.seed_bootstrap import init_test_schema
+from backend.app.db.base import get_iso_now
 from backend.app.db.session import SessionLocal
 from backend.app.db.models import Exam, SubmissionWindow
 
@@ -17,7 +18,7 @@ def test_reopen_submission_window_via_api():
     3. Old window is closed upon reopening.
     4. Reopening is blocked if evaluation has already started (400).
     """
-    init_db()
+    init_test_schema()
 
     # 1. Admin login to get test tokens and branch
     admin_login = client.post("/api/v1/auth/login", json={

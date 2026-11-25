@@ -1,7 +1,6 @@
 import math
 from typing import Dict, Any, List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import select, update, func, case
+from sqlalchemy import select, func, case, or_
 
 from backend.app.config import settings
 from backend.app.db.session import get_session
@@ -85,6 +84,7 @@ class UsageService:
             event_objs = session.scalars(stmt).all()
 
             # SQL aggregate for GCP Paid Account metrics
+            gcp_filter = or_(ApiUsageEvent.is_paid_tier == 1, ApiUsageEvent.api_key_masked.like("%GCP Paid%"))
             gcp_agg_stmt = select(
                 func.count(ApiUsageEvent.id),
                 func.coalesce(func.sum(case((ApiUsageEvent.success == 1, 1), else_=0)), 0),
@@ -95,7 +95,7 @@ class UsageService:
                 func.coalesce(func.sum(ApiUsageEvent.thinking_tokens), 0),
                 func.coalesce(func.sum(ApiUsageEvent.cached_tokens), 0),
                 func.coalesce(func.avg(ApiUsageEvent.duration_ms), 0.0),
-            ).where(ApiUsageEvent.api_key_masked.like("%GCP Paid%"))
+            ).where(gcp_filter)
             if exam_id:
                 gcp_agg_stmt = gcp_agg_stmt.where(ApiUsageEvent.exam_id == exam_id)
             if batch_id:
@@ -113,6 +113,31 @@ class UsageService:
                 gcp_cache_tokens,
                 gcp_avg_latency,
             ) = gcp_row
+
+            # SQL aggregates for full-dataset averages (not truncated at 500 events)
+            grading_purposes = ("STUDENT_GRADING", "SUBMISSION_GRADING", "STAGE2_BATCH_GRADE", "STAGE1_BLIND_OCR")
+            overall_avg_duration = session.scalar(
+                select(func.coalesce(func.avg(ApiUsageEvent.duration_ms), 0.0)).where(
+                    *([ApiUsageEvent.exam_id == exam_id] if exam_id else []),
+                    *([ApiUsageEvent.batch_id == batch_id] if batch_id else []),
+                )
+            ) or 0.0
+
+            grade_agg_stmt = select(
+                func.count(ApiUsageEvent.id),
+                func.avg(ApiUsageEvent.input_tokens),
+                func.avg(ApiUsageEvent.output_tokens),
+                func.avg(ApiUsageEvent.total_tokens),
+                func.avg(ApiUsageEvent.estimated_cost_usd),
+            ).where(
+                ApiUsageEvent.request_purpose.in_(grading_purposes),
+                ApiUsageEvent.success == 1,
+            )
+            if exam_id:
+                grade_agg_stmt = grade_agg_stmt.where(ApiUsageEvent.exam_id == exam_id)
+            if batch_id:
+                grade_agg_stmt = grade_agg_stmt.where(ApiUsageEvent.batch_id == batch_id)
+            grade_sample_total, sql_avg_in, sql_avg_out, sql_avg_tot, sql_avg_cost = session.execute(grade_agg_stmt).fetchone()
 
         events = [
             {
@@ -139,6 +164,7 @@ class UsageService:
                 "estimated_cost_usd": e.estimated_cost_usd,
                 "pricing_version": e.pricing_version,
                 "is_mock": e.is_mock,
+                "is_paid_tier": getattr(e, "is_paid_tier", 0),
             }
             for e in event_objs
         ]
@@ -155,23 +181,23 @@ class UsageService:
         total_tokens = [e["total_tokens"] for e in grading_events if e["total_tokens"] is not None]
         costs = [e["estimated_cost_usd"] for e in grading_events if e["estimated_cost_usd"] is not None]
 
-        avg_duration = sum(durations) / len(durations) if durations else 0
+        avg_duration = float(overall_avg_duration) if total_requests else 0
         median_duration = UsageService._percentile(durations, 50) if durations else 0
         p95_duration = UsageService._percentile(durations, 95) if durations else 0
 
-        avg_in_tokens = sum(input_tokens) / len(input_tokens) if input_tokens else 2400
+        avg_in_tokens = float(sql_avg_in) if sql_avg_in is not None else (sum(input_tokens) / len(input_tokens) if input_tokens else 2400)
         median_in_tokens = UsageService._percentile(input_tokens, 50) if input_tokens else 2400
         p90_in_tokens = UsageService._percentile(input_tokens, 90) if input_tokens else avg_in_tokens * 1.3
 
-        avg_out_tokens = sum(output_tokens) / len(output_tokens) if output_tokens else 650
+        avg_out_tokens = float(sql_avg_out) if sql_avg_out is not None else (sum(output_tokens) / len(output_tokens) if output_tokens else 650)
         median_out_tokens = UsageService._percentile(output_tokens, 50) if output_tokens else 650
         p90_out_tokens = UsageService._percentile(output_tokens, 90) if output_tokens else avg_out_tokens * 1.3
 
-        avg_tot_tokens = sum(total_tokens) / len(total_tokens) if total_tokens else avg_in_tokens + avg_out_tokens
+        avg_tot_tokens = float(sql_avg_tot) if sql_avg_tot is not None else (sum(total_tokens) / len(total_tokens) if total_tokens else avg_in_tokens + avg_out_tokens)
         median_tot_tokens = UsageService._percentile(total_tokens, 50) if total_tokens else avg_tot_tokens
         p90_tot_tokens = UsageService._percentile(total_tokens, 90) if total_tokens else avg_tot_tokens * 1.3
 
-        avg_cost = sum(costs) / len(costs) if costs else 0.00038
+        avg_cost = float(sql_avg_cost) if sql_avg_cost is not None else (sum(costs) / len(costs) if costs else 0.00038)
         p90_cost = max(avg_cost, UsageService._percentile(costs, 90) if costs else avg_cost * 1.3)
 
         retry_rate = (retry_count / total_requests) * 100 if total_requests > 0 else 0.0
@@ -215,7 +241,10 @@ class UsageService:
         )
 
         # Partition recent events into GCP Paid vs AI Studio Pool for error breakdown and table
-        gcp_paid_events = [e for e in events if e.get("api_key_masked") and "GCP Paid" in e["api_key_masked"]]
+        gcp_paid_events = [
+            e for e in events
+            if bool(e.get("is_paid_tier")) or (e.get("api_key_masked") and "GCP Paid" in e["api_key_masked"])
+        ]
         gcp_paid_fail = [e for e in gcp_paid_events if e["success"] == 0]
 
         err_counts: Dict[str, int] = {}
@@ -260,7 +289,7 @@ class UsageService:
                 "p95_ms": round(p95_duration, 1)
             },
             "per_paper_metrics": {
-                "sample_count": len(grading_events),
+                "sample_count": int(grade_sample_total or len(grading_events)),
                 "avg_input_tokens": round(avg_in_tokens, 1),
                 "median_input_tokens": round(median_in_tokens, 1),
                 "avg_output_tokens": round(avg_out_tokens, 1),

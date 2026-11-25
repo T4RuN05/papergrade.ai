@@ -11,6 +11,7 @@ class User(Base, TimestampMixin):
     __table_args__ = (
         Index("idx_users_email", "email"),
         Index("idx_users_role", "role"),
+        Index("idx_users_branch_inst", "branch_id", "institute_id"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"usr_{uuid.uuid4().hex[:12]}")

@@ -1,7 +1,10 @@
 import uuid
 import pytest
 from pydantic import ValidationError
-from backend.app.database import init_db, get_db, get_iso_now
+from sqlalchemy import delete
+from backend.app.db.session import get_session
+from backend.app.db.base import get_iso_now
+from backend.app.db.models import Answer, AnswerRegion, Exam, Submission
 from backend.app.schemas import (
     StudentGradingExtractionResult,
     GradedAnswerItem,
@@ -21,9 +24,10 @@ def test_grading_invariants_and_backend_total():
     sub_id = str(uuid.uuid4())
     now = get_iso_now()
 
-    with get_db() as conn:
-        conn.execute("INSERT INTO exams (id, title, subject, total_marks, status, created_at, updated_at) VALUES (?, 'Test Exam', 'Math', 10.0, 'RUBRIC_APPROVED', ?, ?)", (exam_id, now, now))
-        conn.execute("INSERT INTO submissions (id, exam_id, student_name, roll_number, original_file_path, canonical_pdf_path, max_marks, status, created_at, updated_at) VALUES (?, ?, 'John Doe', 'R1', 'dummy.pdf', 'dummy.pdf', 10.0, 'PROCESSING', ?, ?)", (sub_id, exam_id, now, now))
+    with get_session() as session:
+        session.add(Exam(id=exam_id, title="Test Exam", subject="Math", total_marks=10.0, status="RUBRIC_APPROVED", created_at=now, updated_at=now))
+        session.add(Submission(id=sub_id, exam_id=exam_id, student_name="John Doe", roll_number="R1", original_file_path="dummy.pdf", canonical_pdf_path="dummy.pdf", max_marks=10.0, status="PROCESSING", created_at=now, updated_at=now))
+        session.commit()
 
     rubric_data = {
         "questions": [
@@ -84,21 +88,24 @@ def test_grading_invariants_and_backend_total():
                 grading_rationale="Negative"
             )
     finally:
-        with get_db() as conn:
-            conn.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (sub_id,))
-            conn.execute("DELETE FROM answers WHERE submission_id = ?", (sub_id,))
-            conn.execute("DELETE FROM submissions WHERE id = ?", (sub_id,))
-            conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
-            conn.commit()
+        with get_session() as session:
+            session.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(
+                session.query(Answer.id).filter(Answer.submission_id == sub_id)
+            )))
+            session.execute(delete(Answer).where(Answer.submission_id == sub_id))
+            session.execute(delete(Submission).where(Submission.id == sub_id))
+            session.execute(delete(Exam).where(Exam.id == exam_id))
+            session.commit()
 
 def test_manual_override_preservation_and_audit():
     exam_id = str(uuid.uuid4())
     sub_id = str(uuid.uuid4())
     now = get_iso_now()
 
-    with get_db() as conn:
-        conn.execute("INSERT INTO exams (id, title, subject, total_marks, status, created_at, updated_at) VALUES (?, 'Test', 'Science', 10.0, 'RUBRIC_APPROVED', ?, ?)", (exam_id, now, now))
-        conn.execute("INSERT INTO submissions (id, exam_id, student_name, roll_number, original_file_path, canonical_pdf_path, max_marks, status, created_at, updated_at) VALUES (?, ?, 'Jane Doe', 'R2', 'dummy.pdf', 'dummy.pdf', 10.0, 'PROCESSING', ?, ?)", (sub_id, exam_id, now, now))
+    with get_session() as session:
+        session.add(Exam(id=exam_id, title="Test", subject="Science", total_marks=10.0, status="RUBRIC_APPROVED", created_at=now, updated_at=now))
+        session.add(Submission(id=sub_id, exam_id=exam_id, student_name="Jane Doe", roll_number="R2", original_file_path="dummy.pdf", canonical_pdf_path="dummy.pdf", max_marks=10.0, status="PROCESSING", created_at=now, updated_at=now))
+        session.commit()
 
     rubric_data = {"questions": [{"question_id": "Q1", "max_marks": 10.0}]}
     try:
@@ -151,12 +158,14 @@ def test_manual_override_preservation_and_audit():
         # Retains 9.0!
         assert q1_ans["awarded_marks"] == 9.0
     finally:
-        with get_db() as conn:
-            conn.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (sub_id,))
-            conn.execute("DELETE FROM answers WHERE submission_id = ?", (sub_id,))
-            conn.execute("DELETE FROM submissions WHERE id = ?", (sub_id,))
-            conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
-            conn.commit()
+        with get_session() as session:
+            session.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(
+                session.query(Answer.id).filter(Answer.submission_id == sub_id)
+            )))
+            session.execute(delete(Answer).where(Answer.submission_id == sub_id))
+            session.execute(delete(Submission).where(Submission.id == sub_id))
+            session.execute(delete(Exam).where(Exam.id == exam_id))
+            session.commit()
 
 def test_section_attempt_limits_and_best_of_n():
     """
@@ -168,9 +177,10 @@ def test_section_attempt_limits_and_best_of_n():
     sub_id = str(uuid.uuid4())
     now = get_iso_now()
 
-    with get_db() as conn:
-        conn.execute("INSERT INTO exams (id, title, subject, total_marks, status, created_at, updated_at) VALUES (?, 'Physics Board Test', 'Physics', 10.0, 'RUBRIC_APPROVED', ?, ?)", (exam_id, now, now))
-        conn.execute("INSERT INTO submissions (id, exam_id, student_name, roll_number, original_file_path, canonical_pdf_path, max_marks, status, created_at, updated_at) VALUES (?, ?, 'Student Extra', 'R10', 'dummy.pdf', 'dummy.pdf', 10.0, 'PROCESSING', ?, ?)", (sub_id, exam_id, now, now))
+    with get_session() as session:
+        session.add(Exam(id=exam_id, title="Physics Board Test", subject="Physics", total_marks=10.0, status="RUBRIC_APPROVED", created_at=now, updated_at=now))
+        session.add(Submission(id=sub_id, exam_id=exam_id, student_name="Student Extra", roll_number="R10", original_file_path="dummy.pdf", canonical_pdf_path="dummy.pdf", max_marks=10.0, status="PROCESSING", created_at=now, updated_at=now))
+        session.commit()
 
     rubric_data = {
         "exam_title": "Physics Board Test",
@@ -240,9 +250,10 @@ def test_delete_region_when_only_region_leaves_valid_page_number(monkeypatch):
     sub_id = str(uuid.uuid4())
     now = get_iso_now()
 
-    with get_db() as conn:
-        conn.execute("INSERT INTO exams (id, title, subject, total_marks, status, created_at, updated_at) VALUES (?, 'Region Delete Test', 'Physics', 5.0, 'RUBRIC_APPROVED', ?, ?)", (exam_id, now, now))
-        conn.execute("INSERT INTO submissions (id, exam_id, student_name, roll_number, original_file_path, canonical_pdf_path, max_marks, status, created_at, updated_at) VALUES (?, ?, 'Student Delete', 'R20', 'dummy.pdf', 'dummy.pdf', 5.0, 'PROCESSING', ?, ?)", (sub_id, exam_id, now, now))
+    with get_session() as session:
+        session.add(Exam(id=exam_id, title="Region Delete Test", subject="Physics", total_marks=5.0, status="RUBRIC_APPROVED", created_at=now, updated_at=now))
+        session.add(Submission(id=sub_id, exam_id=exam_id, student_name="Student Delete", roll_number="R20", original_file_path="dummy.pdf", canonical_pdf_path="dummy.pdf", max_marks=5.0, status="PROCESSING", created_at=now, updated_at=now))
+        session.commit()
 
     rubric_data = {"questions": [{"question_id": "Q1", "max_marks": 5.0}]}
     try:
@@ -274,10 +285,12 @@ def test_delete_region_when_only_region_leaves_valid_page_number(monkeypatch):
         assert len(updated["missing_answers"]) == 1
         assert updated["missing_answers"][0]["id"] == ans["id"]
     finally:
-        with get_db() as conn:
-            conn.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (sub_id,))
-            conn.execute("DELETE FROM answers WHERE submission_id = ?", (sub_id,))
-            conn.execute("DELETE FROM submissions WHERE id = ?", (sub_id,))
-            conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
-            conn.commit()
+        with get_session() as session:
+            session.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(
+                session.query(Answer.id).filter(Answer.submission_id == sub_id)
+            )))
+            session.execute(delete(Answer).where(Answer.submission_id == sub_id))
+            session.execute(delete(Submission).where(Submission.id == sub_id))
+            session.execute(delete(Exam).where(Exam.id == exam_id))
+            session.commit()
 

@@ -66,7 +66,7 @@ const channel = supabase
       const testNotifId = payload.new.id;
       console.log('[*] Cleaning up test notification row from database...');
       try {
-        const cleanupCmd = `python -c "import sys; sys.path.insert(0, 'backend'); from app.db.session import SessionLocal; from sqlalchemy import text; db = SessionLocal(); db.execute(text('DELETE FROM notifications WHERE id = :id'), {'id': '${testNotifId}'}); db.commit(); db.close()"`;
+        const cleanupCmd = `python -c "from backend.app.db.session import SessionLocal; from sqlalchemy import text; db = SessionLocal(); db.execute(text('DELETE FROM notifications WHERE id = :id'), {'id': '${testNotifId}'}); db.commit(); db.close()"`;
         execSync(cleanupCmd);
         console.log('[*] Database row purged. Zero residual test data remains!');
       } catch (err) {
@@ -89,7 +89,7 @@ const channel = supabase
       console.log('[*] Triggering backend send_notification via Python...');
       startTime = Date.now();
       try {
-        const triggerCmd = `python -c "import sys; sys.path.insert(0, 'backend'); from app.services.notification_service import send_notification; from app.db.session import SessionLocal; db = SessionLocal(); send_notification(db, '${targetUserId}', 'SYSTEM_ALERT', 'Realtime Verification Alert', 'Live alert delivered in real time via Supabase WebSocket!', '/student/portal'); db.commit(); db.close()"`;
+        const triggerCmd = `python -c "from backend.app.services.notification_service import send_notification; from backend.app.db.session import SessionLocal; db = SessionLocal(); send_notification(db, '${targetUserId}', 'SYSTEM_ALERT', 'Realtime Verification Alert', 'Live alert delivered in real time via Supabase WebSocket!', '/student/portal'); db.commit(); db.close()"`;
         execSync(triggerCmd);
         console.log('[*] Backend SQL INSERT committed. Awaiting WebSocket push...');
       } catch (err) {

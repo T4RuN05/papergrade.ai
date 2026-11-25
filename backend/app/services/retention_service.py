@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete
 
 from backend.app.config import settings
 from backend.app.db.session import get_session

@@ -10,6 +10,7 @@ class Exam(Base, UpdatedTimestampMixin):
     __tablename__ = "exams"
     __table_args__ = (
         Index("idx_exams_inst", "institute_id"),
+        Index("idx_exams_branch", "branch_id"),
         Index("idx_exams_retention", "is_document_purged", "retention_expires_at"),
     )
 

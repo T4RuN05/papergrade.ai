@@ -12,8 +12,8 @@ from typing import List, Dict, Any
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Base URLs
-DEFAULT_FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://papergrade-ai.vercel.app").rstrip("/")
-DEFAULT_API_URL = os.environ.get("API_BASE_URL", "https://papergrade-ai-al1w.onrender.com").rstrip("/")
+DEFAULT_FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+DEFAULT_API_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 # Target Branch & Batch Scope (TEST INSTITUTE ONLY)
 TARGET_INSTITUTE_CODE = "TEST_INST"

@@ -10,7 +10,6 @@ import urllib.error
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional
-import mimetypes
 import requests
 import requests.adapters
 from fastapi.responses import RedirectResponse

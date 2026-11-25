@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
 from fastapi.responses import FileResponse, Response, RedirectResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, case, or_
+from sqlalchemy import select, func, case
 
 from backend.app.config import settings
 from backend.app.db.session import get_db, get_session

@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, List
-from sqlalchemy import String, Text, Integer, Float, ForeignKey, Index, REAL
+from sqlalchemy import String, Text, Integer, Float, ForeignKey, Index, REAL, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.db.base import Base, TimestampMixin, UpdatedTimestampMixin, get_iso_now
 
@@ -13,6 +13,14 @@ class Submission(Base, UpdatedTimestampMixin):
         Index("idx_submissions_batch", "batch_id"),
         Index("idx_submissions_student", "student_id"),
         Index("idx_submissions_status", "status"),
+        Index("idx_submissions_exam_roll", "exam_id", "roll_number"),
+        Index(
+            "idx_submissions_active_queue",
+            "roll_number",
+            "created_at",
+            postgresql_where=text("status IN ('QUEUED', 'PAUSED_QUOTA')"),
+            sqlite_where=text("status IN ('QUEUED', 'PAUSED_QUOTA')"),
+        ),
         Index("idx_submissions_retention", "is_document_purged", "retention_expires_at"),
     )
 
@@ -129,6 +137,7 @@ class EvaluationQueue(Base, UpdatedTimestampMixin):
     __table_args__ = (
         Index("idx_queue_status", "status"),
         Index("idx_queue_submission", "submission_id"),
+        Index("idx_queue_exam", "exam_id"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"eq_{uuid.uuid4().hex[:12]}")
@@ -148,6 +157,7 @@ class RevaluationRequest(Base):
     __table_args__ = (
         Index("idx_reval_sub", "submission_id"),
         Index("idx_reval_exam", "exam_id"),
+        Index("idx_reval_student", "student_id"),
     )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"reval_{uuid.uuid4().hex[:12]}")

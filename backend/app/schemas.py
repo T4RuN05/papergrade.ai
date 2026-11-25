@@ -115,28 +115,8 @@ class StudentGradingExtractionResult(BaseModel):
 # API Request & Response Schemas
 # ====================================================================
 
-class ExamCreateRequest(BaseModel):
-    title: str
-    subject: str
-
-class ExamResponse(BaseModel):
-    id: str
-    title: str
-    subject: str
-    total_marks: float
-    question_paper_path: Optional[str]
-    answer_key_path: Optional[str]
-    status: str
-    created_at: str
-    updated_at: str
-    rubric: Optional[Dict[str, Any]] = None
-
 class RubricApproveRequest(BaseModel):
     rubric_data: ExamRubricExtractionResult
-
-class BatchCreateRequest(BaseModel):
-    exam_id: str
-    name: str
 
 class SingleAnswerReevaluateRequest(BaseModel):
     teacher_prompt: Optional[str] = Field(default="", description="Teacher guidance or correction instructions")

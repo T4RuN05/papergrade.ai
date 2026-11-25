@@ -9,7 +9,6 @@ from sqlalchemy import select, func, update
 
 from backend.app.config import settings
 from backend.app.db.session import get_db
-from backend.app.db.base import get_iso_now
 from backend.app.db.models import (
     Exam,
     SubmissionWindow,
@@ -19,7 +18,7 @@ from backend.app.db.models import (
 from backend.app.services.auth import (
     get_current_user,
     require_branch_manager,
-    require_root_admin,
+    BoundedTTLCache,
 )
 from backend.app.services.authorization import parse_iso_utc, verify_exam_tenancy
 from backend.app.services.notification_service import (
@@ -28,6 +27,7 @@ from backend.app.services.notification_service import (
 from backend.app.services.portal_cache import PortalStateEpochManager
 
 router = APIRouter(prefix="/api/windows", tags=["Submission Windows & Lifecycles"])
+_window_status_cache = BoundedTTLCache(maxsize=256, ttl=2.0)
 
 
 class OpenWindowRequest(BaseModel):
@@ -148,6 +148,20 @@ def get_window_status(
     Get current submission window status and seconds remaining for an exam.
     Powers the PWA real-time countdown timer.
     """
+    cached = _window_status_cache.get(exam_id)
+    if cached is not None:
+        exam_inst, exam_branch, window_dict = cached
+        if current_user.get("role") == "STUDENT":
+            u_inst = current_user.get("institute_id")
+            u_branch = current_user.get("branch_id")
+            if u_inst and exam_inst and exam_inst != u_inst:
+                raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
+            if u_branch and exam_branch and exam_branch != u_branch:
+                raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+        else:
+            verify_exam_tenancy(exam_id, current_user, db, allow_sample_read=True)
+        return calculate_window_dict(window_dict)
+
     exam = db.scalar(select(Exam).where(Exam.id == exam_id))
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
@@ -168,7 +182,9 @@ def get_window_status(
         .order_by(SubmissionWindow.created_at.desc())
         .limit(1)
     )
-    return calculate_window_dict(_window_to_dict(window) if window else None)
+    window_dict = _window_to_dict(window) if window else None
+    _window_status_cache.set(exam_id, (exam.institute_id, exam.branch_id, window_dict))
+    return calculate_window_dict(window_dict)
 
 
 @router.post("/{exam_id}/open")
@@ -246,6 +262,7 @@ def open_submission_window(
     )
     db.add(audit)
     db.commit()
+    _window_status_cache.invalidate(exam_id)
     PortalStateEpochManager.bump_branch(exam.branch_id)
 
     # Dispatch student & manager notifications asynchronously
@@ -356,6 +373,7 @@ def reopen_submission_window(
     )
     db.add(audit)
     db.commit()
+    _window_status_cache.invalidate(exam_id)
     PortalStateEpochManager.bump_branch(exam.branch_id)
 
     # Dispatch reopen notifications asynchronously
@@ -450,6 +468,7 @@ def extend_submission_window(
     )
     db.add(audit)
     db.commit()
+    _window_status_cache.invalidate(exam_id)
     PortalStateEpochManager.bump_branch(exam.branch_id)
 
     return {
@@ -535,6 +554,7 @@ def close_submission_window(
     )
     db.add(audit)
     db.commit()
+    _window_status_cache.invalidate(exam_id)
     PortalStateEpochManager.bump_branch(exam.branch_id)
 
     # Dispatch close notifications asynchronously

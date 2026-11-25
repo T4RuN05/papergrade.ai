@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import app
 from backend.app.config import settings
-from backend.app.database import init_db
+from backend.app.scripts.seed_bootstrap import init_test_schema
 from backend.app.db.session import get_session
 from backend.app.db.base import get_iso_now
 from backend.app.db.models import Exam, Batch, Branch, Submission, Answer, AnswerRegion
@@ -195,7 +195,7 @@ def test_build_remote_redirect_response_respects_signed_urls(tmp_path):
 
 
 def test_all_endpoints_offload_to_remote_storage_without_proxying(monkeypatch, tmp_path):
-    init_db()
+    init_test_schema()
     client = TestClient(app)
     headers = _admin_headers()
     mock_storage = MockRemoteStorage(signed_urls=False)

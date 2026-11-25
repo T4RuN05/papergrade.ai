@@ -23,12 +23,11 @@ from sqlalchemy import select, func, text, delete
 
 from backend.app.db.session import engine, get_session, is_postgres
 from backend.app.db.base import Base, get_iso_now
-from backend.app.database import get_db, is_postgres as db_is_postgres
 from backend.app.services.auth import (
     BoundedTTLCache,
     hash_password,
     verify_password,
-    is_user_active_in_db,
+    get_user_auth_state,
     _pwd_verify_cache,
 )
 from backend.app.db.models import (
@@ -70,23 +69,16 @@ def test_01_prod_institute_read_only_baseline():
 
 
 def test_02_d06_database_engine_consolidation():
-    """Verify elimination of dual connection pools and test unified connection handling."""
-    # 1. Assert is_postgres consistency
-    assert is_postgres() == db_is_postgres()
+    """Verify legacy database.py module is retired and unified SQLAlchemy session handles concurrent queries."""
+    import importlib
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("backend.app.database")
 
-    # 2. Assert database.py does not define _pg_pool (competing pool eliminated)
-    import backend.app.database as db_mod
-    assert not hasattr(db_mod, "_pg_pool"), "Legacy _pg_pool must be purged from database.py"
-    assert not hasattr(db_mod, "get_pg_pool"), "Legacy get_pg_pool must be purged from database.py"
+    # Test single ORM session manager
+    with get_session() as s:
+        assert s.scalar(text("SELECT 1")) == 1
 
-    # 3. Test get_db() deprecated context manager uses unified engine
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 AS num")
-        row = cursor.fetchone()
-        assert row["num"] == 1 or row[0] == 1
-
-    # 4. Concurrency Test: 8 simultaneous threads using get_session() without pool exhaustion
+    # Concurrency Test: 8 simultaneous threads using get_session() without pool exhaustion
     def _concurrent_query(idx):
         with get_session() as s:
             val = s.scalar(select(func.count(Institute.id)))

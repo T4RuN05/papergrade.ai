@@ -6,7 +6,7 @@ import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 from collections import OrderedDict
-from fastapi import HTTPException, Security, status, Depends
+from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from backend.app.config import settings
@@ -100,10 +100,6 @@ def get_user_auth_state(user_id: str) -> tuple[bool, int]:
     state = (is_active_bool, token_ver)
     _user_auth_cache.set(user_id, state)
     return state
-
-def is_user_active_in_db(user_id: str) -> bool:
-    """Check if user account is active in the database with short-lived bounded TTL cache."""
-    return get_user_auth_state(user_id)[0]
 
 def hash_password(password: str) -> str:
     """Hash plaintext password with bcrypt."""

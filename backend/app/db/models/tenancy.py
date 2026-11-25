@@ -13,7 +13,7 @@ class Institute(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     code: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     subjects: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    is_deleted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_deleted: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0, server_default="0")
     deleted_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default=None)
 
     # Relationships
@@ -25,6 +25,9 @@ class Institute(Base, TimestampMixin):
 class Branch(Base, TimestampMixin):
     """Campus branch under an educational institute."""
     __tablename__ = "branches"
+    __table_args__ = (
+        Index("idx_branches_inst", "institute_id"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"br_{uuid.uuid4().hex[:12]}")
     institute_id: Mapped[str] = mapped_column(Text, ForeignKey("institutes.id", ondelete="CASCADE"), nullable=False)
@@ -63,6 +66,9 @@ class Subject(Base, TimestampMixin):
 class Batch(Base, UpdatedTimestampMixin):
     """Student cohort or test administration batch."""
     __tablename__ = "batches"
+    __table_args__ = (
+        Index("idx_batches_branch", "branch_id"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"batch_{uuid.uuid4().hex[:12]}")
     branch_id: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("branches.id", ondelete="CASCADE"), nullable=True)

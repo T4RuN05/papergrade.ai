@@ -4,10 +4,9 @@ import fitz
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
-from backend.app.database import get_db, init_db
 from backend.app.db.session import get_session
 from backend.app.db.models import Institute, Branch, Batch, Student, User, Exam, Submission, Answer, RevaluationRequest, Notification, PasswordResetRequest
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 
 client = TestClient(app)
 
@@ -192,14 +191,13 @@ def test_role_scoped_notification_lifecycle():
         assert not any(n["type"] == "SUBMISSION_RECEIVED" and roll_a in n["message"] for n in notifs_mgr_south)
     
         # 9. Simulate Grading & Publication
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE submissions 
-                SET status = 'GRADED', total_awarded_marks = 35.0, max_marks = 50.0, percentage = 70.0
-                WHERE id = ?
-            """, (sub_id,))
-            conn.commit()
+        with get_session() as session:
+            session.execute(
+                update(Submission)
+                .where(Submission.id == sub_id)
+                .values(status="GRADED", total_awarded_marks=35.0, max_marks=50.0, percentage=70.0)
+            )
+            session.commit()
     
         pub_res = client.post(f"/api/v1/exams/{exam_id}/publish", headers=admin_headers)
         assert pub_res.status_code == 200

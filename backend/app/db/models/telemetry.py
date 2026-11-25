@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import Text, Integer, ForeignKey, Index, REAL
+from sqlalchemy import Text, Integer, ForeignKey, Index, REAL, desc
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.db.base import Base, TimestampMixin, UpdatedTimestampMixin, get_iso_now
 
@@ -18,7 +18,7 @@ class Notification(Base, TimestampMixin):
     __tablename__ = "notifications"
     __table_args__ = (
         Index("idx_notif_user", "user_id"),
-        Index("idx_notif_user_created", "user_id", "created_at"),
+        Index("idx_notif_user_created", "user_id", desc("created_at")),
         Index("idx_notif_user_unread", "user_id", "is_read"),
     )
 
@@ -139,6 +139,7 @@ class ApiUsageEvent(Base):
     estimated_cost_usd: Mapped[Optional[float]] = mapped_column(REAL, nullable=True)
     pricing_version: Mapped[str] = mapped_column(Text, nullable=False)
     is_mock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_paid_tier: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 class UserQuotaSetting(Base):

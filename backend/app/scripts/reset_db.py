@@ -26,7 +26,7 @@ from backend.app.db.models import (
     ApiUsageEvent,
     Notification,
 )
-from backend.app.database import init_db
+from backend.app.scripts.seed_bootstrap import seed_bootstrap_defaults
 
 logger = logging.getLogger("ResetDB")
 logging.basicConfig(level=logging.INFO)
@@ -91,9 +91,9 @@ def reset_test_database():
 
         session.commit()
 
-    # Re-verify schema tables & default seed
-    init_db()
-    print("  -> Database schema tables and defaults re-verified.")
+    # Re-verify minimal default seed without touching production CATCH 25
+    seed_bootstrap_defaults()
+    print("  -> Bootstrap quota/default seed re-verified.")
 
     # Clean ONLY local render/export artifacts belonging to deleted synthetic exams/submissions
     for ex_id in test_exam_ids:

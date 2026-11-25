@@ -3,9 +3,12 @@ from pathlib import Path
 import fitz
 from fastapi.testclient import TestClient
 
+from sqlalchemy import delete
 from backend.app.main import app
 from backend.app.config import settings
-from backend.app.database import get_db, init_db
+from backend.app.db.session import get_session
+from backend.app.db.models import Exam
+from backend.app.scripts.seed_bootstrap import init_test_schema
 from backend.app.services.auth import create_access_token
 from backend.app.services.retention_service import RetentionService
 
@@ -29,7 +32,7 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
     4. Enrolled students can now view/download Question Paper and Answer Key (200 OK).
     5. After 15 days, retention service purges the exam documents -> endpoints return 410 Gone.
     """
-    init_db()
+    init_test_schema()
 
     # 1. Admin login & token
     admin_login = client.post("/api/v1/auth/login", json={
@@ -69,14 +72,12 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
         ak_pdf = exam_uploads_dir / "answer_key.pdf"
         ak_pdf.write_bytes(ak_bytes)
 
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE exams 
-                SET question_paper_path = ?, answer_key_path = ?
-                WHERE id = ?
-            """, (str(qp_pdf), str(ak_pdf), exam_id))
-            conn.commit()
+        with get_session() as session:
+            exam_row = session.get(Exam, exam_id)
+            if exam_row:
+                exam_row.question_paper_path = str(qp_pdf)
+                exam_row.answer_key_path = str(ak_pdf)
+            session.commit()
 
         # 5. Generate Student Token directly (usr_test prefix matches active test user check)
         stu_token = create_access_token({
@@ -111,13 +112,12 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
         assert pub_res.status_code == 200
 
         # Verify: retention_expires_at is assigned (15 days post-publication)
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT is_published, retention_expires_at, is_document_purged FROM exams WHERE id = ?", (exam_id,))
-            exam_row = cursor.fetchone()
-            assert exam_row["is_published"] == 1
-            assert exam_row["retention_expires_at"] is not None
-            assert exam_row["is_document_purged"] == 0
+        with get_session() as session:
+            exam_row = session.get(Exam, exam_id)
+            assert exam_row is not None
+            assert exam_row.is_published == 1
+            assert exam_row.retention_expires_at is not None
+            assert exam_row.is_document_purged == 0
 
         # 8. Verify: AFTER results publication, student can access Question Paper and Answer Key (200 direct or 307 CDN redirect)
         stu_qp_post = client.get(f"/api/v1/exams/{exam_id}/question-paper", headers=stu_headers, follow_redirects=False)
@@ -150,10 +150,11 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
         # 9. Simulate 16 days passing (retention expired)
         now = datetime.now(timezone.utc)
         past_expiry = (now - timedelta(days=1)).isoformat()
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE exams SET retention_expires_at = ? WHERE id = ?", (past_expiry, exam_id))
-            conn.commit()
+        with get_session() as session:
+            exam_row = session.get(Exam, exam_id)
+            if exam_row:
+                exam_row.retention_expires_at = past_expiry
+            session.commit()
 
         # Trigger automatic background purge scan
         purge_summary = RetentionService.check_and_purge_expired_submissions()
@@ -179,9 +180,9 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
         assert stu_page_purged.status_code == 410
     finally:
         if exam_id:
-            with get_db() as conn:
-                conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
-                conn.commit()
+            with get_session() as session:
+                session.execute(delete(Exam).where(Exam.id == exam_id))
+                session.commit()
             if exam_uploads_dir and exam_uploads_dir.exists():
                 import shutil
                 shutil.rmtree(exam_uploads_dir, ignore_errors=True)

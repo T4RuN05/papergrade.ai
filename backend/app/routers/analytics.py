@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 
 from backend.app.db.session import get_session
 from backend.app.db.base import get_iso_now

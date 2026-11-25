@@ -6,13 +6,13 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Query
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
 import logging
 import threading
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 from sqlalchemy import select, delete, update, func, or_
 
 from backend.app.config import settings
@@ -33,19 +33,16 @@ from backend.app.db.models import (
     AuditLog,
 )
 from backend.app.services.storage import get_storage_service
-from backend.app.services.pdf_service import pdf_service
 from backend.app.services.portal_cache import PortalStateEpochManager
 from backend.app.services.grading_service import grading_service
 from backend.app.services.auth import (
     get_current_user,
-    get_current_user_optional,
     require_root_admin,
     require_branch_manager,
     BoundedTTLCache,
 )
 from backend.app.services.authorization import (
     parse_iso_utc,
-    student_owns_submission,
     verify_exam_tenancy,
     verify_staff_exam_scope,
     verify_submission_tenancy,
@@ -289,11 +286,14 @@ def list_submissions(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
     include_answers: bool = False,
+    limit: int = Query(500, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     stmt = (
         select(Submission, Exam)
+        .options(defer(Submission.stage1_extraction_json))
         .outerjoin(Exam, Submission.exam_id == Exam.id)
         .where(Submission.submission_status == 'SUBMITTED')
     )
@@ -358,7 +358,7 @@ def list_submissions(
         if user_branch:
             stmt = stmt.where(or_(Exam.branch_id == user_branch, Exam.branch_id.is_(None)))
 
-    stmt = stmt.order_by(Submission.roll_number.asc(), Submission.created_at.asc())
+    stmt = stmt.order_by(Submission.roll_number.asc(), Submission.created_at.asc()).offset(offset).limit(limit)
     results = db.execute(stmt).all()
 
     if not results:
@@ -893,8 +893,10 @@ def _do_confirm_presigned_upload(
         file_size = local_path.stat().st_size
         try:
             doc = fitz.open(str(local_path))
-            page_count = len(doc)
-            doc.close()
+            try:
+                page_count = len(doc)
+            finally:
+                doc.close()
         except Exception:
             pass
 
@@ -1037,8 +1039,10 @@ def _process_submission_sync(
     # Validate PDF structure and page count strictly in-memory BEFORE storage or DB writes
     try:
         doc = fitz.open(stream=content, filetype="pdf")
-        page_count = len(doc)
-        doc.close()
+        try:
+            page_count = len(doc)
+        finally:
+            doc.close()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Corrupted or invalid PDF: {str(e)}")
 
@@ -1211,13 +1215,29 @@ async def upload_single_multipart(
             detail="Submissions must be a single canonical PDF. Multi-image captures must be assembled client-side before upload."
         )
 
-    content = await all_files[0].read()
-    file_size = len(content)
-    if file_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB."
-        )
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    upload_file = all_files[0]
+    buf = bytearray()
+    chunk_size = 1024 * 1024
+    try:
+        while True:
+            chunk = await upload_file.read(chunk_size)
+            if not chunk:
+                break
+            if len(buf) + len(chunk) > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File exceeds maximum size of {settings.MAX_UPLOAD_SIZE_MB} MB."
+                )
+            buf.extend(chunk)
+            if len(buf) >= 5 and not buf[:5] == b"%PDF-":
+                raise HTTPException(status_code=400, detail="Invalid PDF file: Missing %PDF- header.")
+    finally:
+        await upload_file.close()
+
+    if not buf:
+        raise HTTPException(status_code=400, detail="Empty PDF file.")
+    content = bytes(buf)
 
     current_sub = current_user.get("sub") if current_user else None
     current_role = current_user.get("role") if current_user else None

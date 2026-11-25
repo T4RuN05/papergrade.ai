@@ -1,11 +1,11 @@
 import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, or_, and_, update, delete
+from sqlalchemy import select, func, or_, update, delete
 
 from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
@@ -29,6 +29,7 @@ from backend.app.services.auth import (
     require_institute_director,
     require_branch_manager,
     invalidate_user_auth_cache,
+    BoundedTTLCache,
 )
 from backend.app.services.notification_service import (
     send_notification,
@@ -37,6 +38,8 @@ from backend.app.services.notification_service import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication & RBAC"])
+_forgot_pwd_rate_cache = BoundedTTLCache(maxsize=2048, ttl=300.0)
+_FORGOT_PWD_MAX_ATTEMPTS = 5
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -52,12 +55,6 @@ class ResetPasswordSubmission(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
-
-
-class LoginRequest(BaseModel):
-    email: Optional[str] = None
-    username: Optional[str] = None
-    password: str
 
 
 class LoginResponse(BaseModel):
@@ -728,7 +725,7 @@ def delete_user(
 # -------------------------------------------------------------
 
 @router.post("/forgot-password/request")
-def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def request_password_reset(req: ForgotPasswordRequest, request: Request = None, db: Session = Depends(get_db)):
     """
     Student requests a password reset from the login screen.
     Finds student record & branch, creates a PENDING request,
@@ -737,6 +734,16 @@ def request_password_reset(req: ForgotPasswordRequest, db: Session = Depends(get
     clean_id = req.identifier.strip()
     if not clean_id:
         raise HTTPException(status_code=400, detail="Roll number, student ID, or email is required.")
+
+    client_ip = request.client.host if (request and request.client) else "unknown"
+    for rl_key in (f"ip:{client_ip}", f"id:{clean_id.upper()}"):
+        hits = (_forgot_pwd_rate_cache.get(rl_key) or 0) + 1
+        _forgot_pwd_rate_cache.set(rl_key, hits)
+        if hits > _FORGOT_PWD_MAX_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many password reset requests. Please wait a few minutes before trying again.",
+            )
 
     # 1. Lookup student
     student_match = db.scalar(

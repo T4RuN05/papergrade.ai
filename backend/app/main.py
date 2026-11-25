@@ -10,7 +10,6 @@ from backend.app.db.session import get_session
 from backend.app.db.models import Batch, Submission, Exam, ApiUsageEvent, Branch, Student
 from backend.app.services.auth import get_current_user
 from sqlalchemy import select, func
-from backend.app.database import init_db
 from backend.app.worker.queue_worker import queue_worker
 from backend.app.services.retention_service import retention_daemon
 from backend.app.routers import (
@@ -31,8 +30,8 @@ from backend.app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure tables exist, start retention daemon and safety heartbeat
-    init_db()
+    # Startup: ensure local directories exist, start worker/retention if needed (schema managed via Alembic)
+    settings.ensure_directories()
     # On startup, only wake queue_worker if there are unfinished evaluation jobs left in DB
     if queue_worker.has_pending_jobs():
         print("[QueueWorker] Unfinished evaluation jobs detected on startup. Waking worker pool...")

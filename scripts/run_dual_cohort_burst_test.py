@@ -670,7 +670,11 @@ def calc_stats(data: List[float]) -> Dict[str, float]:
 
 def main():
     parser = argparse.ArgumentParser(description="Dual-Cohort Concurrency & Human Navigation Benchmark")
-    parser.add_argument("--backend-url", default="http://87.76.191.170", help="Target API Base URL")
+    parser.add_argument(
+        "--backend-url",
+        default=os.environ.get("API_BASE_URL", "http://127.0.0.1:8000"),
+        help="Target API Base URL",
+    )
     parser.add_argument("--nav-duration", type=int, default=75, help="Human navigation test duration in seconds")
     args = parser.parse_args()
 
@@ -697,11 +701,21 @@ def main():
     log("Surgically purging prior submissions and opening fresh CET-2 window...", "PREFLIGHT")
     window_id = purge_and_reopen_exam_for_cet2()
 
-    # Load sample PDFs
-    pdf_files = sorted(list(SAMPLE_PDF_DIR.glob("*.pdf")))
+    # Load sample PDFs (generate synthetic PDF fallback if local sample folder is absent)
+    pdf_files = sorted(list(SAMPLE_PDF_DIR.glob("*.pdf"))) if SAMPLE_PDF_DIR.exists() else []
     if not pdf_files:
-        raise RuntimeError(f"No sample PDF files found in {SAMPLE_PDF_DIR}")
-    log(f"Loaded {len(pdf_files)} authentic multi-page PDFs from {SAMPLE_PDF_DIR}", "PREFLIGHT")
+        fallback_dir = PROJECT_ROOT / "backend" / "data" / "reports" / "synthetic_samples"
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        fallback_pdf = fallback_dir / "sample_script.pdf"
+        if not fallback_pdf.exists():
+            doc = fitz.open()
+            for p_idx in range(3):
+                pg = doc.new_page(width=595, height=842)
+                pg.insert_text((50, 50), f"Synthetic Load Test Answer Page {p_idx + 1}", fontsize=14)
+            doc.save(str(fallback_pdf))
+            doc.close()
+        pdf_files = [fallback_pdf]
+    log(f"Loaded {len(pdf_files)} PDF sample(s) for benchmark run", "PREFLIGHT")
 
     metrics = MetricCollector()
 

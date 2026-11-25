@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
@@ -10,10 +10,11 @@ from backend.app.config import settings
 from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
 from backend.app.db.models import Notification, PushSubscription
-from backend.app.services.auth import get_current_user
+from backend.app.services.auth import get_current_user, BoundedTTLCache
 from backend.app.services.notification_service import dispatch_webpush_for_user
 
 router = APIRouter(prefix="/api/notifications", tags=["In-App Notifications"])
+_test_push_cooldown = BoundedTTLCache(maxsize=500, ttl=15.0)
 
 
 class PushSubscriptionKeys(BaseModel):
@@ -89,7 +90,13 @@ def remove_push_subscription(
     db: Session = Depends(get_db)
 ):
     """Remove a device push subscription upon logout or permission revoke."""
-    db.execute(delete(PushSubscription).where(PushSubscription.endpoint == payload.endpoint))
+    user_id = current_user["sub"]
+    db.execute(
+        delete(PushSubscription).where(
+            PushSubscription.endpoint == payload.endpoint,
+            PushSubscription.user_id == user_id,
+        )
+    )
     db.commit()
     return {"status": "unsubscribed"}
 
@@ -98,6 +105,12 @@ def remove_push_subscription(
 def test_closed_app_push(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Dispatch an actual cloud-gateway WebPush to test delivery to the student's phone."""
     user_id = current_user["sub"]
+    if _test_push_cooldown.get(user_id) is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Please wait a few seconds before sending another test push notification.",
+        )
+    _test_push_cooldown.set(user_id, True)
     dispatch_webpush_for_user(
         user_id,
         "PaperGrade AI Cloud Push",

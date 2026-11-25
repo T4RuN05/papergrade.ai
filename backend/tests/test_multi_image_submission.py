@@ -3,8 +3,10 @@ from PIL import Image
 import fitz
 from fastapi.testclient import TestClient
 
+from sqlalchemy import delete
 from backend.app.main import app
-from backend.app.database import get_db
+from backend.app.db.session import get_session
+from backend.app.db.models import Answer, AnswerRegion, Exam, Submission, SubmissionWindow
 
 client = TestClient(app)
 
@@ -92,13 +94,15 @@ def test_multi_image_submission_assembly():
         assert data["roll_number"] == "SCAN-001"
         sub_id = data.get("submission_id")
     finally:
-        with get_db() as conn:
+        with get_session() as session:
             if sub_id:
-                conn.execute("DELETE FROM answer_regions WHERE answer_id IN (SELECT id FROM answers WHERE submission_id = ?)", (sub_id,))
-                conn.execute("DELETE FROM answers WHERE submission_id = ?", (sub_id,))
-                conn.execute("DELETE FROM submissions WHERE id = ?", (sub_id,))
+                session.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(
+                    session.query(Answer.id).filter(Answer.submission_id == sub_id)
+                )))
+                session.execute(delete(Answer).where(Answer.submission_id == sub_id))
+                session.execute(delete(Submission).where(Submission.id == sub_id))
             if exam_id:
-                conn.execute("DELETE FROM submission_windows WHERE exam_id = ?", (exam_id,))
-                conn.execute("DELETE FROM submissions WHERE exam_id = ?", (exam_id,))
-                conn.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
-            conn.commit()
+                session.execute(delete(SubmissionWindow).where(SubmissionWindow.exam_id == exam_id))
+                session.execute(delete(Submission).where(Submission.exam_id == exam_id))
+                session.execute(delete(Exam).where(Exam.id == exam_id))
+            session.commit()
