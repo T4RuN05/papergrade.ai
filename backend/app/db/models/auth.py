@@ -26,6 +26,12 @@ class User(Base, TimestampMixin):
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     last_login_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Google OAuth 2.0 Identity
+    google_sub: Mapped[Optional[str]] = mapped_column(Text, unique=True, nullable=True, index=True)
+    google_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    google_picture: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    google_linked_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     institute: Mapped[Optional["Institute"]] = relationship("Institute", back_populates="users")
     branch: Mapped[Optional["Branch"]] = relationship("Branch", back_populates="users")
@@ -51,6 +57,10 @@ class PasswordResetRequest(Base, TimestampMixin):
     student_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="PENDING")
     reset_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    otp_code_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    otp_expires_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    otp_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    verification_method: Mapped[str] = mapped_column(Text, nullable=False, default="EMAIL_OTP", server_default="'EMAIL_OTP'")
     approved_by: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     approved_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completed_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

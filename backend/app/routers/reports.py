@@ -5,7 +5,7 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, status, BackgroundTasks
 from fastapi.responses import FileResponse, Response, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, case
@@ -17,6 +17,7 @@ from backend.app.db.models import TechnicalReport, User, Student, Branch
 from backend.app.services.auth import get_current_user, require_root_admin
 from backend.app.services.notification_service import notify_root_admins, send_notification
 from backend.app.services.storage import get_storage_service
+from backend.app.services.email_service import send_admin_issue_email
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +40,13 @@ async def submit_technical_report(
     category: str = Form(...),
     description: str = Form(...),
     screenshots: List[UploadFile] = File([]),
+    background_tasks: BackgroundTasks = None,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Submit a technical issue report with up to 3 screenshots (max 500KB each) and max 1000 characters description.
     Zero-Hold invariant: all file reads and remote storage uploads complete before opening a DB session.
+    Dispatches automated email notification to admin inbox via Brevo and creates in-app notification.
     """
     user_id = current_user.get("sub") or current_user.get("id")
     if not user_id:
@@ -160,12 +163,44 @@ async def submit_technical_report(
             link_url="/admin/reports"
         )
 
+        branch_name = None
+        if branch_id:
+            br_row = db.scalar(select(Branch).where(Branch.id == branch_id))
+            if br_row:
+                branch_name = br_row.name
+
         db.commit()
+
+    # Generate presigned/direct URLs for screenshots to include in admin email
+    screenshot_urls: List[str] = []
+    storage = get_storage_service()
+    for sf in saved_filenames:
+        try:
+            url = storage.get_direct_url(f"reports/{report_id}/{sf}", download=False)
+            if url:
+                screenshot_urls.append(url)
+        except Exception:
+            pass
+
+    # Dispatch email to support@papergradeai.in (forwarded to admin Gmail)
+    background_tasks.add_task(
+        send_admin_issue_email,
+        report_id=report_id,
+        reporter_name=user_name,
+        reporter_role=user_role,
+        reporter_email=user_email or "Not Provided",
+        reporter_roll=user_roll,
+        branch_name=branch_name,
+        category=clean_cat,
+        subject=clean_subj,
+        description=clean_desc,
+        screenshot_urls=screenshot_urls,
+    )
 
     return {
         "success": True,
         "report_id": report_id,
-        "message": "Technical report submitted successfully. System administrators have been notified."
+        "message": "Technical report submitted successfully. System administrators have been notified via email and portal alert."
     }
 
 

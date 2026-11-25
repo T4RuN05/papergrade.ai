@@ -164,7 +164,7 @@ def test_staff_forgot_password_root_admin_approval_lifecycle():
             )
             assert req_res["status"] == "success"
             assert req_res["is_staff"] is True
-            assert req_res["request_status"] == "PENDING"
+            assert req_res["request_status"] in ["PENDING_OTP", "PENDING"]
             request_id = req_res["request_id"]
             session_secret = req_res["session_secret"]
 

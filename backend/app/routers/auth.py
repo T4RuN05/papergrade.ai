@@ -36,6 +36,9 @@ from backend.app.services.notification_service import (
     notify_branch_managers,
     notify_root_admins,
 )
+from backend.app.services.email_service import send_otp_email_sync
+import secrets
+import hashlib
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication & RBAC"])
 _forgot_pwd_rate_cache = BoundedTTLCache(maxsize=2048, ttl=300.0)
@@ -50,6 +53,17 @@ class ResetPasswordSubmission(BaseModel):
     request_id: str
     reset_token: str
     new_password: str
+
+
+class VerifyOtpRequest(BaseModel):
+    request_id: str
+    session_secret: str
+    otp_code: str
+
+
+class EscalateResetRequest(BaseModel):
+    request_id: str
+    session_secret: str
 
 
 class ChangePasswordRequest(BaseModel):
@@ -724,12 +738,29 @@ def delete_user(
 # Student Forgot Password Flow (Branch Manager Approval)
 # -------------------------------------------------------------
 
+def _obfuscate_email(email: Optional[str]) -> str:
+    if not email or "@" not in email:
+        return "your registered email"
+    user_part, domain_part = email.strip().split("@", 1)
+    if len(user_part) <= 2:
+        masked_user = user_part[0] + "***"
+    else:
+        masked_user = user_part[0] + "***" + user_part[-1]
+    return f"{masked_user}@{domain_part}"
+
+
 @router.post("/forgot-password/request")
-def request_password_reset(req: ForgotPasswordRequest, request: Request = None, db: Session = Depends(get_db)):
+def request_password_reset(
+    req: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
     """
-    Student requests a password reset from the login screen.
-    Finds student record & branch, creates a PENDING request,
-    and alerts the assigned Branch Manager for authorization.
+    Student or staff requests a password reset from the login screen.
+    Primary flow: Automated 6-digit OTP delivered via Brevo to linked email.
+    Secondary fallback: If no email is linked or on explicit escalation, requests
+    in-app authorization from Branch Manager / Root Admin.
     """
     clean_id = req.identifier.strip()
     if not clean_id:
@@ -766,6 +797,8 @@ def request_password_reset(req: ForgotPasswordRequest, request: Request = None, 
                 select(Student).where(Student.user_id == user_match.id).order_by(Student.created_at.desc()).limit(1)
             )
 
+    is_staff = False
+    staff_user = None
     if not student_match and not user_match:
         # Check if clean_id matches a staff user (BRANCH_MANAGER, INSTITUTE_DIRECTOR, TEACHER, EVALUATOR, etc.)
         staff_user = db.scalar(
@@ -788,51 +821,160 @@ def request_password_reset(req: ForgotPasswordRequest, request: Request = None, 
                 status_code=400,
                 detail="Root Administrator passwords cannot be reset via delegation. Please consult your server environment administrator."
             )
+        is_staff = True
 
-        # Staff user flow (BRANCH_MANAGER, INSTITUTE_DIRECTOR, TEACHER, EVALUATOR)
-        now = get_iso_now()
-        now_dt = datetime.now(timezone.utc)
-        expires_at = (now_dt + timedelta(minutes=45)).isoformat()
+    now = get_iso_now()
+    now_dt = datetime.now(timezone.utc)
+    expires_at = (now_dt + timedelta(minutes=45)).isoformat()
+    otp_expires_at = (now_dt + timedelta(minutes=10)).isoformat()
 
-        # Check existing active request
-        existing = db.scalar(
-            select(PasswordResetRequest)
-            .where(
-                PasswordResetRequest.user_id == staff_user.id,
-                PasswordResetRequest.status.in_(["PENDING", "APPROVED"]),
-                PasswordResetRequest.expires_at > now,
+    if is_staff and staff_user:
+        target_user_id = staff_user.id
+        target_student_id = None
+        target_branch_id = staff_user.branch_id
+        target_roll = staff_user.role
+        target_name = staff_user.full_name
+        target_email = staff_user.email
+    else:
+        user_id = user_match.id if user_match else (student_match.user_id if student_match else None)
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Your student account has not been claimed yet. Please activate your account first using your roll number."
             )
-            .order_by(PasswordResetRequest.created_at.desc())
-            .limit(1)
+        target_user_id = user_id
+        target_student_id = student_match.id if student_match else None
+        target_roll = student_match.roll_number if student_match else clean_id.upper()
+        target_name = (student_match.full_name if student_match else user_match.full_name) or "Student"
+        target_email = (user_match.email if user_match else student_match.email) or ""
+        target_branch_id = None
+        if student_match and student_match.batch_id:
+            b = db.scalar(select(Batch).where(Batch.id == student_match.batch_id))
+            if b:
+                target_branch_id = b.branch_id
+        if not target_branch_id and user_match:
+            target_branch_id = user_match.branch_id
+
+    # Check for existing PENDING, PENDING_OTP, or APPROVED request within active window
+    existing = db.scalar(
+        select(PasswordResetRequest)
+        .where(
+            PasswordResetRequest.user_id == target_user_id,
+            PasswordResetRequest.status.in_(["PENDING", "PENDING_OTP", "APPROVED"]),
+            PasswordResetRequest.expires_at > now,
         )
-        if existing:
+        .order_by(PasswordResetRequest.created_at.desc())
+        .limit(1)
+    )
+    if existing:
+        if existing.status == "PENDING_OTP" and existing.otp_expires_at and existing.otp_expires_at > now:
+            return {
+                "status": "success",
+                "request_id": existing.id,
+                "session_secret": existing.reset_token,
+                "request_status": "PENDING_OTP",
+                "verification_method": "EMAIL_OTP",
+                "email_hint": _obfuscate_email(existing.student_email),
+                "message": f"A verification code was recently sent to {_obfuscate_email(existing.student_email)}. Please enter it below.",
+                "student_name": target_name,
+                "roll_number": target_roll,
+                "is_staff": is_staff,
+                "can_escalate": True,
+            }
+        elif existing.status in ["PENDING", "APPROVED"]:
+            msg = "A reset request is already active. Please wait for authorization."
             return {
                 "status": "success",
                 "request_id": existing.id,
                 "request_status": existing.status,
-                "message": "A reset request is already active. Please wait for Root Administrator authorization.",
-                "student_name": staff_user.full_name,
-                "roll_number": staff_user.role,
-                "is_staff": True,
+                "verification_method": existing.verification_method or "ADMIN_APPROVAL",
+                "message": msg,
+                "student_name": target_name,
+                "roll_number": target_roll,
+                "is_staff": is_staff,
+                "can_escalate": False,
             }
 
-        session_secret = f"sec_{uuid.uuid4().hex}"
-        req_id = f"pr_{uuid.uuid4().hex[:12]}"
+    session_secret = f"sec_{uuid.uuid4().hex}"
+    req_id = f"pr_{uuid.uuid4().hex[:12]}"
+
+    # Primary branch: Email OTP delivery via Brevo
+    if target_email and "@" in target_email:
+        otp_code = f"{secrets.randbelow(900000) + 100000}"
+        otp_hash = hashlib.sha256(f"{otp_code}:{session_secret}".encode()).hexdigest()
+
         pr = PasswordResetRequest(
             id=req_id,
-            user_id=staff_user.id,
-            student_id=None,
-            branch_id=staff_user.branch_id,
-            roll_number=staff_user.role,
-            student_name=staff_user.full_name,
-            student_email=staff_user.email,
-            status="PENDING",
+            user_id=target_user_id,
+            student_id=target_student_id,
+            branch_id=target_branch_id,
+            roll_number=target_roll,
+            student_name=target_name,
+            student_email=target_email,
+            status="PENDING_OTP",
             reset_token=session_secret,
+            otp_code_hash=otp_hash,
+            otp_expires_at=otp_expires_at,
+            otp_attempts=0,
+            verification_method="EMAIL_OTP",
             expires_at=expires_at,
             created_at=now,
         )
         db.add(pr)
+        db.commit()
 
+        # Dispatch OTP email in background (or sync if background_tasks is None)
+        if background_tasks is not None:
+            background_tasks.add_task(
+                send_otp_email_sync,
+                to_email=target_email,
+                recipient_name=target_name,
+                otp_code=otp_code,
+                expires_in_minutes=10,
+            )
+        else:
+            send_otp_email_sync(
+                to_email=target_email,
+                recipient_name=target_name,
+                otp_code=otp_code,
+                expires_in_minutes=10,
+            )
+
+        return {
+            "status": "success",
+            "request_id": req_id,
+            "session_secret": session_secret,
+            "request_status": "PENDING_OTP",
+            "verification_method": "EMAIL_OTP",
+            "email_hint": _obfuscate_email(target_email),
+            "message": f"A 6-digit verification code has been sent to {_obfuscate_email(target_email)}. Valid for 10 minutes.",
+            "student_name": target_name,
+            "roll_number": target_roll,
+            "is_staff": is_staff,
+            "can_escalate": True,
+        }
+
+    # Fallback branch: No email on file -> Direct Admin Authorization queue
+    pr = PasswordResetRequest(
+        id=req_id,
+        user_id=target_user_id,
+        student_id=target_student_id,
+        branch_id=target_branch_id,
+        roll_number=target_roll,
+        student_name=target_name,
+        student_email=target_email,
+        status="PENDING",
+        reset_token=session_secret,
+        otp_code_hash=None,
+        otp_expires_at=None,
+        otp_attempts=0,
+        verification_method="ADMIN_APPROVAL",
+        expires_at=expires_at,
+        created_at=now,
+    )
+    db.add(pr)
+
+    if is_staff:
         role_display = staff_user.role.replace("_", " ").title()
         notify_root_admins(
             cursor=db,
@@ -841,92 +983,15 @@ def request_password_reset(req: ForgotPasswordRequest, request: Request = None, 
             message=f"{role_display} '{staff_user.full_name}' ({staff_user.email}) has requested a password reset. Review and approve in Tenancy & Access Console.",
             link_url="/admin/tenancy",
         )
-
-        db.commit()
-
-        return {
-            "status": "success",
-            "request_id": req_id,
-            "session_secret": session_secret,
-            "request_status": "PENDING",
-            "message": "Password reset request submitted. Awaiting authorization from Root Administrator.",
-            "student_name": staff_user.full_name,
-            "roll_number": staff_user.role,
-            "is_staff": True,
-        }
-
-    user_id = user_match.id if user_match else (student_match.user_id if student_match else None)
-    if not user_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Your student account has not been claimed yet. Please activate your account first using your roll number."
+    else:
+        notify_branch_managers(
+            cursor=db,
+            branch_id=target_branch_id,
+            notif_type="PASSWORD_RESET_REQUEST",
+            title="Password Reset Request",
+            message=f"Student {target_name} ({target_roll}) has requested a password reset. Review and approve in Branch Management.",
+            link_url="/branch/batches",
         )
-
-    student_id = student_match.id if student_match else None
-    roll_number = student_match.roll_number if student_match else clean_id.upper()
-    student_name = (student_match.full_name if student_match else user_match.full_name) or "Student"
-    student_email = (user_match.email if user_match else student_match.email) or ""
-
-    # Determine branch_id
-    branch_id = None
-    if student_match and student_match.batch_id:
-        b = db.scalar(select(Batch).where(Batch.id == student_match.batch_id))
-        if b:
-            branch_id = b.branch_id
-    if not branch_id and user_match:
-        branch_id = user_match.branch_id
-
-    now = get_iso_now()
-    now_dt = datetime.now(timezone.utc)
-    expires_at = (now_dt + timedelta(minutes=45)).isoformat()
-
-    # Check for existing PENDING or APPROVED request within active window
-    existing = db.scalar(
-        select(PasswordResetRequest)
-        .where(
-            PasswordResetRequest.user_id == user_id,
-            PasswordResetRequest.status.in_(["PENDING", "APPROVED"]),
-            PasswordResetRequest.expires_at > now,
-        )
-        .order_by(PasswordResetRequest.created_at.desc())
-        .limit(1)
-    )
-    if existing:
-        return {
-            "status": "success",
-            "request_id": existing.id,
-            "request_status": existing.status,
-            "message": "A reset request is already active. Please wait for Branch Manager approval.",
-            "student_name": student_name,
-            "roll_number": roll_number,
-        }
-
-    session_secret = f"sec_{uuid.uuid4().hex}"
-    req_id = f"pr_{uuid.uuid4().hex[:12]}"
-    pr = PasswordResetRequest(
-        id=req_id,
-        user_id=user_id,
-        student_id=student_id,
-        branch_id=branch_id,
-        roll_number=roll_number,
-        student_name=student_name,
-        student_email=student_email,
-        status="PENDING",
-        reset_token=session_secret,
-        expires_at=expires_at,
-        created_at=now,
-    )
-    db.add(pr)
-
-    # Notify branch managers for this branch
-    notify_branch_managers(
-        cursor=db,
-        branch_id=branch_id,
-        notif_type="PASSWORD_RESET_REQUEST",
-        title="Password Reset Request",
-        message=f"Student {student_name} ({roll_number}) has requested a password reset. Review and approve in Branch Management.",
-        link_url="/branch/batches",
-    )
 
     db.commit()
 
@@ -935,9 +1000,123 @@ def request_password_reset(req: ForgotPasswordRequest, request: Request = None, 
         "request_id": req_id,
         "session_secret": session_secret,
         "request_status": "PENDING",
-        "message": "Password reset request submitted. Awaiting approval from your Branch Manager.",
-        "student_name": student_name,
-        "roll_number": roll_number,
+        "verification_method": "ADMIN_APPROVAL",
+        "message": "Password reset request submitted. Awaiting administrator authorization.",
+        "student_name": target_name,
+        "roll_number": target_roll,
+        "is_staff": is_staff,
+        "can_escalate": False,
+    }
+
+
+@router.post("/forgot-password/verify-otp")
+def verify_password_reset_otp(req: VerifyOtpRequest, db: Session = Depends(get_db)):
+    """
+    User verifies the 6-digit OTP delivered to their email.
+    If valid, transitions request to APPROVED and issues the one-time reset_token.
+    """
+    clean_code = req.otp_code.strip()
+    if not clean_code or len(clean_code) != 6 or not clean_code.isdigit():
+        raise HTTPException(status_code=400, detail="Please provide a valid 6-digit numeric verification code.")
+
+    pr = db.scalar(select(PasswordResetRequest).where(PasswordResetRequest.id == req.request_id))
+    if not pr:
+        raise HTTPException(status_code=404, detail="Password reset request not found.")
+
+    if pr.status != "PENDING_OTP":
+        if pr.status == "APPROVED":
+            stored = pr.reset_token or ""
+            actual_token = stored.split(":", 1)[1] if ":" in stored else stored
+            return {
+                "status": "success",
+                "reset_token": actual_token,
+                "message": "Verification code already validated. Please enter your new password.",
+            }
+        raise HTTPException(status_code=400, detail=f"Request is not awaiting code verification (Current status: {pr.status}).")
+
+    now = get_iso_now()
+    if pr.otp_expires_at and now > pr.otp_expires_at:
+        pr.status = "EXPIRED"
+        db.commit()
+        raise HTTPException(status_code=400, detail="Verification code has expired. Please request a new code.")
+
+    if (pr.otp_attempts or 0) >= 5:
+        pr.status = "EXPIRED"
+        db.commit()
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Please request a new verification code.")
+
+    expected_hash = hashlib.sha256(f"{clean_code}:{req.session_secret}".encode()).hexdigest()
+    if not pr.otp_code_hash or pr.otp_code_hash != expected_hash:
+        pr.otp_attempts = (pr.otp_attempts or 0) + 1
+        db.commit()
+        remaining = max(0, 5 - pr.otp_attempts)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid verification code. {remaining} attempt(s) remaining.",
+        )
+
+    # Success: transition to APPROVED and issue reset_token
+    actual_token = f"rst_{uuid.uuid4().hex}"
+    pr.status = "APPROVED"
+    pr.reset_token = f"{req.session_secret}:{actual_token}"
+    pr.approved_at = now
+    db.commit()
+
+    return {
+        "status": "success",
+        "reset_token": actual_token,
+        "message": "Verification code accepted. Please set your new password.",
+    }
+
+
+@router.post("/forgot-password/escalate")
+def escalate_password_reset_to_admin(req: EscalateResetRequest, db: Session = Depends(get_db)):
+    """
+    Fallback option: Student or staff unable to receive email clicks
+    'Request Admin Approval' to route to Branch Manager / Root Admin queue.
+    """
+    pr = db.scalar(select(PasswordResetRequest).where(PasswordResetRequest.id == req.request_id))
+    if not pr:
+        raise HTTPException(status_code=404, detail="Password reset request not found.")
+
+    if pr.status != "PENDING_OTP":
+        return {
+            "status": "success",
+            "request_status": pr.status,
+            "message": f"Request is currently {pr.status}.",
+        }
+
+    now = get_iso_now()
+    pr.status = "PENDING"
+    pr.verification_method = "ADMIN_APPROVAL"
+    pr.updated_at = now
+
+    is_staff = (pr.student_id is None)
+    if is_staff:
+        notify_root_admins(
+            cursor=db,
+            notif_type="PASSWORD_RESET_REQUEST",
+            title="Staff Password Reset (Escalated)",
+            message=f"Staff '{pr.student_name}' has requested manual password reset authorization (email fallback).",
+            link_url="/admin/tenancy",
+        )
+    else:
+        notify_branch_managers(
+            cursor=db,
+            branch_id=pr.branch_id,
+            notif_type="PASSWORD_RESET_REQUEST",
+            title="Student Password Reset (Escalated)",
+            message=f"Student {pr.student_name} ({pr.roll_number}) requested manual authorization (email fallback).",
+            link_url="/branch/batches",
+        )
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "request_status": "PENDING",
+        "verification_method": "ADMIN_APPROVAL",
+        "message": "Request escalated. Awaiting approval from your administrator.",
     }
 
 
@@ -960,12 +1139,15 @@ def get_password_reset_status(
     expires_dt = datetime.fromisoformat(req.expires_at.replace("Z", "+00:00"))
 
     current_status = req.status
-    if current_status in ["PENDING", "APPROVED"] and now_dt > expires_dt:
+    if current_status in ["PENDING", "PENDING_OTP", "APPROVED"] and now_dt > expires_dt:
         current_status = "EXPIRED"
 
     resp = {
         "request_id": req.id,
         "status": current_status,
+        "verification_method": req.verification_method or ("EMAIL_OTP" if current_status == "PENDING_OTP" else "ADMIN_APPROVAL"),
+        "can_escalate": (current_status == "PENDING_OTP"),
+        "email_hint": _obfuscate_email(req.student_email) if req.student_email else None,
         "student_name": req.student_name,
         "roll_number": req.roll_number,
         "is_staff": (req.student_id is None),
@@ -1159,7 +1341,7 @@ def approve_password_reset(
     if not req:
         raise HTTPException(status_code=404, detail="Password reset request not found.")
 
-    if req.status != "PENDING":
+    if req.status not in ["PENDING", "PENDING_OTP"]:
         raise HTTPException(status_code=400, detail=f"Request is already {req.status}.")
 
     is_staff = (req.student_id is None)
@@ -1224,7 +1406,7 @@ def reject_password_reset(
     if not req:
         raise HTTPException(status_code=404, detail="Password reset request not found.")
 
-    if req.status != "PENDING":
+    if req.status not in ["PENDING", "PENDING_OTP"]:
         raise HTTPException(status_code=400, detail=f"Request is already {req.status}.")
 
     is_staff = (req.student_id is None)

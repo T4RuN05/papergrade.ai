@@ -107,6 +107,18 @@ class Settings:
     VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "").strip("\"' ")
     VAPID_CLAIMS_EMAIL: str = os.getenv("VAPID_CLAIMS_EMAIL", "mailto:notifications@papergrade.ai").strip("\"' ")
 
+    # Brevo Transactional Email Gateway (300/day Free Quota)
+    BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "").strip()
+    EMAIL_FROM_ADDRESS: str = os.getenv("EMAIL_FROM_ADDRESS", "noreply@papergradeai.in").strip()
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Papergrade AI").strip()
+    ADMIN_NOTIFICATION_EMAIL: str = os.getenv("ADMIN_NOTIFICATION_EMAIL", "support@papergradeai.in").strip()
+
+    # Google OAuth 2.0 & Drive BYOS (Bring Your Own Storage)
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "https://api.papergradeai.in/api/oauth/google/callback").strip()
+    GOOGLE_STORAGE_ENCRYPTION_KEY: str = os.getenv("GOOGLE_STORAGE_ENCRYPTION_KEY", "papergrade-byos-default-vault-key-2026").strip()
+
     # Submission & Evaluation Lifecycle Constraints
     WINDOW_DURATION_MINUTES: int = int(os.getenv("WINDOW_DURATION_MINUTES", "30"))
     GRACE_PERIOD_MINUTES: int = int(os.getenv("GRACE_PERIOD_MINUTES", "2"))

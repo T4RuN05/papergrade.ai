@@ -1,0 +1,344 @@
+import os
+import json
+import hmac
+import hashlib
+import base64
+import logging
+from typing import Dict, Any, Optional
+from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, HTTPException, Depends, Request, Query, status
+from fastapi.responses import RedirectResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import select, func, or_
+
+from backend.app.config import settings
+from backend.app.db.session import get_db
+from backend.app.db.base import get_iso_now
+from backend.app.db.models.auth import User
+from backend.app.db.models.tenancy import Student
+from backend.app.db.models.byos import GoogleStorageConnection
+from backend.app.services.auth import (
+    get_current_user,
+    create_access_token,
+    invalidate_user_auth_cache,
+)
+from backend.app.services.google_drive_service import (
+    get_google_auth_url,
+    exchange_code_for_tokens,
+    get_google_user_info,
+    encrypt_token,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/oauth/google", tags=["Google OAuth & BYOS"])
+
+
+def _generate_oauth_state(mode: str, user_id: Optional[str] = None) -> str:
+    """Generate a tamper-proof state payload signed with HMAC-SHA256."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    payload = {
+        "mode": mode,  # "login" or "byos"
+        "uid": user_id or "",
+        "ts": now,
+    }
+    raw_json = json.dumps(payload, separators=(",", ":"))
+    sig = hmac.new(
+        settings.JWT_SECRET.encode("utf-8"),
+        raw_json.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()[:16]
+    state_str = f"{raw_json}|{sig}"
+    return base64.urlsafe_b64encode(state_str.encode("utf-8")).decode("utf-8")
+
+
+def _verify_oauth_state(state_encoded: str) -> Dict[str, Any]:
+    """Verify and parse the signed OAuth state."""
+    try:
+        raw_bytes = base64.urlsafe_b64decode(state_encoded.encode("utf-8"))
+        state_str = raw_bytes.decode("utf-8")
+        raw_json, sig = state_str.rsplit("|", 1)
+        expected_sig = hmac.new(
+            settings.JWT_SECRET.encode("utf-8"),
+            raw_json.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()[:16]
+        if not hmac.compare_digest(sig, expected_sig):
+            raise ValueError("Invalid state signature")
+
+        payload = json.loads(raw_json)
+        now = int(datetime.now(timezone.utc).timestamp())
+        if now - payload.get("ts", 0) > 900:  # 15 minutes TTL
+            raise ValueError("OAuth state expired")
+        return payload
+    except Exception as e:
+        logger.warning(f"OAuth state verification failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth authorization state. Please try again."
+        )
+
+
+@router.get("/authorize")
+def authorize_google(
+    mode: str = Query("login", pattern="^(login|byos)$"),
+    user_token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Initiates Google OAuth 2.0 flow.
+    - mode='login': For 1-click Google Sign-In.
+    - mode='byos': For connecting Google Drive to an existing student/staff account.
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured on this server. Missing GOOGLE_CLIENT_ID.",
+        )
+
+    uid = None
+    if mode == "byos":
+        if not user_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication token required to connect Google Drive (BYOS).",
+            )
+        try:
+            from backend.app.services.auth import decode_access_token
+            payload = decode_access_token(user_token)
+            uid = payload.get("sub")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session token for Google Drive connection.",
+            )
+
+    state = _generate_oauth_state(mode=mode, user_id=uid)
+    auth_url = get_google_auth_url(state=state)
+    return {"status": "success", "authorization_url": auth_url}
+
+
+@router.get("/callback")
+async def google_oauth_callback(
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Receives authorization code from Google OAuth 2.0 consent screen,
+    exchanges code for tokens, and routes according to mode ('login' or 'byos').
+    """
+    frontend_base = settings.FRONTEND_URL.rstrip("/")
+
+    if error:
+        logger.warning(f"Google OAuth consent denied or error: {error}")
+        return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error={error}")
+
+    if not code or not state:
+        return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=missing_parameters")
+
+    state_data = _verify_oauth_state(state)
+    mode = state_data.get("mode", "login")
+    user_id = state_data.get("uid")
+
+    try:
+        # 1. Exchange code for tokens
+        token_data = await exchange_code_for_tokens(code)
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+
+        # 2. Get user profile
+        user_info = await get_google_user_info(access_token)
+        google_sub = user_info.get("sub")
+        google_email = (user_info.get("email") or "").strip().lower()
+        google_picture = user_info.get("picture")
+
+        if not google_sub or not google_email:
+            return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=profile_retrieval_failed")
+
+        now = get_iso_now()
+
+        # 3a. Mode: BYOS (Connect Drive for existing user)
+        if mode == "byos":
+            if not user_id:
+                return RedirectResponse(url=f"{frontend_base}/student/portal?byos_error=missing_user")
+
+            user = db.scalar(select(User).where(User.id == user_id))
+            if not user:
+                return RedirectResponse(url=f"{frontend_base}/student/portal?byos_error=user_not_found")
+
+            # Link Google sub & email to User
+            user.google_sub = google_sub
+            user.google_email = google_email
+            user.google_picture = google_picture
+            user.google_linked_at = now
+            user.updated_at = now
+
+            # Save / update GoogleStorageConnection
+            if refresh_token:
+                enc_token = encrypt_token(refresh_token)
+                conn = db.scalar(select(GoogleStorageConnection).where(GoogleStorageConnection.user_id == user.id))
+                if not conn:
+                    conn = GoogleStorageConnection(
+                        id=f"gconn_{google_sub[:12]}",
+                        user_id=user.id,
+                        google_sub=google_sub,
+                        google_email=google_email,
+                        encrypted_refresh_token=enc_token,
+                        is_active=1,
+                        created_at=now,
+                    )
+                    db.add(conn)
+                else:
+                    conn.google_sub = google_sub
+                    conn.google_email = google_email
+                    conn.encrypted_refresh_token = enc_token
+                    conn.is_active = 1
+                    conn.error_state = None
+                    conn.updated_at = now
+
+            db.commit()
+            invalidate_user_auth_cache(user.id)
+
+            redirect_target = "/student/portal" if user.role == "STUDENT" else "/overview"
+            return RedirectResponse(url=f"{frontend_base}{redirect_target}?byos=connected")
+
+        # 3b. Mode: Login (1-Click Google Sign-In)
+        # Search by google_sub or institutional email
+        user = db.scalar(
+            select(User).where(
+                or_(
+                    User.google_sub == google_sub,
+                    func.lower(User.email) == google_email,
+                )
+            ).limit(1)
+        )
+
+        if not user:
+            # Check if matching student exists by email to link account
+            student = db.scalar(
+                select(Student).where(func.lower(Student.email) == google_email).limit(1)
+            )
+            if student and student.user_id:
+                user = db.scalar(select(User).where(User.id == student.user_id))
+
+        if not user:
+            # User not found in system
+            return RedirectResponse(
+                url=f"{frontend_base}/auth/login?oauth_error=unregistered_email&email={google_email}"
+            )
+
+        if user.is_active != 1:
+            return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=account_deactivated")
+
+        # Automatically link Google identity if not linked yet
+        if not user.google_sub or user.google_sub != google_sub:
+            user.google_sub = google_sub
+            user.google_email = google_email
+            user.google_picture = google_picture
+            user.google_linked_at = now
+            user.updated_at = now
+
+        # Update storage connection if refresh_token was returned
+        if refresh_token:
+            enc_token = encrypt_token(refresh_token)
+            conn = db.scalar(select(GoogleStorageConnection).where(GoogleStorageConnection.user_id == user.id))
+            if not conn:
+                conn = GoogleStorageConnection(
+                    id=f"gconn_{google_sub[:12]}",
+                    user_id=user.id,
+                    google_sub=google_sub,
+                    google_email=google_email,
+                    encrypted_refresh_token=enc_token,
+                    is_active=1,
+                    created_at=now,
+                )
+                db.add(conn)
+            else:
+                conn.google_sub = google_sub
+                conn.google_email = google_email
+                conn.encrypted_refresh_token = enc_token
+                conn.is_active = 1
+                conn.error_state = None
+                conn.updated_at = now
+
+        user.last_login_at = now
+        db.commit()
+        invalidate_user_auth_cache(user.id)
+
+        # Issue 7-Day JWT Token
+        token_payload = {
+            "sub": user.id,
+            "role": user.role,
+            "email": user.email,
+            "full_name": user.full_name,
+            "institute_id": user.institute_id,
+            "branch_id": user.branch_id,
+            "token_version": getattr(user, "token_version", 1) or 1,
+        }
+        token = create_access_token(token_payload)
+
+        # Redirect user directly to landing view with token in query params
+        return RedirectResponse(
+            url=f"{frontend_base}/auth/login?oauth_token={token}&role={user.role}&name={user.full_name}"
+        )
+
+    except Exception as e:
+        logger.error(f"Google OAuth processing error: {e}", exc_info=True)
+        return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=processing_error")
+
+
+@router.get("/status")
+def get_google_connection_status(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns current user's Google Drive BYOS connection status."""
+    uid = current_user.get("sub")
+    user = db.scalar(select(User).where(User.id == uid))
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    conn = db.scalar(
+        select(GoogleStorageConnection).where(
+            GoogleStorageConnection.user_id == uid,
+            GoogleStorageConnection.is_active == 1,
+        )
+    )
+
+    return {
+        "is_connected": conn is not None,
+        "google_email": conn.google_email if conn else user.google_email,
+        "google_picture": user.google_picture,
+        "last_sync_at": conn.last_sync_at if conn else None,
+        "error_state": conn.error_state if conn else None,
+    }
+
+
+@router.post("/disconnect")
+def disconnect_google_connection(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Disconnects user Google Drive storage and deactivates automatic BYOS syncing."""
+    uid = current_user.get("sub")
+    conn = db.scalar(
+        select(GoogleStorageConnection).where(GoogleStorageConnection.user_id == uid)
+    )
+    if conn:
+        conn.is_active = 0
+        conn.updated_at = get_iso_now()
+
+    user = db.scalar(select(User).where(User.id == uid))
+    if user:
+        user.google_linked_at = None
+        user.updated_at = get_iso_now()
+
+    db.commit()
+    invalidate_user_auth_cache(uid)
+
+    return {
+        "status": "success",
+        "message": "Google Drive storage connection removed successfully.",
+    }

@@ -22,7 +22,7 @@ import { useToast, queueToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { startNavigationProgress } from "@/components/NavigationProgressBar";
 
-type AuthViewMode = "LOGIN" | "FORGOT_REQUEST" | "AWAITING_APPROVAL" | "RESET_PASSWORD";
+type AuthViewMode = "LOGIN" | "FORGOT_REQUEST" | "VERIFY_OTP" | "AWAITING_APPROVAL" | "RESET_PASSWORD";
 type AuthRole = "STUDENT" | "STAFF" | "CLAIM";
 
 function LoginForm() {
@@ -61,6 +61,13 @@ function LoginForm() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
+  // Email-First OTP states
+  const [otpCode, setOtpCode] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [emailHint, setEmailHint] = useState<string | null>(null);
+  const [canEscalate, setCanEscalate] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+
   // Sync role from URL query parameters (?role=staff, ?role=student, ?role=claim, ?portal=admin, ?portal=branch)
   useEffect(() => {
     const roleParam = searchParams.get("role")?.toLowerCase();
@@ -91,6 +98,30 @@ function LoginForm() {
 
   // Check if user is already authenticated or launched in standalone PWA
   useEffect(() => {
+    // 1. Check for incoming Google OAuth redirect token or error
+    const oauthToken = searchParams.get("oauth_token");
+    if (oauthToken) {
+      localStorage.setItem("token", oauthToken);
+      const roleParam = searchParams.get("role") || "STUDENT";
+      const nameParam = searchParams.get("name") || "User";
+      localStorage.setItem("user", JSON.stringify({ role: roleParam, full_name: nameParam }));
+      let dest = "/overview";
+      if (roleParam === "STUDENT") dest = "/student/portal";
+      else if (roleParam === "BRANCH_MANAGER" || roleParam === "INSTITUTE_DIRECTOR") dest = "/branch/batches";
+      window.location.replace(dest);
+      return;
+    }
+
+    const oauthError = searchParams.get("oauth_error");
+    if (oauthError) {
+      if (oauthError === "unregistered_email") {
+        const em = searchParams.get("email");
+        setError(`No account found matching ${em || "your Google email"}. Please activate your account first using your roll number.`);
+      } else {
+        setError("Google authentication could not be completed. Please try again or sign in with your credentials.");
+      }
+    }
+
     const isSwitchMode = searchParams.get("switch") === "true" || searchParams.get("mode") === "switch";
     if (isSwitchMode) {
       api.logout();
@@ -203,6 +234,20 @@ function LoginForm() {
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === "accepted") {
       setDeferredPrompt(null);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true);
+      setError(null);
+      const res = await api.getGoogleAuthUrl("login");
+      if (res?.authorization_url) {
+        window.location.href = res.authorization_url;
+      }
+    } catch (err: any) {
+      setError(err?.message || "Failed to initiate Google Sign-In. Please check your network connection.");
+      setGoogleLoading(false);
     }
   };
 
@@ -362,9 +407,16 @@ function LoginForm() {
     }
   };
 
-  // Student initiates password reset request
-  const handleRequestReset = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Cooldown timer for OTP resend
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setInterval(() => setOtpCooldown((prev) => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
+
+  // Student or staff initiates password reset request
+  const handleRequestReset = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!forgotIdentifier.trim()) {
       setForgotError("Please enter your roll number, student ID, or registered email.");
       return;
@@ -378,6 +430,8 @@ function LoginForm() {
       setActiveRequestId(res.request_id);
       setSessionSecret(res.session_secret || null);
       setStudentInfo({ name: res.student_name, roll: res.roll_number });
+      setEmailHint(res.email_hint || null);
+      setCanEscalate(Boolean(res.can_escalate));
 
       if (res.request_status === "APPROVED") {
         const statusResp = await api.getPasswordResetStatus(res.request_id, res.session_secret);
@@ -391,6 +445,16 @@ function LoginForm() {
         }
       }
 
+      if (res.request_status === "PENDING_OTP") {
+        setViewMode("VERIFY_OTP");
+        setOtpCooldown(60);
+        toast.success(res.message || "A 6-digit verification code has been sent to your email.", {
+          title: "Verification Code Sent",
+          duration: 5000,
+        });
+        return;
+      }
+
       setViewMode("AWAITING_APPROVAL");
       const approverTarget = res.is_staff || loginRole === "STAFF" ? "Root Administrator" : "your Branch Manager";
       toast.info(`Request routed to ${approverTarget}. Please do not refresh this page.`, {
@@ -399,6 +463,65 @@ function LoginForm() {
       });
     } catch (err: any) {
       setForgotError(err.message || "Failed to submit password reset request.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // User submits 6-digit verification code
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = otpCode.trim();
+    if (!cleanCode || cleanCode.length !== 6 || !/^\d+$/.test(cleanCode)) {
+      setForgotError("Please enter a valid 6-digit numeric verification code.");
+      return;
+    }
+    if (!activeRequestId || !sessionSecret) {
+      setForgotError("Session expired. Please request a new verification code.");
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError(null);
+
+    try {
+      const res = await api.verifyPasswordResetOtp({
+        request_id: activeRequestId,
+        session_secret: sessionSecret,
+        otp_code: cleanCode,
+      });
+
+      setResetToken(res.reset_token);
+      setViewMode("RESET_PASSWORD");
+      toast.success("Code verified! Please enter your new password.", {
+        title: "Verification Successful",
+        duration: 4000,
+      });
+    } catch (err: any) {
+      setForgotError(err.message || "Invalid verification code. Please check your email and try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // User escalates to admin authorization queue (fallback)
+  const handleEscalateToAdmin = async () => {
+    if (!activeRequestId || !sessionSecret) return;
+    setForgotLoading(true);
+    setForgotError(null);
+
+    try {
+      const res = await api.escalatePasswordResetToAdmin({
+        request_id: activeRequestId,
+        session_secret: sessionSecret,
+      });
+      setViewMode("AWAITING_APPROVAL");
+      toast.info("Request escalated to administrator for manual authorization.", {
+        title: "Awaiting Authorization",
+        duration: 5000,
+      });
+    } catch (err: any) {
+      setForgotError(err.message || "Failed to escalate request.");
     } finally {
       setForgotLoading(false);
     }
@@ -477,9 +600,11 @@ function LoginForm() {
                 ? "Faculty & Staff Sign-In"
                 : "Claim Student Account"
               : viewMode === "FORGOT_REQUEST"
-              ? "Reset Student Password"
+              ? "Reset Password"
+              : viewMode === "VERIFY_OTP"
+              ? "Enter Verification Code"
               : viewMode === "AWAITING_APPROVAL"
-              ? "Manager Authorization"
+              ? "Administrator Authorization"
               : "Set New Password"}
           </h1>
           <p className="text-xs text-ink-muted">
@@ -490,7 +615,9 @@ function LoginForm() {
                 ? "Enter your institutional email or Staff ID to access administrative operations."
                 : "Enter your Institute Roll Number to set your password and activate your account."
               : viewMode === "FORGOT_REQUEST"
-              ? "Requests are audited and approved by your assigned Branch Manager."
+              ? "Enter your linked email or roll number to receive a 6-digit verification code."
+              : viewMode === "VERIFY_OTP"
+              ? `A 6-digit code was sent to ${emailHint || "your registered email"}.`
               : viewMode === "AWAITING_APPROVAL"
               ? "Live authorization in progress. Keep this window open."
               : "Create a secure new password for your account."}
@@ -613,6 +740,42 @@ function LoginForm() {
                   >
                     {loginRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In to Console"}
                   </ButtonPrimary>
+
+                  <div className="relative my-3">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-hairline" />
+                    </div>
+                    <div className="relative flex justify-center text-[10px] uppercase">
+                      <span className="bg-surface px-2 text-ink-muted font-medium">Or</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={loading || googleLoading}
+                    className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-md border border-hairline bg-surface hover:bg-canvas text-xs font-semibold text-ink transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                  >
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    {googleLoading ? "Connecting to Google..." : "Sign in with Google"}
+                  </button>
                 </form>
               )}
 
@@ -735,6 +898,86 @@ function LoginForm() {
                 <ArrowLeft className="h-3.5 w-3.5" />
                 <span>Back to Sign In</span>
               </button>
+            </form>
+          )}
+
+          {/* VIEW: VERIFY OTP FORM */}
+          {viewMode === "VERIFY_OTP" && (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              {forgotError && (
+                <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                  <span className="leading-relaxed font-medium">{forgotError}</span>
+                </div>
+              )}
+
+              <div className="p-3 rounded-lg bg-surface-muted/60 border border-hairline text-xs space-y-1">
+                <div className="font-semibold text-ink">Verification Code Sent</div>
+                <p className="text-ink-muted leading-relaxed">
+                  We sent a 6-digit code to <strong className="text-ink font-mono">{emailHint || "your registered email"}</strong>. It is valid for 10 minutes.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1.5 text-center">
+                  6-Digit Verification Code
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  className="w-full text-center text-2xl font-bold tracking-[0.4em] font-mono py-2.5 px-3 rounded-md border border-hairline bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <ButtonPrimary
+                type="submit"
+                isLoading={forgotLoading}
+                className="w-full py-2.5 text-xs font-bold"
+                disabled={otpCode.length !== 6 || forgotLoading}
+              >
+                Verify Code & Set Password
+              </ButtonPrimary>
+
+              <div className="flex items-center justify-between text-xs text-ink-muted pt-1">
+                <button
+                  type="button"
+                  disabled={otpCooldown > 0 || forgotLoading}
+                  onClick={() => handleRequestReset()}
+                  className="hover:text-ink cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {otpCooldown > 0 ? `Resend code in ${otpCooldown}s` : "Resend Code"}
+                </button>
+
+                {canEscalate && (
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={handleEscalateToAdmin}
+                    className="text-amber-700 hover:text-amber-900 underline cursor-pointer transition-colors"
+                    title="If you do not have access to your email, request manual approval"
+                  >
+                    Request Manager Approval
+                  </button>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-hairline">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("LOGIN")}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-ink-muted hover:text-ink cursor-pointer"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Cancel and back to sign in</span>
+                </button>
+              </div>
             </form>
           )}
 

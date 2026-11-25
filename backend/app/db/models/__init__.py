@@ -49,6 +49,12 @@ from backend.app.db.models.telemetry import (
     ExperimentBenchmark,
 )
 
+# BYOS & Storage Domain
+from backend.app.db.models.byos import (
+    GoogleStorageConnection,
+    PublishedDocumentArchive,
+)
+
 __all__ = [
     "Base",
     "TimestampMixin",
@@ -64,6 +70,9 @@ __all__ = [
     # Auth
     "User",
     "PasswordResetRequest",
+    # BYOS
+    "GoogleStorageConnection",
+    "PublishedDocumentArchive",
     # Academic
     "Exam",
     "ExamBatch",

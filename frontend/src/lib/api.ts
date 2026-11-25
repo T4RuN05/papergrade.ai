@@ -383,18 +383,21 @@ export const api = {
   },
 
   // -------------------------------------------------------------
-  // Student Password Reset Flow (Branch Manager Approval)
+  // Password Reset & Email OTP Flow
   // -------------------------------------------------------------
   async requestPasswordReset(identifier: string): Promise<{
     status: string;
     request_id: string;
     session_secret?: string;
     request_status: string;
+    verification_method?: "EMAIL_OTP" | "ADMIN_APPROVAL";
+    email_hint?: string;
     message: string;
     student_name?: string;
     roll_number?: string;
     is_staff?: boolean;
     user_role?: string;
+    can_escalate?: boolean;
   }> {
     const res = await fetch(`${API_BASE}/api/auth/forgot-password/request`, {
       method: "POST",
@@ -404,9 +407,37 @@ export const api = {
     return safeJson(res, "Failed to submit reset request");
   },
 
+  async verifyPasswordResetOtp(data: {
+    request_id: string;
+    session_secret: string;
+    otp_code: string;
+  }): Promise<{ status: string; reset_token: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return safeJson(res, "Failed to verify code");
+  },
+
+  async escalatePasswordResetToAdmin(data: {
+    request_id: string;
+    session_secret: string;
+  }): Promise<{ status: string; request_status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password/escalate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return safeJson(res, "Failed to escalate request to administrator");
+  },
+
   async getPasswordResetStatus(requestId: string, sessionSecret?: string | null): Promise<{
     request_id: string;
-    status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED" | "EXPIRED";
+    status: "PENDING" | "PENDING_OTP" | "APPROVED" | "REJECTED" | "COMPLETED" | "EXPIRED";
+    verification_method?: string;
+    email_hint?: string;
+    can_escalate?: boolean;
     student_name?: string;
     roll_number?: string;
     is_staff?: boolean;
@@ -442,6 +473,40 @@ export const api = {
       body: JSON.stringify(data),
     });
     return safeJson(res, "Failed to change password");
+  },
+
+  async getGoogleAuthUrl(mode: "login" | "byos" = "login"): Promise<{ status: string; authorization_url: string }> {
+    const token = getAuthToken();
+    const query = new URLSearchParams({ mode });
+    if (mode === "byos" && token) {
+      query.set("user_token", token);
+    }
+    const res = await fetch(`${API_BASE}/api/oauth/google/authorize?${query.toString()}`, {
+      cache: "no-store",
+    });
+    return safeJson(res, "Failed to initialize Google authentication");
+  },
+
+  async getGoogleConnectionStatus(): Promise<{
+    is_connected: boolean;
+    google_email?: string;
+    google_picture?: string;
+    last_sync_at?: string;
+    error_state?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/oauth/google/status`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    });
+    return safeJson(res, "Failed to check Google connection status");
+  },
+
+  async disconnectGoogleConnection(): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/oauth/google/disconnect`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+    return safeJson(res, "Failed to disconnect Google Drive");
   },
 
   async listPasswordResets(statusFilter?: string, targetType?: "staff" | "student"): Promise<any[]> {

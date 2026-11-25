@@ -934,6 +934,18 @@ def background_dispatch_results_published(
                             session.execute(delete(PushSubscription).where(PushSubscription.id.in_(expired_sub_ids)))
                             session.commit()
 
+                # Trigger BYOS Google Drive Archiving (asynchronous sync for connected accounts)
+                try:
+                    import asyncio
+                    from backend.app.services.google_drive_service import sync_published_submission_to_google_drive
+                    for sub_id, _ in students_to_notify:
+                        try:
+                            asyncio.run(sync_published_submission_to_google_drive(session, sub_id))
+                        except Exception as sync_err:
+                            logger.warning(f"BYOS sync skipped for submission {sub_id}: {sync_err}")
+                except Exception as byos_err:
+                    logger.warning(f"BYOS Google Drive archive dispatch encountered an error: {byos_err}")
+
             # Notify Root Admin and Branch Manager
             branch_name = get_branch_name(session, branch_id)
             if branch_id and publisher_role == "ROOT_ADMIN":
