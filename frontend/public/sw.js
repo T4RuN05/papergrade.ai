@@ -1,4 +1,4 @@
-const CACHE_NAME = "papergrade-shell-v7";
+const CACHE_NAME = "papergrade-shell-v8";
 
 // Bypass and do not cache on localhost / dev
 const isLocalhost =
