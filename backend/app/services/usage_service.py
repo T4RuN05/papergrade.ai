@@ -145,7 +145,7 @@ class UsageService:
 
         grading_events = [
             e for e in events
-            if e["request_purpose"] in ("SUBMISSION_GRADING", "STAGE2_BATCH_GRADE", "STAGE1_BLIND_OCR") and e["success"] == 1
+            if e["request_purpose"] in ("STUDENT_GRADING", "SUBMISSION_GRADING", "STAGE2_BATCH_GRADE", "STAGE1_BLIND_OCR") and e["success"] == 1
         ]
         setup_events = [e for e in events if e["request_purpose"] == "EXAM_SETUP"]
 

@@ -83,22 +83,18 @@ def request_revaluation(
 
     sub, exam = result
 
-    # Check publication state
+    # Check publication state strictly (do not allow COMPLETED status alone to bypass publication)
     is_published = (
         sub.publication_status == "PUBLISHED" or 
-        bool(exam.is_published == 1) or 
-        sub.status == "COMPLETED"
+        bool(exam.is_published == 1)
     )
     if not is_published:
         raise HTTPException(status_code=400, detail="Cannot request revaluation before official results publication.")
 
     # Check 7-calendar-day window
+    from backend.app.services.authorization import parse_iso_utc
     now_dt = datetime.now(timezone.utc)
-    pub_iso = exam.published_at or sub.created_at or now_dt.isoformat()
-    try:
-        pub_dt = datetime.fromisoformat(pub_iso.replace("Z", "+00:00"))
-    except Exception:
-        pub_dt = now_dt
+    pub_dt = parse_iso_utc(exam.published_at) or parse_iso_utc(sub.created_at) or now_dt
     window_expiry_dt = pub_dt + timedelta(days=settings.REVALUATION_WINDOW_DAYS)
 
     if now_dt > window_expiry_dt:
@@ -314,17 +310,28 @@ def list_revaluation_requests(
     )
 
     user_role = current_user.get("role")
-    if user_role in ("BRANCH_MANAGER", "TEACHER"):
+    if user_role == "BRANCH_MANAGER":
         u_branch = current_user.get("branch_id")
         u_inst = current_user.get("institute_id")
+        if not u_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: Branch assignment missing.")
+        stmt = stmt.where(Exam.branch_id == u_branch)
+        if u_inst:
+            stmt = stmt.where(Exam.institute_id == u_inst)
+    elif user_role == "TEACHER":
+        u_branch = current_user.get("branch_id")
+        u_inst = current_user.get("institute_id")
+        if not u_inst and not u_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: Institute or branch assignment missing.")
         if u_branch:
             stmt = stmt.where(Exam.branch_id == u_branch)
         if u_inst:
             stmt = stmt.where(Exam.institute_id == u_inst)
     elif user_role == "INSTITUTE_DIRECTOR":
         u_inst = current_user.get("institute_id")
-        if u_inst:
-            stmt = stmt.where(Exam.institute_id == u_inst)
+        if not u_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: Institute assignment missing.")
+        stmt = stmt.where(Exam.institute_id == u_inst)
 
     if exam_id:
         stmt = stmt.where(Submission.exam_id == exam_id)
@@ -374,9 +381,15 @@ def resolve_revaluation_request(
     if req.decision not in ["MARKS_REVISED", "MARKS_UPHELD"]:
         raise HTTPException(status_code=400, detail="Decision must be MARKS_REVISED or MARKS_UPHELD.")
 
-    reval = db.scalar(select(RevaluationRequest).where(RevaluationRequest.id == request_id))
+    reval = db.scalar(
+        select(RevaluationRequest)
+        .where(RevaluationRequest.id == request_id)
+        .with_for_update()
+    )
     if not reval:
         raise HTTPException(status_code=404, detail="Revaluation request not found.")
+    if reval.status not in ("SUBMITTED", "UNDER_REVIEW"):
+        raise HTTPException(status_code=400, detail=f"Revaluation request has already been resolved (status={reval.status}).")
 
     sub_id = reval.submission_id
     now = get_iso_now()
@@ -389,19 +402,8 @@ def resolve_revaluation_request(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found.")
 
-    # Compound tenancy check for branch managers and directors
-    user_role = current_user.get("role")
-    if user_role in ("BRANCH_MANAGER", "TEACHER"):
-        u_branch = current_user.get("branch_id")
-        u_inst = current_user.get("institute_id")
-        if u_branch and exam.branch_id and exam.branch_id != u_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another branch.")
-        if u_inst and exam.institute_id and exam.institute_id != u_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        u_inst = current_user.get("institute_id")
-        if u_inst and exam.institute_id and exam.institute_id != u_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
+    from backend.app.services.authorization import verify_staff_exam_scope
+    verify_staff_exam_scope(current_user, exam.institute_id, exam.branch_id, exam_id=exam.id)
 
     # If marks revised, apply human overrides to the answers table
     if req.decision == "MARKS_REVISED":
@@ -546,7 +548,7 @@ def resolve_revaluation_request(
         action="RESOLVE_REVALUATION",
         resource_type="REVALUATION_REQUEST",
         resource_id=request_id,
-        details_json=json.dumps({"decision": req.decision, "notes": req.reviewer_notes.strip()}),
+        details_json=json.dumps({"decision": req.decision, "notes": (req.reviewer_notes or "").strip()}),
         created_at=now
     ))
 

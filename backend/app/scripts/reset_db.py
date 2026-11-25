@@ -45,19 +45,24 @@ def reset_test_database():
         if prod_inst:
             print(f"  -> Invariant Verified: Production institute '{prod_inst.name}' ({PROD_INSTITUTE_ID}) is protected.")
 
-        # Identify ephemeral synthetic test run exams (preserving regular exams in TEST BVI)
+        # Identify ephemeral synthetic test run exams ONLY (strictly excluding production CATCH 25)
         test_exams = session.scalars(
             select(Exam).where(
                 or_(
                     Exam.id.like("ex_test%"),
-                    Exam.id.like("exam_d%"),
                     Exam.id.like("exam_sec_test%"),
+                    Exam.id.like("exam_p2_%"),
+                    Exam.id.like("exam_d03_%"),
+                    Exam.id.like("exam_d19_%"),
+                    Exam.id.like("exam_test_%"),
                     Exam.title.like("%[Synthetic Test]%"),
                 ),
-                Exam.institute_id != PROD_INSTITUTE_ID
+                or_(Exam.institute_id == TEST_INSTITUTE_ID, Exam.institute_id.is_(None)),
+                or_(Exam.institute_id.is_(None), Exam.institute_id != PROD_INSTITUTE_ID),
             )
         ).all()
         test_exam_ids = [e.id for e in test_exams]
+        test_sub_ids: list[str] = []
         print(f"  -> Identified {len(test_exam_ids)} test/mock exams to purge.")
 
         if test_exam_ids:
@@ -79,6 +84,8 @@ def reset_test_database():
                 session.execute(delete(Submission).where(Submission.id.in_(test_sub_ids)))
                 print(f"  -> Purged {len(test_sub_ids)} synthetic submissions and associated marks/regions.")
 
+            session.execute(delete(ApiUsageEvent).where(ApiUsageEvent.exam_id.in_(test_exam_ids)))
+            session.execute(delete(AuditLog).where(AuditLog.resource_id.in_(test_exam_ids)))
             session.execute(delete(Exam).where(Exam.id.in_(test_exam_ids)))
             print(f"  -> Purged {len(test_exam_ids)} test exams.")
 
@@ -88,17 +95,28 @@ def reset_test_database():
     init_db()
     print("  -> Database schema tables and defaults re-verified.")
 
-    # Clean local renders and exports directories (preserving .gitkeep)
-    for dir_path in [settings.RENDERS_DIR, settings.EXPORTS_DIR]:
-        if dir_path.exists():
-            for item in dir_path.iterdir():
-                if item.name == ".gitkeep":
-                    continue
-                if item.is_dir():
-                    shutil.rmtree(item, ignore_errors=True)
-                elif item.is_file():
-                    item.unlink(missing_ok=True)
-            print(f"  -> Cleaned {dir_path.name}/")
+    # Clean ONLY local render/export artifacts belonging to deleted synthetic exams/submissions
+    for ex_id in test_exam_ids:
+        for art_dir in (
+            settings.RENDERS_DIR / f"exam_{ex_id}_question-paper",
+            settings.RENDERS_DIR / f"exam_{ex_id}_answer-key",
+            settings.UPLOADS_DIR / f"exam_{ex_id}",
+        ):
+            if art_dir.exists():
+                shutil.rmtree(art_dir, ignore_errors=True)
+    for sid in test_sub_ids:
+        for s_dir in (
+            settings.RENDERS_DIR / f"sub_{sid}",
+            settings.RENDERS_DIR / f"annotated_{sid}",
+        ):
+            if s_dir.exists():
+                shutil.rmtree(s_dir, ignore_errors=True)
+        for exp_file in settings.EXPORTS_DIR.glob(f"{sid}*"):
+            if exp_file.is_dir():
+                shutil.rmtree(exp_file, ignore_errors=True)
+            else:
+                exp_file.unlink(missing_ok=True)
+    print(f"  -> Cleaned scoped artifacts for {len(test_exam_ids)} exam(s) and {len(test_sub_ids)} submission(s).")
 
     print("[+] Test database and ephemeral storage reset successfully.")
 

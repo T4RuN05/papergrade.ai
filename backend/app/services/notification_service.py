@@ -1,3 +1,5 @@
+import os
+import time
 import uuid
 import json
 import logging
@@ -23,6 +25,89 @@ from backend.app.db.models import (
 
 logger = logging.getLogger(__name__)
 
+PROD_INSTITUTE_ID = "inst_e1eeda3473c3"
+PROD_BRANCH_ID = "br_c25_acbdd4d8"
+
+_prune_lock = threading.Lock()
+_last_prune_ts = 0.0
+_PRUNE_MIN_INTERVAL_SECONDS = 60.0
+
+
+def _is_test_runtime() -> bool:
+    """Detect pytest or explicit test environment so production institute users are never notified by tests."""
+    return bool(os.environ.get("PYTEST_CURRENT_TEST")) or getattr(settings, "ENVIRONMENT", "").lower() == "test"
+
+
+def _is_prod_c25_scope_in_test(cursor, branch_id: Optional[str] = None, exam_id: Optional[str] = None) -> bool:
+    """Return True if running in test mode and the target branch/exam belongs to production CATCH 25."""
+    if not _is_test_runtime():
+        return False
+    if branch_id == PROD_BRANCH_ID:
+        return True
+    if exam_id and cursor is not None:
+        try:
+            if isinstance(cursor, Session):
+                ex = cursor.scalar(select(Exam.institute_id, Exam.branch_id).where(Exam.id == exam_id))
+                if ex and (ex[0] == PROD_INSTITUTE_ID or ex[1] == PROD_BRANCH_ID):
+                    return True
+            else:
+                cursor.execute("SELECT institute_id, branch_id FROM exams WHERE id = ?", (exam_id,))
+                row = cursor.fetchone()
+                if row and (row["institute_id"] == PROD_INSTITUTE_ID or row["branch_id"] == PROD_BRANCH_ID):
+                    return True
+        except Exception:
+            pass
+    if branch_id and cursor is not None:
+        try:
+            if isinstance(cursor, Session):
+                inst_id = cursor.scalar(select(Branch.institute_id).where(Branch.id == branch_id))
+                if inst_id == PROD_INSTITUTE_ID:
+                    return True
+            else:
+                cursor.execute("SELECT institute_id FROM branches WHERE id = ?", (branch_id,))
+                row = cursor.fetchone()
+                if row and row["institute_id"] == PROD_INSTITUTE_ID:
+                    return True
+        except Exception:
+            pass
+    return False
+
+
+def _filter_non_c25_users_in_test(cursor, user_ids: List[str]) -> List[str]:
+    """Strip any user belonging to production CATCH 25 when executing under test/pytest."""
+    clean_uids = [str(u).strip() for u in user_ids if u and str(u).strip()]
+    if not clean_uids or not _is_test_runtime():
+        return clean_uids
+    try:
+        if isinstance(cursor, Session):
+            prod_uids = set(cursor.scalars(
+                select(User.id).where(
+                    User.id.in_(clean_uids),
+                    or_(User.institute_id == PROD_INSTITUTE_ID, User.branch_id == PROD_BRANCH_ID)
+                )
+            ).all())
+        elif cursor is not None:
+            placeholders = ",".join("?" for _ in clean_uids)
+            cursor.execute(
+                f"SELECT id FROM users WHERE id IN ({placeholders}) AND (institute_id = ? OR branch_id = ?)",
+                (*clean_uids, PROD_INSTITUTE_ID, PROD_BRANCH_ID),
+            )
+            prod_uids = {r["id"] for r in cursor.fetchall()}
+        else:
+            with get_session() as session:
+                prod_uids = set(session.scalars(
+                    select(User.id).where(
+                        User.id.in_(clean_uids),
+                        or_(User.institute_id == PROD_INSTITUTE_ID, User.branch_id == PROD_BRANCH_ID)
+                    )
+                ).all())
+        if prod_uids:
+            logger.warning("Blocked %d test-mode notification(s) targeting production CATCH 25 users.", len(prod_uids))
+            return [u for u in clean_uids if u not in prod_uids]
+    except Exception as exc:
+        logger.warning("Test-mode CATCH 25 user filter check error: %s", exc)
+    return clean_uids
+
 
 def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, payload_str: str) -> Optional[str]:
     """Deliver a Web Push encrypted packet to Google FCM / Apple APNs / Mozilla push servers.
@@ -43,6 +128,7 @@ def _send_single_webpush(sub_id: str, endpoint: str, p256dh: str, auth: str, pay
                 "sub": settings.VAPID_CLAIMS_EMAIL,
             },
             ttl=86400,  # 24 hours delivery window if device is currently offline
+            timeout=5.0,
         )
         return None
     except Exception as ex:
@@ -67,9 +153,12 @@ def dispatch_webpush_for_users(user_ids: List[str], title: str, message: str, li
 
     def _worker():
         try:
+            target_uids = _filter_non_c25_users_in_test(None, clean_uids)
+            if not target_uids:
+                return
             with get_session() as session:
                 subs = session.scalars(
-                    select(PushSubscription).where(PushSubscription.user_id.in_(clean_uids))
+                    select(PushSubscription).where(PushSubscription.user_id.in_(target_uids))
                 ).all()
 
                 if not subs:
@@ -222,7 +311,14 @@ def prune_all_notifications(cursor_or_session=None, keep_limit: int = 50) -> int
 
 
 def dispatch_async_prune_all(keep_limit: int = 50):
-    """Offload full-table notification pruning to a background thread to prevent blocking caller HTTP transactions."""
+    """Offload full-table notification pruning to at most one debounced background thread per interval."""
+    global _last_prune_ts
+    now = time.monotonic()
+    with _prune_lock:
+        if now - _last_prune_ts < _PRUNE_MIN_INTERVAL_SECONDS:
+            return
+        _last_prune_ts = now
+
     def _worker():
         try:
             with get_session() as session:
@@ -244,6 +340,8 @@ def send_notification(
 ) -> str:
     """Insert a single notification into notifications table using active cursor or ORM session and dispatch WebPush."""
     if not user_id:
+        return ""
+    if not _filter_non_c25_users_in_test(cursor, [user_id]):
         return ""
     notif_id = f"notif_{uuid.uuid4().hex[:12]}"
     now = get_iso_now()
@@ -308,6 +406,9 @@ def notify_branch_students(
     Dispatch notifications strictly to students enrolled in a specific branch, exam, or batch(es).
     Supports both SQLAlchemy Session and DBAPI cursor.
     """
+    if _is_prod_c25_scope_in_test(cursor, branch_id=branch_id, exam_id=exam_id):
+        logger.warning("Blocked test-mode student notification targeting production CATCH 25.")
+        return 0
     scoped_batch_ids: List[str] = []
     if batch_ids:
         scoped_batch_ids = [str(b).strip() for b in batch_ids if str(b).strip()]
@@ -359,7 +460,7 @@ def notify_branch_students(
                 select(User.id).where(User.role == "STUDENT", User.is_active == 1)
             ).all()
 
-        uids = [uid for uid in uids if uid]
+        uids = _filter_non_c25_users_in_test(cursor, [uid for uid in uids if uid])
         if not uids:
             return 0
 
@@ -464,12 +565,17 @@ def notify_branch_managers(
     exclude_user_id: Optional[str] = None
 ) -> int:
     """Dispatch notifications to branch managers using bulk SQL insertion or ORM session."""
+    if _is_prod_c25_scope_in_test(cursor, branch_id=branch_id):
+        logger.warning("Blocked test-mode branch manager notification targeting production CATCH 25.")
+        return 0
     now = get_iso_now()
     if isinstance(cursor, Session):
         stmt = select(User.id).where(User.role == "BRANCH_MANAGER", User.is_active == 1)
         if branch_id:
             stmt = stmt.where(User.branch_id == branch_id)
-        uids = [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+        uids = _filter_non_c25_users_in_test(
+            cursor, [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+        )
         if not uids:
             return 0
         for uid in uids:
@@ -528,7 +634,9 @@ def notify_root_admins(
     now = get_iso_now()
     if isinstance(cursor, Session):
         stmt = select(User.id).where(User.role == "ROOT_ADMIN", User.is_active == 1)
-        uids = [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+        uids = _filter_non_c25_users_in_test(
+            cursor, [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+        )
         if not uids:
             return 0
         for uid in uids:
@@ -597,6 +705,9 @@ def background_dispatch_exam_created(
     """
     try:
         with get_session() as session:
+            if _is_prod_c25_scope_in_test(session, branch_id=branch_id, exam_id=exam_id):
+                logger.warning("Blocked test-mode exam_created dispatch targeting production CATCH 25.")
+                return
             scope_msg = "your batch" if batch_scope == "SPECIFIC" else "your branch"
             notify_branch_students(
                 cursor=session,
@@ -645,6 +756,9 @@ def background_dispatch_window_event(
     """FastAPI BackgroundTask: Dispatches submission window open/reopen/close alerts asynchronously."""
     try:
         with get_session() as session:
+            if _is_prod_c25_scope_in_test(session, branch_id=branch_id, exam_id=exam_id):
+                logger.warning("Blocked test-mode window_event dispatch targeting production CATCH 25.")
+                return
             clean_reason = (reason or "").strip()
             reason_part = f" Reason: {clean_reason}." if clean_reason else ""
 
@@ -725,6 +839,9 @@ def background_dispatch_results_published(
     """FastAPI BackgroundTask: Dispatches RESULT_PUBLISHED notifications using ORM."""
     try:
         with get_session() as session:
+            if _is_prod_c25_scope_in_test(session, branch_id=branch_id, exam_id=exam_id):
+                logger.warning("Blocked test-mode results_published dispatch targeting production CATCH 25.")
+                return
             stmt = (
                 select(Submission.id.label("submission_id"), Student.user_id)
                 .join(
@@ -742,46 +859,69 @@ def background_dispatch_results_published(
                 .distinct()
             )
             students_to_notify = session.execute(stmt).all()
+            allowed_uids = set(
+                _filter_non_c25_users_in_test(session, [u for _, u in students_to_notify if u])
+            )
+            students_to_notify = [(sid, uid) for sid, uid in students_to_notify if uid in allowed_uids]
 
             if students_to_notify:
                 now = get_iso_now()
                 notif_msg = f"Results for '{exam_title}' have been officially published. Tap to view your score breakdown."
-                push_tasks = []
+                link_by_uid: Dict[str, str] = {}
                 for sub_id, u_id in students_to_notify:
                     if not u_id:
                         continue
+                    link = f"/student/submissions/{sub_id}"
                     session.add(Notification(
                         id=f"notif_{uuid.uuid4().hex[:12]}",
                         user_id=u_id,
                         type="RESULT_PUBLISHED",
                         title="Results Published",
                         message=notif_msg,
-                        link_url=f"/student/submissions/{sub_id}",
+                        link_url=link,
                         is_read=0,
                         created_at=now,
                     ))
-                    push_tasks.append((u_id, notif_msg, f"/student/submissions/{sub_id}"))
+                    link_by_uid[u_id] = link
 
                 # Commit notifications to database first
                 session.commit()
 
-                # Dispatch WebPush in parallel to eliminate sequential HTTP blocking (HIGH-02)
-                if push_tasks:
-                    from concurrent.futures import ThreadPoolExecutor
-                    def _send_push(task):
-                        user_id, msg, link = task
-                        try:
-                            dispatch_webpush_for_user(
-                                user_id=user_id,
-                                title="Results Published",
-                                message=msg,
-                                link_url=link,
+                # Dispatch WebPush using 1 single subscription query + bounded 8-worker pool (no per-user thread storm)
+                if settings.VAPID_PRIVATE_KEY and link_by_uid:
+                    subs = session.scalars(
+                        select(PushSubscription).where(PushSubscription.user_id.in_(list(link_by_uid.keys())))
+                    ).all()
+                    if subs:
+                        from concurrent.futures import ThreadPoolExecutor, as_completed
+                        from sqlalchemy import delete
+                        tasks = [
+                            (
+                                s.id,
+                                s.endpoint,
+                                s.p256dh,
+                                s.auth,
+                                json.dumps({
+                                    "title": "Results Published",
+                                    "body": notif_msg,
+                                    "url": link_by_uid.get(s.user_id, "/overview"),
+                                }),
                             )
-                        except Exception:
-                            pass
-
-                    with ThreadPoolExecutor(max_workers=8) as executor:
-                        list(executor.map(_send_push, push_tasks))
+                            for s in subs
+                        ]
+                        expired_sub_ids = []
+                        with ThreadPoolExecutor(max_workers=min(8, len(tasks))) as executor:
+                            futs = [executor.submit(_send_single_webpush, *t) for t in tasks]
+                            for fut in as_completed(futs):
+                                try:
+                                    exp_id = fut.result()
+                                    if exp_id:
+                                        expired_sub_ids.append(exp_id)
+                                except Exception:
+                                    pass
+                        if expired_sub_ids:
+                            session.execute(delete(PushSubscription).where(PushSubscription.id.in_(expired_sub_ids)))
+                            session.commit()
 
             # Notify Root Admin and Branch Manager
             branch_name = get_branch_name(session, branch_id)

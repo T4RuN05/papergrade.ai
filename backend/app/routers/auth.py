@@ -654,6 +654,8 @@ def update_user(
         user.institute_id = clean_iid if clean_iid else None
 
     if req.is_active is not None:
+        if user.id == current_user.get("sub") and int(req.is_active) == 0:
+            raise HTTPException(status_code=400, detail="Cannot deactivate your own active administrator account.")
         user.is_active = req.is_active
         security_updated = True
 
@@ -686,7 +688,7 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user.id == current_user.get("id"):
+    if user.id == current_user.get("sub"):
         raise HTTPException(status_code=400, detail="Cannot delete your own active administrator account.")
 
     if user.role == "ROOT_ADMIN":
@@ -953,8 +955,6 @@ def get_password_reset_status(
     current_status = req.status
     if current_status in ["PENDING", "APPROVED"] and now_dt > expires_dt:
         current_status = "EXPIRED"
-        req.status = "EXPIRED"
-        db.commit()
 
     resp = {
         "request_id": req.id,
@@ -971,12 +971,13 @@ def get_password_reset_status(
         stored = req.reset_token or ""
         if ":" in stored:
             init_sec, actual_token = stored.split(":", 1)
-            if session_secret and session_secret == init_sec:
+            if session_secret and init_sec and session_secret == init_sec:
                 resp["reset_token"] = actual_token
             else:
                 resp["reset_token"] = None
         else:
-            resp["reset_token"] = stored
+            # Never expose bare tokens that lack a bound initializer session_secret
+            resp["reset_token"] = None
 
     return resp
 
@@ -1069,24 +1070,23 @@ def list_password_resets(
     is_root_admin = (current_user.get("role") == "ROOT_ADMIN")
 
     if not is_root_admin:
-        # Branch Managers and Directors CANNOT see or approve staff requests
+        # Branch Managers and Directors CANNOT see or approve staff requests or unscoped resets
         stmt = stmt.where(PasswordResetRequest.student_id.isnot(None))
 
-        if current_user.get("role") == "BRANCH_MANAGER" and current_user.get("branch_id"):
-            stmt = stmt.where(
-                or_(
-                    PasswordResetRequest.branch_id == current_user["branch_id"],
-                    PasswordResetRequest.branch_id.is_(None),
-                )
-            )
-        elif current_user.get("role") == "INSTITUTE_DIRECTOR" and current_user.get("institute_id"):
-            inst_id = current_user["institute_id"]
+        if current_user.get("role") == "BRANCH_MANAGER":
+            u_branch = current_user.get("branch_id")
+            if not u_branch:
+                raise HTTPException(status_code=403, detail="Forbidden: Branch assignment missing from token.")
+            stmt = stmt.where(PasswordResetRequest.branch_id == u_branch)
+        elif current_user.get("role") == "INSTITUTE_DIRECTOR":
+            inst_id = current_user.get("institute_id")
+            if not inst_id:
+                raise HTTPException(status_code=403, detail="Forbidden: Institute assignment missing from token.")
             inst_branches = select(Branch.id).where(Branch.institute_id == inst_id)
             stmt = stmt.where(
                 or_(
                     PasswordResetRequest.branch_id.in_(inst_branches),
                     Branch.institute_id == inst_id,
-                    PasswordResetRequest.branch_id.is_(None),
                 )
             )
     else:

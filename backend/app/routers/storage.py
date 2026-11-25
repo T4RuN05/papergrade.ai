@@ -1,18 +1,133 @@
 import asyncio
-from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Request, Response, Depends, status
-from fastapi.responses import FileResponse, Response
 from pathlib import Path
+from typing import Any, Dict
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse
+from sqlalchemy import select
 
 from backend.app.config import settings
+from backend.app.db.models import Batch, Exam, Student, Submission
+from backend.app.db.session import get_session
+from backend.app.services.auth import get_current_user
+from backend.app.services.authorization import (
+    is_exam_published,
+    student_owns_submission,
+    verify_staff_exam_scope,
+)
 from backend.app.services.storage import (
-    get_storage_service,
     LocalStorageService,
     build_remote_redirect_response,
+    get_storage_service,
 )
-from backend.app.services.auth import get_current_user
 
 router = APIRouter(prefix="/api/storage", tags=["Storage"])
+
+
+def _verify_student_path_token_match(current_user: Dict[str, Any], clean_key: str) -> bool:
+    """Safely check whether student identity appears as a full path segment in a storage key."""
+    segments = [seg.strip() for seg in clean_key.split("/") if seg.strip()]
+    upper_segments = {seg.upper() for seg in segments}
+    user_roll = (current_user.get("roll_number") or "").strip().upper()
+    student_id = str(current_user.get("student_id") or "").strip()
+    user_id = str(current_user.get("sub") or "").strip()
+
+    if user_roll and user_roll in upper_segments:
+        return True
+    if student_id and (student_id in segments or student_id in clean_key):
+        return True
+    if user_id and (user_id in segments or user_id in clean_key):
+        return True
+    return False
+
+
+def _authorize_storage_read(clean_key: str, current_user: Dict[str, Any]) -> None:
+    """Enforce fail-closed RBAC + tenant + publication checks on storage downloads."""
+    role = current_user.get("role")
+    if role == "ROOT_ADMIN":
+        return
+
+    parts = clean_key.split("/")
+    if role == "STUDENT":
+        if clean_key.startswith("submissions/"):
+            if not _verify_student_path_token_match(current_user, clean_key):
+                raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's file.")
+            exam_id = parts[1] if len(parts) > 1 else ""
+            if exam_id:
+                with get_session() as session:
+                    ex = session.scalar(select(Exam).where(Exam.id == exam_id))
+                    if ex:
+                        user_inst = current_user.get("institute_id")
+                        user_branch = current_user.get("branch_id")
+                        if user_inst and ex.institute_id and ex.institute_id != user_inst:
+                            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+                        if user_branch and ex.branch_id and ex.branch_id != user_branch:
+                            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch.")
+            return
+
+        if clean_key.startswith("exports/"):
+            sub_id = Path(clean_key).name.replace("_annotated.pdf", "").replace(".pdf", "")
+            user_id = current_user.get("sub", "")
+            with get_session() as session:
+                row = session.execute(
+                    select(Submission, Exam)
+                    .join(Exam, Submission.exam_id == Exam.id)
+                    .where(Submission.id == sub_id)
+                ).first()
+                if not row:
+                    raise HTTPException(status_code=404, detail="Submission export not found.")
+                sub_obj, exam_obj = row
+                stu_rec = session.scalar(select(Student.id).where(Student.user_id == user_id).limit(1))
+                if not student_owns_submission(current_user, sub_obj.student_id, sub_obj.roll_number, db_student_id=stu_rec):
+                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's graded export.")
+                if not (sub_obj.publication_status == "PUBLISHED" or is_exam_published(exam_obj)):
+                    raise HTTPException(status_code=403, detail="Forbidden: Results are not yet published.")
+            return
+
+        if clean_key.startswith("exams/") or clean_key.startswith("artifacts/"):
+            exam_id = parts[1] if len(parts) > 1 else ""
+            with get_session() as session:
+                ex = session.scalar(select(Exam).where(Exam.id == exam_id))
+                if not ex or not is_exam_published(ex):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Forbidden: Examination materials are confidential until results are published.",
+                    )
+                user_inst = current_user.get("institute_id")
+                user_branch = current_user.get("branch_id")
+                if user_inst and ex.institute_id and ex.institute_id != user_inst:
+                    raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+                if user_branch and ex.branch_id and ex.branch_id != user_branch:
+                    raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch.")
+            return
+
+        raise HTTPException(status_code=403, detail="Forbidden: Students may only access submissions, graded exports, and published exam materials.")
+
+    # Non-root staff (INSTITUTE_DIRECTOR, BRANCH_MANAGER, TEACHER)
+    with get_session() as session:
+        if clean_key.startswith("exports/"):
+            sub_id = Path(clean_key).name.replace("_annotated.pdf", "").replace(".pdf", "")
+            row = session.execute(
+                select(Exam.institute_id, Exam.branch_id, Batch.branch_id, Exam.id)
+                .join(Submission, Submission.exam_id == Exam.id)
+                .outerjoin(Batch, Submission.batch_id == Batch.id)
+                .where(Submission.id == sub_id)
+            ).first()
+            if not row:
+                raise HTTPException(status_code=404, detail="Submission export not found.")
+            inst_id, ex_branch_id, batch_branch_id, exam_id = row
+            verify_staff_exam_scope(current_user, inst_id, batch_branch_id or ex_branch_id, exam_id=exam_id)
+            return
+
+        if clean_key.startswith(("submissions/", "exams/", "artifacts/")):
+            exam_id = parts[1] if len(parts) > 1 else ""
+            ex = session.scalar(select(Exam).where(Exam.id == exam_id))
+            if not ex:
+                raise HTTPException(status_code=404, detail="Associated exam not found.")
+            verify_staff_exam_scope(current_user, ex.institute_id, ex.branch_id, exam_id=ex.id)
+            return
+
+    raise HTTPException(status_code=403, detail="Forbidden: Access to this storage namespace is restricted.")
+
 
 @router.get("/download")
 def download_file(
@@ -24,67 +139,17 @@ def download_file(
     if ".." in clean_key:
         raise HTTPException(status_code=400, detail="Invalid storage key.")
 
-    # Student isolation: can only download own submission files, own exports, or exam materials
-    if current_user.get("role") == "STUDENT":
-        user_roll = (current_user.get("roll_number") or "").strip().upper()
-        user_id = current_user.get("sub", "")
-        # If it's a submission key, it must contain student's roll or user id
-        if clean_key.startswith("submissions/"):
-            if user_roll and (f"/{user_roll}/" not in clean_key and not clean_key.endswith(f"/{user_roll}")):
-                if user_id not in clean_key and current_user.get("student_id") not in clean_key:
-                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's file.")
-        elif clean_key.startswith("exports/"):
-            # Verify student owns this exported annotated PDF
-            from backend.app.db.session import get_session
-            from backend.app.db.models import Submission, Student
-            from sqlalchemy import select
-            sub_id = Path(clean_key).name.replace("_annotated.pdf", "").replace(".pdf", "")
-            with get_session() as session:
-                sub_row = session.execute(
-                    select(Submission.student_id, Submission.roll_number)
-                    .where(Submission.id == sub_id)
-                ).first()
-                if not sub_row:
-                    raise HTTPException(status_code=404, detail="Submission export not found.")
-                sub_stu_id, sub_roll = sub_row
-                stu_rec = session.scalar(
-                    select(Student.id).where(Student.user_id == user_id).limit(1)
-                )
-                student_id = stu_rec if stu_rec else current_user.get("student_id")
-                owns = (
-                    (sub_roll and user_roll and sub_roll.strip().upper() == user_roll)
-                    or (sub_stu_id and student_id and sub_stu_id == student_id)
-                    or (sub_stu_id and sub_stu_id == user_id)
-                )
-                if not owns:
-                    raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's graded export.")
-        elif clean_key.startswith("exams/") or clean_key.startswith("artifacts/"):
-            parts = clean_key.split("/")
-            exam_id = parts[1] if len(parts) > 1 else ""
-            if "answer_key" in clean_key:
-                from backend.app.db.session import get_session
-                from backend.app.db.models import Exam
-                from sqlalchemy import select
-                with get_session() as session:
-                    ex = session.scalar(select(Exam).where(Exam.id == exam_id))
-                    if not ex or not (ex.is_published == 1 or ex.lifecycle_status == "PUBLISHED" or ex.status == "PUBLISHED"):
-                        raise HTTPException(
-                            status_code=403,
-                            detail="Forbidden: The official answer key is confidential until exam results are published."
-                        )
-        else:
-            raise HTTPException(status_code=403, detail="Forbidden: Students may only access submissions, graded exports, and published exam materials.")
+    _authorize_storage_read(clean_key, current_user)
 
     storage = get_storage_service()
     if not storage.file_exists(clean_key):
         raise HTTPException(status_code=404, detail=f"Storage key '{clean_key}' not found.")
 
-    filename = Path(clean_key).name or "file.pdf"
+    filename = Path(clean_key).name.replace('"', "").replace("\r", "").replace("\n", "") or "file.pdf"
     redirect_resp = build_remote_redirect_response(storage, clean_key, filename=filename)
     if redirect_resp is not None:
         return redirect_resp
 
-    # Infer media type
     media_type = (
         "application/pdf"
         if clean_key.lower().endswith(".pdf")
@@ -119,26 +184,45 @@ async def upload_file_proxy(
     if ".." in clean_key:
         raise HTTPException(status_code=400, detail="Invalid storage key.")
 
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    content_len_hdr = request.headers.get("content-length")
+    if content_len_hdr:
+        try:
+            if int(content_len_hdr) > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_MB} MB.",
+                )
+        except ValueError:
+            pass
+
+    role = current_user.get("role")
+    # Ownership & namespace enforcement BEFORE reading request body into RAM
+    if role == "STUDENT":
+        if not clean_key.startswith("submissions/"):
+            raise HTTPException(status_code=403, detail="Forbidden: Students may only upload to submission directories.")
+        if not _verify_student_path_token_match(current_user, clean_key):
+            raise HTTPException(status_code=403, detail="Forbidden: You can only upload to your own submission path.")
+    elif role != "ROOT_ADMIN":
+        if not clean_key.startswith(("submissions/", "exams/")):
+            raise HTTPException(status_code=403, detail="Forbidden: Invalid upload storage namespace.")
+        parts = clean_key.split("/")
+        exam_id = parts[1] if len(parts) > 1 else ""
+        if exam_id:
+            with get_session() as session:
+                ex = session.scalar(select(Exam).where(Exam.id == exam_id))
+                if ex:
+                    verify_staff_exam_scope(current_user, ex.institute_id, ex.branch_id, exam_id=ex.id)
+
     body = await request.body()
     if not body:
         raise HTTPException(status_code=400, detail="Empty file payload")
 
-    # Enforce file size limit
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(body) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_MB} MB."
         )
-
-    # Student isolation: students can only upload to submissions/{exam_id}/{their_roll}/
-    if current_user.get("role") == "STUDENT":
-        user_roll = (current_user.get("roll_number") or "").strip().upper()
-        if not clean_key.startswith("submissions/"):
-            raise HTTPException(status_code=403, detail="Forbidden: Students may only upload to submission directories.")
-        if user_roll and f"/{user_roll}/" not in clean_key and not clean_key.endswith(f"/{user_roll}"):
-            if current_user.get("student_id") not in clean_key:
-                raise HTTPException(status_code=403, detail=f"Forbidden: You can only upload to your own submission path.")
 
     # Validate file magic bytes
     content_type = request.headers.get("content-type", "application/pdf").lower()

@@ -15,36 +15,65 @@ a complete state refresh within at most 60 seconds.
 import time
 import threading
 from collections import OrderedDict
-from typing import Dict, Optional
+from typing import Callable, List, Optional
+
+
+_window_cache_invalidators: List[Callable[[], None]] = []
+
+
+def register_window_cache_invalidator(fn: Callable[[], None]) -> None:
+    if fn not in _window_cache_invalidators:
+        _window_cache_invalidators.append(fn)
+
+
+def _invalidate_window_caches() -> None:
+    for fn in list(_window_cache_invalidators):
+        try:
+            fn()
+        except Exception:
+            pass
 
 
 class PortalStateEpochManager:
     _lock = threading.Lock()
-    _branch_epochs: Dict[str, int] = {}
+    _branch_epochs: OrderedDict[str, int] = OrderedDict()
     _user_epochs: OrderedDict[str, int] = OrderedDict()
     _global_epoch: int = 1
+    _MAX_BRANCH_CACHE_SIZE: int = 500
     _MAX_USER_CACHE_SIZE: int = 10000
 
     @classmethod
     def get_etag(cls, branch_id: Optional[str] = None, user_id: Optional[str] = None) -> str:
-        """Returns a weak ETag representing the composite state of the branch and user.
-        
-        Evaluated entirely in-memory from process-local atomic version counters.
-        Returns true 304 Not Modified until state is actually mutated via bump_branch or bump_user.
-        """
+        """Returns a weak ETag representing composite state + 60s worker-sync bucket."""
+        bucket = int(time.time() // 60)
         with cls._lock:
             g = cls._global_epoch
-            b = cls._branch_epochs.get(branch_id or "all", 1)
-            u = cls._user_epochs.get(user_id or "none", 1)
-            return f'W/"{g}-{b}-{u}"'
+            b_key = branch_id or "all"
+            if b_key in cls._branch_epochs:
+                cls._branch_epochs.move_to_end(b_key)
+                b = cls._branch_epochs[b_key]
+            else:
+                b = 1
+            if user_id and user_id in cls._user_epochs:
+                cls._user_epochs.move_to_end(user_id)
+                u = cls._user_epochs[user_id]
+            else:
+                u = 1
+            return f'W/"{g}-{b}-{u}-{bucket}"'
 
     @classmethod
     def bump_branch(cls, branch_id: Optional[str] = None) -> None:
-        """Bumps epoch when an exam is created/deleted/published or a window opens/closes."""
+        """Bumps ONLY the affected branch epoch (never cross-tenant global epoch) and clears window caches."""
         with cls._lock:
-            cls._global_epoch += 1
             b_key = branch_id or "all"
-            cls._branch_epochs[b_key] = cls._branch_epochs.get(b_key, 1) + 1
+            if b_key in cls._branch_epochs:
+                cls._branch_epochs.move_to_end(b_key)
+                cls._branch_epochs[b_key] += 1
+            else:
+                if len(cls._branch_epochs) >= cls._MAX_BRANCH_CACHE_SIZE:
+                    cls._branch_epochs.popitem(last=False)
+                cls._branch_epochs[b_key] = 2
+        _invalidate_window_caches()
 
     @classmethod
     def bump_user(cls, user_id: Optional[str] = None) -> None:
@@ -62,7 +91,8 @@ class PortalStateEpochManager:
 
     @classmethod
     def bump_all(cls) -> None:
-        """Bumps global epoch invalidating all cached student portal responses."""
+        """Bumps global epoch invalidating all cached student portal responses and window caches."""
         with cls._lock:
             cls._global_epoch += 1
+        _invalidate_window_caches()
 

@@ -30,9 +30,11 @@ def test_exam_batch_scoping_lifecycle():
     admin_token = admin_login.json()["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
-    # 2. Get active branch
+    # 2. Get active test branch (never production CATCH 25)
     branches = client.get("/api/v1/tenancy/branches", headers=admin_headers).json()
-    branch_id = branches[0]["id"]
+    test_branch = next((b for b in branches if b.get("institute_id") == "inst_test_institute"), None)
+    assert test_branch is not None, "TEST INSTITUTE branch must exist"
+    branch_id = test_branch["id"]
 
     batch_a_id = None
     batch_b_id = None

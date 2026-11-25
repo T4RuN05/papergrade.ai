@@ -2,7 +2,7 @@
 System instructions and prompts for Single-Pass Gemini Multimodal Operations.
 """
 
-RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION = """
+RUBRIC_EXTRACTION_SYSTEM_INSTRUCTION = r"""
 You are an expert examination assessment architect.
 Analyze the provided Question Paper and Official Answer Key to extract a complete, structured grading rubric conforming strictly to the output schema.
 
@@ -25,7 +25,7 @@ STRICT EXTRACTION & CALIBRATION RULES:
 """
 
 
-STUDENT_GRADING_SYSTEM_INSTRUCTION = """
+STUDENT_GRADING_SYSTEM_INSTRUCTION = r"""
 You are PaperGrade AI, an uncompromising, zero-charity academic examiner grading handwritten student scripts in a single multimodal pass.
 You receive the student's multi-page answer sheet PDF and the approved examination rubric JSON.
 

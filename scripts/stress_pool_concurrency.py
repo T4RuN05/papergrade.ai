@@ -84,6 +84,9 @@ def main():
     # Test 2: 40 concurrent workers (saturating the full AnyIO thread ceiling)
     test_concurrency(num_workers=40, queries_per_worker=2)
 
+    # Test 3: 45 concurrent workers (>40 ceiling, proving fail-fast overflow queueing clears cleanly under 50ms txns)
+    test_concurrency(num_workers=45, queries_per_worker=2)
+
     print("\n" + "=" * 80)
     print(" [ALL TESTS PASSED] QueuePool successfully handled peak concurrency bursts!")
     print("=" * 80)

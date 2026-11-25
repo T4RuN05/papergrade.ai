@@ -14,15 +14,17 @@ from backend.app.routers.tenancy import (
 from backend.app.routers.auth import claim_account, ClaimAccountRequest
 
 def test_student_creation_and_account_claim():
-    # 1. Setup branch and test exam
+    # 1. Setup test branch and test exam (never production CATCH 25)
     with get_session() as session:
-        branch = session.scalar(select(Branch).limit(1))
-        assert branch is not None, "Branch required"
+        branch = session.scalar(select(Branch).where(Branch.institute_id == "inst_test_institute").limit(1))
+        assert branch is not None, "TEST INSTITUTE branch required"
         branch_id = branch.id
         
-        # Ensure a test exam exists
-        ex = session.scalar(select(Exam).limit(1))
-        assert ex is not None, "Exam required"
+        # Ensure a non-production test exam exists
+        ex = session.scalar(select(Exam).where(Exam.institute_id == "inst_test_institute").limit(1))
+        if not ex:
+            ex = session.scalar(select(Exam).where(Exam.institute_id != "inst_e1eeda3473c3").limit(1))
+        assert ex is not None, "Non-production Exam required"
         exam_id = ex.id
 
     admin_user = {"sub": "usr_test_admin", "role": "ROOT_ADMIN"}

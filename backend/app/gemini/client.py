@@ -1,3 +1,4 @@
+import os
 import time
 import json
 import logging
@@ -85,9 +86,10 @@ class GeminiGradingClient:
         self._key_lock = threading.Lock()
         self._key_offsets: Dict[int, int] = {}
         self._clients: Dict[str, genai.Client] = {}
+        self._http_options = types.HttpOptions(timeout=120_000)
         for k in self._keys:
             try:
-                self._clients[k] = genai.Client(api_key=k)
+                self._clients[k] = genai.Client(api_key=k, http_options=self._http_options)
             except Exception as e:
                 print(f"[GeminiClient] Error initializing client for key {k[:6]}...: {e}")
 
@@ -114,7 +116,8 @@ class GeminiGradingClient:
                     vertexai=True,
                     project=settings.GCP_PROJECT_ID or sa_data.get("project_id"),
                     location=settings.GCP_LOCATION or "global",
-                    credentials=creds
+                    credentials=creds,
+                    http_options=self._http_options,
                 )
                 print(f"[GeminiClient] GCP Paid Vertex AI client initialized for project: {sa_data.get('project_id')}")
         except Exception as e:
@@ -278,7 +281,7 @@ class GeminiGradingClient:
         with self._key_lock:
             offset = self._key_offsets.get(worker_id, 0)
             now = time.time()
-            chosen_idx = (worker_id + offset) % len(self._keys)
+            chosen_idx: Optional[int] = None
 
             if model_name:
                 for step in range(len(self._keys)):
@@ -288,10 +291,16 @@ class GeminiGradingClient:
                         chosen_idx = idx
                         self._key_offsets[worker_id] = (idx - worker_id) % len(self._keys)
                         break
+                if chosen_idx is None:
+                    raise AllGeminiKeysExhaustedError(
+                        f"All {len(self._keys)} configured Gemini API keys are cooled down or quarantined for model '{model_name}'."
+                    )
+            else:
+                chosen_idx = (worker_id + offset) % len(self._keys)
 
             active_key = self._keys[chosen_idx]
             if active_key not in self._clients:
-                self._clients[active_key] = genai.Client(api_key=active_key)
+                self._clients[active_key] = genai.Client(api_key=active_key, http_options=self._http_options)
             return active_key, self._clients[active_key]
 
     def rotate_to_next_key(self, worker_id: int = 0, reason: str = "") -> str:
@@ -322,11 +331,7 @@ class GeminiGradingClient:
             key_idx = "?"
         masked = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else "***"
         gcp_paid_target = getattr(settings, "GCP_PAID_API_KEY", "")
-        if (
-            (gcp_paid_target and api_key == gcp_paid_target)
-            or api_key.startswith("AIzaSy")
-            or key_idx == 5
-        ):
+        if gcp_paid_target and api_key == gcp_paid_target:
             return f"Key #{key_idx} [GCP Paid] ({masked})"
         return f"Key #{key_idx} ({masked})"
 
@@ -509,7 +514,6 @@ class GeminiGradingClient:
         prompt_text = build_rubric_extraction_prompt(extra_notes)
         models_to_try = self.get_active_models()
         last_error = None
-        worker_id = 0
 
         for model_to_use in models_to_try:
             exhausted_keys = set()
@@ -690,7 +694,10 @@ class GeminiGradingClient:
         file_size = len(pdf_bytes)
 
         if not self.is_live:
-            # High-fidelity mock response for UI development and unit testing
+            is_test = bool(os.environ.get("PYTEST_CURRENT_TEST")) or getattr(settings, "ENVIRONMENT", "").lower() == "test"
+            if not is_test:
+                raise RuntimeError("GeminiGradingClient is offline: no live API keys available in production environment.")
+            # High-fidelity mock response ONLY under test runtime
             time.sleep(0.6)
             mock_answers = []
             questions = rubric_json.get("questions", [])
@@ -745,7 +752,6 @@ class GeminiGradingClient:
         backoff_sec = 2.0
         models_to_try = self.get_active_models()
         last_error = None
-        worker_id = 0
 
         for model_to_use in models_to_try:
             exhausted_keys = set()

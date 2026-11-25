@@ -1,7 +1,9 @@
 import os
 import time
+import uuid
 import shutil
 import logging
+import threading
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -16,6 +18,43 @@ from fastapi.responses import RedirectResponse
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write_bytes(target_path: Path, data: bytes) -> None:
+    """Write bytes via temp file + atomic rename so concurrent readers never observe partial cache files."""
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target_path.with_name(f".{target_path.name}.{uuid.uuid4().hex[:8]}.tmp")
+    try:
+        with open(tmp_path, "wb") as f:
+            f.write(data)
+        os.replace(tmp_path, target_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+
+
+def _prune_cache_dir(cache_dir: Path, max_bytes: int = 400 * 1024 * 1024, target_bytes: int = 250 * 1024 * 1024) -> None:
+    """Enforce high/low watermark disk pruning on local object-storage caches."""
+    try:
+        if not cache_dir.exists():
+            return
+        files = [f for f in cache_dir.rglob("*") if f.is_file() and not f.name.startswith(".")]
+        total_size = sum(f.stat().st_size for f in files)
+        if total_size <= max_bytes:
+            return
+        files.sort(key=lambda f: f.stat().st_atime)
+        current_size = total_size
+        for f in files:
+            if current_size <= target_bytes:
+                break
+            sz = f.stat().st_size
+            try:
+                f.unlink(missing_ok=True)
+                current_size -= sz
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Error during storage cache pruning: {e}")
 
 class StorageService(ABC):
     """Abstract interface for object storage (Cloudflare R2 or Local Disk)."""
@@ -235,14 +274,10 @@ class CloudflareR2StorageService(StorageService):
         attachment: bool = False,
     ) -> str:
         clean_key = key.replace("\\", "/").lstrip("/")
-        if settings.R2_PUBLIC_URL and not attachment:
-            # Custom public domain if configured (inline viewing / CDN assets)
-            return f"{settings.R2_PUBLIC_URL.rstrip('/')}/{clean_key}"
-
         params: Dict[str, Any] = {"Bucket": self.bucket_name, "Key": clean_key}
         if attachment or filename:
             disp = "attachment" if attachment else "inline"
-            safe_fn = filename or Path(clean_key).name or "download"
+            safe_fn = Path(filename or Path(clean_key).name or "download").name.replace('"', "").replace("\r", "").replace("\n", "")
             params["ResponseContentDisposition"] = f'{disp}; filename="{safe_fn}"'
 
         return self.s3_client.generate_presigned_url(
@@ -289,11 +324,10 @@ class CloudflareR2StorageService(StorageService):
     def get_local_path_or_download(self, key: str) -> Path:
         clean_key = key.replace("\\", "/").lstrip("/")
         cached_path = self.cache_dir / clean_key
-        if not cached_path.exists():
-            cached_path.parent.mkdir(parents=True, exist_ok=True)
+        if not cached_path.exists() or cached_path.stat().st_size == 0:
             data = self.download_file(clean_key)
-            with open(cached_path, "wb") as f:
-                f.write(data)
+            _atomic_write_bytes(cached_path, data)
+            _prune_cache_dir(self.cache_dir)
         return cached_path
 
 
@@ -326,39 +360,24 @@ class CloudinaryStorageService(StorageService):
         self._session.mount("http://", adapter)
 
     def _prune_cache_if_needed(self, max_bytes: int = 400 * 1024 * 1024, target_bytes: int = 250 * 1024 * 1024) -> None:
-        """
-        Enforces high/low watermark disk pruning on the local Cloudinary cache.
-        If total size exceeds 400 MB, removes least-recently-accessed files until below 250 MB.
-        Prevents container disk exhaustion on Render's ephemeral storage.
-        """
-        try:
-            if not self.cache_dir.exists():
-                return
-            files = [f for f in self.cache_dir.rglob("*") if f.is_file()]
-            total_size = sum(f.stat().st_size for f in files)
-            if total_size <= max_bytes:
-                return
-            files.sort(key=lambda f: f.stat().st_atime)
-            current_size = total_size
-            for f in files:
-                if current_size <= target_bytes:
-                    break
-                sz = f.stat().st_size
-                try:
-                    f.unlink(missing_ok=True)
-                    current_size -= sz
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"Error during storage cache pruning: {e}")
+        _prune_cache_dir(self.cache_dir, max_bytes=max_bytes, target_bytes=target_bytes)
 
     def _clean_public_id(self, key: str) -> str:
         k = str(key).replace("\\", "/").strip().lstrip("/")
-        # If absolute path or contains marker folders, extract relative storage key
-        for marker in ["/exams/", "/submissions/", "/uploads/", "/data/"]:
+        # Strip base directories first so "submissions/..." and "exams/..." stay intact
+        for marker in ["/uploads/", "/data/"]:
             if marker in k:
-                k = k[k.index(marker) + len(marker):]
+                k = k[k.index(marker) + len(marker):].lstrip("/")
                 break
+        else:
+            for marker in ["/exams/", "/submissions/"]:
+                if marker in k:
+                    k = k[k.index(marker) + 1:].lstrip("/")
+                    break
+        if k.startswith("uploads/"):
+            k = k[len("uploads/"):]
+        elif k.startswith("data/"):
+            k = k[len("data/"):]
         # Strip Windows drive letters (e.g. C:/...)
         if len(k) > 1 and k[1] == ":":
             k = k[2:].lstrip("/")
@@ -407,17 +426,15 @@ class CloudinaryStorageService(StorageService):
                 invalidate=True,
             )
 
-        # Cache locally
+        # Cache locally (atomic temp file + rename prevents partial reads under concurrency)
         cached_path = self.cache_dir / clean_key
-        cached_path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(file_content, (str, Path)):
             src_path = Path(file_content).resolve()
             if src_path != cached_path.resolve():
-                with open(src_path, "rb") as f_src, open(cached_path, "wb") as f_dst:
-                    f_dst.write(f_src.read())
+                with open(src_path, "rb") as f_src:
+                    _atomic_write_bytes(cached_path, f_src.read())
         else:
-            with open(cached_path, "wb") as f_dst:
-                f_dst.write(file_content)
+            _atomic_write_bytes(cached_path, file_content)
 
         return clean_key
 
@@ -450,9 +467,7 @@ class CloudinaryStorageService(StorageService):
             data = resp.read()
 
         if data:
-            cached_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(cached_path, "wb") as f:
-                f.write(data)
+            _atomic_write_bytes(cached_path, data)
             self._prune_cache_if_needed()
         return data
 
@@ -637,26 +652,30 @@ class CloudinaryStorageService(StorageService):
 
 # Global Singleton Storage Instance
 _storage_instance: Optional[StorageService] = None
+_storage_lock = threading.Lock()
+
 
 def get_storage_service() -> StorageService:
     global _storage_instance
     if _storage_instance is None:
-        backend = settings.STORAGE_BACKEND.lower()
-        cfg = settings.parsed_cloudinary_config
-        has_cloudinary = bool(
-            cfg.get("cloud_name") and cfg.get("api_key") and cfg.get("api_secret")
-        )
-        if (backend == "cloudinary" and has_cloudinary) or (backend == "auto" and has_cloudinary):
-            _storage_instance = CloudinaryStorageService()
-        elif backend == "r2" or (
-            backend == "auto"
-            and settings.R2_ACCOUNT_ID
-            and settings.R2_ACCESS_KEY_ID
-            and settings.R2_SECRET_ACCESS_KEY
-        ):
-            _storage_instance = CloudflareR2StorageService()
-        else:
-            _storage_instance = LocalStorageService()
+        with _storage_lock:
+            if _storage_instance is None:
+                backend = settings.STORAGE_BACKEND.lower()
+                cfg = settings.parsed_cloudinary_config
+                has_cloudinary = bool(
+                    cfg.get("cloud_name") and cfg.get("api_key") and cfg.get("api_secret")
+                )
+                if (backend == "cloudinary" and has_cloudinary) or (backend == "auto" and has_cloudinary):
+                    _storage_instance = CloudinaryStorageService()
+                elif backend == "r2" or (
+                    backend == "auto"
+                    and settings.R2_ACCOUNT_ID
+                    and settings.R2_ACCESS_KEY_ID
+                    and settings.R2_SECRET_ACCESS_KEY
+                ):
+                    _storage_instance = CloudflareR2StorageService()
+                else:
+                    _storage_instance = LocalStorageService()
     return _storage_instance
 
 

@@ -18,7 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_, func
 
-from backend.app.services.portal_cache import PortalStateEpochManager
+from backend.app.services.portal_cache import PortalStateEpochManager, register_window_cache_invalidator
+from backend.app.services.authorization import parse_iso_utc
 
 from backend.app.db.session import get_session
 from backend.app.db.models import (
@@ -42,11 +43,16 @@ _window_cache: Dict[str, Any] = {}
 _cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 4.0
 
+def invalidate_window_cache():
+    with _cache_lock:
+        _window_cache.clear()
+
+
+register_window_cache_invalidator(invalidate_window_cache)
+
+
 def parse_iso(iso_str: str) -> datetime:
-    try:
-        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-    except Exception:
-        return datetime.now(timezone.utc)
+    return parse_iso_utc(iso_str) or datetime.now(timezone.utc)
 
 def _compute_window_status(window_row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not window_row:
@@ -435,13 +441,14 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
 
             submissions.append(sub)
 
-        # Reconcile absent exams: if an exam is closed or published and student never submitted
+        # Reconcile absent exams: only if submission window closed OR exam officially published
         for ex in exam_rows:
             if ex["id"] not in seen_exam_ids:
                 w_row = windows_by_exam.get(ex["id"])
                 w_stat = _compute_window_status(w_row)
-                is_closed = (w_row is not None and not w_stat.get("is_active")) or bool(ex.get("is_published")) or ex.get("status") in ["RUBRIC_APPROVED", "COMPLETED"]
-                if is_closed and (w_row is not None or bool(ex.get("is_published"))):
+                is_pub_ex = bool(ex.get("is_published") == 1 or ex.get("status") == "PUBLISHED" or ex.get("lifecycle_status") == "PUBLISHED")
+                is_closed = (w_row is not None and not w_stat.get("is_active")) or is_pub_ex
+                if is_closed and (w_row is not None or is_pub_ex):
                     sub = {
                         "id": f"absent_{ex['id']}_{student_id or user_id}",
                         "exam_id": ex["id"],
@@ -529,9 +536,12 @@ def _fetch_past_submissions_sync(
         if not user_row:
             return {"items": [], "total": 0, "page": page, "limit": limit, "has_more": False}
 
+        stu_filter = [Student.user_id == user_id]
+        if user_row.email:
+            stu_filter.append(Student.email == user_row.email)
         student_row = session.scalar(
             select(Student)
-            .where(or_(Student.user_id == user_id, Student.email == user_row.email))
+            .where(or_(*stu_filter))
             .order_by(Student.claimed_at.desc())
             .limit(1)
         )
@@ -647,10 +657,10 @@ def _fetch_past_submissions_sync(
                 "is_absent": False,
             })
 
-        # Reconcile absent exams
+        # Reconcile absent exams strictly for officially published exams
         for ex in exam_rows:
             if ex["id"] not in seen_exam_ids:
-                is_pub = bool(ex.get("is_published")) or ex.get("status") in ["RUBRIC_APPROVED", "COMPLETED", "PUBLISHED"]
+                is_pub = bool(ex.get("is_published"))
                 if is_pub:
                     all_candidate_subs.append({
                         "raw_sub": None,

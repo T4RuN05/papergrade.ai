@@ -1,4 +1,5 @@
 import time
+import logging
 import threading
 import bcrypt
 import jwt
@@ -10,6 +11,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from backend.app.config import settings
 
+logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 
@@ -55,13 +57,11 @@ class BoundedTTLCache:
             return len(self._data)
 
 
-_active_user_cache = BoundedTTLCache(maxsize=5000, ttl=300.0)  # 5m TTL
 _user_auth_cache = BoundedTTLCache(maxsize=5000, ttl=300.0)    # (is_active, token_version)
 ACTIVE_CACHE_TTL = 300.0  # seconds
 
 def invalidate_user_auth_cache(user_id: str) -> None:
     """Invalidate cached auth state for a user (e.g. upon password change or status update)."""
-    _active_user_cache.invalidate(user_id)
     _user_auth_cache.invalidate(user_id)
 
 def get_user_auth_state(user_id: str) -> tuple[bool, int]:
@@ -85,19 +85,20 @@ def get_user_auth_state(user_id: str) -> tuple[bool, int]:
                     is_active_bool = True
                     token_ver = 1
                 else:
-                    is_active_bool = False
-                    token_ver = 0
+                    return (False, 0)
             else:
                 is_active_bool = bool(user_row[0] == 1)
                 token_ver = int(user_row[1] if user_row[1] is not None else 1)
-    except Exception:
-        # Do not fail open on DB error
-        is_active_bool = False
-        token_ver = 0
+    except Exception as exc:
+        # Never cache transient DB outages into _user_auth_cache as 5-minute lockouts
+        logger.error("Auth state verification DB error for user %s: %s", user_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication verification service temporarily unavailable",
+        )
 
     state = (is_active_bool, token_ver)
     _user_auth_cache.set(user_id, state)
-    _active_user_cache.set(user_id, is_active_bool)
     return state
 
 def is_user_active_in_db(user_id: str) -> bool:
@@ -156,19 +157,8 @@ def decode_access_token(token: str) -> Dict[str, Any]:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    token: Optional[str] = None
-) -> Dict[str, Any]:
-    """FastAPI dependency to extract current user from Authorization header or ?token= query param."""
-    raw_token = credentials.credentials if credentials else token
-    if not raw_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization header or token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    payload = decode_access_token(raw_token)
+def _validate_payload_state(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Verify JWT claims against active DB status and token_version revocation counter."""
     user_id = payload.get("sub")
     role = payload.get("role")
     if not user_id or not role:
@@ -184,7 +174,6 @@ def get_current_user(
             detail="User account is deactivated or invalid",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # D-24: Invalidate JWT session if user's password has been updated/reset or missing token version
     token_ver = int(payload.get("token_version") or 0)
     if token_ver < current_ver:
         raise HTTPException(
@@ -194,19 +183,33 @@ def get_current_user(
         )
     return payload
 
+
+def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token: Optional[str] = None
+) -> Dict[str, Any]:
+    """FastAPI dependency to extract current user from Authorization header or ?token= query param."""
+    raw_token = credentials.credentials if credentials else token
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization header or token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    payload = decode_access_token(raw_token)
+    return _validate_payload_state(payload)
+
 def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     token: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    """FastAPI dependency to extract current user if Authorization header or ?token= is provided, or None if guest."""
+    """FastAPI dependency to extract validated user if Authorization header or ?token= is provided, or None if guest."""
     raw_token = credentials.credentials if (credentials and credentials.credentials) else (token.strip() if token else None)
     if not raw_token:
         return None
     try:
         payload = decode_access_token(raw_token)
-        if not payload.get("sub") or not payload.get("role"):
-            return None
-        return payload
+        return _validate_payload_state(payload)
     except Exception:
         return None
 

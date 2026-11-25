@@ -159,67 +159,59 @@ class RetentionService:
     @staticmethod
     def purge_submission_documents(submission_id: str) -> Dict[str, Any]:
         """
-        Permanently deletes storage files, local renders, and database bounding box coordinates,
-        preserving only marks per question and scores.
+        Permanently deletes storage files, local renders, and database bounding box coordinates (Zero-Hold).
         """
         now = get_iso_now()
+        with get_session() as session:
+            sub = session.scalar(select(Submission).where(Submission.id == submission_id))
+            if not sub:
+                return {"status": "not_found", "submission_id": submission_id}
+            if sub.is_document_purged:
+                return {"status": "already_purged", "submission_id": submission_id}
+            path_keys = [
+                k for k in [
+                    sub.original_file_path,
+                    sub.canonical_pdf_path,
+                    sub.annotated_pdf_path,
+                    f"exports/{submission_id}_annotated.pdf",
+                ]
+                if k and k not in ("", "PURGED")
+            ]
+
+        # Execute remote/disk cleanup strictly outside open DB sessions
         storage = get_storage_service()
+        for path_key in path_keys:
+            try:
+                storage.delete_file(path_key)
+            except Exception:
+                pass
+        try:
+            storage.delete_prefix(f"renders/{submission_id}/")
+        except Exception:
+            pass
+
+        for r_dir in (settings.RENDERS_DIR / submission_id, settings.RENDERS_DIR / f"sub_{submission_id}"):
+            if r_dir.exists():
+                shutil.rmtree(r_dir, ignore_errors=True)
+        annotated_pdf = settings.EXPORTS_DIR / f"{submission_id}_annotated.pdf"
+        if annotated_pdf.exists():
+            annotated_pdf.unlink(missing_ok=True)
 
         with get_session() as session:
             sub = session.scalar(select(Submission).where(Submission.id == submission_id))
-
-            if not sub:
-                return {"status": "not_found", "submission_id": submission_id}
-
-            if sub.is_document_purged:
+            if not sub or sub.is_document_purged:
                 return {"status": "already_purged", "submission_id": submission_id}
-
-            # 1. Delete files from object storage (Cloudinary / R2 / local)
-            for path_key in [
-                sub.original_file_path,
-                sub.canonical_pdf_path,
-                sub.annotated_pdf_path,
-                f"exports/{submission_id}_annotated.pdf",
-            ]:
-                if path_key and path_key not in ["", "PURGED"]:
-                    try:
-                        storage.delete_file(path_key)
-                    except Exception:
-                        pass
-
-            try:
-                storage.delete_prefix(f"renders/{submission_id}/")
-            except Exception:
-                pass
-
-            # 2. Delete local rendered page images and crop folders
-            renders_sub_dir = settings.RENDERS_DIR / submission_id
-            if renders_sub_dir.exists():
-                shutil.rmtree(renders_sub_dir, ignore_errors=True)
-
-            # 3. Delete local annotated export PDF if cached
-            annotated_pdf = settings.EXPORTS_DIR / f"{submission_id}_annotated.pdf"
-            if annotated_pdf.exists():
-                try:
-                    annotated_pdf.unlink()
-                except Exception:
-                    pass
-
-            # 4. Delete bounding box coordinates from database (answer_regions table)
             ans_ids_stmt = select(Answer.id).where(Answer.submission_id == submission_id)
             del_result = session.execute(
                 delete(AnswerRegion).where(AnswerRegion.answer_id.in_(ans_ids_stmt))
             )
             deleted_regions = del_result.rowcount
-
-            # 5. Update submission record: mark purged, clear document paths
             sub.is_document_purged = 1
             sub.purged_at = now
             sub.original_file_path = ''
             sub.canonical_pdf_path = ''
             sub.annotated_pdf_path = None
             sub.updated_at = now
-
             session.commit()
 
         return {
@@ -232,58 +224,53 @@ class RetentionService:
     @staticmethod
     def purge_exam_documents(exam_id: str) -> Dict[str, Any]:
         """
-        Permanently deletes Question Paper and Answer Key documents and rendered caches
-        associated with an exam after the 15-day retention TTL expires post-publication.
-        Scores and question-level evaluation marks remain permanently archived.
+        Permanently deletes Question Paper and Answer Key documents after 15-day retention TTL (Zero-Hold).
         """
         now = get_iso_now()
+        with get_session() as session:
+            exam = session.scalar(select(Exam).where(Exam.id == exam_id))
+            if not exam:
+                return {"status": "not_found", "exam_id": exam_id}
+            if exam.is_document_purged:
+                return {"status": "already_purged", "exam_id": exam_id}
+            path_keys = [
+                k for k in [
+                    exam.question_paper_path,
+                    exam.answer_key_path,
+                    f"exams/{exam_id}/question_paper.pdf",
+                    f"exams/{exam_id}/answer_key.pdf",
+                ]
+                if k and k not in ("", "PURGED")
+            ]
+
         storage = get_storage_service()
+        for path_key in path_keys:
+            try:
+                storage.delete_file(path_key)
+            except Exception:
+                pass
+        try:
+            storage.delete_prefix(f"renders/exam_{exam_id}_")
+        except Exception:
+            pass
+
+        exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
+        if exam_uploads_dir.exists():
+            shutil.rmtree(exam_uploads_dir, ignore_errors=True)
+        for art in ["question-paper", "answer-key", "question_paper", "answer_key"]:
+            render_dir = settings.RENDERS_DIR / f"exam_{exam_id}_{art}"
+            if render_dir.exists():
+                shutil.rmtree(render_dir, ignore_errors=True)
 
         with get_session() as session:
             exam = session.scalar(select(Exam).where(Exam.id == exam_id))
-
-            if not exam:
-                return {"status": "not_found", "exam_id": exam_id}
-
-            if exam.is_document_purged:
+            if not exam or exam.is_document_purged:
                 return {"status": "already_purged", "exam_id": exam_id}
-
-            # 1. Delete files from object storage (Cloudinary / R2 / local)
-            for path_key in [
-                exam.question_paper_path,
-                exam.answer_key_path,
-                f"exams/{exam_id}/question_paper.pdf",
-                f"exams/{exam_id}/answer_key.pdf",
-            ]:
-                if path_key and path_key not in ["", "PURGED"]:
-                    try:
-                        storage.delete_file(path_key)
-                    except Exception:
-                        pass
-
-            try:
-                storage.delete_prefix(f"renders/exam_{exam_id}_")
-            except Exception:
-                pass
-
-            # 2. Delete local exam uploads directory
-            exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
-            if exam_uploads_dir.exists():
-                shutil.rmtree(exam_uploads_dir, ignore_errors=True)
-
-            # 3. Delete pre-rendered page images in renders directory
-            for art in ["question-paper", "answer-key", "question_paper", "answer_key"]:
-                render_dir = settings.RENDERS_DIR / f"exam_{exam_id}_{art}"
-                if render_dir.exists():
-                    shutil.rmtree(render_dir, ignore_errors=True)
-
-            # 4. Mark exam documents as purged in database
             exam.is_document_purged = 1
             exam.purged_at = now
             exam.question_paper_path = ''
             exam.answer_key_path = ''
             exam.updated_at = now
-
             session.commit()
 
         return {
@@ -465,26 +452,24 @@ class RetentionDaemon:
 
     def _run_loop(self):
         # Two-Phase Evaluation Window Invariant (GEMINI.md):
-        # Align purge operations strictly to 03:00 AM IST (overnight batch processing window)
-        now_utc = datetime.now(timezone.utc)
-        ist_now = now_utc + timedelta(hours=5, minutes=30)
-        target_ist = ist_now.replace(hour=3, minute=0, second=0, microsecond=0)
-        if target_ist <= ist_now:
-            target_ist += timedelta(days=1)
-        wait_seconds = (target_ist - ist_now).total_seconds()
-
-        logging.getLogger("RetentionDaemon").info(
-            f"RetentionDaemon scheduled for next overnight window at {target_ist.strftime('%Y-%m-%d %H:%M:%S')} IST ({wait_seconds:.0f}s wait)."
-        )
-
-        # In testing environments, allow a short wait for test suites
-        if getattr(settings, "ENVIRONMENT", "").lower() == "test":
-            wait_seconds = 1.0
-
-        if self._stop_event.wait(wait_seconds):
-            return
-
+        # Recompute next 03:00 AM IST window every cycle so DST/host pauses never cause drift.
         while not self._stop_event.is_set():
+            if getattr(settings, "ENVIRONMENT", "").lower() == "test":
+                wait_seconds = 1.0
+            else:
+                now_utc = datetime.now(timezone.utc)
+                ist_now = now_utc + timedelta(hours=5, minutes=30)
+                target_ist = ist_now.replace(hour=3, minute=0, second=0, microsecond=0)
+                if target_ist <= ist_now:
+                    target_ist += timedelta(days=1)
+                wait_seconds = max(60.0, (target_ist - ist_now).total_seconds())
+                logging.getLogger("RetentionDaemon").info(
+                    f"RetentionDaemon scheduled for next overnight window at {target_ist.strftime('%Y-%m-%d %H:%M:%S')} IST ({wait_seconds:.0f}s wait)."
+                )
+
+            if self._stop_event.wait(wait_seconds):
+                return
+
             try:
                 result = RetentionService.check_and_purge_expired_submissions()
                 purged_subs = result.get("purged_submissions_count", 0)
@@ -496,7 +481,8 @@ class RetentionDaemon:
             except Exception as e:
                 logging.getLogger("RetentionDaemon").error(f"Error in RetentionDaemon cleanup loop: {e}", exc_info=True)
 
-            self._stop_event.wait(self.interval_seconds)
+            if getattr(settings, "ENVIRONMENT", "").lower() == "test" and self._stop_event.wait(self.interval_seconds):
+                return
 
 
 retention_daemon = RetentionDaemon()

@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
@@ -20,6 +21,7 @@ from backend.app.services.auth import (
     require_branch_manager,
     require_root_admin,
 )
+from backend.app.services.authorization import parse_iso_utc, verify_exam_tenancy
 from backend.app.services.notification_service import (
     background_dispatch_window_event,
 )
@@ -57,10 +59,7 @@ class ExtendWindowRequest(BaseModel):
 
 
 def parse_iso(iso_str: str) -> datetime:
-    try:
-        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-    except Exception:
-        return datetime.now(timezone.utc)
+    return parse_iso_utc(iso_str) or datetime.now(timezone.utc)
 
 
 def calculate_window_dict(window: Optional[Dict[str, Any]], now: Optional[datetime] = None) -> Dict[str, Any]:
@@ -149,6 +148,20 @@ def get_window_status(
     Get current submission window status and seconds remaining for an exam.
     Powers the PWA real-time countdown timer.
     """
+    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    if current_user.get("role") == "STUDENT":
+        u_inst = current_user.get("institute_id")
+        u_branch = current_user.get("branch_id")
+        if u_inst and exam.institute_id and exam.institute_id != u_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
+        if u_branch and exam.branch_id and exam.branch_id != u_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+    else:
+        verify_exam_tenancy(exam_id, current_user, db, allow_sample_read=True)
+
     window = db.scalar(
         select(SubmissionWindow)
         .where(SubmissionWindow.exam_id == exam_id)
@@ -173,27 +186,13 @@ def open_submission_window(
     duration = req.duration_minutes or settings.WINDOW_DURATION_MINUTES
     grace = req.grace_minutes or settings.GRACE_PERIOD_MINUTES
 
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    exam = verify_exam_tenancy(exam_id, current_user, db)
 
     if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
             detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
         )
-
-    # Tenancy guard (Branch Manager & Institute Director)
-    user_inst = current_user.get("institute_id")
-    user_branch = current_user.get("branch_id")
-    if user_inst and exam.institute_id and exam.institute_id != user_inst:
-        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
-    if current_user["role"] == "BRANCH_MANAGER":
-        if user_branch and exam.branch_id and exam.branch_id != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
-    elif current_user["role"] == "INSTITUTE_DIRECTOR":
-        if user_inst and exam.institute_id and exam.institute_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     now_dt = datetime.now(timezone.utc)
     deadline_dt = now_dt + timedelta(minutes=duration)
@@ -242,7 +241,7 @@ def open_submission_window(
         action="OPEN_SUBMISSION_WINDOW",
         resource_type="EXAM",
         resource_id=exam_id,
-        details_json=f'{{"duration_minutes": {duration}, "grace_minutes": {grace}, "deadline": "{deadline_iso}"}}',
+        details_json=json.dumps({"duration_minutes": duration, "grace_minutes": grace, "deadline": deadline_iso}),
         created_at=now_iso,
     )
     db.add(audit)
@@ -293,21 +292,7 @@ def reopen_submission_window(
     duration = req.duration_minutes or settings.WINDOW_DURATION_MINUTES
     grace = settings.GRACE_PERIOD_MINUTES
 
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    # Tenancy guard (Branch Manager & Institute Director)
-    user_inst = current_user.get("institute_id")
-    user_branch = current_user.get("branch_id")
-    if user_inst and exam.institute_id and exam.institute_id != user_inst:
-        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
-    if current_user["role"] == "BRANCH_MANAGER":
-        if user_branch and exam.branch_id and exam.branch_id != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
-    elif current_user["role"] == "INSTITUTE_DIRECTOR":
-        if user_inst and exam.institute_id and exam.institute_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
+    exam = verify_exam_tenancy(exam_id, current_user, db)
 
     # Disallow reopening only if evaluation is actively in progress or results are published
     if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
@@ -366,7 +351,7 @@ def reopen_submission_window(
         action="REOPEN_SUBMISSION_WINDOW",
         resource_type="EXAM",
         resource_id=exam_id,
-        details_json=f'{{"reason": "{clean_reason}", "scope": "{scope}", "new_deadline": "{deadline_iso}"}}',
+        details_json=json.dumps({"reason": clean_reason, "scope": scope, "new_deadline": deadline_iso}),
         created_at=now_iso,
     )
     db.add(audit)
@@ -410,17 +395,7 @@ def extend_submission_window(
     Extends an active submission window by N minutes without forcing closure/reopen.
     Dynamically extends deadline_at and grace_deadline_at on the existing window.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    user_inst = current_user.get("institute_id")
-    user_branch = current_user.get("branch_id")
-    if user_inst and exam.institute_id and exam.institute_id != user_inst:
-        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
-    if current_user["role"] == "BRANCH_MANAGER":
-        if user_branch and exam.branch_id and exam.branch_id != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+    exam = verify_exam_tenancy(exam_id, current_user, db)
 
     if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(status_code=400, detail="Cannot extend window: evaluation has already commenced or completed.")
@@ -438,6 +413,12 @@ def extend_submission_window(
         )
 
     now_dt = datetime.now(timezone.utc)
+    grace_dt = parse_iso(window.grace_deadline_at)
+    if now_dt > grace_dt:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot extend an expired submission window past its grace deadline. Please use reopen window with an audited reason."
+        )
     curr_deadline = parse_iso(window.deadline_at)
     base_dt = max(now_dt, curr_deadline)
     add_mins = max(1, req.additional_minutes)
@@ -464,7 +445,7 @@ def extend_submission_window(
         action="EXTEND_SUBMISSION_WINDOW",
         resource_type="EXAM",
         resource_id=exam_id,
-        details_json=f'{{"additional_minutes": {add_mins}, "new_deadline": "{new_deadline_iso}", "reason": "{req.reason}"}}',
+        details_json=json.dumps({"additional_minutes": add_mins, "new_deadline": new_deadline_iso, "reason": req.reason}),
         created_at=now_iso,
     )
     db.add(audit)
@@ -493,27 +474,13 @@ def close_submission_window(
     Close an active submission window immediately before timer expiry.
     Terminates student upload capability and transitions exam lifecycle so evaluation can commence.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    exam = verify_exam_tenancy(exam_id, current_user, db)
 
     if exam.lifecycle_status in ["EVALUATING", "EVALUATED", "PUBLISHED"]:
         raise HTTPException(
             status_code=400,
-            detail="Cannot open submission window: evaluation has already commenced or completed for this examination."
+            detail="Cannot close submission window: evaluation has already commenced or completed for this examination."
         )
-
-    # Tenancy guard (Branch Manager & Institute Director)
-    user_inst = current_user.get("institute_id")
-    user_branch = current_user.get("branch_id")
-    if user_inst and exam.institute_id and exam.institute_id != user_inst:
-        raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
-    if current_user["role"] == "BRANCH_MANAGER":
-        if user_branch and exam.branch_id and exam.branch_id != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
-    elif current_user["role"] == "INSTITUTE_DIRECTOR":
-        if user_inst and exam.institute_id and exam.institute_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another institute.")
 
     # Find active open window
     window = db.scalar(
@@ -563,7 +530,7 @@ def close_submission_window(
         action="CLOSE_SUBMISSION_WINDOW",
         resource_type="EXAM",
         resource_id=exam_id,
-        details_json=f'{{"window_id": "{window.id}", "closed_early": true, "reason": "{clean_reason}"}}',
+        details_json=json.dumps({"window_id": window.id, "closed_early": True, "reason": clean_reason}),
         created_at=now_iso,
     )
     db.add(audit)

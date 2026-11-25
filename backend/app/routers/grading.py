@@ -3,12 +3,11 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from backend.app.config import settings
-from backend.app.db.session import get_db
-from backend.app.db.models import Submission, AnswerRegion, Exam, Student, Batch
+from backend.app.db.session import get_session
+from backend.app.db.models import Submission, Answer, AnswerRegion, Exam, Student
 from backend.app.schemas import (
     ManualEditAnswerRequest,
     ManualEditRegionRequest,
@@ -18,6 +17,12 @@ from backend.app.services.grading_service import grading_service
 from backend.app.services.storage import get_storage_service
 from backend.app.services.pdf_service import pdf_service
 from backend.app.services.auth import get_current_user, require_branch_manager
+from backend.app.services.authorization import (
+    is_exam_published,
+    student_owns_submission,
+    verify_exam_tenancy,
+    verify_submission_tenancy,
+)
 
 _render_locks: Dict[str, threading.Lock] = {}
 _render_locks_meta = threading.Lock()
@@ -44,71 +49,16 @@ NO_CACHE_HEADERS = {
 }
 
 
-def _verify_exam_tenancy(exam_id: str, current_user: Dict[str, Any], db: Session):
-    """Enforce compound tenancy on exam mutations for managers/directors."""
-    user_role = current_user.get("role")
-    if user_role == "ROOT_ADMIN":
-        return
-
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found.")
-
-    if user_role in ("BRANCH_MANAGER", "TEACHER"):
-        user_branch = current_user.get("branch_id")
-        user_inst = current_user.get("institute_id")
-        if user_branch and exam.branch_id and exam.branch_id != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch.")
-        if user_inst and exam.institute_id and exam.institute_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        user_inst = current_user.get("institute_id")
-        if user_inst and exam.institute_id and exam.institute_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
-
-
-def _verify_submission_tenancy(submission_id: str, current_user: Dict[str, Any], db: Session):
-    """Enforce compound tenancy on submission mutations and inspections for managers/directors."""
-    user_role = current_user.get("role")
-    if user_role == "ROOT_ADMIN":
-        return
-
-    row = db.execute(
-        select(Submission.id, Exam.institute_id, Exam.branch_id, Batch.branch_id)
-        .join(Exam, Submission.exam_id == Exam.id)
-        .outerjoin(Batch, Submission.batch_id == Batch.id)
-        .where(Submission.id == submission_id)
-    ).first()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="Submission not found.")
-
-    _, exam_inst_id, exam_branch_id, batch_branch_id = row
-    effective_branch = batch_branch_id or exam_branch_id
-
-    if user_role in ("BRANCH_MANAGER", "TEACHER"):
-        user_branch = current_user.get("branch_id")
-        user_inst = current_user.get("institute_id")
-        if user_branch and effective_branch and effective_branch != user_branch:
-            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another branch.")
-        if user_inst and exam_inst_id and exam_inst_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        user_inst = current_user.get("institute_id")
-        if user_inst and exam_inst_id and exam_inst_id != user_inst:
-            raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
-
-
 @router.post("/exams/{exam_id}/clear-all-reviews")
 def clear_all_exam_reviews(
     exam_id: str,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    _verify_exam_tenancy(exam_id, current_user, db)
+    with get_session() as db:
+        verify_exam_tenancy(exam_id, current_user, db)
+    reviewer_id = current_user.get("sub") or "teacher"
     try:
-        result = grading_service.bulk_clear_exam_reviews(exam_id)
-        return result
+        return grading_service.bulk_clear_exam_reviews(exam_id, reviewer=reviewer_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to bulk clear exam reviews: {str(e)}")
 
@@ -117,12 +67,12 @@ def clear_all_exam_reviews(
 def clear_submission_review(
     submission_id: str,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    _verify_submission_tenancy(submission_id, current_user, db)
+    with get_session() as db:
+        verify_submission_tenancy(submission_id, current_user, db)
+    reviewer_id = current_user.get("sub") or "teacher"
     try:
-        updated = grading_service.clear_all_review_flags(submission_id)
-        return updated
+        return grading_service.clear_all_review_flags(submission_id, reviewer=reviewer_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -137,12 +87,12 @@ def edit_answer(
     answer_id: str,
     req: ManualEditAnswerRequest,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    _verify_submission_tenancy(submission_id, current_user, db)
+    with get_session() as db:
+        verify_submission_tenancy(submission_id, current_user, db)
+    reviewer_id = current_user.get("sub") or "teacher"
     try:
-        updated = grading_service.manual_edit_answer(submission_id, answer_id, req)
-        return updated
+        return grading_service.manual_edit_answer(submission_id, answer_id, req, reviewer_id=reviewer_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -156,17 +106,16 @@ def reevaluate_answer_crop(
     answer_id: str,
     req: SingleAnswerReevaluateRequest,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    _verify_submission_tenancy(submission_id, current_user, db)
+    with get_session() as db:
+        verify_submission_tenancy(submission_id, current_user, db)
     try:
-        result = grading_service.reevaluate_answer(
+        return grading_service.reevaluate_answer(
             submission_id=submission_id,
             answer_id=answer_id,
             teacher_prompt=req.teacher_prompt or "",
             region_id=req.region_id
         )
-        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -179,15 +128,15 @@ def reevaluate_answer_crop(
 @router.post("/regions/{submission_id}/add")
 def edit_region(
     submission_id: str,
+    req: ManualEditRegionRequest,
     region_id: str = "new",
-    req: ManualEditRegionRequest = None,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    _verify_submission_tenancy(submission_id, current_user, db)
+    with get_session() as db:
+        verify_submission_tenancy(submission_id, current_user, db)
+    reviewer_id = current_user.get("sub") or "teacher"
     try:
-        updated = grading_service.manual_edit_region(submission_id, region_id, req)
-        return updated
+        return grading_service.manual_edit_region(submission_id, region_id, req, reviewer_id=reviewer_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -200,12 +149,12 @@ def delete_region(
     submission_id: str,
     region_id: str,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    _verify_submission_tenancy(submission_id, current_user, db)
+    with get_session() as db:
+        verify_submission_tenancy(submission_id, current_user, db)
+    reviewer_id = current_user.get("sub") or "teacher"
     try:
-        updated = grading_service.delete_region(submission_id, region_id)
-        return updated
+        return grading_service.delete_region(submission_id, region_id, reviewer_id=reviewer_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -262,40 +211,42 @@ def get_page_image(
     page_num: int,
     w: Optional[int] = None,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
-    sub = db.scalar(select(Submission).where(Submission.id == submission_id))
+    with get_session() as db:
+        sub = db.scalar(select(Submission).where(Submission.id == submission_id))
 
-    if sub and sub.is_document_purged:
-        raise HTTPException(
-            status_code=410,
-            detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage. Question marks and scores remain archived."
-        )
+        if sub and sub.is_document_purged:
+            raise HTTPException(
+                status_code=410,
+                detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage. Question marks and scores remain archived."
+            )
 
-    # Student ownership check: students are permitted to view raw pages of their own uploaded answer sheet at any time
-    if current_user.get("role") == "STUDENT":
-        user_roll = (current_user.get("roll_number") or "").strip().upper()
-        user_stu_id = current_user.get("student_id")
-        user_sub_id = current_user.get("sub")
+        if current_user.get("role") == "STUDENT":
+            user_sub_id = current_user.get("sub")
+            allowed_rolls = []
+            allowed_ids = []
+            if current_user.get("roll_number"):
+                allowed_rolls.append(current_user["roll_number"].strip().upper())
+            if current_user.get("student_id"):
+                allowed_ids.append(current_user["student_id"])
+            if user_sub_id:
+                stu_rows = db.scalars(select(Student).where(Student.user_id == user_sub_id)).all()
+                for r in stu_rows:
+                    if r.roll_number:
+                        allowed_rolls.append(r.roll_number.strip().upper())
+                    if r.id:
+                        allowed_ids.append(r.id)
 
-        allowed_rolls = [user_roll] if user_roll else []
-        allowed_ids = [user_stu_id] if user_stu_id else []
-        if user_sub_id:
-            stu_rows = db.scalars(select(Student).where(Student.user_id == user_sub_id)).all()
-            for r in stu_rows:
-                if r.roll_number:
-                    allowed_rolls.append(r.roll_number.strip().upper())
-                if r.id:
-                    allowed_ids.append(r.id)
+            sub_roll = (sub.roll_number or "").strip().upper() if sub else ""
+            sub_stu_id = sub.student_id if sub else ""
+            owns_sub = (sub_roll and sub_roll in allowed_rolls) or (sub_stu_id and sub_stu_id in allowed_ids)
+            if not owns_sub:
+                raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's page image.")
+        elif current_user.get("role") in ("BRANCH_MANAGER", "TEACHER", "INSTITUTE_DIRECTOR"):
+            verify_submission_tenancy(submission_id, current_user, db)
 
-        sub_roll = (sub.roll_number or "").strip().upper() if sub else ""
-        sub_stu_id = sub.student_id if sub else ""
-
-        owns_sub = (sub_roll and sub_roll in allowed_rolls) or (sub_stu_id and sub_stu_id in allowed_ids)
-        if not owns_sub:
-            raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's page image.")
-    elif current_user.get("role") in ("BRANCH_MANAGER", "TEACHER", "INSTITUTE_DIRECTOR"):
-        _verify_submission_tenancy(submission_id, current_user, db)
+        if sub:
+            db.expunge(sub)
 
     storage = get_storage_service()
     renders_dir = settings.RENDERS_DIR / submission_id
@@ -319,52 +270,70 @@ def get_answer_crop(
     region_id: Optional[str] = None,
     v: Optional[str] = None,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
-    sub = db.scalar(select(Submission).where(Submission.id == submission_id))
-    if sub and sub.is_document_purged:
-        raise HTTPException(
-            status_code=410,
-            detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage."
-        )
+    target_reg = None
+    with get_session() as db:
+        sub = db.scalar(select(Submission).where(Submission.id == submission_id))
+        if sub and sub.is_document_purged:
+            raise HTTPException(
+                status_code=410,
+                detail="Document unavailable: Graded answer sheets are permanently purged in accordance with the 15-day storage retention policy to preserve storage."
+            )
 
-    if current_user.get("role") == "STUDENT":
-        user_roll = (current_user.get("roll_number") or "").strip().upper()
-        user_stu_id = current_user.get("student_id")
-        owns_sub = (user_roll and sub and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub and sub.student_id == user_stu_id)
-        if not owns_sub:
-            raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's answer crop.")
-        if sub and sub.publication_status != "PUBLISHED":
-            exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
-            if not exam or exam.is_published != 1:
-                raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
-    elif current_user.get("role") in ("BRANCH_MANAGER", "TEACHER", "INSTITUTE_DIRECTOR"):
-        _verify_submission_tenancy(submission_id, current_user, db)
+        if current_user.get("role") == "STUDENT":
+            owns_sub = bool(sub) and student_owns_submission(current_user, sub.student_id, sub.roll_number)
+            if not owns_sub:
+                raise HTTPException(status_code=403, detail="Forbidden: You cannot access another student's answer crop.")
+            if sub and sub.publication_status != "PUBLISHED":
+                exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
+                if not is_exam_published(exam):
+                    raise HTTPException(status_code=403, detail="Forbidden: Evaluation results have not been officially published yet.")
+        elif current_user.get("role") in ("BRANCH_MANAGER", "TEACHER", "INSTITUTE_DIRECTOR"):
+            verify_submission_tenancy(submission_id, current_user, db)
+
+        if region_id:
+            target_reg = db.scalar(
+                select(AnswerRegion)
+                .join(Answer, AnswerRegion.answer_id == Answer.id)
+                .where(
+                    AnswerRegion.id == region_id,
+                    Answer.id == answer_id,
+                    Answer.submission_id == submission_id,
+                )
+            )
+        if not target_reg:
+            target_reg = db.scalar(
+                select(AnswerRegion)
+                .join(Answer, AnswerRegion.answer_id == Answer.id)
+                .where(
+                    AnswerRegion.answer_id == answer_id,
+                    Answer.submission_id == submission_id,
+                )
+                .order_by(AnswerRegion.id.asc())
+                .limit(1)
+            )
+
+        if sub:
+            db.expunge(sub)
+        if target_reg:
+            db.expunge(target_reg)
 
     crops_dir = settings.RENDERS_DIR / submission_id / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
     target_crop_path = None
-    target_reg = None
-
     if region_id:
         reg_crop_path = crops_dir / f"crop_{answer_id}_{region_id}.png"
         if reg_crop_path.exists():
             return FileResponse(str(reg_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
-        target_crop_path = reg_crop_path
-        target_reg = db.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+        if target_reg:
+            target_crop_path = reg_crop_path
 
     if not target_crop_path or not target_reg:
         primary_crop_path = crops_dir / f"crop_{answer_id}.png"
         if primary_crop_path.exists():
             return FileResponse(str(primary_crop_path), media_type="image/png", headers=NO_CACHE_HEADERS)
         target_crop_path = primary_crop_path
-        target_reg = db.scalar(
-            select(AnswerRegion)
-            .where(AnswerRegion.answer_id == answer_id)
-            .order_by(AnswerRegion.id.asc())
-            .limit(1)
-        )
 
     # Dynamic fallback: regenerate crop locally from page render if missing from disk
     if target_reg:

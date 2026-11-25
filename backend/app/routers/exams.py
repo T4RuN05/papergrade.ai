@@ -15,7 +15,7 @@ import fitz
 logger = logging.getLogger(__name__)
 
 from backend.app.config import settings
-from backend.app.db.session import get_db
+from backend.app.db.session import get_db, get_session
 from backend.app.db.base import get_iso_now
 from backend.app.services.portal_cache import PortalStateEpochManager
 from backend.app.db.models import (
@@ -54,6 +54,11 @@ from backend.app.services.auth import (
     require_branch_manager,
     require_staff,
 )
+from backend.app.services.authorization import (
+    is_exam_published,
+    verify_exam_tenancy,
+    verify_staff_exam_scope,
+)
 from backend.app.services.notification_service import (
     background_dispatch_exam_created,
     background_dispatch_results_published,
@@ -88,12 +93,22 @@ def list_exams(
     )
 
     user_inst = current_user.get("institute_id")
-    if user_role == "BRANCH_MANAGER" and user_branch:
+    if user_role == "BRANCH_MANAGER":
+        if not user_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: Branch assignment missing.")
+        stmt = stmt.where(Exam.branch_id == user_branch)
         if user_inst:
-            stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == user_branch)
-        else:
+            stmt = stmt.where(Exam.institute_id == user_inst)
+    elif user_role == "TEACHER":
+        if not user_inst and not user_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: Institute or branch assignment missing.")
+        if user_inst:
+            stmt = stmt.where(Exam.institute_id == user_inst)
+        if user_branch:
             stmt = stmt.where(Exam.branch_id == user_branch)
     elif user_role == "INSTITUTE_DIRECTOR":
+        if not user_inst:
+            raise HTTPException(status_code=403, detail="Forbidden: Institute assignment missing.")
         if branch_id:
             stmt = stmt.where(Exam.institute_id == user_inst, Exam.branch_id == branch_id)
         else:
@@ -302,34 +317,41 @@ def get_exam_evaluation_status(
 def get_exam(
     exam_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
     exam = exam_service.get_exam(exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
     user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER":
-        if exam.get("branch_id") != current_user.get("branch_id") or (current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id")):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        if current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id"):
+    if user_role == "STUDENT":
+        u_inst = current_user.get("institute_id")
+        u_branch = current_user.get("branch_id")
+        if u_inst and exam.get("institute_id") and exam.get("institute_id") != u_inst:
             raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
-
-    # If student, mask answer key and rubric until published
-    if current_user.get("role") == "STUDENT":
+        if u_branch and exam.get("branch_id") and exam.get("branch_id") != u_branch:
+            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch.")
         if not exam.get("is_published"):
             exam["answer_key_path"] = None
             exam["rubric_version"] = None
+    else:
+        verify_staff_exam_scope(
+            current_user,
+            exam.get("institute_id"),
+            exam.get("branch_id"),
+            exam_id=exam_id,
+            allow_sample_read=True,
+        )
 
-    # Attach latest window status
-    window = db.scalar(
-        select(SubmissionWindow)
-        .where(SubmissionWindow.exam_id == exam_id)
-        .order_by(SubmissionWindow.created_at.desc())
-        .limit(1)
-    )
-    exam["window_status"] = calculate_window_dict(_window_to_dict(window) if window else None)
+    # Attach latest window status in short closed session
+    with get_session() as db:
+        window = db.scalar(
+            select(SubmissionWindow)
+            .where(SubmissionWindow.exam_id == exam_id)
+            .order_by(SubmissionWindow.created_at.desc())
+            .limit(1)
+        )
+        win_dict = _window_to_dict(window) if window else None
+    exam["window_status"] = calculate_window_dict(win_dict)
 
     return exam
 
@@ -344,23 +366,27 @@ async def create_exam(
     batch_ids: Optional[str] = Form(None),
     question_paper: Optional[List[UploadFile]] = File(None),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     """
-    Create exam (Root Admin or Branch Manager).
-    Branch Manager creates within their branch.
-    Answer key is NOT uploaded here (Answer keys are strictly Root Admin only).
+    Create exam (Root Admin, Institute Director, or Branch Manager) with Zero-Hold DB boundaries.
     """
     exam_id = f"exam_{uuid.uuid4().hex[:12]}"
     user_role = current_user.get("role")
     effective_branch = current_user.get("branch_id") if user_role == "BRANCH_MANAGER" else branch_id
+    institute_id = None
 
-    if user_role == "INSTITUTE_DIRECTOR":
-        if not effective_branch:
-            raise HTTPException(status_code=400, detail="Branch must be selected when creating an examination.")
-        br = db.scalar(select(Branch).where(Branch.id == effective_branch))
-        if not br or br.institute_id != current_user.get("institute_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: Selected branch does not belong to your institute.")
+    with get_session() as db:
+        if user_role == "INSTITUTE_DIRECTOR":
+            if not effective_branch:
+                raise HTTPException(status_code=400, detail="Branch must be selected when creating an examination.")
+            br = db.scalar(select(Branch).where(Branch.id == effective_branch))
+            if not br or br.institute_id != current_user.get("institute_id"):
+                raise HTTPException(status_code=403, detail="Forbidden: Selected branch does not belong to your institute.")
+            institute_id = br.institute_id
+        elif effective_branch:
+            br = db.scalar(select(Branch).where(Branch.id == effective_branch))
+            if br:
+                institute_id = br.institute_id
 
     # Process batch scope and batch IDs
     clean_batch_ids = []
@@ -405,42 +431,34 @@ async def create_exam(
             logger.warning(f"Failed to sync QP to storage: {e}")
 
     now = get_iso_now()
+    with get_session() as db:
+        new_exam = Exam(
+            id=exam_id,
+            institute_id=institute_id,
+            branch_id=effective_branch,
+            title=title.strip(),
+            subject=subject.strip(),
+            total_marks=0.0,
+            question_paper_path=qp_path,
+            answer_key_path=None,
+            lifecycle_status="DRAFT",
+            is_published=0,
+            status="DRAFT",
+            created_by=current_user["sub"],
+            batch_scope=clean_scope,
+            batch_ids=saved_batch_ids_json,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(new_exam)
 
-    # Look up institute_id for effective_branch
-    institute_id = None
-    if effective_branch:
-        br = db.scalar(select(Branch).where(Branch.id == effective_branch))
-        if br:
-            institute_id = br.institute_id
+        if clean_scope == "SPECIFIC" and clean_batch_ids:
+            for b_id in clean_batch_ids:
+                eb_id = f"eb_{uuid.uuid4().hex[:12]}"
+                db.add(ExamBatch(id=eb_id, exam_id=exam_id, batch_id=b_id, created_at=now))
 
-    new_exam = Exam(
-        id=exam_id,
-        institute_id=institute_id,
-        branch_id=effective_branch,
-        title=title.strip(),
-        subject=subject.strip(),
-        total_marks=0.0,
-        question_paper_path=qp_path,
-        answer_key_path=None,
-        lifecycle_status="DRAFT",
-        is_published=0,
-        status="DRAFT",
-        created_by=current_user["sub"],
-        batch_scope=clean_scope,
-        batch_ids=saved_batch_ids_json,
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(new_exam)
+        db.commit()
 
-    if clean_scope == "SPECIFIC" and clean_batch_ids:
-        for b_id in clean_batch_ids:
-            eb_id = f"eb_{uuid.uuid4().hex[:12]}"
-            db.add(ExamBatch(id=eb_id, exam_id=exam_id, batch_id=b_id, created_at=now))
-
-    db.commit()
-
-    # Dispatch notifications asynchronously
     background_tasks.add_task(
         background_dispatch_exam_created,
         exam_id=exam_id,
@@ -461,15 +479,17 @@ async def upload_answer_key(
     exam_id: str,
     answer_key: List[UploadFile] = File(...),
     current_user: Dict[str, Any] = Depends(require_root_admin),
-    db: Session = Depends(get_db)
 ):
     """
-    Root Admin alone uploads answer key.
+    Root Admin alone uploads answer key (Zero-Hold DB session boundary around PDF/WAN/Gemini I/O).
     Triggers draft rubric generation via Gemini, but DOES NOT auto-approve or auto-grade.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        qp_raw = exam.question_paper_path
+        exam_subject = exam.subject or ""
 
     exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
     exam_uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -486,7 +506,7 @@ async def upload_answer_key(
         saved_ak_paths.append(saved_part)
 
     ak_pdf = exam_uploads_dir / "answer_key.pdf"
-    ak_path = await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_ak_paths, ak_pdf)
+    await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_ak_paths, ak_pdf)
     storage_key = f"exams/{exam_id}/answer_key.pdf"
     try:
         storage = get_storage_service()
@@ -494,17 +514,20 @@ async def upload_answer_key(
     except Exception as e:
         logger.warning(f"Failed to sync answer key to storage: {e}")
 
-    # Generate draft rubric via AI non-blockingly on worker threadpool
-    from backend.app.gemini.client import gemini_client
-    qp_raw = exam.question_paper_path
-    qp_path = Path(qp_raw) if qp_raw and Path(qp_raw).exists() else ak_pdf
+    # Resolve QP locally or download remote QP if present before running Gemini
+    qp_path = Path(qp_raw) if qp_raw and Path(qp_raw).exists() else None
+    if qp_path is None and qp_raw:
+        qp_path = await asyncio.to_thread(_resolve_exam_artifact_pdf, exam_id, "question-paper")
+    if qp_path is None:
+        qp_path = ak_pdf
 
+    from backend.app.gemini.client import gemini_client
     draft_rubric, _ = await asyncio.to_thread(
         gemini_client.extract_exam_rubric,
         exam_id=exam_id,
         question_paper_path=qp_path,
         answer_key_path=ak_pdf,
-        extra_notes=f"Subject: {exam.subject or ''}"
+        extra_notes=f"Subject: {exam_subject}"
     )
 
     version_id = f"rub_{uuid.uuid4().hex[:12]}"
@@ -514,25 +537,30 @@ async def upload_answer_key(
         rubric_total = sum(getattr(q, "max_marks", 0.0) for q in getattr(draft_rubric, "questions", [])) or 0.0
     total_marks = float(rubric_total)
 
-    v_count = db.scalar(select(func.count(RubricVersion.id)).where(RubricVersion.exam_id == exam_id)) or 0
-    v_num = v_count + 1
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
 
-    rubric_row = RubricVersion(
-        id=version_id,
-        exam_id=exam_id,
-        version_num=v_num,
-        is_approved=0,
-        rubric_data=draft_rubric.model_dump_json(),
-        created_at=now,
-    )
-    db.add(rubric_row)
+        v_count = db.scalar(select(func.count(RubricVersion.id)).where(RubricVersion.exam_id == exam_id)) or 0
+        v_num = v_count + 1
 
-    exam.answer_key_path = storage_key
-    exam.total_marks = total_marks
-    exam.current_rubric_version_id = version_id
-    exam.lifecycle_status = "EVALUATION_READY"
-    exam.updated_at = now
-    db.commit()
+        rubric_row = RubricVersion(
+            id=version_id,
+            exam_id=exam_id,
+            version_num=v_num,
+            is_approved=0,
+            rubric_data=draft_rubric.model_dump_json(),
+            created_at=now,
+        )
+        db.add(rubric_row)
+
+        exam.answer_key_path = storage_key
+        exam.total_marks = total_marks
+        exam.current_rubric_version_id = version_id
+        exam.lifecycle_status = "EVALUATION_READY"
+        exam.updated_at = now
+        db.commit()
 
     return {
         "status": "draft_rubric_generated",
@@ -548,18 +576,12 @@ async def upload_question_paper(
     exam_id: str,
     question_paper: List[UploadFile] = File(...),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     """
-    Branch Manager or Root Admin uploads or replaces Question Paper post-creation.
+    Branch Manager or Root Admin uploads or replaces Question Paper post-creation (Zero-Hold).
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    if current_user.get("role") == "BRANCH_MANAGER" and exam.branch_id:
-        if exam.branch_id != current_user.get("branch_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: exam belongs to another branch.")
+    with get_session() as db:
+        verify_exam_tenancy(exam_id, current_user, db)
 
     exam_uploads_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
     exam_uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -576,7 +598,7 @@ async def upload_question_paper(
         saved_qp_paths.append(saved_part)
 
     qp_pdf = exam_uploads_dir / "question_paper.pdf"
-    qp_path = await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_qp_paths, qp_pdf)
+    await asyncio.to_thread(pdf_service.files_to_canonical_pdf, saved_qp_paths, qp_pdf)
     now = get_iso_now()
     storage_key = f"exams/{exam_id}/question_paper.pdf"
     try:
@@ -585,9 +607,13 @@ async def upload_question_paper(
     except Exception as e:
         logger.warning(f"Failed to sync question paper to storage: {e}")
 
-    exam.question_paper_path = storage_key
-    exam.updated_at = now
-    db.commit()
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        exam.question_paper_path = storage_key
+        exam.updated_at = now
+        db.commit()
 
     return {
         "status": "question_paper_uploaded",
@@ -600,19 +626,19 @@ async def upload_question_paper(
 def generate_rubric(
     exam_id: str,
     current_user: Dict[str, Any] = Depends(require_root_admin),
-    db: Session = Depends(get_db)
 ):
     """
-    Root Admin triggers draft rubric generation via Gemini Multimodal AI.
-    Requires at least answer_key_path to be uploaded.
+    Root Admin triggers draft rubric generation via Gemini Multimodal AI (Zero-Hold).
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    ak_raw = exam.answer_key_path
-    if not ak_raw:
-        raise HTTPException(status_code=400, detail="Cannot generate rubric: Answer Key has not been uploaded yet.")
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        ak_raw = exam.answer_key_path
+        qp_raw = exam.question_paper_path
+        exam_subject = exam.subject or ""
+        if not ak_raw:
+            raise HTTPException(status_code=400, detail="Cannot generate rubric: Answer Key has not been uploaded yet.")
 
     storage = get_storage_service()
     ak_path = None
@@ -630,7 +656,6 @@ def generate_rubric(
     if not ak_path or not ak_path.exists():
         raise HTTPException(status_code=400, detail="Cannot generate rubric: Answer Key could not be accessed.")
 
-    qp_raw = exam.question_paper_path
     qp_path = ak_path
     if qp_raw:
         if Path(qp_raw).exists() and Path(qp_raw).is_file():
@@ -649,7 +674,7 @@ def generate_rubric(
         exam_id=exam_id,
         question_paper_path=qp_path,
         answer_key_path=ak_path,
-        extra_notes=f"Subject: {exam.subject or ''}"
+        extra_notes=f"Subject: {exam_subject}"
     )
 
     version_id = f"rub_{uuid.uuid4().hex[:12]}"
@@ -659,24 +684,28 @@ def generate_rubric(
         rubric_total = sum(getattr(q, "max_marks", 0.0) for q in getattr(draft_rubric, "questions", [])) or 0.0
     total_marks = float(rubric_total)
 
-    v_count = db.scalar(select(func.count(RubricVersion.id)).where(RubricVersion.exam_id == exam_id)) or 0
-    v_num = v_count + 1
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        v_count = db.scalar(select(func.count(RubricVersion.id)).where(RubricVersion.exam_id == exam_id)) or 0
+        v_num = v_count + 1
 
-    rubric_row = RubricVersion(
-        id=version_id,
-        exam_id=exam_id,
-        version_num=v_num,
-        is_approved=0,
-        rubric_data=draft_rubric.model_dump_json(),
-        created_at=now,
-    )
-    db.add(rubric_row)
+        rubric_row = RubricVersion(
+            id=version_id,
+            exam_id=exam_id,
+            version_num=v_num,
+            is_approved=0,
+            rubric_data=draft_rubric.model_dump_json(),
+            created_at=now,
+        )
+        db.add(rubric_row)
 
-    exam.total_marks = total_marks
-    exam.current_rubric_version_id = version_id
-    exam.lifecycle_status = "EVALUATION_READY"
-    exam.updated_at = now
-    db.commit()
+        exam.total_marks = total_marks
+        exam.current_rubric_version_id = version_id
+        exam.lifecycle_status = "EVALUATION_READY"
+        exam.updated_at = now
+        db.commit()
 
     return {
         "status": "draft_rubric_generated",
@@ -692,54 +721,54 @@ def approve_rubric(
     exam_id: str,
     req: RubricApproveRequest,
     current_user: Dict[str, Any] = Depends(require_root_admin),
-    db: Session = Depends(get_db)
 ):
     """
     Root Admin locks the examination rubric version.
     Creates an immutable approved rubric record.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
 
-    now = get_iso_now()
-    version_id = f"rub_{uuid.uuid4().hex[:12]}"
+        now = get_iso_now()
+        version_id = f"rub_{uuid.uuid4().hex[:12]}"
 
-    v_count = db.scalar(select(func.count(RubricVersion.id)).where(RubricVersion.exam_id == exam_id)) or 0
-    v_num = v_count + 1
+        v_count = db.scalar(select(func.count(RubricVersion.id)).where(RubricVersion.exam_id == exam_id)) or 0
+        v_num = v_count + 1
 
-    rubric_row = RubricVersion(
-        id=version_id,
-        exam_id=exam_id,
-        version_num=v_num,
-        is_approved=1,
-        approved_by=current_user["sub"],
-        approved_at=now,
-        rubric_data=req.rubric_data.model_dump_json(),
-        created_at=now,
-    )
-    db.add(rubric_row)
+        rubric_row = RubricVersion(
+            id=version_id,
+            exam_id=exam_id,
+            version_num=v_num,
+            is_approved=1,
+            approved_by=current_user["sub"],
+            approved_at=now,
+            rubric_data=req.rubric_data.model_dump_json(),
+            created_at=now,
+        )
+        db.add(rubric_row)
 
-    exam.current_rubric_version_id = version_id
-    exam.total_marks = req.rubric_data.total_exam_marks
-    exam.status = "RUBRIC_APPROVED"
-    exam.lifecycle_status = "EVALUATION_READY"
-    exam.updated_at = now
+        exam.current_rubric_version_id = version_id
+        exam.total_marks = req.rubric_data.total_exam_marks
+        exam.status = "RUBRIC_APPROVED"
+        exam.lifecycle_status = "EVALUATION_READY"
+        exam.updated_at = now
+        exam_branch = exam.branch_id
 
-    audit = AuditLog(
-        id=f"aud_{uuid.uuid4().hex[:12]}",
-        user_id=current_user["sub"],
-        action="APPROVE_RUBRIC",
-        resource_type="EXAM",
-        resource_id=exam_id,
-        details_json=f'{{"version_num": {v_num}, "total_marks": {req.rubric_data.total_exam_marks}}}',
-        created_at=now,
-    )
-    db.add(audit)
-    db.commit()
+        audit = AuditLog(
+            id=f"aud_{uuid.uuid4().hex[:12]}",
+            user_id=current_user["sub"],
+            action="APPROVE_RUBRIC",
+            resource_type="EXAM",
+            resource_id=exam_id,
+            details_json=json.dumps({"version_num": v_num, "total_marks": req.rubric_data.total_exam_marks}),
+            created_at=now,
+        )
+        db.add(audit)
+        db.commit()
 
-    PortalStateEpochManager.bump_branch(exam.branch_id)
-
+    PortalStateEpochManager.bump_branch(exam_branch)
     return exam_service.get_exam(exam_id)
 
 
@@ -797,33 +826,45 @@ def start_evaluation(
         .where(
             Submission.exam_id == exam_id,
             Submission.submission_status == "SUBMITTED",
-            Submission.status.in_(["UPLOADED", "AWAITING_KEY", "AWAITING_RUBRIC", "QUEUED", "FAILED"])
+            Submission.status.in_(["UPLOADED", "AWAITING_KEY", "AWAITING_RUBRIC", "QUEUED", "PAUSED_QUOTA", "FAILED"])
         )
         .order_by(Submission.roll_number.asc(), Submission.created_at.asc())
     ).all()
 
+    # Avoid duplicate queue rows if submission is already QUEUED or PROCESSING
+    active_q_sub_ids = set(
+        db.scalars(
+            select(EvaluationQueue.submission_id).where(
+                EvaluationQueue.exam_id == exam_id,
+                EvaluationQueue.status.in_(["QUEUED", "PROCESSING"]),
+            )
+        ).all()
+    )
+
     now_iso = get_iso_now()
     enqueued_count = 0
     for sub in subs_to_grade:
-        queue_id = f"q_{uuid.uuid4().hex[:12]}"
-        db.add(EvaluationQueue(
-            id=queue_id,
-            submission_id=sub.id,
-            exam_id=exam_id,
-            priority=100,
-            status="QUEUED",
-            created_at=now_iso,
-            updated_at=now_iso,
-        ))
+        if sub.id not in active_q_sub_ids:
+            queue_id = f"q_{uuid.uuid4().hex[:12]}"
+            db.add(EvaluationQueue(
+                id=queue_id,
+                submission_id=sub.id,
+                exam_id=exam_id,
+                priority=100,
+                status="QUEUED",
+                created_at=now_iso,
+                updated_at=now_iso,
+            ))
         sub.status = "QUEUED"
         sub.error_message = None
         sub.retry_count = 0
         sub.updated_at = now_iso
         enqueued_count += 1
 
-    exam.lifecycle_status = "EVALUATING"
-    exam.status = "EVALUATING"
-    exam.updated_at = now_iso
+    if enqueued_count > 0:
+        exam.lifecycle_status = "EVALUATING"
+        exam.status = "EVALUATING"
+        exam.updated_at = now_iso
 
     audit = AuditLog(
         id=f"aud_{uuid.uuid4().hex[:12]}",
@@ -831,7 +872,7 @@ def start_evaluation(
         action="START_EVALUATION",
         resource_type="EXAM",
         resource_id=exam_id,
-        details_json=f'{{"enqueued_papers": {enqueued_count}}}',
+        details_json=json.dumps({"enqueued_papers": enqueued_count}),
         created_at=now_iso,
     )
     db.add(audit)
@@ -839,13 +880,13 @@ def start_evaluation(
 
     PortalStateEpochManager.bump_branch(exam.branch_id)
 
-    # Wake up the evaluation worker on-demand to process this newly enqueued batch
-    if enqueued_count > 0:
+    # Wake up the evaluation worker on-demand only when jobs were actually queued
+    if enqueued_count > 0 or active_q_sub_ids:
         from backend.app.worker.queue_worker import queue_worker
         queue_worker.wake_up()
 
     return {
-        "status": "evaluation_started",
+        "status": "evaluation_started" if enqueued_count > 0 else "no_pending_submissions",
         "exam_id": exam_id,
         "enqueued_papers": enqueued_count,
     }
@@ -951,35 +992,35 @@ def publish_results(
 def unlock_rubric(
     exam_id: str,
     current_user: Dict[str, Any] = Depends(require_root_admin),
-    db: Session = Depends(get_db)
 ):
     """Root Admin unlocks rubric to draft status."""
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    with get_session() as db:
+        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
 
-    now = get_iso_now()
-    db.execute(
-        update(RubricVersion).where(RubricVersion.exam_id == exam_id).values(is_approved=0)
-    )
-    exam.status = "RUBRIC_DRAFT"
-    exam.lifecycle_status = "SETUP"
-    exam.updated_at = now
+        now = get_iso_now()
+        db.execute(
+            update(RubricVersion).where(RubricVersion.exam_id == exam_id).values(is_approved=0)
+        )
+        exam.status = "RUBRIC_DRAFT"
+        exam.lifecycle_status = "SETUP"
+        exam.updated_at = now
+        exam_branch = exam.branch_id
 
-    audit = AuditLog(
-        id=f"aud_{uuid.uuid4().hex[:12]}",
-        user_id=current_user["sub"],
-        action="UNLOCK_RUBRIC",
-        resource_type="EXAM",
-        resource_id=exam_id,
-        details_json='{"action": "unlocked_to_draft"}',
-        created_at=now,
-    )
-    db.add(audit)
-    db.commit()
+        audit = AuditLog(
+            id=f"aud_{uuid.uuid4().hex[:12]}",
+            user_id=current_user["sub"],
+            action="UNLOCK_RUBRIC",
+            resource_type="EXAM",
+            resource_id=exam_id,
+            details_json='{"action": "unlocked_to_draft"}',
+            created_at=now,
+        )
+        db.add(audit)
+        db.commit()
 
-    PortalStateEpochManager.bump_branch(exam.branch_id)
-
+    PortalStateEpochManager.bump_branch(exam_branch)
     return exam_service.get_exam(exam_id)
 
 
@@ -1122,13 +1163,7 @@ def _serve_exam_artifact_pdf(
         )
 
     user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER":
-        if exam.get("branch_id") != current_user.get("branch_id") or (current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id")):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Exam belongs to another branch/institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        if current_user.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id"):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Exam belongs to another institute.")
-    elif user_role == "STUDENT":
+    if user_role == "STUDENT":
         if current_user.get("institute_id") and exam.get("institute_id") and exam.get("institute_id") != current_user.get("institute_id"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Exam belongs to another institute.")
         if not exam.get("is_published"):
@@ -1138,6 +1173,14 @@ def _serve_exam_artifact_pdf(
                 else "Official answer key is confidential until exam results are published."
             )
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=forbidden_msg)
+    else:
+        verify_staff_exam_scope(
+            current_user,
+            exam.get("institute_id"),
+            exam.get("branch_id"),
+            exam_id=exam_id,
+            allow_sample_read=True,
+        )
 
     out_filename = f"{'question_paper' if is_qp else 'answer_key'}_{exam_id}.pdf"
     storage = get_storage_service()
@@ -1177,7 +1220,7 @@ def _serve_exam_artifact_pdf(
 
 
 @router.get("/{exam_id}/question-paper")
-async def get_exam_question_paper(
+def get_exam_question_paper(
     exam_id: str,
     download: bool = False,
     current_user: Dict[str, Any] = Depends(get_current_user)
@@ -1186,7 +1229,7 @@ async def get_exam_question_paper(
 
 
 @router.get("/{exam_id}/answer-key")
-async def get_exam_answer_key(
+def get_exam_answer_key(
     exam_id: str,
     download: bool = False,
     current_user: Dict[str, Any] = Depends(get_current_user)
@@ -1195,7 +1238,7 @@ async def get_exam_answer_key(
 
 
 @router.get("/{exam_id}/{artifact_type}/meta")
-async def get_exam_artifact_meta(
+def get_exam_artifact_meta(
     exam_id: str,
     artifact_type: str,
     current_user: Dict[str, Any] = Depends(get_current_user)
@@ -1207,6 +1250,15 @@ async def get_exam_artifact_meta(
     exam = exam_service.get_exam(exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+
+    if current_user.get("role") != "STUDENT":
+        verify_staff_exam_scope(
+            current_user,
+            exam.get("institute_id"),
+            exam.get("branch_id"),
+            exam_id=exam_id,
+            allow_sample_read=True,
+        )
 
     if exam.get("is_document_purged"):
         return {
@@ -1249,21 +1301,9 @@ async def get_exam_artifact_meta(
             "notice": f"{art_label} not uploaded."
         }
 
-    render_key = f"exam_{exam_id}_{clean_art}"
-    render_dir = settings.RENDERS_DIR / render_key
-    page_1 = render_dir / "page_1.png"
-
-    # D-07: Offload PyMuPDF parsing from asyncio event loop to worker thread
-    def _read_page_count(path: Path) -> int:
-        doc = fitz.open(str(path))
-        cnt = len(doc)
-        doc.close()
-        return cnt
-
-    page_count = await asyncio.to_thread(_read_page_count, pdf_path)
-
-    # In Pattern B, the frontend renders pages client-side directly from the PDF.
-    # Eager server-side rasterization is bypassed to preserve server RAM.
+    doc = fitz.open(str(pdf_path))
+    page_count = len(doc)
+    doc.close()
 
     return {
         "exam_id": exam_id,
@@ -1277,7 +1317,7 @@ async def get_exam_artifact_meta(
 
 
 @router.get("/{exam_id}/{artifact_type}/pages/{page_num}")
-async def get_exam_artifact_page_image(
+def get_exam_artifact_page_image(
     exam_id: str,
     artifact_type: str,
     page_num: int,
@@ -1291,26 +1331,34 @@ async def get_exam_artifact_page_image(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
+    if current_user.get("role") != "STUDENT":
+        verify_staff_exam_scope(
+            current_user,
+            exam.get("institute_id"),
+            exam.get("branch_id"),
+            exam_id=exam_id,
+            allow_sample_read=True,
+        )
+
     if exam.get("is_document_purged"):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="Document page unavailable: Permanently purged after 15 days."
         )
 
-    if current_user and isinstance(current_user, dict) and current_user.get("role") == "STUDENT" and not exam.get("is_published"):
+    if current_user.get("role") == "STUDENT" and not exam.get("is_published"):
         raise HTTPException(status_code=403, detail="Official examination documents are confidential until results are published.")
 
     render_key = f"exam_{exam_id}_{clean_art}"
     render_dir = settings.RENDERS_DIR / render_key
     img_path = pdf_service.get_page_image_path(render_dir, page_num)
-    cache_headers = {"Cache-Control": "public, max-age=604800, immutable"}
+    cache_headers = {"Cache-Control": "private, max-age=604800, immutable"}
 
     if not img_path.exists():
         pdf_path = _resolve_exam_artifact_pdf(exam_id, clean_art)
         if not pdf_path or not pdf_path.exists():
             raise HTTPException(status_code=404, detail="Document not found.")
-        # D-07: Offload CPU-heavy page rasterization from event loop to worker thread
-        await asyncio.to_thread(pdf_service.render_pdf_pages_to_images, pdf_path, render_key)
+        pdf_service.render_pdf_pages_to_images(pdf_path, render_key)
         img_path = pdf_service.get_page_image_path(render_dir, page_num)
 
     if not img_path.exists():
@@ -1329,72 +1377,113 @@ def delete_exam(
     exam_id: str,
     confirm_delete_title: Optional[str] = Query(None, description="Mandatory confirmation matching exam title if exam is published"),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     """
-    Permanently delete an examination, all student answer sheets (from DB and CDN/storage),
-    evaluation scores, criteria, answers, revaluations, and submission windows.
-    Enforces branch tenancy: Branch Manager can only delete exams in their assigned branch.
-    Enforces two-tier deletion guard: Published exams cannot be deleted by Branch Managers (only archived).
-    Root Admin alone can delete published exams, requiring confirm_delete_title to match the exam title.
+    Permanently delete an examination and cascade DB rows BEFORE cleaning up storage assets (Zero-Hold).
     """
-    storage = get_storage_service()
+    keys_to_delete: List[str] = []
+    prefixes_to_delete: List[str] = []
+    sub_ids: List[str] = []
+    deleted_submissions_count = 0
 
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    with get_session() as db:
+        exam = verify_exam_tenancy(exam_id, current_user, db)
 
-    # Tenancy enforcement
-    if current_user.get("role") == "BRANCH_MANAGER":
-        if exam.branch_id != current_user.get("branch_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your branch.")
-    elif current_user.get("role") == "INSTITUTE_DIRECTOR":
-        if exam.institute_id != current_user.get("institute_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: You can only delete exams belonging to your institute.")
+        is_published_exam = bool(exam.lifecycle_status in ["PUBLISHED", "EVALUATED"] or exam.is_published == 1)
+        if is_published_exam:
+            if current_user.get("role") != "ROOT_ADMIN":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot delete an examination with published results. Published academic records are protected. Archive the exam instead."
+                )
+            if not confirm_delete_title or confirm_delete_title.strip() != exam.title.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Destruction of published academic records requires confirmation. Provide confirm_delete_title='{exam.title}'."
+                )
 
-    # D-19: Two-Tier Exam Deletion Guard
-    is_published_exam = bool(exam.lifecycle_status in ["PUBLISHED", "EVALUATED"] or exam.is_published == 1)
-    if is_published_exam:
-        user_role = current_user.get("role")
-        if user_role != "ROOT_ADMIN":
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete an examination with published results. Published academic records are protected. Archive the exam instead."
-            )
-        # Root Admin override requires explicit confirmation matching exam title
-        if not confirm_delete_title or confirm_delete_title.strip() != exam.title.strip():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Destruction of published academic records requires confirmation. Provide confirm_delete_title='{exam.title}'."
-            )
+        exam_title = exam.title
+        exam_branch = exam.branch_id
 
-    exam_title = exam.title
+        subs = db.scalars(select(Submission).where(Submission.exam_id == exam_id)).all()
+        deleted_submissions_count = len(subs)
+        sub_ids = [s.id for s in subs]
 
-    # Fetch submissions to delete files
-    subs = db.scalars(select(Submission).where(Submission.exam_id == exam_id)).all()
+        for sub in subs:
+            for path_key in [
+                sub.original_file_path,
+                sub.canonical_pdf_path,
+                sub.annotated_pdf_path,
+                f"exports/{sub.id}_annotated.pdf",
+            ]:
+                if path_key:
+                    keys_to_delete.append(path_key)
+            prefixes_to_delete.append(f"renders/{sub.id}/")
 
-    # Cloud & Local file cleanup outside DB transaction
-    deleted_files_count = 0
-    for sub in subs:
-        sub_id = sub.id
-        for path_key in [
-            sub.original_file_path,
-            sub.canonical_pdf_path,
-            sub.annotated_pdf_path,
-            f"exports/{sub_id}_annotated.pdf",
+        for art_key in [
+            exam.question_paper_path,
+            exam.answer_key_path,
+            f"exams/{exam_id}/question_paper.pdf",
+            f"exams/{exam_id}/answer_key.pdf",
         ]:
-            if path_key:
-                try:
-                    storage.delete_file(path_key)
-                    deleted_files_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to delete storage file {path_key}: {e}")
+            if art_key:
+                keys_to_delete.append(art_key)
+        prefixes_to_delete.append(f"renders/exam_{exam_id}_")
 
+        # Atomic DB cleanup via ORM
+        if sub_ids:
+            ans_ids = db.scalars(select(Answer.id).where(Answer.submission_id.in_(sub_ids))).all()
+            if ans_ids:
+                db.execute(delete(CriterionScore).where(CriterionScore.answer_id.in_(ans_ids)))
+                db.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(ans_ids)))
+            db.execute(delete(Answer).where(Answer.submission_id.in_(sub_ids)))
+
+        db.execute(delete(EvaluationQueue).where(EvaluationQueue.exam_id == exam_id))
+        db.execute(delete(RevaluationRequest).where(RevaluationRequest.exam_id == exam_id))
+        db.execute(
+            update(ApiUsageEvent)
+            .where(ApiUsageEvent.exam_id == exam_id)
+            .values(request_purpose=ApiUsageEvent.request_purpose.concat(" [EXAM_PURGED]"))
+        )
+        db.execute(delete(ExperimentBenchmark).where(ExperimentBenchmark.exam_id == exam_id))
+        db.execute(delete(SubmissionWindow).where(SubmissionWindow.exam_id == exam_id))
+        db.execute(delete(RubricVersion).where(RubricVersion.exam_id == exam_id))
+        db.execute(delete(ExamBatch).where(ExamBatch.exam_id == exam_id))
+        db.execute(delete(Submission).where(Submission.exam_id == exam_id))
+
+        db.execute(
+            update(Batch)
+            .where(Batch.exam_id == exam_id)
+            .values(exam_id=None, total_submissions=0, completed_submissions=0, failed_submissions=0)
+        )
+
+        db.execute(delete(Notification).where(Notification.link_url.like(f"%{exam_id}%")))
+        db.execute(
+            update(AuditLog)
+            .where(AuditLog.resource_id == exam_id)
+            .values(resource_type="PURGED_EXAM")
+        )
+
+        db.delete(exam)
+        db.commit()
+
+    # Execute cloud & local artifact cleanup strictly outside DB transaction
+    storage = get_storage_service()
+    deleted_files_count = 0
+    for path_key in dict.fromkeys(keys_to_delete):
         try:
-            deleted_files_count += storage.delete_prefix(f"renders/{sub_id}/")
+            storage.delete_file(path_key)
+            deleted_files_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to delete storage file {path_key}: {e}")
+
+    for prefix in dict.fromkeys(prefixes_to_delete):
+        try:
+            deleted_files_count += storage.delete_prefix(prefix)
         except Exception:
             pass
 
+    for sub_id in sub_ids:
         local_sub_dir = settings.DATA_DIR / "uploads" / "submissions" / sub_id
         if local_sub_dir.exists():
             shutil.rmtree(local_sub_dir, ignore_errors=True)
@@ -1403,85 +1492,24 @@ def delete_exam(
                 shutil.rmtree(render_sub_dir, ignore_errors=True)
         annotated_pdf = settings.EXPORTS_DIR / f"{sub_id}_annotated.pdf"
         if annotated_pdf.exists():
-            try:
-                annotated_pdf.unlink()
-            except Exception:
-                pass
-
-    for art_key in [
-        exam.question_paper_path,
-        exam.answer_key_path,
-        f"exams/{exam_id}/question_paper.pdf",
-        f"exams/{exam_id}/answer_key.pdf",
-    ]:
-        if art_key:
-            try:
-                storage.delete_file(art_key)
-                deleted_files_count += 1
-            except Exception:
-                pass
-
-    try:
-        deleted_files_count += storage.delete_prefix(f"renders/exam_{exam_id}_")
-    except Exception:
-        pass
+            annotated_pdf.unlink(missing_ok=True)
 
     local_exam_dir = settings.UPLOADS_DIR / f"exam_{exam_id}"
     if local_exam_dir.exists():
         shutil.rmtree(local_exam_dir, ignore_errors=True)
-
     for clean_art in ["question-paper", "answer-key"]:
         r_dir = settings.RENDERS_DIR / f"exam_{exam_id}_{clean_art}"
         if r_dir.exists():
             shutil.rmtree(r_dir, ignore_errors=True)
 
-    # Atomic DB cleanup via ORM
-    sub_ids = [s.id for s in subs]
-    if sub_ids:
-        ans_ids = db.scalars(select(Answer.id).where(Answer.submission_id.in_(sub_ids))).all()
-        if ans_ids:
-            db.execute(delete(CriterionScore).where(CriterionScore.answer_id.in_(ans_ids)))
-            db.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(ans_ids)))
-        db.execute(delete(Answer).where(Answer.submission_id.in_(sub_ids)))
-
-    db.execute(delete(EvaluationQueue).where(EvaluationQueue.exam_id == exam_id))
-    db.execute(delete(RevaluationRequest).where(RevaluationRequest.exam_id == exam_id))
-    # Retain financial & token telemetry for cost accounting & billing reconciliation
-    db.execute(
-        update(ApiUsageEvent)
-        .where(ApiUsageEvent.exam_id == exam_id)
-        .values(request_purpose=func.concat(ApiUsageEvent.request_purpose, " [EXAM_PURGED]"))
-    )
-    db.execute(delete(ExperimentBenchmark).where(ExperimentBenchmark.exam_id == exam_id))
-    db.execute(delete(SubmissionWindow).where(SubmissionWindow.exam_id == exam_id))
-    db.execute(delete(RubricVersion).where(RubricVersion.exam_id == exam_id))
-    db.execute(delete(ExamBatch).where(ExamBatch.exam_id == exam_id))
-    db.execute(delete(Submission).where(Submission.exam_id == exam_id))
-
-    db.execute(
-        update(Batch)
-        .where(Batch.exam_id == exam_id)
-        .values(exam_id=None, total_submissions=0, completed_submissions=0, failed_submissions=0)
-    )
-
-    db.execute(delete(Notification).where(Notification.link_url.like(f"%{exam_id}%")))
-    # Retain AuditLog compliance records for accreditation audit trails
-    db.execute(
-        update(AuditLog)
-        .where(AuditLog.resource_id == exam_id)
-        .values(resource_type="PURGED_EXAM")
-    )
-
-    db.delete(exam)
-    db.commit()
-
+    PortalStateEpochManager.bump_branch(exam_branch)
     logger.info(f"Exam '{exam_title}' ({exam_id}) completely purged by {current_user.get('email')}.")
 
     return {
         "success": True,
         "message": f"Exam '{exam_title}' and all associated submissions, scores, and cloud files have been permanently deleted.",
         "exam_id": exam_id,
-        "deleted_submissions_count": len(subs),
+        "deleted_submissions_count": deleted_submissions_count,
         "deleted_files_count": deleted_files_count,
     }
 
@@ -1496,15 +1524,7 @@ def archive_exam(
     Archive an examination. Hides it from active views while permanently preserving
     all historical student grades, report cards, answer sheets, and revaluation logs.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER" and exam.branch_id != current_user.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: You can only archive exams belonging to your branch.")
-    elif user_role == "INSTITUTE_DIRECTOR" and exam.institute_id != current_user.get("institute_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: You can only archive exams belonging to your institute.")
+    exam = verify_exam_tenancy(exam_id, current_user, db)
 
     now = get_iso_now()
     exam.lifecycle_status = "ARCHIVED"
@@ -1542,15 +1562,7 @@ def restore_exam(
     """
     Restore an archived examination back to its active operational status.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER" and exam.branch_id != current_user.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: You can only restore exams belonging to your branch.")
-    elif user_role == "INSTITUTE_DIRECTOR" and exam.institute_id != current_user.get("institute_id"):
-        raise HTTPException(status_code=403, detail="Forbidden: You can only restore exams belonging to your institute.")
+    exam = verify_exam_tenancy(exam_id, current_user, db)
 
     now = get_iso_now()
     target_status = "PUBLISHED" if exam.is_published == 1 else "COMPLETED"

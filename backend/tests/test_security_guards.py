@@ -217,8 +217,14 @@ def test_password_security_and_reset_protection():
     now = get_iso_now()
 
     with get_session() as session:
-        user = session.scalar(select(User).limit(1))
-        assert user is not None, "Test requires at least one user in DB"
+        from sqlalchemy import or_
+        user = session.scalar(
+            select(User).where(
+                or_(User.institute_id.is_(None), User.institute_id != "inst_e1eeda3473c3"),
+                or_(User.branch_id.is_(None), User.branch_id != "br_c25_acbdd4d8"),
+            ).limit(1)
+        )
+        assert user is not None, "Test requires at least one non-production user in DB"
         user_id = user.id
 
         pr = PasswordResetRequest(

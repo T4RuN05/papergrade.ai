@@ -15,12 +15,14 @@ from fastapi import HTTPException
 def test_claim_account_roll_number_only():
     """Verify students can claim accounts with roll number + password alone, and backwards compat."""
     with get_session() as session:
-        branch = session.scalar(select(Branch).limit(1))
-        assert branch is not None, "Branch required"
+        branch = session.scalar(select(Branch).where(Branch.institute_id == "inst_test_institute").limit(1))
+        assert branch is not None, "TEST INSTITUTE branch required"
         branch_id = branch.id
 
-        ex = session.scalar(select(Exam).limit(1))
-        assert ex is not None, "Exam required"
+        ex = session.scalar(select(Exam).where(Exam.institute_id == "inst_test_institute").limit(1))
+        if not ex:
+            ex = session.scalar(select(Exam).where(Exam.institute_id != "inst_e1eeda3473c3").limit(1))
+        assert ex is not None, "Non-production Exam required"
         exam_id = ex.id
 
     admin_user = {"sub": "usr_test_admin", "role": "ROOT_ADMIN"}

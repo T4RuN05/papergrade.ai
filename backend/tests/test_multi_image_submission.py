@@ -27,9 +27,11 @@ def test_multi_image_submission_assembly():
         token = login_res.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        # 2. Get active branch
+        # 2. Get active test branch (never production CATCH 25)
         branches = client.get("/api/v1/tenancy/branches", headers=headers).json()
-        branch_id = branches[0]["id"]
+        test_branch = next((b for b in branches if b.get("institute_id") == "inst_test_institute"), None)
+        assert test_branch is not None, "TEST INSTITUTE branch must exist"
+        branch_id = test_branch["id"]
 
         # 3. Create exam & open window
         exam_res = client.post("/api/v1/exams", data={

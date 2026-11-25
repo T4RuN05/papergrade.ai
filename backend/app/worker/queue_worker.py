@@ -48,6 +48,7 @@ class PersistentQueueWorker:
         self._claim_lock = threading.Lock()
         self._lifecycle_lock = threading.Lock()
         self._wake_event = threading.Event()
+        self._stop_event = threading.Event()
 
         # Guarantee B: Background Safety Net Heartbeat (Runs every 30 minutes, < 0.5 MB/mo)
         self._heartbeat_thread: Optional[threading.Thread] = None
@@ -65,12 +66,12 @@ class PersistentQueueWorker:
             self.state = WorkerState.ACTIVE
 
     def has_pending_jobs(self) -> bool:
-        """Checks if any submissions are currently in QUEUED, PROCESSING, or PAUSED_QUOTA state."""
+        """Checks if any submissions are actively QUEUED or PROCESSING (PAUSED_QUOTA remains dormant until resumed)."""
         try:
             with get_session() as session:
                 count = session.scalar(
                     select(func.count(Submission.id))
-                    .where(Submission.status.in_(('QUEUED', 'PROCESSING', 'PAUSED_QUOTA')))
+                    .where(Submission.status.in_(('QUEUED', 'PROCESSING')))
                 )
                 return bool(count and count > 0)
         except Exception as e:
@@ -116,6 +117,7 @@ class PersistentQueueWorker:
 
         self.state = WorkerState.STARTING
         self._wake_event.clear()
+        self._stop_event.clear()
 
         # Stale-only recovery: only reclaim jobs abandoned for > 15 min
         try:
@@ -138,6 +140,7 @@ class PersistentQueueWorker:
     def stop(self):
         with self._lifecycle_lock:
             self.state = WorkerState.DORMANT
+            self._stop_event.set()
             self._wake_event.set()
             for t in self._threads:
                 if t.is_alive():
@@ -199,100 +202,88 @@ class PersistentQueueWorker:
         with get_session() as session:
             if stale_only:
                 cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max_stale_minutes)).isoformat()
-                
-                # 1. Fail jobs that exceeded retry cap (>= 3 attempts)
-                fail_stmt = (
-                    update(Submission)
-                    .where(
+
+                # 1. Fail jobs that exceeded retry cap (>= 3 attempts), joining by Submission.id
+                fail_sub_ids = session.scalars(
+                    select(Submission.id).where(
                         Submission.status == 'PROCESSING',
                         or_(Submission.updated_at.is_(None), Submission.updated_at < cutoff),
-                        Submission.retry_count >= 3
+                        Submission.retry_count >= 3,
                     )
-                    .values(
-                        status='FAILED',
-                        error_message='Evaluation timed out / stalled after 3 retries',
-                        updated_at=now
+                ).all()
+                if fail_sub_ids:
+                    session.execute(
+                        update(Submission)
+                        .where(Submission.id.in_(fail_sub_ids))
+                        .values(
+                            status='FAILED',
+                            error_message='Evaluation timed out / stalled after 3 retries',
+                            updated_at=now,
+                        )
                     )
-                )
-                fail_res = session.execute(fail_stmt)
-                if fail_res.rowcount > 0:
                     session.execute(
                         update(EvaluationQueue)
-                        .where(
-                            EvaluationQueue.status == 'PROCESSING',
-                            or_(EvaluationQueue.updated_at.is_(None), EvaluationQueue.updated_at < cutoff),
-                            EvaluationQueue.attempt_count >= 3
-                        )
+                        .where(EvaluationQueue.submission_id.in_(fail_sub_ids), EvaluationQueue.status == 'PROCESSING')
                         .values(
                             status='FAILED',
                             last_error='Evaluation timed out / stalled after 3 retries',
-                            updated_at=now
+                            updated_at=now,
                         )
                     )
-                    print(f"[QueueWorker] Watchdog marked {fail_res.rowcount} exhausted job(s) as FAILED.")
+                    print(f"[QueueWorker] Watchdog marked {len(fail_sub_ids)} exhausted job(s) as FAILED.")
 
-                # 2. Requeue recoverable jobs (< 3 attempts)
-                stmt = (
-                    update(Submission)
-                    .where(
+                # 2. Requeue recoverable jobs (< 3 attempts), joining by Submission.id
+                requeue_sub_ids = session.scalars(
+                    select(Submission.id).where(
                         Submission.status == 'PROCESSING',
                         or_(Submission.updated_at.is_(None), Submission.updated_at < cutoff),
-                        Submission.retry_count < 3
+                        Submission.retry_count < 3,
                     )
-                    .values(
-                        status='QUEUED',
-                        retry_count=Submission.retry_count + 1,
-                        updated_at=now
+                ).all()
+                if requeue_sub_ids:
+                    session.execute(
+                        update(Submission)
+                        .where(Submission.id.in_(requeue_sub_ids))
+                        .values(
+                            status='QUEUED',
+                            retry_count=Submission.retry_count + 1,
+                            updated_at=now,
+                        )
                     )
-                )
-                res = session.execute(stmt)
-                sub_count = res.rowcount
-                if sub_count > 0:
                     session.execute(
                         update(EvaluationQueue)
-                        .where(
-                            EvaluationQueue.status == 'PROCESSING',
-                            or_(EvaluationQueue.updated_at.is_(None), EvaluationQueue.updated_at < cutoff),
-                            EvaluationQueue.attempt_count < 3
-                        )
+                        .where(EvaluationQueue.submission_id.in_(requeue_sub_ids), EvaluationQueue.status == 'PROCESSING')
                         .values(
                             status='QUEUED',
                             attempt_count=EvaluationQueue.attempt_count + 1,
-                            updated_at=now
+                            updated_at=now,
                         )
                     )
-                    print(f"[QueueWorker] Watchdog recovered {sub_count} stalled job(s) back to QUEUED.")
+                    print(f"[QueueWorker] Watchdog recovered {len(requeue_sub_ids)} stalled job(s) back to QUEUED.")
             else:
-                stmt = (
-                    update(Submission)
-                    .where(Submission.status == 'PROCESSING')
-                    .values(status='QUEUED', updated_at=now)
-                )
-                res = session.execute(stmt)
-                sub_count = res.rowcount
-                if sub_count > 0:
+                stalled_ids = session.scalars(
+                    select(Submission.id).where(Submission.status == 'PROCESSING')
+                ).all()
+                if stalled_ids:
                     session.execute(
-                        update(EvaluationQueue)
-                        .where(EvaluationQueue.status == 'PROCESSING')
+                        update(Submission)
+                        .where(Submission.id.in_(stalled_ids))
                         .values(status='QUEUED', updated_at=now)
                     )
-                    print(f"[QueueWorker] Recovered {sub_count} stalled job(s) back to QUEUED.")
-
-            batch_res = session.execute(
-                update(Batch)
-                .where(Batch.status == 'PAUSED_QUOTA')
-                .values(status='PROCESSING', updated_at=now)
-            )
-            batch_count = batch_res.rowcount
-            if batch_count > 0:
-                print(f"[QueueWorker] Resumed {batch_count} quota-paused batch(es) back to PROCESSING.")
+                    session.execute(
+                        update(EvaluationQueue)
+                        .where(EvaluationQueue.submission_id.in_(stalled_ids), EvaluationQueue.status == 'PROCESSING')
+                        .values(status='QUEUED', updated_at=now)
+                    )
+                    print(f"[QueueWorker] Recovered {len(stalled_ids)} stalled job(s) back to QUEUED.")
 
             session.commit()
 
     def _run_watchdog_loop(self):
-        """Runs every 60 seconds while worker is active to detect and recover stuck jobs in PROCESSING."""
+        """Runs every 60 seconds while worker is active; wakes/exits immediately on stop or dormancy."""
         while self.state in (WorkerState.ACTIVE, WorkerState.DRAINING):
-            time.sleep(60.0)
+            if self._stop_event.wait(timeout=60.0):
+                break
             if self.state not in (WorkerState.ACTIVE, WorkerState.DRAINING):
                 break
             try:
@@ -301,19 +292,22 @@ class PersistentQueueWorker:
                 print(f"[QueueWorker-Watchdog] Error in watchdog loop: {e}")
 
     def _run_worker_loop(self, worker_id: int):
-        time.sleep(worker_id * 0.75)
+        if self._stop_event.wait(timeout=worker_id * 0.75):
+            return
         while self.state in (WorkerState.ACTIVE, WorkerState.DRAINING):
             try:
                 processed = self.process_next_job(worker_id=worker_id)
                 if processed:
                     # Enforce guaranteed 4.12s inter-request spacing to stay strictly within Gemini Free 15 RPM limit
-                    time.sleep(4.12)
+                    if self._stop_event.wait(timeout=4.12):
+                        break
                 else:
                     # No job claimed by this worker. Check if all queued and processing jobs are completely finished.
                     with self._lifecycle_lock:
                         if self.state in (WorkerState.ACTIVE, WorkerState.DRAINING):
                             if not self.has_pending_jobs():
                                 self.state = WorkerState.DORMANT
+                                self._stop_event.set()
                                 self._wake_event.set()
                                 print(
                                     f"[QueueWorker-{worker_id}] Evaluation queue empty (0 QUEUED/PROCESSING). "
@@ -328,7 +322,8 @@ class PersistentQueueWorker:
                     self._wake_event.clear()
             except Exception as e:
                 print(f"[QueueWorker-{worker_id}] Unexpected loop error: {e}")
-                time.sleep(self.poll_interval_sec)
+                if self._stop_event.wait(timeout=self.poll_interval_sec):
+                    break
 
     def _claim_next_job(self, worker_id: int = 0) -> Optional[Dict[str, Any]]:
         """Claims a single submission using FIFO ordering (Roll number, created_at)."""
@@ -390,7 +385,8 @@ class PersistentQueueWorker:
         batch_id = job["batch_id"]
         now = get_iso_now()
 
-        # 1. Fetch approved rubric for this exam
+        # 1. Fetch approved rubric for this exam (strictly closed session before any follow-up DB write)
+        rubric_data = None
         with get_session() as session:
             r_row = session.scalar(
                 select(RubricVersion)
@@ -398,19 +394,20 @@ class PersistentQueueWorker:
                 .order_by(RubricVersion.version_num.desc())
                 .limit(1)
             )
-            if not r_row or not r_row.rubric_data:
-                err_msg = f"No approved rubric found for exam {exam_id}. Cannot grade."
-                print(f"[QueueWorker-{worker_id}] ERROR: {err_msg}")
-                with get_session() as sess:
-                    sess.execute(update(Submission).where(Submission.id == submission_id).values(status='FAILED', error_message=err_msg, updated_at=now))
-                    sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == submission_id).values(status='FAILED', last_error=err_msg, updated_at=now))
-                    sess.commit()
-                if batch_id:
-                    self._update_batch_progress(batch_id)
-                self._update_exam_evaluation_status(exam_id)
-                return True
+            if r_row and r_row.rubric_data:
+                rubric_data = json.loads(r_row.rubric_data)
 
-            rubric_data = json.loads(r_row.rubric_data)
+        if rubric_data is None:
+            err_msg = f"No approved rubric found for exam {exam_id}. Cannot grade."
+            print(f"[QueueWorker-{worker_id}] ERROR: {err_msg}")
+            with get_session() as sess:
+                sess.execute(update(Submission).where(Submission.id == submission_id).values(status='FAILED', error_message=err_msg, updated_at=now))
+                sess.execute(update(EvaluationQueue).where(EvaluationQueue.submission_id == submission_id).values(status='FAILED', last_error=err_msg, updated_at=now))
+                sess.commit()
+            if batch_id:
+                self._update_batch_progress(batch_id)
+            self._update_exam_evaluation_status(exam_id)
+            return True
 
         # 2. Get local PDF path
         raw_pdf = job["canonical_pdf_path"]
@@ -482,8 +479,7 @@ class PersistentQueueWorker:
                     update(Submission)
                     .where(Submission.id == submission_id)
                     .values(
-                        status='QUEUED',
-                        retry_count=0,
+                        status='PAUSED_QUOTA',
                         error_message=f"Quota Paused: {err_msg[:200]}",
                         updated_at=now_str
                     )
@@ -492,7 +488,7 @@ class PersistentQueueWorker:
                     update(EvaluationQueue)
                     .where(EvaluationQueue.submission_id == submission_id)
                     .values(
-                        status='QUEUED',
+                        status='PAUSED_QUOTA',
                         last_error=f"Quota Paused: {err_msg[:200]}",
                         updated_at=now_str
                     )
@@ -505,8 +501,7 @@ class PersistentQueueWorker:
                     )
                 sess.commit()
 
-            print(f"[QueueWorker-{worker_id}] Pausing worker loop for 30s cooldown to allow quota reset...")
-            time.sleep(30.0)
+            self._stop_event.wait(timeout=30.0)
             return False
 
         except Exception as grading_err:

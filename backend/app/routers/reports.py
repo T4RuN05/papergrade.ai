@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func, case, or_
 
 from backend.app.config import settings
-from backend.app.db.session import get_db
+from backend.app.db.session import get_db, get_session
 from backend.app.db.base import get_iso_now
 from backend.app.db.models import TechnicalReport, User, Student, Branch
 from backend.app.services.auth import get_current_user, require_root_admin
@@ -40,11 +40,10 @@ async def submit_technical_report(
     description: str = Form(...),
     screenshots: List[UploadFile] = File([]),
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
     """
     Submit a technical issue report with up to 3 screenshots (max 500KB each) and max 1000 characters description.
-    Automatically notifies all Root Admins via in-app notification and Web Push using SQLAlchemy ORM.
+    Zero-Hold invariant: all file reads and remote storage uploads complete before opening a DB session.
     """
     user_id = current_user.get("sub") or current_user.get("id")
     if not user_id:
@@ -100,7 +99,6 @@ async def submit_technical_report(
 
         try:
             storage = get_storage_service()
-            # D-08: Offload synchronous WAN storage upload from event loop to worker thread
             await asyncio.to_thread(storage.upload_file, content, storage_key, content_type=content_type)
         except Exception as st_err:
             logger.warning("Failed uploading screenshot to storage service: %s", st_err)
@@ -117,51 +115,52 @@ async def submit_technical_report(
     screenshots_json = json.dumps(saved_filenames)
     now = get_iso_now()
 
-    user = db.scalar(select(User).where(User.id == user_id))
-    if not user:
-        raise HTTPException(status_code=404, detail="User account not found.")
+    with get_session() as db:
+        user = db.scalar(select(User).where(User.id == user_id))
+        if not user:
+            raise HTTPException(status_code=404, detail="User account not found.")
 
-    user_role = user.role
-    user_name = user.full_name
-    user_email = user.email
-    branch_id = user.branch_id
-    user_roll = None
+        user_role = user.role
+        user_name = user.full_name
+        user_email = user.email
+        branch_id = user.branch_id
+        user_roll = None
 
-    if user_role == "STUDENT":
-        st = db.scalar(select(Student).where(Student.user_id == user_id).limit(1))
-        if st:
-            user_roll = st.roll_number
+        if user_role == "STUDENT":
+            st = db.scalar(select(Student).where(Student.user_id == user_id).limit(1))
+            if st:
+                user_roll = st.roll_number
 
-    new_report = TechnicalReport(
-        id=report_id,
-        user_id=user_id,
-        user_role=user_role,
-        user_name=user_name,
-        user_email=user_email,
-        user_roll=user_roll,
-        branch_id=branch_id,
-        category=clean_cat,
-        subject=clean_subj,
-        description=clean_desc,
-        screenshots_json=screenshots_json,
-        status='OPEN',
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(new_report)
+        new_report = TechnicalReport(
+            id=report_id,
+            user_id=user_id,
+            user_role=user_role,
+            user_name=user_name,
+            user_email=user_email,
+            user_roll=user_roll,
+            branch_id=branch_id,
+            category=clean_cat,
+            subject=clean_subj,
+            description=clean_desc,
+            screenshots_json=screenshots_json,
+            status='OPEN',
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(new_report)
 
-    role_label = "Student" if user_role == "STUDENT" else "Branch Mgr"
-    ident = f" ({user_roll})" if user_roll else ""
-    notif_msg = f"[{role_label}] {user_name}{ident} reported an issue: {clean_subj}"
-    notify_root_admins(
-        db,
-        notif_type="REPORT_RECEIVED",
-        title="New Technical Issue Reported",
-        message=notif_msg,
-        link_url="/admin/reports"
-    )
+        role_label = "Student" if user_role == "STUDENT" else "Branch Mgr"
+        ident = f" ({user_roll})" if user_roll else ""
+        notif_msg = f"[{role_label}] {user_name}{ident} reported an issue: {clean_subj}"
+        notify_root_admins(
+            db,
+            notif_type="REPORT_RECEIVED",
+            title="New Technical Issue Reported",
+            message=notif_msg,
+            link_url="/admin/reports"
+        )
 
-    db.commit()
+        db.commit()
 
     return {
         "success": True,
@@ -304,16 +303,24 @@ def get_report_image(
     report_id: str,
     filename: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
-    """Serve a screenshot securely from persistent storage or local reports cache."""
-    # Check access permission: ROOT_ADMIN or the report author
-    if current_user.get("role") != "ROOT_ADMIN":
-        rep = db.scalar(select(TechnicalReport).where(TechnicalReport.id == report_id))
-        if not rep or rep.user_id != current_user.get("sub"):
-            raise HTTPException(status_code=403, detail="Forbidden: You cannot access screenshots from another user's report.")
-
+    """Serve a screenshot securely from persistent storage or local reports cache (Zero-Hold)."""
     safe_filename = os.path.basename(filename)
+
+    with get_session() as db:
+        rep = db.scalar(select(TechnicalReport).where(TechnicalReport.id == report_id))
+        if not rep:
+            raise HTTPException(status_code=404, detail="Report not found.")
+        if current_user.get("role") != "ROOT_ADMIN" and rep.user_id != current_user.get("sub"):
+            raise HTTPException(status_code=403, detail="Forbidden: You cannot access screenshots from another user's report.")
+        allowed_files = set()
+        if rep.screenshots_json:
+            try:
+                allowed_files = {os.path.basename(str(f)) for f in json.loads(rep.screenshots_json)}
+            except Exception:
+                pass
+        if allowed_files and safe_filename not in allowed_files:
+            raise HTTPException(status_code=404, detail="Screenshot image not found on report.")
 
     media_type = "image/png"
     if safe_filename.endswith(".jpg") or safe_filename.endswith(".jpeg"):
@@ -335,14 +342,14 @@ def get_report_image(
             return Response(
                 content=file_bytes,
                 media_type=media_type,
-                headers={"Cache-Control": "public, max-age=86400, immutable"}
+                headers={"Cache-Control": "private, max-age=86400, immutable"}
             )
     except Exception as e:
         logger.debug("Storage download notice for %s: %s", storage_key, e)
 
     file_path = settings.REPORTS_DIR / safe_filename
     if file_path.exists() and file_path.is_file():
-        return FileResponse(file_path, media_type=media_type)
+        return FileResponse(file_path, media_type=media_type, headers={"Cache-Control": "private, max-age=86400, immutable"})
 
     raise HTTPException(status_code=404, detail="Screenshot image not found.")
 

@@ -1,15 +1,14 @@
 import uuid
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import select
 
-from backend.app.db.session import get_db
+from backend.app.db.session import get_session
 from backend.app.db.base import get_iso_now
-from backend.app.db.models import ExperimentBenchmark, Exam
+from backend.app.db.models import ExperimentBenchmark
 from backend.app.schemas import QuotaSettingsUpdateRequest, BenchmarkRecordRequest
 from backend.app.services.usage_service import usage_service
 from backend.app.services.auth import require_branch_manager, require_root_admin
+from backend.app.services.authorization import verify_exam_tenancy
 
 router = APIRouter(tags=["Analytics & Feasibility"])
 
@@ -20,20 +19,21 @@ def get_usage(
     exam_id: Optional[str] = None,
     batch_id: Optional[str] = None,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     if exam_id:
-        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-        if exam:
-            user_role = current_user.get("role")
-            if user_role == "BRANCH_MANAGER":
-                if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
-                    raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
-            elif user_role == "INSTITUTE_DIRECTOR":
-                if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
-                    raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+        with get_session() as db:
+            verify_exam_tenancy(exam_id, current_user, db)
+    elif current_user.get("role") != "ROOT_ADMIN":
+        # Scope unfiltered tenant metrics cleanly instead of exposing global GCP/platform totals
+        metrics = usage_service.get_usage_metrics(exam_id=exam_id, batch_id=batch_id)
+        if isinstance(metrics, dict):
+            metrics = {k: v for k, v in metrics.items() if k not in ("gcp_paid_keys", "key_health", "raw_keys", "api_keys")}
+        return metrics
 
-    return usage_service.get_usage_metrics(exam_id=exam_id, batch_id=batch_id)
+    metrics = usage_service.get_usage_metrics(exam_id=exam_id, batch_id=batch_id)
+    if current_user.get("role") != "ROOT_ADMIN" and isinstance(metrics, dict):
+        metrics = {k: v for k, v in metrics.items() if k not in ("gcp_paid_keys", "key_health", "raw_keys", "api_keys")}
+    return metrics
 
 
 @router.post("/quota")
@@ -62,43 +62,33 @@ def test_gcp_paid(
 def record_benchmark(
     req: BenchmarkRecordRequest,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     """
     Records human teacher verification for an evaluated paper to compute
     transcription, mapping, localization, and grading agreement metrics via ORM.
     """
-    exam = db.scalar(select(Exam).where(Exam.id == req.exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
+    with get_session() as db:
+        verify_exam_tenancy(req.exam_id, current_user, db)
+        bench_id = str(uuid.uuid4())
+        now = get_iso_now()
 
-    user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER":
-        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
-    bench_id = str(uuid.uuid4())
-    now = get_iso_now()
-
-    benchmark = ExperimentBenchmark(
-        id=bench_id,
-        exam_id=req.exam_id,
-        submission_id=req.submission_id,
-        ground_truth_marks=req.ground_truth_marks,
-        ground_truth_answers_json=req.ground_truth_answers_json,
-        transcription_accepted=1 if req.transcription_accepted else 0,
-        mapping_correct=1 if req.mapping_correct else 0,
-        box_accepted=1 if req.box_accepted else 0,
-        marks_matched=1 if req.marks_matched else 0,
-        explanation_sufficient=1 if req.explanation_sufficient else 0,
-        manual_intervention_required=1 if req.manual_intervention_required else 0,
-        notes=req.notes,
-        created_at=now,
-    )
-    db.add(benchmark)
-    db.commit()
+        benchmark = ExperimentBenchmark(
+            id=bench_id,
+            exam_id=req.exam_id,
+            submission_id=req.submission_id,
+            ground_truth_marks=req.ground_truth_marks,
+            ground_truth_answers_json=req.ground_truth_answers_json,
+            transcription_accepted=1 if req.transcription_accepted else 0,
+            mapping_correct=1 if req.mapping_correct else 0,
+            box_accepted=1 if req.box_accepted else 0,
+            marks_matched=1 if req.marks_matched else 0,
+            explanation_sufficient=1 if req.explanation_sufficient else 0,
+            manual_intervention_required=1 if req.manual_intervention_required else 0,
+            notes=req.notes,
+            created_at=now,
+        )
+        db.add(benchmark)
+        db.commit()
 
     return {"id": bench_id, "message": "Benchmark record saved successfully."}
 
@@ -107,25 +97,16 @@ def record_benchmark(
 def get_exam_benchmarks(
     exam_id: str,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    exam = db.scalar(select(Exam).where(Exam.id == exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER":
-        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
-
-    records = db.scalars(
-        select(ExperimentBenchmark)
-        .where(ExperimentBenchmark.exam_id == exam_id)
-        .order_by(ExperimentBenchmark.created_at.desc())
-    ).all()
+    from sqlalchemy import select
+    with get_session() as db:
+        verify_exam_tenancy(exam_id, current_user, db)
+        records = db.scalars(
+            select(ExperimentBenchmark)
+            .where(ExperimentBenchmark.exam_id == exam_id)
+            .order_by(ExperimentBenchmark.created_at.desc())
+        ).all()
+        db.expunge_all()
 
     if not records:
         return {

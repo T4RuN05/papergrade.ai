@@ -34,7 +34,8 @@ def test_reopen_submission_window_via_api():
     branches = branches_res.json()
     assert len(branches) > 0, "No branches found for test institute"
 
-    test_branch = next((b for b in branches if b.get("institute_id") == "inst_test_institute"), branches[0])
+    test_branch = next((b for b in branches if b.get("institute_id") == "inst_test_institute"), None)
+    assert test_branch is not None, "TEST INSTITUTE branch must exist"
     branch_id = test_branch["id"]
     institute_id = test_branch["institute_id"]
 

@@ -13,7 +13,7 @@ from sqlalchemy import select, func, delete, update, or_
 import openpyxl
 
 from backend.app.config import settings
-from backend.app.db.session import get_db
+from backend.app.db.session import get_db, get_session
 from backend.app.db.base import get_iso_now
 from backend.app.db.models import (
     Institute,
@@ -45,6 +45,7 @@ from backend.app.services.auth import (
     require_branch_manager,
     invalidate_user_auth_cache,
 )
+from backend.app.services.authorization import PROD_INSTITUTE_ID
 from backend.app.services.storage import get_storage_service
 
 logger = logging.getLogger(__name__)
@@ -621,8 +622,6 @@ def add_single_student(
     )
     db.add(student)
 
-    # Increment batch total
-    batch.total_submissions = (batch.total_submissions or 0) + 1
     batch.updated_at = now
 
     db.commit()
@@ -649,10 +648,9 @@ async def import_students_excel(
     batch_id: str,
     file: UploadFile = File(...),
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     """
-    Import student roster from an Excel sheet (.xlsx).
+    Import student roster from an Excel sheet (.xlsx) (Zero-Hold around file/Excel parsing).
     Automatically allocates sequential, globally unique roll numbers
     under the pattern {INSTITUTE_CODE}-{BRANCH_CODE}-{SEQUENCE:03d}.
     """
@@ -664,12 +662,6 @@ async def import_students_excel(
         rows = await asyncio.to_thread(_parse_excel_sheet_rows, content)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not parse Excel spreadsheet: {str(e)}")
-
-    batch = db.scalar(select(Batch).where(Batch.id == batch_id))
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
-    if not _verify_batch_access(db, current_user, batch):
-        raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
     if len(rows) < 2:
         raise HTTPException(status_code=400, detail="Excel file is empty or has no data rows.")
@@ -700,7 +692,6 @@ async def import_students_excel(
         if not full_name:
             full_name = "Student"
 
-        # Check if a roll number was provided in the Excel row
         provided_roll = None
         if roll_idx is not None and roll_idx < len(row) and row[roll_idx] is not None:
             cand_roll = str(row[roll_idx]).strip().upper()
@@ -714,107 +705,117 @@ async def import_students_excel(
     if not raw_rows:
         raise HTTPException(status_code=400, detail="Excel file has no valid student rows.")
 
-    # D-09: Batch roll allocation, duplicate checks, and student_id_num generation into 3 bulk queries total
-    rows_needing_rolls = [r for r in raw_rows if not r.get("roll_number")]
-    allocated_rolls = allocate_next_roll_numbers(db, batch.branch_id, count=len(rows_needing_rolls)) if rows_needing_rolls else []
-    alloc_iter = iter(allocated_rolls)
+    with get_session() as db:
+        batch = db.scalar(select(Batch).where(Batch.id == batch_id))
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        if not _verify_batch_access(db, current_user, batch):
+            raise HTTPException(status_code=403, detail="Forbidden: batch belongs to another branch/institute.")
 
-    # Prefix for formatting numeric-only roll numbers
-    branch = db.scalar(select(Branch).where(Branch.id == batch.branch_id))
-    institute = db.scalar(select(Institute).where(Institute.id == branch.institute_id)) if branch else None
-    inst_code = (institute.code if institute else "INST").strip().upper()
-    branch_code = branch.code.strip().upper() if branch else "BR"
-    prefix = f"{inst_code}-{branch_code}-"
+        rows_needing_rolls = [r for r in raw_rows if not r.get("roll_number")]
+        allocated_rolls = allocate_next_roll_numbers(db, batch.branch_id, count=len(rows_needing_rolls)) if rows_needing_rolls else []
+        alloc_iter = iter(allocated_rolls)
 
-    resolved_rows = []
-    highest_seq = getattr(branch, "last_roll_sequence", 0) or 0
+        branch = db.scalar(select(Branch).where(Branch.id == batch.branch_id))
+        institute = db.scalar(select(Institute).where(Institute.id == branch.institute_id)) if branch else None
+        inst_code = (institute.code if institute else "INST").strip().upper()
+        branch_code = branch.code.strip().upper() if branch else "BR"
+        prefix = f"{inst_code}-{branch_code}-"
 
-    for row_data in raw_rows:
-        r_num = row_data.get("roll_number")
-        if not r_num:
-            r_num = next(alloc_iter)
+        resolved_rows = []
+        highest_seq = getattr(branch, "last_roll_sequence", 0) or 0
+
+        for row_data in raw_rows:
+            r_num = row_data.get("roll_number")
+            if not r_num:
+                r_num = next(alloc_iter)
+            else:
+                r_num = str(r_num).strip().upper()
+                if r_num.isdigit():
+                    r_num = f"{prefix}{int(r_num):03d}"
+                try:
+                    num = int(r_num.split("-")[-1])
+                    if num > highest_seq:
+                        highest_seq = num
+                except ValueError:
+                    pass
+            resolved_rows.append((r_num, row_data))
+
+        candidate_rolls = [r_num for r_num, _ in resolved_rows]
+        existing_students = db.execute(
+            select(Student.id, Student.roll_number).where(Student.roll_number.in_(candidate_rolls))
+        ).all()
+        existing_roll_map = {row.roll_number: row.id for row in existing_students}
+
+        valid_rows = []
+        seen_in_file: set[str] = set()
+        for r_num, row_data in resolved_rows:
+            if r_num in existing_roll_map:
+                skipped_duplicates.append({
+                    "roll_number": r_num,
+                    "full_name": row_data["full_name"],
+                    "reason": f"Roll number already exists (Student ID: {existing_roll_map[r_num]})"
+                })
+            elif r_num in seen_in_file:
+                skipped_duplicates.append({
+                    "roll_number": r_num,
+                    "full_name": row_data["full_name"],
+                    "reason": "Duplicate roll number within uploaded Excel file",
+                })
+            else:
+                seen_in_file.add(r_num)
+                valid_rows.append((r_num, row_data))
+
+        needed_count = len(valid_rows)
+        if needed_count > 0:
+            candidate_pool = set()
+            while len(candidate_pool) < needed_count * 2:
+                candidate_pool.add(str(random.randint(100000, 999999)))
+            colliding = set(
+                db.scalars(
+                    select(Student.student_id_num).where(Student.student_id_num.in_(list(candidate_pool)))
+                ).all()
+            )
+            avail_id_nums = list(candidate_pool - colliding)
         else:
-            r_num = str(r_num).strip().upper()
-            if r_num.isdigit():
-                r_num = f"{prefix}{int(r_num):03d}"
-            try:
-                num = int(r_num.split("-")[-1])
-                if num > highest_seq:
-                    highest_seq = num
-            except ValueError:
-                pass
-        resolved_rows.append((r_num, row_data))
+            avail_id_nums = []
 
-    # Single bulk query to check all candidate roll numbers for collisions
-    candidate_rolls = [r_num for r_num, _ in resolved_rows]
-    existing_students = db.execute(
-        select(Student.id, Student.roll_number).where(Student.roll_number.in_(candidate_rolls))
-    ).all()
-    existing_roll_map = {row.roll_number: row.id for row in existing_students}
+        imported_students = []
+        new_student_objs = []
+        now = get_iso_now()
 
-    valid_rows = []
-    for r_num, row_data in resolved_rows:
-        if r_num in existing_roll_map:
-            skipped_duplicates.append({
+        for idx, (r_num, row_data) in enumerate(valid_rows):
+            student_id = f"stu_{uuid.uuid4().hex[:12]}"
+            student_id_num = avail_id_nums[idx]
+
+            student = Student(
+                id=student_id,
+                batch_id=batch_id,
+                student_id_num=student_id_num,
+                roll_number=r_num,
+                full_name=row_data["full_name"],
+                email=row_data.get("email"),
+                phone=row_data.get("phone"),
+                account_claimed=0,
+                created_at=now,
+            )
+            new_student_objs.append(student)
+
+            imported_students.append({
+                "student_id": student_id,
+                "student_id_num": student_id_num,
                 "roll_number": r_num,
                 "full_name": row_data["full_name"],
-                "reason": f"Roll number already exists (Student ID: {existing_roll_map[r_num]})"
             })
-        else:
-            valid_rows.append((r_num, row_data))
 
-    # Single bulk query to generate collision-free 6-digit student ID numbers
-    needed_count = len(valid_rows)
-    if needed_count > 0:
-        candidate_pool = set()
-        while len(candidate_pool) < needed_count * 2:
-            candidate_pool.add(str(random.randint(100000, 999999)))
-        colliding = set(
-            db.scalars(
-                select(Student.student_id_num).where(Student.student_id_num.in_(list(candidate_pool)))
-            ).all()
-        )
-        avail_id_nums = list(candidate_pool - colliding)
-    else:
-        avail_id_nums = []
+        if new_student_objs:
+            db.add_all(new_student_objs)
 
-    imported_students = []
-    new_student_objs = []
-    now = get_iso_now()
+        if branch and highest_seq > (getattr(branch, "last_roll_sequence", 0) or 0):
+            branch.last_roll_sequence = highest_seq
 
-    for idx, (r_num, row_data) in enumerate(valid_rows):
-        student_id = f"stu_{uuid.uuid4().hex[:12]}"
-        student_id_num = avail_id_nums[idx]
-
-        student = Student(
-            id=student_id,
-            batch_id=batch_id,
-            student_id_num=student_id_num,
-            roll_number=r_num,
-            full_name=row_data["full_name"],
-            email=row_data.get("email"),
-            phone=row_data.get("phone"),
-            account_claimed=0,
-            created_at=now,
-        )
-        new_student_objs.append(student)
-
-        imported_students.append({
-            "student_id": student_id,
-            "student_id_num": student_id_num,
-            "roll_number": r_num,
-            "full_name": row_data["full_name"],
-        })
-
-    if new_student_objs:
-        db.add_all(new_student_objs)
-
-    if branch and highest_seq > (getattr(branch, "last_roll_sequence", 0) or 0):
-        branch.last_roll_sequence = highest_seq
-
-    # Update batch timestamp
-    batch.updated_at = now
-    db.commit()
+        batch.updated_at = now
+        db.commit()
 
     return {
         "status": "success",
@@ -891,12 +892,15 @@ def purge_institute_cascade(
     - Submissions, Answers, Criterion Scores, Answer Regions, Evaluation Queue, Revaluations
     - Cloudinary and Object Storage assets
     """
-    storage = get_storage_service()
+    if institute_id == PROD_INSTITUTE_ID:
+        raise HTTPException(status_code=403, detail="Forbidden: Production institute CATCH 25 is permanently protected.")
 
     # 1. Verify institute exists
     inst = db.scalar(select(Institute).where(Institute.id == institute_id))
     if not inst:
         raise HTTPException(status_code=404, detail="Institute not found")
+    if (inst.code or "").strip().upper() == "C25":
+        raise HTTPException(status_code=403, detail="Forbidden: Production institute CATCH 25 is permanently protected.")
     inst_name = inst.name
     inst_code = inst.code
 
@@ -1028,68 +1032,7 @@ def purge_institute_cascade(
                 except Exception:
                     pass
 
-    # Delete storage assets outside DB transaction
-    deleted_files_count = 0
-    for sub in subs_list:
-        s_id = sub["id"]
-        for path_key in [sub.get("original_file_path"), sub.get("canonical_pdf_path"), sub.get("annotated_pdf_path")]:
-            if path_key:
-                try:
-                    storage.delete_file(path_key)
-                    deleted_files_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to delete submission cloud file {path_key}: {e}")
-
-        local_sub_dir = settings.DATA_DIR / "uploads" / "submissions" / s_id
-        if local_sub_dir.exists():
-            shutil.rmtree(local_sub_dir, ignore_errors=True)
-        render_sub_dir = settings.RENDERS_DIR / f"sub_{s_id}"
-        if render_sub_dir.exists():
-            shutil.rmtree(render_sub_dir, ignore_errors=True)
-        annotated_pdf = settings.EXPORTS_DIR / f"{s_id}_annotated.pdf"
-        if annotated_pdf.exists():
-            try:
-                annotated_pdf.unlink()
-            except Exception:
-                pass
-
-    for ex in exams_list:
-        ex_id = ex["id"]
-        for art_key in [
-            ex.get("question_paper_path"),
-            ex.get("answer_key_path"),
-            f"exams/{ex_id}/question_paper.pdf",
-            f"exams/{ex_id}/answer_key.pdf",
-        ]:
-            if art_key:
-                try:
-                    storage.delete_file(art_key)
-                    deleted_files_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to delete exam cloud file {art_key}: {e}")
-
-        local_exam_dir = settings.UPLOADS_DIR / f"exam_{ex_id}"
-        if local_exam_dir.exists():
-            shutil.rmtree(local_exam_dir, ignore_errors=True)
-        for clean_art in ["question-paper", "answer-key"]:
-            r_dir = settings.RENDERS_DIR / f"exam_{ex_id}_{clean_art}"
-            if r_dir.exists():
-                shutil.rmtree(r_dir, ignore_errors=True)
-
-    for rep_id, filename in report_files_to_delete:
-        try:
-            storage.delete_file(f"reports/{rep_id}/{filename}")
-            deleted_files_count += 1
-        except Exception:
-            pass
-        local_rep_file = settings.REPORTS_DIR / filename
-        if local_rep_file.exists():
-            try:
-                local_rep_file.unlink()
-            except Exception:
-                pass
-
-    # Atomic bottom-up cascade deletion via ORM
+    # Atomic bottom-up cascade deletion via ORM FIRST (release DB before WAN storage cleanup)
     if sub_ids_list:
         ans_ids = db.scalars(select(Answer.id).where(Answer.submission_id.in_(sub_ids_list))).all()
         if ans_ids:
@@ -1153,11 +1096,11 @@ def purge_institute_cascade(
             .values(institute_id=None, branch_id=None)
         )
 
-    # Delete non-root users
     if user_ids_list:
         _chunked_delete_orm(db, User, User.id, user_ids_list)
+        for uid in user_ids_list:
+            invalidate_user_auth_cache(uid)
 
-    # Delete subjects, branches, and institute
     db.execute(delete(Subject).where(Subject.institute_id == institute_id))
     if branch_ids:
         db.execute(delete(Subject).where(Subject.branch_id.in_(branch_ids)))
@@ -1165,6 +1108,62 @@ def purge_institute_cascade(
 
     db.delete(inst)
     db.commit()
+
+    # Delete storage assets strictly after DB commit
+    storage = get_storage_service()
+    deleted_files_count = 0
+    for sub in subs_list:
+        s_id = sub["id"]
+        for path_key in [sub.get("original_file_path"), sub.get("canonical_pdf_path"), sub.get("annotated_pdf_path")]:
+            if path_key:
+                try:
+                    storage.delete_file(path_key)
+                    deleted_files_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete submission cloud file {path_key}: {e}")
+
+        local_sub_dir = settings.DATA_DIR / "uploads" / "submissions" / s_id
+        if local_sub_dir.exists():
+            shutil.rmtree(local_sub_dir, ignore_errors=True)
+        for render_sub_dir in (settings.RENDERS_DIR / s_id, settings.RENDERS_DIR / f"sub_{s_id}"):
+            if render_sub_dir.exists():
+                shutil.rmtree(render_sub_dir, ignore_errors=True)
+        annotated_pdf = settings.EXPORTS_DIR / f"{s_id}_annotated.pdf"
+        if annotated_pdf.exists():
+            annotated_pdf.unlink(missing_ok=True)
+
+    for ex in exams_list:
+        ex_id = ex["id"]
+        for art_key in [
+            ex.get("question_paper_path"),
+            ex.get("answer_key_path"),
+            f"exams/{ex_id}/question_paper.pdf",
+            f"exams/{ex_id}/answer_key.pdf",
+        ]:
+            if art_key:
+                try:
+                    storage.delete_file(art_key)
+                    deleted_files_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete exam cloud file {art_key}: {e}")
+
+        local_exam_dir = settings.UPLOADS_DIR / f"exam_{ex_id}"
+        if local_exam_dir.exists():
+            shutil.rmtree(local_exam_dir, ignore_errors=True)
+        for clean_art in ["question-paper", "answer-key"]:
+            r_dir = settings.RENDERS_DIR / f"exam_{ex_id}_{clean_art}"
+            if r_dir.exists():
+                shutil.rmtree(r_dir, ignore_errors=True)
+
+    for rep_id, filename in report_files_to_delete:
+        try:
+            storage.delete_file(f"reports/{rep_id}/{filename}")
+            deleted_files_count += 1
+        except Exception:
+            pass
+        local_rep_file = settings.REPORTS_DIR / filename
+        if local_rep_file.exists():
+            local_rep_file.unlink(missing_ok=True)
 
     by_who = caller_email or "System/RetentionDaemon"
     logger.info(
@@ -1197,12 +1196,18 @@ def delete_institute(
     By default (permanent=False), soft-deletes the institute for 7 days.
     If permanent=True, permanently purges the institute and all its cascaded entities.
     """
+    if institute_id == PROD_INSTITUTE_ID:
+        raise HTTPException(status_code=403, detail="Forbidden: Production institute CATCH 25 cannot be deleted.")
+
     inst = db.scalar(select(Institute).where(Institute.id == institute_id))
     if not inst:
         raise HTTPException(status_code=404, detail="Institute not found")
+    if (inst.code or "").strip().upper() == "C25":
+        raise HTTPException(status_code=403, detail="Forbidden: Production institute CATCH 25 cannot be deleted.")
 
     if permanent:
-        return purge_institute_cascade(db, institute_id, caller_email=current_user.get("email"))
+        res = purge_institute_cascade(db, institute_id, caller_email=current_user.get("email"))
+        return res
 
     now = get_iso_now()
     inst.is_deleted = 1

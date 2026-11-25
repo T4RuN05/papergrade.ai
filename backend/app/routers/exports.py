@@ -1,11 +1,11 @@
+import os
 import re
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse, Response
-from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from backend.app.db.session import get_db
+from backend.app.db.session import get_session
 from backend.app.db.models import Submission, Exam, Batch, Branch
 from backend.app.services.export_service import export_service
 from backend.app.services.grading_service import grading_service
@@ -16,77 +16,81 @@ from backend.app.services.storage import (
     sync_file_to_remote_storage,
 )
 from backend.app.services.auth import get_current_user, require_branch_manager
+from backend.app.services.authorization import (
+    is_exam_published,
+    student_owns_submission,
+    verify_exam_tenancy,
+    verify_staff_exam_scope,
+)
 
 router = APIRouter(prefix="/api/exports", tags=["Exports"])
 
 
+def _sanitize_download_filename(raw_name: str, default_ext: str) -> str:
+    clean = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', os.path.basename(raw_name.strip())) or f"download.{default_ext}"
+    if not clean.lower().endswith(f".{default_ext}"):
+        clean = f"{clean}.{default_ext}"
+    return clean
+
+
 def _resolve_pdf_response(
     submission_id: str,
-    db: Session,
     custom_filename: Optional[str] = None,
     current_user: Optional[Dict[str, Any]] = None
 ):
     clean_sub_id = submission_id.removesuffix(".pdf")
 
-    # Check 15-day retention purge status & publication status
-    result = db.execute(
-        select(Submission, Exam)
-        .outerjoin(Exam, Submission.exam_id == Exam.id)
-        .where(Submission.id == clean_sub_id)
-    ).first()
+    with get_session() as db:
+        result = db.execute(
+            select(Submission, Exam)
+            .outerjoin(Exam, Submission.exam_id == Exam.id)
+            .where(Submission.id == clean_sub_id)
+        ).first()
 
-    sub = result[0] if result else None
-    exam = result[1] if result else None
+        sub = result[0] if result else None
+        exam = result[1] if result else None
 
-    if not sub:
-        raise HTTPException(status_code=404, detail="Submission not found")
+        if not sub:
+            raise HTTPException(status_code=404, detail="Submission not found")
 
-    if sub.is_document_purged:
-        raise HTTPException(
-            status_code=410,
-            detail="Document unavailable: This evaluated answer sheet was permanently removed in accordance with the 15-day storage retention policy. Question-by-question marks and final scores are permanently preserved in your academic record."
-        )
-
-    # Student ownership & publication isolation
-    is_student = bool(current_user and current_user.get("role") == "STUDENT")
-    if is_student and sub:
-        user_roll = (current_user.get("roll_number") or "").strip().upper()
-        user_stu_id = current_user.get("student_id")
-        owns_sub = (user_roll and sub.roll_number and sub.roll_number.upper() == user_roll) or (user_stu_id and sub.student_id == user_stu_id)
-        if not owns_sub:
-            raise HTTPException(status_code=403, detail="Forbidden: You cannot download another student's graded PDF.")
-        if not (sub.publication_status == "PUBLISHED" or (exam and exam.is_published == 1)):
+        if sub.is_document_purged:
             raise HTTPException(
-                status_code=403,
-                detail="Forbidden: Evaluation results for this examination have not been officially published yet. Graded PDFs will become available once officially released by academic faculty."
+                status_code=410,
+                detail="Document unavailable: This evaluated answer sheet was permanently removed in accordance with the 15-day storage retention policy. Question-by-question marks and final scores are permanently preserved in your academic record."
             )
 
-    # Staff tenancy isolation
-    if not is_student and current_user:
-        user_role = current_user.get("role")
-        if user_role == "BRANCH_MANAGER":
-            if exam and (exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"))):
-                raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another branch.")
-        elif user_role == "INSTITUTE_DIRECTOR":
-            if exam and (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
-                raise HTTPException(status_code=403, detail="Forbidden: Submission belongs to another institute.")
+        is_student = bool(current_user and current_user.get("role") == "STUDENT")
+        if is_student:
+            if not student_owns_submission(current_user, sub.student_id, sub.roll_number):
+                raise HTTPException(status_code=403, detail="Forbidden: You cannot download another student's graded PDF.")
+            if not (sub.publication_status == "PUBLISHED" or is_exam_published(exam)):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Forbidden: Evaluation results for this examination have not been officially published yet. Graded PDFs will become available once officially released by academic faculty."
+                )
+        elif current_user:
+            verify_staff_exam_scope(
+                current_user,
+                exam.institute_id if exam else None,
+                exam.branch_id if exam else None,
+                exam_id=sub.exam_id,
+            )
+
+        sub_roll = sub.roll_number
+        sub_name = sub.student_name
+        sub_annotated_path = sub.annotated_pdf_path
 
     if custom_filename:
-        safe_name = custom_filename if custom_filename.lower().endswith(".pdf") else f"{custom_filename}.pdf"
+        safe_name = _sanitize_download_filename(custom_filename, "pdf")
     else:
-        if sub:
-            raw_roll = (sub.roll_number or "ROLL").strip()
-            raw_name = (sub.student_name or "Student").strip()
-            base = f"{raw_roll}_{raw_name}_Graded"
-            safe_base = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', base)
-            safe_name = f"{safe_base}.pdf"
-        else:
-            safe_name = f"submission_{clean_sub_id[:8]}_graded.pdf"
+        raw_roll = (sub_roll or "ROLL").strip()
+        raw_name = (sub_name or "Student").strip()
+        safe_name = _sanitize_download_filename(f"{raw_roll}_{raw_name}_Graded", "pdf")
 
     storage = get_storage_service()
     annotated_key = (
-        sub.annotated_pdf_path
-        if sub and sub.annotated_pdf_path and sub.annotated_pdf_path not in ("", "PURGED")
+        sub_annotated_path
+        if sub_annotated_path and sub_annotated_path not in ("", "PURGED")
         else f"exports/{clean_sub_id}_annotated.pdf"
     )
     if is_remote_storage(storage) and not grading_service.is_export_dirty(clean_sub_id):
@@ -124,9 +128,8 @@ def _resolve_pdf_response(
 def download_annotated_pdf(
     submission_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
-    return _resolve_pdf_response(submission_id, db=db, current_user=current_user)
+    return _resolve_pdf_response(submission_id, current_user=current_user)
 
 
 @router.get("/pdf/{submission_id}/{filename}")
@@ -134,47 +137,35 @@ def download_annotated_pdf_with_name(
     submission_id: str,
     filename: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
-    return _resolve_pdf_response(submission_id, db=db, custom_filename=filename, current_user=current_user)
+    return _resolve_pdf_response(submission_id, custom_filename=filename, current_user=current_user)
 
 
 def _resolve_zip_response(
     batch_id: str,
-    db: Session,
     custom_filename: Optional[str] = None,
     current_user: Optional[Dict[str, Any]] = None
 ):
     clean_batch_id = batch_id.removesuffix(".zip")
-    batch = db.scalar(select(Batch).where(Batch.id == clean_batch_id))
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
-
-    if current_user:
-        user_role = current_user.get("role")
-        user_inst = current_user.get("institute_id")
-        user_branch = current_user.get("branch_id")
+    with get_session() as db:
+        batch = db.scalar(select(Batch).where(Batch.id == clean_batch_id))
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
 
         branch = db.scalar(select(Branch).where(Branch.id == batch.branch_id)) if batch.branch_id else None
         batch_inst = branch.institute_id if branch else None
-
-        if user_role == "BRANCH_MANAGER":
-            if (user_branch and batch.branch_id != user_branch) or (user_inst and batch_inst and batch_inst != user_inst):
-                raise HTTPException(status_code=403, detail="Forbidden: Batch belongs to another branch/institute.")
-        elif user_role == "INSTITUTE_DIRECTOR":
-            if user_inst and batch_inst and batch_inst != user_inst:
-                raise HTTPException(status_code=403, detail="Forbidden: Batch belongs to another institute.")
+        if current_user:
+            verify_staff_exam_scope(current_user, batch_inst, batch.branch_id)
+        batch_name = batch.name
 
     zip_path = export_service.create_batch_zip(clean_batch_id)
     if not zip_path or not zip_path.exists():
         raise HTTPException(status_code=404, detail="Could not create batch ZIP archive.")
 
     if custom_filename:
-        safe_name = custom_filename if custom_filename.lower().endswith(".zip") else f"{custom_filename}.zip"
-    elif batch and batch.name:
-        raw_name = batch.name.strip()
-        clean_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
-        safe_name = f"{clean_name}_Graded_PDFs.zip"
+        safe_name = _sanitize_download_filename(custom_filename, "zip")
+    elif batch_name:
+        safe_name = _sanitize_download_filename(f"{batch_name}_Graded_PDFs", "zip")
     else:
         safe_name = f"Batch_{clean_batch_id[:8]}_Graded_PDFs.zip"
 
@@ -203,9 +194,8 @@ def _resolve_zip_response(
 def download_batch_zip(
     batch_id: str,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    return _resolve_zip_response(batch_id, db=db, current_user=current_user)
+    return _resolve_zip_response(batch_id, current_user=current_user)
 
 
 @router.get("/batch-zip/{batch_id}/{filename}")
@@ -213,9 +203,8 @@ def download_batch_zip_with_name(
     batch_id: str,
     filename: str,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
-    return _resolve_zip_response(batch_id, db=db, custom_filename=filename, current_user=current_user)
+    return _resolve_zip_response(batch_id, custom_filename=filename, current_user=current_user)
 
 
 @router.get("/marks-csv/{exam_id}")
@@ -224,27 +213,19 @@ def download_marks_csv(
     exam_id: str,
     filename: Optional[str] = None,
     current_user: Dict[str, Any] = Depends(require_branch_manager),
-    db: Session = Depends(get_db)
 ):
     clean_exam_id = exam_id.removesuffix(".csv")
-    exam = db.scalar(select(Exam).where(Exam.id == clean_exam_id))
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
-
-    user_role = current_user.get("role")
-    if user_role == "BRANCH_MANAGER":
-        if exam.branch_id != current_user.get("branch_id") or (current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id")):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another branch/institute.")
-    elif user_role == "INSTITUTE_DIRECTOR":
-        if current_user.get("institute_id") and exam.institute_id != current_user.get("institute_id"):
-            raise HTTPException(status_code=403, detail="Forbidden: Exam belongs to another institute.")
+    with get_session() as db:
+        exam = verify_exam_tenancy(clean_exam_id, current_user, db)
+        exam_title = exam.title
+        exam_subject = exam.subject
 
     csv_content = export_service.generate_exam_marks_csv(clean_exam_id)
 
-    if exam:
-        base = f"{exam.title}_{exam.subject}_Marks".strip()
-        clean_base = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', base)
-        safe_name = f"{clean_base}.csv"
+    if filename:
+        safe_name = _sanitize_download_filename(filename, "csv")
+    elif exam_title:
+        safe_name = _sanitize_download_filename(f"{exam_title}_{exam_subject}_Marks", "csv")
     else:
         safe_name = f"Exam_{clean_exam_id[:8]}_Marks.csv"
 

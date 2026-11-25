@@ -30,7 +30,6 @@ from backend.app.services.auth import (
     verify_password,
     is_user_active_in_db,
     _pwd_verify_cache,
-    _active_user_cache,
 )
 from backend.app.db.models import (
     Institute,

@@ -99,13 +99,17 @@ def _enforce_evidence_grounding_and_verdict(
         or "visual:" in ev_upper
         or "[visual" in ev_upper
     )
-    quote_match = re.search(r'QUOTE:\s*["\']?([^"\'\n\r|]+)["\']?', ev, flags=re.IGNORECASE)
+    quote_match = re.search(
+        r'QUOTE:\s*(?:"([^"\n\r|]+)"|\'([^\'\n\r|]+)\'|([^\n\r|]+))',
+        ev,
+        flags=re.IGNORECASE,
+    )
     if not quote_match and not is_visual_or_diagram_tag:
         # Grounding invariant: Every PASS or PARTIAL verdict must cite a direct quote or visual evidence tag
         return 0.0
 
     if quote_match:
-        raw_quote = quote_match.group(1).strip()
+        raw_quote = (quote_match.group(1) or quote_match.group(2) or quote_match.group(3) or "").strip()
         norm_quote = " ".join(_normalize_newlines(raw_quote).lower().split())
         norm_transcript = " ".join(_normalize_newlines(extracted_student_answer or "").lower().split())
 
@@ -186,26 +190,6 @@ def _enforce_evidence_grounding_and_verdict(
                     if len(words) >= 3:
                         head_clean = re.sub(r'[^a-z0-9]', '', ' '.join(words[:4]).lower())
                         if len(head_clean) >= 8 and head_clean in clean_t:
-                            is_grounded = True
-
-                # Check 5: Safety Fallback: If evidence is PASS/PARTIAL and AI's grading_rationale affirms the step
-                if not is_grounded:
-                    rat = (grading_rationale or "").lower()
-                    if rat and (ev_upper.startswith("PASS") or ev_upper.startswith("PARTIAL")):
-                        affirmative_keywords = [
-                            "correct", "accurately", "accurate", "solved", "obtained",
-                            "formulated", "applied", "substituted", "stated", "written",
-                            "derived", "verified", "satisfied", "awarded", "full marks",
-                            "properly", "valid", "shown", "reduced"
-                        ]
-                        negative_keywords = [
-                            "incorrect", "not found", "missing", "failed", "unable",
-                            "no attempt", "wrong", "did not", "error", "fabricated",
-                            "omitted", "could not", "incomplete"
-                        ]
-                        has_affirmative = any(term in rat for term in affirmative_keywords)
-                        has_negative = any(neg in rat for neg in negative_keywords)
-                        if has_affirmative and not has_negative:
                             is_grounded = True
 
                 if not is_grounded:
@@ -1015,11 +999,8 @@ class GradingService:
             a for a in answers if a.get("is_missing") or len(a.get("regions", [])) == 0
         ]
 
-        # Storage Retention & 15-day TTL Lifecycle Info
+        # Storage Retention & 15-day TTL Lifecycle Info (pure read; purge runs asynchronously via daemon/admin)
         retention_info = RetentionService.get_retention_info(res)
-        if retention_info.get("is_expired") and not res.get("is_document_purged"):
-            RetentionService.purge_submission_documents(submission_id)
-            retention_info = RetentionService.get_retention_info({**res, "is_document_purged": 1})
         res.update(retention_info)
 
         return res
@@ -1028,7 +1009,8 @@ class GradingService:
     def manual_edit_answer(
         submission_id: str,
         answer_id: str,
-        edit_req: ManualEditAnswerRequest
+        edit_req: ManualEditAnswerRequest,
+        reviewer_id: str = "teacher",
     ) -> Dict[str, Any]:
         """
         Applies teacher correction, creates audit log, recalculates totals immediately via ORM.
@@ -1046,14 +1028,14 @@ class GradingService:
             if edit_req.awarded_marks is not None and edit_req.awarded_marks != old_ans.awarded_marks:
                 audit_entries.append(AuditLog(
                     id=str(uuid.uuid4()),
-                    user_id="teacher",
+                    user_id=reviewer_id,
                     submission_id=submission_id,
                     answer_id=answer_id,
                     field_name="awarded_marks",
                     old_value=str(old_ans.awarded_marks),
                     new_value=str(edit_req.awarded_marks),
                     reason=edit_req.reason,
-                    edited_by="teacher",
+                    edited_by=reviewer_id,
                     action="MANUAL_EDIT",
                     resource_type="ANSWER",
                     resource_id=submission_id,
@@ -1070,14 +1052,14 @@ class GradingService:
             if edit_req.extracted_text is not None and edit_req.extracted_text != old_ans.extracted_text:
                 audit_entries.append(AuditLog(
                     id=str(uuid.uuid4()),
-                    user_id="teacher",
+                    user_id=reviewer_id,
                     submission_id=submission_id,
                     answer_id=answer_id,
                     field_name="extracted_text",
                     old_value=old_ans.extracted_text,
                     new_value=edit_req.extracted_text,
                     reason=edit_req.reason,
-                    edited_by="teacher",
+                    edited_by=reviewer_id,
                     action="MANUAL_EDIT",
                     resource_type="ANSWER",
                     resource_id=submission_id,
@@ -1094,14 +1076,14 @@ class GradingService:
             if edit_req.grading_rationale is not None and edit_req.grading_rationale != old_ans.grading_rationale:
                 audit_entries.append(AuditLog(
                     id=str(uuid.uuid4()),
-                    user_id="teacher",
+                    user_id=reviewer_id,
                     submission_id=submission_id,
                     answer_id=answer_id,
                     field_name="grading_rationale",
                     old_value=old_ans.grading_rationale,
                     new_value=edit_req.grading_rationale,
                     reason=edit_req.reason,
-                    edited_by="teacher",
+                    edited_by=reviewer_id,
                     action="MANUAL_EDIT",
                     resource_type="ANSWER",
                     resource_id=submission_id,
@@ -1118,14 +1100,14 @@ class GradingService:
             if edit_req.question_id is not None and edit_req.question_id != old_ans.question_id:
                 audit_entries.append(AuditLog(
                     id=str(uuid.uuid4()),
-                    user_id="teacher",
+                    user_id=reviewer_id,
                     submission_id=submission_id,
                     answer_id=answer_id,
                     field_name="question_id",
                     old_value=old_ans.question_id,
                     new_value=edit_req.question_id,
                     reason=edit_req.reason,
-                    edited_by="teacher",
+                    edited_by=reviewer_id,
                     action="MANUAL_EDIT",
                     resource_type="ANSWER",
                     resource_id=submission_id,
@@ -1207,7 +1189,8 @@ class GradingService:
     def manual_edit_region(
         submission_id: str,
         region_id: str,
-        edit_req: ManualEditRegionRequest
+        edit_req: ManualEditRegionRequest,
+        reviewer_id: str = "teacher",
     ) -> Dict[str, Any]:
         """
         Adjusts bounding box coordinates or adds a new multi-page region,
@@ -1224,10 +1207,18 @@ class GradingService:
         with get_session() as session:
             old_reg = None
             if not is_new_addition:
-                old_reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+                old_reg = session.scalar(
+                    select(AnswerRegion)
+                    .join(Answer, AnswerRegion.answer_id == Answer.id)
+                    .where(AnswerRegion.id == region_id, Answer.submission_id == submission_id)
+                )
                 if not old_reg:
                     old_reg = session.scalar(
-                        select(AnswerRegion).where(AnswerRegion.answer_id == region_id).order_by(AnswerRegion.id.asc()).limit(1)
+                        select(AnswerRegion)
+                        .join(Answer, AnswerRegion.answer_id == Answer.id)
+                        .where(AnswerRegion.answer_id == region_id, Answer.submission_id == submission_id)
+                        .order_by(AnswerRegion.id.asc())
+                        .limit(1)
                     )
 
             if not old_reg:
@@ -1277,14 +1268,14 @@ class GradingService:
 
             session.add(AuditLog(
                 id=str(uuid.uuid4()),
-                user_id="teacher",
+                user_id=reviewer_id,
                 submission_id=submission_id,
                 answer_id=ans_id,
                 field_name="bounding_box",
                 old_value=f"[{old_reg.x:.2f}, {old_reg.y:.2f}, {old_reg.width:.2f}, {old_reg.height:.2f}]",
                 new_value=f"[{edit_req.x:.2f}, {edit_req.y:.2f}, {edit_req.width:.2f}, {edit_req.height:.2f}]",
                 reason=edit_req.reason,
-                edited_by="teacher",
+                edited_by=reviewer_id,
                 action="ADD_REGION" if is_new_addition else "MANUAL_EDIT",
                 resource_type="REGION",
                 resource_id=submission_id,
@@ -1391,14 +1382,18 @@ class GradingService:
         return GradingService.get_submission_details(submission_id)
 
     @staticmethod
-    def delete_region(submission_id: str, region_id: str) -> Dict[str, Any]:
+    def delete_region(submission_id: str, region_id: str, reviewer_id: str = "teacher") -> Dict[str, Any]:
         """
         Deletes a specific bounding box region from an answer.
         Updates answer page_number, re-exports PDF, and recalculates totals.
         """
         now = get_iso_now()
         with get_session() as session:
-            reg = session.scalar(select(AnswerRegion).where(AnswerRegion.id == region_id))
+            reg = session.scalar(
+                select(AnswerRegion)
+                .join(Answer, AnswerRegion.answer_id == Answer.id)
+                .where(AnswerRegion.id == region_id, Answer.submission_id == submission_id)
+            )
             if not reg:
                 raise ValueError(f"Region {region_id} not found")
 
@@ -1409,14 +1404,14 @@ class GradingService:
 
             session.add(AuditLog(
                 id=str(uuid.uuid4()),
-                user_id="teacher",
+                user_id=reviewer_id,
                 submission_id=submission_id,
                 answer_id=ans_id,
                 field_name="bounding_box",
                 old_value=f"[Page {reg.page_number}: {reg.x:.2f}, {reg.y:.2f}, {reg.width:.2f}, {reg.height:.2f}]",
                 new_value="DELETED",
                 reason="Teacher deleted bounding box region",
-                edited_by="teacher",
+                edited_by=reviewer_id,
                 action="DELETE_REGION",
                 resource_type="REGION",
                 resource_id=region_id,
@@ -1664,8 +1659,9 @@ class GradingService:
 
                     GradingService.trigger_background_export_pdf(sub.id)
                     cleared_count += 1
-                except Exception:
-                    pass
+                except Exception as exc:
+                    session.rollback()
+                    logger.warning("Failed bulk clearing review for submission %s: %s", sub.id, exc)
 
         return {
             "success": True,
@@ -1841,10 +1837,13 @@ class GradingService:
         with open(target_crop_path, "rb") as f:
             crop_bytes = f.read()
 
+        crop_suffix = target_crop_path.suffix.lower()
+        crop_mime = "image/jpeg" if crop_suffix in (".jpg", ".jpeg") else "image/png"
+
         from backend.app.gemini.client import gemini_client
         result, event_id = gemini_client.reevaluate_single_answer(
             crop_image_bytes=crop_bytes,
-            crop_mime_type="image/png",
+            crop_mime_type=crop_mime,
             question_id=old_ans_qid,
             question_text=q_text,
             official_solution=official_sol,
