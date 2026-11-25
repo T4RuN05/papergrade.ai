@@ -84,7 +84,8 @@ def get_google_auth_url(state: str, prompt_consent: bool = True) -> str:
     if prompt_consent:
         params["prompt"] = "consent"
 
-    query_str = "&".join(f"{k}={httpx.URL('', params={k: v}).query.decode('utf-8')}" for k, v in params.items())
+    import urllib.parse
+    query_str = urllib.parse.urlencode(params)
     return f"{GOOGLE_AUTH_URL}?{query_str}"
 
 
