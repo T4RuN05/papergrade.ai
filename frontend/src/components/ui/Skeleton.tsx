@@ -93,9 +93,13 @@ export function TableSkeletonRows({
 }
 
 export function RefetchProgressLine({ isFetching }: { isFetching?: boolean }) {
-  if (!isFetching) return null;
   return (
-    <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full mb-1">
+    <div
+      className={`fixed top-0 left-0 right-0 h-0.5 bg-primary/20 overflow-hidden pointer-events-none z-50 transition-opacity duration-300 ${
+        isFetching ? "opacity-100" : "opacity-0"
+      }`}
+      aria-hidden="true"
+    >
       <div className="h-full bg-primary animate-pulse w-full" />
     </div>
   );

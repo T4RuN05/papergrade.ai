@@ -71,7 +71,8 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
     return () => {
       isMounted = false;
     };
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleConnectDrive = async () => {
     try {
