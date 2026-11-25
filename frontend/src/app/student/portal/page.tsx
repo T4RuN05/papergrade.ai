@@ -28,7 +28,6 @@ import {
   FeatureCard,
   StudentPortalSkeleton,
   PastExamsCardsSkeleton,
-  RefetchProgressLine,
   MetricValue,
 } from "@/components/ui";
 
@@ -561,9 +560,6 @@ export default function StudentPortalPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group overflow-x-hidden relative">
-      {/* Background Refetch Line */}
-      <RefetchProgressLine isFetching={isPortalFetching} />
-
       {/* 1. Profile Header — Permanently Mounted (CLS = 0.00) */}
       <StudentProfileHeader
         user={user}
