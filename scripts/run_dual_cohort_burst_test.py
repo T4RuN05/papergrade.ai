@@ -861,7 +861,7 @@ def main():
 **Conducted At**: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}  
 **Target Host**: `{base_url}`  
 **Architecture Guardrail**: Rule 1 Ingestion Window (Strict Decoupling) & Rule 4 Multi-Tenant Airgap  
-**Connection Model**: `NullPool` (Stateless Direct Multiplexing over Supabase PgBouncer)  
+**Connection Model**: `QueuePool` (LIFO Warm Reuse over Supabase PgBouncer `:6543`)  
 
 ---
 
@@ -926,7 +926,7 @@ def main():
 1. **Rule 1: Ingestion Decoupling**: Submissions successfully stored and marked `SUBMITTED`. Evaluation workers did not execute Gemini API calls concurrently with the upload burst.
 2. **Rule 3: Pre-Authenticated JWT Protocol**: 56 JWT session tokens were generated in-process prior to test dispatch, eliminating `bcrypt` hashing storms.
 3. **Rule 4: Multi-Tenant Air-Gap**: Production institute CATCH 25 was verified before and after test execution. Row counts remained strictly identical at 73 students, 2 exams, 34 submissions.
-4. **Permanent Preservation of `NullPool`**: Evaluated directly in Section 4.1 of `ARCHITECTURAL_AUDIT_AND_DIARY.md`. Local connection pool exhaustion is physically eliminated.
+4. **QueuePool LIFO Warm Reuse**: Bounded `QueuePool` over Supavisor `:6543` with zero-hold session boundaries eliminates TLS handshake churn without connection leaks.
 """
 
     with open(artifact_path, "w", encoding="utf-8") as f:

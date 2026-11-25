@@ -111,9 +111,9 @@ def test_exam_batch_scoping_lifecycle():
             ])
             session.commit()
     
-        headers_a = {"Authorization": f"Bearer {create_access_token({'sub': user_a_id, 'role': 'STUDENT', 'roll_number': roll_a})}"}
-        headers_b = {"Authorization": f"Bearer {create_access_token({'sub': user_b_id, 'role': 'STUDENT', 'roll_number': roll_b})}"}
-        headers_c = {"Authorization": f"Bearer {create_access_token({'sub': user_c_id, 'role': 'STUDENT', 'roll_number': roll_c})}"}
+        headers_a = {"Authorization": f"Bearer {create_access_token({'sub': user_a_id, 'role': 'STUDENT', 'roll_number': roll_a, 'token_version': 1})}"}
+        headers_b = {"Authorization": f"Bearer {create_access_token({'sub': user_b_id, 'role': 'STUDENT', 'roll_number': roll_b, 'token_version': 1})}"}
+        headers_c = {"Authorization": f"Bearer {create_access_token({'sub': user_c_id, 'role': 'STUDENT', 'roll_number': roll_c, 'token_version': 1})}"}
     
         # 5. Create Exam 1: Scoped to Whole Branch ("ALL")
         ex1_res = client.post("/api/v1/exams", data={

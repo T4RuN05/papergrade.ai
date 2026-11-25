@@ -163,11 +163,23 @@ def test_full_academic_lifecycle():
         # 11. Root Admin publishes results
         # Simulate exam evaluation completion in database
         with get_session() as session:
+            from backend.app.db.base import get_iso_now
+            now_iso = get_iso_now()
             session.execute(
                 update(Submission)
                 .where(Submission.id == sub_id)
                 .values(status="GRADED", total_awarded_marks=42.5, max_marks=50.0, percentage=85.0)
             )
+            session.add(Answer(
+                id=f"ans_{sub_id}_q1",
+                submission_id=sub_id,
+                question_id="Q1",
+                max_marks=10.0,
+                awarded_marks=5.5,
+                grading_rationale="Initial grading rationale",
+                created_at=now_iso,
+                updated_at=now_iso,
+            ))
             session.commit()
         
         pub_res = client.post(f"/api/v1/exams/{exam_id}/publish", headers=admin_headers)

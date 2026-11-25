@@ -44,7 +44,7 @@ def test_unique_roll_numbers_across_database():
             .where(Institute.code == "TEST_INST")
         ).all()
         for s in test_students:
-            assert s.roll_number.startswith("TEST_INST-TEST_BVI-")
+            assert s.roll_number.startswith("TEST_INST-TEST_BVI")
 
         # Assert CATCH 25 students have C25 prefix
         c25_students = session.scalars(

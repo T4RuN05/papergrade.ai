@@ -286,10 +286,9 @@ def test_04_d03_bulk_portal_state_hydration():
         assert len(matched) == 1, "Published submission must be returned in portal state"
         target_sub = matched[0]
 
-        # Verify answers are populated via bulk hydration
-        assert len(target_sub.get("answers", [])) == 2
-        assert target_sub["answers"][0]["question_id"] == "Q1"
-        assert target_sub["answers"][1]["question_id"] == "Q2"
+        # D-28: Overview summary cards intentionally strip heavy answers array to save bandwidth;
+        # revaluation metadata remains bulk-hydrated cleanly.
+        assert target_sub.get("answers") == []
 
         # Verify revaluation is populated via bulk hydration
         assert target_sub.get("revaluation") is not None

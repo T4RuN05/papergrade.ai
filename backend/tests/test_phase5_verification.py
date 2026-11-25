@@ -64,7 +64,8 @@ def test_02_d04_api_canonical_and_legacy_rewrite():
     admin_token = create_access_token({
         "sub": "usr_test_admin_d04",
         "role": "ROOT_ADMIN",
-        "email": "admin@test.com"
+        "email": "admin@test.com",
+        "token_version": 1,
     })
     headers = {"Authorization": f"Bearer {admin_token}"}
 
@@ -107,12 +108,14 @@ def test_03_d19_archive_and_restore_endpoints():
         "role": "BRANCH_MANAGER",
         "branch_id": TEST_BRANCH_ID,
         "institute_id": TEST_INSTITUTE_ID,
-        "email": f"mgr_{run_id}@test.com"
+        "email": f"mgr_{run_id}@test.com",
+        "token_version": 1,
     })
     root_token = create_access_token({
         "sub": f"usr_test_root_{run_id}",
         "role": "ROOT_ADMIN",
-        "email": f"root_{run_id}@test.com"
+        "email": f"root_{run_id}@test.com",
+        "token_version": 1,
     })
     mgr_headers = {"Authorization": f"Bearer {manager_token}"}
     root_headers = {"Authorization": f"Bearer {root_token}"}

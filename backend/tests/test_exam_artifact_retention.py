@@ -83,7 +83,8 @@ def test_exam_question_paper_and_answer_key_lifecycle_and_retention():
         stu_token = create_access_token({
             "sub": "usr_test_student_retention",
             "role": "STUDENT",
-            "roll_number": "ROLL-RET-999"
+            "roll_number": "ROLL-RET-999",
+            "token_version": 1,
         })
         stu_headers = {"Authorization": f"Bearer {stu_token}"}
 
