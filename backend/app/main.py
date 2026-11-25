@@ -58,6 +58,8 @@ app = FastAPI(
 # Allowed CORS Origins - restricted to official frontend and local development
 ALLOWED_ORIGINS = [
     "https://papergrade-ai.vercel.app",
+    "https://papergradeai.in",
+    "https://www.papergradeai.in",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
@@ -69,7 +71,7 @@ if settings.FRONTEND_URL and settings.FRONTEND_URL not in ALLOWED_ORIGINS:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
+    allow_origin_regex=r"^https:\/\/.*(\.vercel\.app|papergradeai\.in)$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
