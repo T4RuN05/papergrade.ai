@@ -32,6 +32,10 @@ _prune_lock = threading.Lock()
 _last_prune_ts = 0.0
 _PRUNE_MIN_INTERVAL_SECONDS = 60.0
 
+_bm_cache_lock = threading.Lock()
+_bm_branch_cache: Dict[str, tuple[float, List[str]]] = {}
+_BM_CACHE_TTL_SECONDS = 30.0
+
 
 def _is_test_runtime() -> bool:
     """Detect pytest or explicit test environment so production institute users are never notified by tests."""
@@ -363,16 +367,8 @@ def send_notification(
             VALUES (?, ?, ?, ?, ?, ?, 0, ?)
         """, (notif_id, user_id, notif_type, title, message, link_url, now))
 
-    # Offload table pruning to a background thread to keep caller transactions sub-millisecond
-    def _async_prune():
-        try:
-            with get_session() as session:
-                prune_user_notifications(session, user_id, keep_limit=50)
-                session.commit()
-        except Exception as e:
-            logger.debug("Background notification pruning notice: %s", e)
-
-    threading.Thread(target=_async_prune, daemon=True).start()
+    # Offload table pruning via debounced global cleanup so upload bursts never spawn DB prune storms
+    dispatch_async_prune_all(keep_limit=50)
 
     dispatch_webpush_for_user(user_id, title, message, link_url)
     return notif_id
@@ -570,11 +566,26 @@ def notify_branch_managers(
         return 0
     now = get_iso_now()
     if isinstance(cursor, Session):
-        stmt = select(User.id).where(User.role == "BRANCH_MANAGER", User.is_active == 1)
-        if branch_id:
-            stmt = stmt.where(User.branch_id == branch_id)
+        cache_key = branch_id or "__all__"
+        now_mono = time.monotonic()
+        raw_uids: Optional[List[str]] = None
+        if not _is_test_runtime():
+            with _bm_cache_lock:
+                entry = _bm_branch_cache.get(cache_key)
+                if entry and (now_mono - entry[0]) < _BM_CACHE_TTL_SECONDS:
+                    raw_uids = list(entry[1])
+
+        if raw_uids is None:
+            stmt = select(User.id).where(User.role == "BRANCH_MANAGER", User.is_active == 1)
+            if branch_id:
+                stmt = stmt.where(User.branch_id == branch_id)
+            raw_uids = [uid for uid in cursor.scalars(stmt).all() if uid]
+            if not _is_test_runtime():
+                with _bm_cache_lock:
+                    _bm_branch_cache[cache_key] = (now_mono, list(raw_uids))
+
         uids = _filter_non_c25_users_in_test(
-            cursor, [uid for uid in cursor.scalars(stmt).all() if uid and uid != exclude_user_id]
+            cursor, [uid for uid in raw_uids if uid != exclude_user_id]
         )
         if not uids:
             return 0

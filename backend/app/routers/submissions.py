@@ -5,8 +5,9 @@ import hashlib
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional, List, Dict, Any, Tuple
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Query
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Query, BackgroundTasks
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import fitz
@@ -80,7 +81,12 @@ def _purge_and_replace_previous_submissions(
 
     if isinstance(cursor, Session):
         norm_roll = (clean_roll or "").strip().upper()
-        stmt = select(Submission).where(Submission.exam_id == exam_id)
+        stmt = select(
+            Submission.id,
+            Submission.original_file_path,
+            Submission.canonical_pdf_path,
+            Submission.annotated_pdf_path,
+        ).where(Submission.exam_id == exam_id)
         if student_id:
             stmt = stmt.where(or_(func.upper(Submission.roll_number) == norm_roll, Submission.student_id == student_id))
         else:
@@ -89,18 +95,16 @@ def _purge_and_replace_previous_submissions(
         if new_sub_id:
             stmt = stmt.where(Submission.id != new_sub_id)
 
-        prev_subs = cursor.scalars(stmt).all()
-        if not prev_subs:
+        prev_rows = cursor.execute(stmt).all()
+        if not prev_rows:
             return 0
 
-        keys_to_delete: List[str] = []
-        for ps in prev_subs:
-            pid = ps.id
-            for file_key in [ps.original_file_path, ps.canonical_pdf_path, ps.annotated_pdf_path]:
-                if file_key:
-                    keys_to_delete.append(file_key)
+        prev_ids = [r[0] for r in prev_rows]
+        keys_to_delete: List[str] = list(dict.fromkeys(
+            k for r in prev_rows for k in r[1:] if k
+        ))
 
-            # Delete local artifacts
+        for pid in prev_ids:
             try:
                 for local_dir in (settings.RENDERS_DIR / pid, settings.RENDERS_DIR / f"sub_{pid}", settings.UPLOADS_DIR / "submissions" / pid):
                     if local_dir.exists():
@@ -111,29 +115,26 @@ def _purge_and_replace_previous_submissions(
             except Exception as e:
                 logger.warning(f"Could not delete local submission files for {pid}: {e}")
 
-            # Delete evaluation queue entries
-            cursor.execute(delete(EvaluationQueue).where(EvaluationQueue.submission_id == pid))
+        ans_ids_stmt = select(Answer.id).where(Answer.submission_id.in_(prev_ids))
+        cursor.execute(delete(EvaluationQueue).where(EvaluationQueue.submission_id.in_(prev_ids)))
+        cursor.execute(delete(CriterionScore).where(CriterionScore.answer_id.in_(ans_ids_stmt)))
+        cursor.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(ans_ids_stmt)))
+        cursor.execute(delete(Answer).where(Answer.submission_id.in_(prev_ids)))
+        cursor.execute(delete(RevaluationRequest).where(RevaluationRequest.submission_id.in_(prev_ids)))
+        cursor.execute(delete(Submission).where(Submission.id.in_(prev_ids)))
 
-            # Delete child answers, criterion scores, revaluations
-            ans_ids_stmt = select(Answer.id).where(Answer.submission_id == pid)
-            cursor.execute(delete(CriterionScore).where(CriterionScore.answer_id.in_(ans_ids_stmt)))
-            cursor.execute(delete(AnswerRegion).where(AnswerRegion.answer_id.in_(ans_ids_stmt)))
-            cursor.execute(delete(Answer).where(Answer.submission_id == pid))
-            cursor.execute(delete(RevaluationRequest).where(RevaluationRequest.submission_id == pid))
-
-            # Delete the previous submission record
-            cursor.delete(ps)
-
-            # Audit log
-            cursor.add(AuditLog(
+        cursor.add_all([
+            AuditLog(
                 id=f"aud_{uuid.uuid4().hex[:12]}",
                 user_id=current_user_id or "system",
                 action="REPLACE_SUBMISSION",
                 resource_type="SUBMISSION",
                 resource_id=pid,
                 details_json=json.dumps({"replaced_by": new_sub_id, "exam_id": exam_id, "roll_number": clean_roll}),
-                created_at=now
-            ))
+                created_at=now,
+            )
+            for pid in prev_ids
+        ])
 
         if deferred_delete_keys is not None:
             deferred_delete_keys.extend(keys_to_delete)
@@ -145,7 +146,7 @@ def _purge_and_replace_previous_submissions(
                 except Exception as e:
                     logger.warning(f"Could not delete replaced submission storage file {file_key}: {e}")
 
-        return len(prev_subs)
+        return len(prev_ids)
 
     with get_session() as session:
         return _purge_and_replace_previous_submissions(
@@ -229,24 +230,51 @@ def get_exam_and_active_window(
     exam_id: str,
     db: Session,
     allow_grace: bool = False
-) -> Tuple[Exam, SubmissionWindow]:
+) -> Tuple[Any, Any]:
     """
-    Consolidated single-query fetch for Exam and its latest SubmissionWindow.
-    Eliminates multi-query roundtrips over NullPool while strictly preserving
-    all active window, deadline, and grace period invariant checks.
+    Consolidated single-query column-projected fetch for Exam metadata and its latest SubmissionWindow.
+    Avoids transferring large Exam TEXT/JSON columns (rubric_data) over Supavisor WAN.
     """
     stmt = (
-        select(Exam, SubmissionWindow)
+        select(
+            Exam.id,
+            Exam.title,
+            Exam.branch_id,
+            Exam.total_marks,
+            Exam.batch_scope,
+            Exam.batch_ids,
+            SubmissionWindow.status,
+            SubmissionWindow.deadline_at,
+            SubmissionWindow.grace_deadline_at,
+            SubmissionWindow.reopen_scope,
+        )
         .outerjoin(SubmissionWindow, SubmissionWindow.exam_id == Exam.id)
         .where(Exam.id == exam_id)
         .order_by(SubmissionWindow.created_at.desc())
         .limit(1)
     )
     row = db.execute(stmt).first()
-    if not row or not row[0]:
+    if not row or not row.id:
         raise HTTPException(status_code=404, detail="Exam not found.")
 
-    exam, window = row[0], row[1]
+    exam = SimpleNamespace(
+        id=row.id,
+        title=row.title,
+        branch_id=row.branch_id,
+        total_marks=row.total_marks,
+        batch_scope=row.batch_scope,
+        batch_ids=row.batch_ids,
+    )
+    window = (
+        SimpleNamespace(
+            status=row.status,
+            deadline_at=row.deadline_at,
+            grace_deadline_at=row.grace_deadline_at,
+            reopen_scope=row.reopen_scope,
+        )
+        if row.status is not None
+        else None
+    )
 
     if not window or window.status != "OPEN":
         raise HTTPException(status_code=400, detail="Submission window is not currently open for this examination.")
@@ -706,58 +734,15 @@ def request_presigned_upload(
             )
 
     exam, window = get_exam_and_active_window(exam_id, db, allow_grace=True)
-
-    # Reopen scope protection: reject resubmissions if window was reopened for unsubmitted only
-    if getattr(window, "reopen_scope", None) == "UNSUBMITTED_ONLY":
-        prior_sub = db.scalar(
-            select(Submission.id).where(
-                Submission.exam_id == exam_id,
-                or_(
-                    func.upper(Submission.roll_number) == clean_roll,
-                    Submission.student_id == (req.student_id or "")
-                ),
-                Submission.submission_status == 'SUBMITTED'
-            ).limit(1)
-        )
-        if prior_sub:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="This submission window was reopened for unsubmitted students only. Re-submissions are not permitted."
-            )
-
-    if exam.batch_scope in ("SPECIFIC", "BATCHES"):
-        student_batch = req.batch_id or (current_user or {}).get("batch_id")
-        if not student_batch:
-            st_row = db.scalar(
-                select(Student.batch_id).where(
-                    or_(
-                        func.upper(Student.roll_number) == clean_roll,
-                        Student.id == (req.student_id or ""),
-                        Student.user_id == ((current_user or {}).get("sub", ""))
-                    )
-                ).limit(1)
-            )
-            if st_row:
-                student_batch = st_row
-
-        allowed_bids = set()
-        if exam.batch_ids:
-            try:
-                p = json.loads(exam.batch_ids)
-                if isinstance(p, list):
-                    allowed_bids = set(str(x).strip() for x in p if str(x).strip())
-            except Exception:
-                allowed_bids = set(b.strip() for b in exam.batch_ids.split(",") if b.strip())
-        if not allowed_bids:
-            allowed_bids = set(
-                db.scalars(select(ExamBatch.batch_id).where(ExamBatch.exam_id == exam_id)).all()
-            )
-
-        if not student_batch or str(student_batch) not in allowed_bids:
-            raise HTTPException(
-                status_code=403,
-                detail="This examination is restricted to specific batches. Your batch is not eligible to submit."
-            )
+    _verify_student_exam_eligibility(
+        exam=exam,
+        window_reopen_scope=getattr(window, "reopen_scope", None),
+        clean_roll=clean_roll,
+        student_id=req.student_id,
+        batch_id=req.batch_id or (current_user or {}).get("batch_id"),
+        current_user_id=(current_user or {}).get("sub"),
+        db=db,
+    )
 
     upload_session_id = f"upsess_{uuid.uuid4().hex}"
     student_tag = req.student_id or clean_roll
@@ -782,10 +767,23 @@ def request_presigned_upload(
     }
 
 
+def _delete_storage_keys_bg(keys: List[str]) -> None:
+    """Delete superseded remote storage keys off the request thread after HTTP confirmation."""
+    if not keys:
+        return
+    storage = get_storage_service()
+    for old_key in dict.fromkeys(keys):
+        try:
+            storage.delete_file(old_key)
+        except Exception as exc:
+            logger.warning("Failed deferred storage cleanup for %s: %s", old_key, exc)
+
+
 @router.post("/{exam_id}/confirm-upload")
 def confirm_presigned_upload(
     exam_id: str,
     req: ConfirmUploadBody,
+    background_tasks: BackgroundTasks,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     clean_roll = req.roll_number.strip().upper()
@@ -806,7 +804,9 @@ def confirm_presigned_upload(
         _submission_in_flight.add(in_flight_key)
 
     try:
-        res = _do_confirm_presigned_upload(exam_id, req, current_user, clean_roll)
+        res = _do_confirm_presigned_upload(
+            exam_id, req, current_user, clean_roll, background_tasks=background_tasks
+        )
         _submission_confirm_cache.set(idempotency_key, res)
         return res
     finally:
@@ -818,7 +818,8 @@ def _do_confirm_presigned_upload(
     exam_id: str,
     req: ConfirmUploadBody,
     current_user: Dict[str, Any],
-    clean_roll: str
+    clean_roll: str,
+    background_tasks: Optional[BackgroundTasks] = None,
 ) -> Dict[str, Any]:
     """
     Step 2 of Direct-to-Storage Upload (Zero-Hold DB isolation):
@@ -856,6 +857,8 @@ def _do_confirm_presigned_upload(
         with get_session() as db:
             exam, window = get_exam_and_active_window(exam_id, db, allow_grace=True)
             exam_total = exam.total_marks if exam else 0.0
+            exam_title = (exam.title if exam and exam.title else None) or "Exam"
+            exam_branch = exam.branch_id if exam else None
             window_reopen_scope = getattr(window, "reopen_scope", None)
             _verify_student_exam_eligibility(
                 exam=exam,
@@ -921,7 +924,6 @@ def _do_confirm_presigned_upload(
     deferred_delete_keys: List[str] = []
 
     with get_session() as db:
-        exam = db.scalar(select(Exam).where(Exam.id == exam_id))
         s_name = req.student_name or f"Student {clean_roll}"
         student_id = req.student_id
         if not student_id:
@@ -935,6 +937,8 @@ def _do_confirm_presigned_upload(
                     student_id = stu_rec.id
                     if not req.student_name:
                         s_name = stu_rec.full_name
+        elif not req.student_name and current_user and current_user.get("full_name"):
+            s_name = current_user["full_name"]
 
         replaced_count = _purge_and_replace_previous_submissions(
             cursor=db,
@@ -978,9 +982,6 @@ def _do_confirm_presigned_upload(
             if stu and stu.user_id:
                 target_user_id = stu.user_id
 
-        exam_title = exam.title if exam and exam.title else "Exam"
-        exam_branch = exam.branch_id if exam else None
-
         if target_user_id:
             send_notification(
                 cursor=db,
@@ -1002,12 +1003,12 @@ def _do_confirm_presigned_upload(
 
         db.commit()
 
-    # Step D: Delete superseded cloud files strictly after DB session has closed
-    for old_key in deferred_delete_keys:
-        try:
-            storage.delete_file(old_key)
-        except Exception as exc:
-            logger.warning("Failed deferred storage cleanup for %s: %s", old_key, exc)
+    # Step D: Delete superseded cloud files strictly after DB session has closed (and off HTTP response when queued)
+    if deferred_delete_keys:
+        if background_tasks is not None:
+            background_tasks.add_task(_delete_storage_keys_bg, deferred_delete_keys)
+        else:
+            _delete_storage_keys_bg(deferred_delete_keys)
 
     if target_user_id:
         PortalStateEpochManager.bump_user(target_user_id)
@@ -1052,6 +1053,8 @@ def _process_submission_sync(
     with get_session() as session:
         exam, window = get_exam_and_active_window(exam_id, session, allow_grace=True)
         exam_total = exam.total_marks if exam else 0.0
+        exam_title = (exam.title if exam and exam.title else None) or "Exam"
+        exam_branch = exam.branch_id if exam else None
         _verify_student_exam_eligibility(
             exam=exam,
             window_reopen_scope=getattr(window, "reopen_scope", None),
@@ -1074,7 +1077,6 @@ def _process_submission_sync(
 
     deferred_delete_keys: List[str] = []
     with get_session() as session:
-        exam = session.scalar(select(Exam).where(Exam.id == exam_id))
         student_id = None
         stu_rec = session.scalar(select(Student).where(func.upper(Student.roll_number) == clean_roll))
         if stu_rec:
@@ -1129,9 +1131,6 @@ def _process_submission_sync(
             stu = session.scalar(select(Student).where(Student.id == student_id))
             if stu and stu.user_id:
                 target_user_id = stu.user_id
-
-        exam_title = exam.title if exam and exam.title else "Exam"
-        exam_branch = exam.branch_id if exam else None
 
         if target_user_id:
             send_notification(
