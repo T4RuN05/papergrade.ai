@@ -1,4 +1,4 @@
-const CACHE_NAME = "papergrade-shell-v6";
+const CACHE_NAME = "papergrade-shell-v7";
 
 // Bypass and do not cache on localhost / dev
 const isLocalhost =
@@ -37,6 +37,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Strictly only intercept same-origin requests; NEVER intercept external storage (R2 / Cloudinary / Supabase)
+  try {
+    const reqUrl = new URL(event.request.url);
+    if (reqUrl.origin !== self.location.origin) {
+      return;
+    }
+  } catch (e) {
+    return;
+  }
+
   // Network-First strategy (never serve stale HTML if network is available)
   event.respondWith(
     fetch(event.request)
@@ -47,10 +57,12 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => {
-        return caches.match(event.request).then((cached) => {
-          return cached || caches.match("/");
-        });
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        const fallback = await caches.match("/");
+        if (fallback) return fallback;
+        return new Response("Offline", { status: 503, statusText: "Service Unavailable" });
       })
   );
 });
