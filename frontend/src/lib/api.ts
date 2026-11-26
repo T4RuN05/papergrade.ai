@@ -495,13 +495,23 @@ export const api = {
     return safeJson(res, "Failed to change password");
   },
 
-  async getGoogleAuthUrl(mode: "login" | "byos" = "login", role?: string): Promise<{ status: string; authorization_url: string }> {
+  async getGoogleAuthUrl(
+    mode: "login" | "link" | "byos" = "login",
+    role?: string,
+    returnTo?: string
+  ): Promise<{ status: string; authorization_url: string }> {
     const token = getAuthToken();
     const query = new URLSearchParams({ mode });
     if (role) {
       query.set("role", role);
     }
-    if (mode === "byos" && token) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      query.set("origin", window.location.origin);
+    }
+    if (returnTo) {
+      query.set("return_to", returnTo);
+    }
+    if ((mode === "byos" || mode === "link") && token) {
       query.set("user_token", token);
     }
     const res = await fetch(`${API_BASE}/api/oauth/google/authorize?${query.toString()}`, {
@@ -524,12 +534,13 @@ export const api = {
     return safeJson(res, "Failed to check Google connection status");
   },
 
-  async disconnectGoogleConnection(): Promise<{ status: string; message: string }> {
-    const res = await fetch(`${API_BASE}/api/oauth/google/disconnect`, {
+  async disconnectGoogleConnection(unlinkIdentity: boolean = false): Promise<{ status: string; message: string }> {
+    const query = unlinkIdentity ? "?unlink_identity=true" : "";
+    const res = await fetch(`${API_BASE}/api/oauth/google/disconnect${query}`, {
       method: "POST",
       headers: getAuthHeaders(),
     });
-    return safeJson(res, "Failed to disconnect Google Drive");
+    return safeJson(res, "Failed to disconnect Google account");
   },
 
   async getGoogleDriveQuota(): Promise<{

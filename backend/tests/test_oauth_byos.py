@@ -9,6 +9,7 @@ from backend.app.services.google_drive_service import (
 from backend.app.routers.oauth import (
     _generate_oauth_state,
     _verify_oauth_state,
+    _sanitize_frontend_origin,
     authorize_google,
     get_google_connection_status,
     disconnect_google_connection,
@@ -44,12 +45,25 @@ def test_oauth_state_signing_and_tamper_detection():
 
 
 def test_google_auth_url_construction():
-    """Verify that Google OAuth URL requests the required least-privilege drive.file scope."""
-    url = get_google_auth_url(state="test_state_123")
-    assert "accounts.google.com/o/oauth2/v2/auth" in url
-    assert "https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file" in url or "drive.file" in url
-    assert "access_type=offline" in url
-    assert "state=test_state_123" in url
+    """Verify Google OAuth URL decouples basic identity scopes (login/link) from drive.file (byos)."""
+    # 1. Login / Link modes use non-sensitive openid email profile scopes (no 100-user cap)
+    login_url = get_google_auth_url(state="test_state_login", mode="login")
+    assert "accounts.google.com/o/oauth2/v2/auth" in login_url
+    assert "drive.file" not in login_url
+    assert "scope=openid+email+profile" in login_url
+    assert "state=test_state_login" in login_url
+
+    # 2. BYOS Drive mode requests least-privilege drive.file scope and offline refresh_token
+    byos_url = get_google_auth_url(state="test_state_123", mode="byos")
+    assert "accounts.google.com/o/oauth2/v2/auth" in byos_url
+    assert "https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file" in byos_url or "drive.file" in byos_url
+    assert "access_type=offline" in byos_url
+    assert "state=test_state_123" in byos_url
+
+    # 3. Trusted origin sanitization
+    assert _sanitize_frontend_origin("https://www.papergradeai.in/") == "https://www.papergradeai.in"
+    assert _sanitize_frontend_origin("https://papergradeai.in") == "https://papergradeai.in"
+    assert _sanitize_frontend_origin("https://evil-phishing.example.com") == "https://www.papergradeai.in"
 
 
 def test_google_byos_status_and_disconnect_lifecycle():

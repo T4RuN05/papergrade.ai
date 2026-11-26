@@ -243,6 +243,9 @@ async def login(
         "branch_id": user.branch_id,
         "has_changed_password": getattr(user, "has_changed_password", 0),
         "token_version": getattr(user, "token_version", 1) or 1,
+        "google_email": getattr(user, "google_email", None),
+        "google_picture": getattr(user, "google_picture", None),
+        "google_linked_at": getattr(user, "google_linked_at", None),
     }
 
     if student_info:
@@ -250,6 +253,7 @@ async def login(
         token_payload["roll_number"] = student_info.roll_number
         user_response["student_id"] = student_info.id
         user_response["roll_number"] = student_info.roll_number
+        user_response["student_id_num"] = getattr(student_info, "student_id_num", None)
 
     token = create_access_token(token_payload)
 
@@ -795,12 +799,20 @@ def request_password_reset(
     user_match = None
     if not student_match:
         user_match = db.scalar(
-            select(User).where(func.lower(User.email) == clean_id.lower(), User.role == "STUDENT").limit(1)
+            select(User).where(
+                or_(
+                    func.lower(User.email) == clean_id.lower(),
+                    func.lower(User.google_email) == clean_id.lower(),
+                ),
+                User.role == "STUDENT",
+            ).limit(1)
         )
         if user_match:
             student_match = db.scalar(
                 select(Student).where(Student.user_id == user_match.id).order_by(Student.created_at.desc()).limit(1)
             )
+    elif student_match.user_id:
+        user_match = db.scalar(select(User).where(User.id == student_match.user_id).limit(1))
 
     is_staff = False
     staff_user = None
@@ -810,6 +822,7 @@ def request_password_reset(
             select(User).where(
                 or_(
                     func.lower(User.email) == clean_id.lower(),
+                    func.lower(User.google_email) == clean_id.lower(),
                     User.id == clean_id,
                 ),
                 User.is_active == 1
@@ -839,7 +852,8 @@ def request_password_reset(
         target_branch_id = staff_user.branch_id
         target_roll = staff_user.role
         target_name = staff_user.full_name
-        target_email = staff_user.email
+        raw_email = staff_user.email or ""
+        target_email = raw_email if (raw_email and not raw_email.endswith(".local")) else (staff_user.google_email or raw_email)
     else:
         user_id = user_match.id if user_match else (student_match.user_id if student_match else None)
         if not user_id:
@@ -851,7 +865,13 @@ def request_password_reset(
         target_student_id = student_match.id if student_match else None
         target_roll = student_match.roll_number if student_match else clean_id.upper()
         target_name = (student_match.full_name if student_match else user_match.full_name) or "Student"
-        target_email = (user_match.email if user_match else student_match.email) or ""
+        # Prefer real deliverable email (ignore synthetic @papergrade.local placeholder when google_email exists)
+        candidates = [
+            user_match.email if user_match else None,
+            student_match.email if student_match else None,
+            user_match.google_email if user_match else None,
+        ]
+        target_email = next((c for c in candidates if c and "@" in c and not c.lower().endswith(".local")), "")
         target_branch_id = None
         if student_match and student_match.batch_id:
             b = db.scalar(select(Batch).where(Batch.id == student_match.batch_id))
@@ -903,8 +923,10 @@ def request_password_reset(
     session_secret = f"sec_{uuid.uuid4().hex}"
     req_id = f"pr_{uuid.uuid4().hex[:12]}"
 
-    # Primary branch: Email OTP delivery via Brevo
-    if target_email and "@" in target_email:
+    # Primary branch: Email OTP delivery via Brevo (only when API key & real email exist)
+    from backend.app.config import settings as app_settings
+    has_brevo_gateway = bool(getattr(app_settings, "BREVO_API_KEY", "").strip())
+    if has_brevo_gateway and target_email and "@" in target_email and not target_email.lower().endswith(".local"):
         otp_code = f"{secrets.randbelow(900000) + 100000}"
         otp_hash = hashlib.sha256(f"{otp_code}:{session_secret}".encode()).hexdigest()
 

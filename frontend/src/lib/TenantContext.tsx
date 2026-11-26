@@ -118,8 +118,15 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // If we don't have full user profile or missing role/branch_id for branch manager or missing student fields, fetch from server
-      if (!me?.role || (me.role === "BRANCH_MANAGER" && !me.branch_id) || (me.role === "STUDENT" && (!me.student_id_num || !me.roll_number))) {
+      // Refresh user profile from /api/auth/me when missing fields (e.g. google_picture, student_id_num, branch_id)
+      // or when invoked on mount without a pre-hydrated seedUser so all roles stay synced with linked Google avatars.
+      if (
+        !seedUser ||
+        !me?.role ||
+        me.google_email === undefined ||
+        (me.role === "BRANCH_MANAGER" && !me.branch_id) ||
+        (me.role === "STUDENT" && (!me.student_id_num || !me.roll_number))
+      ) {
         try {
           const fresh = await api.getMe();
           if (fresh) {

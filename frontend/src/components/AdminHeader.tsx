@@ -12,7 +12,6 @@ import {
   ChevronRight,
   ExternalLink,
   Layers,
-  LogOut,
   LifeBuoy,
   KeyRound,
 } from "lucide-react";
@@ -51,13 +50,8 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const {
     currentUser,
     isRootAdmin,
-    logout,
     refreshTenancy,
   } = useTenant();
-
-  const handleLogout = () => {
-    logout();
-  };
 
   // Determine canonical 1:1 breadcrumb trail matching sidebar groups
   const getDefaultTrail = () => {
@@ -105,6 +99,9 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
     }
     if (pathname.startsWith("/student/portal")) {
       return { group: "Student Preview", segments: [{ label: "Student Portal" }] };
+    }
+    if (pathname.startsWith("/settings")) {
+      return { group: "Account", segments: [{ label: "Profile & Settings" }] };
     }
     return { group: "Workspace", segments: [{ label: "PaperGrade AI" }] };
   };
@@ -241,17 +238,26 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
             </button>
           )}
 
-          {/* Quick Sign Out Button (always accessible in mobile & desktop headers) */}
+          {/* User Avatar Button (Navigates to Profile & Account Settings Page) */}
           {mounted && currentUser && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-              title="Sign Out"
-              aria-label="Sign out"
+            <Link
+              href="/settings"
+              className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-canvas text-ink hover:ring-2 hover:ring-primary/40 transition-all shrink-0 cursor-pointer overflow-hidden shadow-2xs"
+              title="Account & Settings"
+              aria-label="Open account settings"
             >
-              <LogOut className="h-4 w-4" />
-            </button>
+              {currentUser.google_picture ? (
+                <img
+                  src={currentUser.google_picture}
+                  alt={currentUser.full_name || "User Avatar"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-xs font-bold uppercase text-ink select-none">
+                  {currentUser.full_name ? currentUser.full_name.charAt(0) : "U"}
+                </span>
+              )}
+            </Link>
           )}
         </div>
       </div>

@@ -14,7 +14,6 @@ import {
   BarChart3,
   Clock,
   Sparkles,
-  LogOut,
   Home,
   ShieldAlert,
   ChevronRight,
@@ -24,6 +23,7 @@ import {
   LifeBuoy,
   AlertTriangle,
   BookOpen,
+  Settings,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { Skeleton } from "./ui";
@@ -44,17 +44,13 @@ interface AdminSidebarProps {
 export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
   const { toast } = useToast();
-  const { currentUser, isRootAdmin, isInstituteDirector, isBranchManager, selectedBranch, logout } = useTenant();
+  const { currentUser, isRootAdmin, isInstituteDirector, isBranchManager, selectedBranch } = useTenant();
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  const handleLogout = () => {
-    logout();
-  };
 
   const navigationGroups = [
     {
@@ -333,15 +329,26 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
 
         {/* Mobile controls */}
         {onCloseMobile && (
-          <div className="flex items-center gap-1 md:hidden">
-            <button
-              onClick={handleLogout}
-              className="p-1.5 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors"
-              title="Sign Out"
-              aria-label="Sign out"
+          <div className="flex items-center gap-1.5 md:hidden">
+            <Link
+              href="/settings"
+              onClick={onCloseMobile}
+              className="relative inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-canvas text-ink overflow-hidden shrink-0"
+              title="Account & Settings"
+              aria-label="Account & Settings"
             >
-              <LogOut className="h-4 w-4" />
-            </button>
+              {currentUser?.google_picture ? (
+                <img
+                  src={currentUser.google_picture}
+                  alt={currentUser?.full_name || "Avatar"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-[11px] font-bold uppercase text-ink select-none">
+                  {currentUser?.full_name ? currentUser.full_name.charAt(0) : "U"}
+                </span>
+              )}
+            </Link>
             <button
               onClick={onCloseMobile}
               className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft"
@@ -424,13 +431,28 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           </button>
         )}
 
-        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline shadow-xs">
+        <Link
+          href="/settings"
+          onClick={() => onCloseMobile?.()}
+          className="group flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline hover:border-primary/40 hover:bg-canvas-soft/60 shadow-xs transition-all cursor-pointer"
+          title="Open Account & Profile Settings"
+        >
           <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
-              {currentUser?.full_name ? currentUser.full_name.charAt(0).toUpperCase() : "A"}
+            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-hairline bg-primary/10 text-primary font-bold text-xs overflow-hidden">
+              {currentUser?.google_picture ? (
+                <img
+                  src={currentUser.google_picture}
+                  alt={currentUser?.full_name || "User Avatar"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span>
+                  {currentUser?.full_name ? currentUser.full_name.charAt(0).toUpperCase() : "A"}
+                </span>
+              )}
             </div>
             <div className="flex flex-col min-w-0">
-              <span suppressHydrationWarning className="text-xs font-bold text-ink truncate">
+              <span suppressHydrationWarning className="text-xs font-bold text-ink truncate group-hover:text-primary transition-colors">
                 {currentUser?.full_name || "Administrator"}
               </span>
               <span suppressHydrationWarning className="text-[10px] text-ink-muted truncate">
@@ -445,17 +467,10 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span>Sign Out</span>
-            </button>
+          <div className="flex items-center gap-1 shrink-0 text-ink-muted group-hover:text-primary transition-colors pr-0.5">
+            <Settings className="h-3.5 w-3.5" />
           </div>
-        </div>
+        </Link>
 
         {/* Quick link to public landing page & theme toggle */}
         <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-ink-muted">

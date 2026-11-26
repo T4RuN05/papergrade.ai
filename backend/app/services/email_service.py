@@ -13,8 +13,10 @@ Invariants:
 """
 
 import os
+import html
 import time
 import logging
+import threading
 from typing import Optional, List, Dict, Any
 import httpx
 
@@ -26,6 +28,7 @@ BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 _DAILY_SEND_COUNTER = 0
 _LAST_RESET_DATE = time.strftime("%Y-%m-%d")
 _MAX_DAILY_SAFETY_CEILING = 280  # Safety cushion below 300 limit
+_QUOTA_LOCK = threading.Lock()
 
 
 def _is_test_runtime() -> bool:
@@ -34,23 +37,24 @@ def _is_test_runtime() -> bool:
 
 
 def _check_and_increment_quota() -> bool:
-    """Enforce daily safety ceiling."""
+    """Thread-safe daily safety ceiling enforcement."""
     global _DAILY_SEND_COUNTER, _LAST_RESET_DATE
-    today = time.strftime("%Y-%m-%d")
-    if today != _LAST_RESET_DATE:
-        _DAILY_SEND_COUNTER = 0
-        _LAST_RESET_DATE = today
+    with _QUOTA_LOCK:
+        today = time.strftime("%Y-%m-%d")
+        if today != _LAST_RESET_DATE:
+            _DAILY_SEND_COUNTER = 0
+            _LAST_RESET_DATE = today
 
-    if _DAILY_SEND_COUNTER >= _MAX_DAILY_SAFETY_CEILING:
-        logger.error(
-            "Brevo daily email safety ceiling (%d) reached for %s. Dropping email to preserve quota.",
-            _MAX_DAILY_SAFETY_CEILING,
-            today,
-        )
-        return False
+        if _DAILY_SEND_COUNTER >= _MAX_DAILY_SAFETY_CEILING:
+            logger.error(
+                "Brevo daily email safety ceiling (%d) reached for %s. Dropping email to preserve quota.",
+                _MAX_DAILY_SAFETY_CEILING,
+                today,
+            )
+            return False
 
-    _DAILY_SEND_COUNTER += 1
-    return True
+        _DAILY_SEND_COUNTER += 1
+        return True
 
 
 async def send_transactional_email(
@@ -178,6 +182,8 @@ def send_transactional_email_sync(
 
 def format_otp_email_html(recipient_name: str, otp_code: str, expires_in_minutes: int = 10) -> str:
     """Render Notion-styled, high-deliverability HTML email for 6-digit OTP."""
+    safe_name = html.escape(recipient_name or "User")
+    safe_otp = html.escape(otp_code or "")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -210,7 +216,7 @@ def format_otp_email_html(recipient_name: str, otp_code: str, expires_in_minutes
             <td style="padding: 32px 32px 24px 32px;">
               <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 12px 0; color: #191919; letter-spacing: -0.2px;">Verification Code</h1>
               <p style="font-size: 14px; line-height: 1.6; color: #5A5A58; margin: 0 0 24px 0;">
-                Hello <strong>{recipient_name}</strong>, a request was made to verify your account or reset your password on PaperGrade AI.
+                Hello <strong>{safe_name}</strong>, a request was made to verify your account or reset your password on PaperGrade AI.
               </p>
               
               <!-- OTP Box -->
@@ -218,7 +224,7 @@ def format_otp_email_html(recipient_name: str, otp_code: str, expires_in_minutes
                 <tr>
                   <td align="center" style="background-color: #FBFBFA; border: 1px dashed #D3D3D0; border-radius: 8px; padding: 20px;">
                     <div style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #191919; font-family: 'SF Mono', Monaco, Consolas, monospace;">
-                      {otp_code}
+                      {safe_otp}
                     </div>
                     <div style="font-size: 12px; color: #8F8E8B; margin-top: 8px;">
                       Valid for {expires_in_minutes} minutes • Single use only
@@ -260,14 +266,22 @@ def format_admin_issue_html(
     screenshot_urls: List[str],
 ) -> str:
     """Render structured issue notification for the administrator."""
-    roll_text = f" • Roll: {reporter_roll}" if reporter_roll else ""
-    branch_text = f" • Branch: {branch_name}" if branch_name else ""
-    deep_link = f"https://www.papergradeai.in/admin/reports?report_id={report_id}"
+    safe_id = html.escape(report_id or "")
+    safe_name = html.escape(reporter_name or "User")
+    safe_role = html.escape(reporter_role or "")
+    safe_email = html.escape(reporter_email or "")
+    safe_cat = html.escape(category or "")
+    safe_subj = html.escape(subject or "")
+    safe_desc = html.escape(description or "")
+
+    roll_text = f" • Roll: {html.escape(reporter_roll)}" if reporter_roll else ""
+    branch_text = f" • Branch: {html.escape(branch_name)}" if branch_name else ""
+    deep_link = f"https://www.papergradeai.in/admin/reports?report_id={safe_id}"
 
     screenshots_html = ""
     if screenshot_urls:
         shots_items = "".join(
-            f'<li style="margin-bottom: 6px;"><a href="{url}" target="_blank" style="color: #2383E2; text-decoration: underline;">Screenshot #{i+1} (View in R2 Storage)</a></li>'
+            f'<li style="margin-bottom: 6px;"><a href="{html.escape(url, quote=True)}" target="_blank" style="color: #2383E2; text-decoration: underline;">Screenshot #{i+1} (View in Storage)</a></li>'
             for i, url in enumerate(screenshot_urls)
         )
         screenshots_html = f"""
@@ -283,7 +297,7 @@ def format_admin_issue_html(
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>New Technical Report: {subject}</title>
+  <title>New Technical Report: {safe_subj}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #F7F7F5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #37352F;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #F7F7F5; padding: 36px 16px;">
@@ -297,10 +311,10 @@ def format_admin_issue_html(
                 <tr>
                   <td>
                     <span style="font-size: 13px; font-weight: 700; color: #EB5757; text-transform: uppercase; letter-spacing: 0.5px;">⚠️ Issue Report</span>
-                    <h2 style="margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #191919;">{subject}</h2>
+                    <h2 style="margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #191919;">{safe_subj}</h2>
                   </td>
                   <td align="right" valign="top">
-                    <span style="font-size: 11px; background-color: #F0F0EF; color: #5A5A58; padding: 4px 8px; border-radius: 4px; font-family: monospace;">#{report_id}</span>
+                    <span style="font-size: 11px; background-color: #F0F0EF; color: #5A5A58; padding: 4px 8px; border-radius: 4px; font-family: monospace;">#{safe_id}</span>
                   </td>
                 </tr>
               </table>
@@ -313,21 +327,21 @@ def format_admin_issue_html(
               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 20px; font-size: 13px; line-height: 1.6;">
                 <tr>
                   <td width="30%" style="color: #787774; padding-bottom: 6px;">Reported By:</td>
-                  <td style="font-weight: 600; color: #191919; padding-bottom: 6px;">{reporter_name} ({reporter_role}{roll_text}{branch_text})</td>
+                  <td style="font-weight: 600; color: #191919; padding-bottom: 6px;">{safe_name} ({safe_role}{roll_text}{branch_text})</td>
                 </tr>
                 <tr>
                   <td style="color: #787774; padding-bottom: 6px;">User Email:</td>
-                  <td style="color: #191919; padding-bottom: 6px;"><a href="mailto:{reporter_email}" style="color: #2383E2; text-decoration: none;">{reporter_email}</a></td>
+                  <td style="color: #191919; padding-bottom: 6px;"><a href="mailto:{safe_email}" style="color: #2383E2; text-decoration: none;">{safe_email}</a></td>
                 </tr>
                 <tr>
                   <td style="color: #787774; padding-bottom: 6px;">Category:</td>
-                  <td style="color: #191919; padding-bottom: 6px;"><span style="background-color: #FFF3D6; color: #8F6B00; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">{category}</span></td>
+                  <td style="color: #191919; padding-bottom: 6px;"><span style="background-color: #FFF3D6; color: #8F6B00; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">{safe_cat}</span></td>
                 </tr>
               </table>
 
               <!-- Description -->
               <div style="font-size: 13px; font-weight: 600; color: #787774; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px;">Issue Description:</div>
-              <div style="background-color: #FBFBFA; border: 1px solid #ECECEB; border-left: 3px solid #2383E2; border-radius: 4px; padding: 14px; font-size: 14px; line-height: 1.6; color: #191919; white-space: pre-wrap;">{description}</div>
+              <div style="background-color: #FBFBFA; border: 1px solid #ECECEB; border-left: 3px solid #2383E2; border-radius: 4px; padding: 14px; font-size: 14px; line-height: 1.6; color: #191919; white-space: pre-wrap;">{safe_desc}</div>
 
               {screenshots_html}
 

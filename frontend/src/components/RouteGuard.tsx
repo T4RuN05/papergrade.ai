@@ -58,6 +58,10 @@ export function RouteGuard({ children }: RouteGuardProps) {
     return pathname.startsWith("/student") || pathname.startsWith("/results");
   }, [pathname]);
 
+  const isSettingsRoute = useMemo(() => {
+    return pathname.startsWith("/settings");
+  }, [pathname]);
+
   const isAuthRoute = useMemo(() => {
     return pathname.startsWith("/auth/login") || pathname === "/auth/claim";
   }, [pathname]);
@@ -65,6 +69,10 @@ export function RouteGuard({ children }: RouteGuardProps) {
   const isPublicRoute = useMemo(() => {
     return pathname === "/" || pathname.startsWith("/help") || isAuthRoute;
   }, [pathname, isAuthRoute]);
+
+  const isAdminLayout = useMemo(() => {
+    return isAdminRoute || (isSettingsRoute && Boolean(role && role !== "STUDENT"));
+  }, [isAdminRoute, isSettingsRoute, role]);
 
   // Determine redirection target if user role and route mismatch
   const targetRedirect = useMemo(() => {
@@ -81,6 +89,9 @@ export function RouteGuard({ children }: RouteGuardProps) {
       }
       if (isStudentRoute) {
         return `/auth/login?role=student&redirect=${encodeURIComponent(fullCurrentPath)}`;
+      }
+      if (isSettingsRoute) {
+        return `/auth/login?redirect=${encodeURIComponent(fullCurrentPath)}`;
       }
       return null;
     }
@@ -107,7 +118,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
     }
 
     return null;
-  }, [hasToken, role, isAdminRoute, isStudentRoute, pathname, isLoggingOut]);
+  }, [hasToken, role, isAdminRoute, isStudentRoute, isSettingsRoute, pathname, isLoggingOut]);
 
   // Handle browser back/forward (popstate), mobile bfcache restoration (pageshow), and cross-tab logout (storage)
   useEffect(() => {
@@ -118,11 +129,13 @@ export function RouteGuard({ children }: RouteGuardProps) {
       const fullPath =
         pathname + (typeof window !== "undefined" ? window.location.search : "");
 
-      if (!liveToken && (isAdminRoute || isStudentRoute)) {
+      if (!liveToken && (isAdminRoute || isStudentRoute || isSettingsRoute)) {
         window.location.replace(
           isAdminRoute
             ? `/auth/login?role=staff&redirect=${encodeURIComponent(fullPath)}`
-            : `/auth/login?role=student&redirect=${encodeURIComponent(fullPath)}`
+            : isStudentRoute
+            ? `/auth/login?role=student&redirect=${encodeURIComponent(fullPath)}`
+            : `/auth/login?redirect=${encodeURIComponent(fullPath)}`
         );
         return;
       }
@@ -156,7 +169,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
       window.removeEventListener("popstate", handleNavigationSync);
       window.removeEventListener("storage", handleNavigationSync);
     };
-  }, [isAdminRoute, isStudentRoute, pathname]);
+  }, [isAdminRoute, isStudentRoute, isSettingsRoute, pathname]);
 
   // Execute top-level replacement when redirection target is active
   useEffect(() => {
@@ -208,8 +221,8 @@ export function RouteGuard({ children }: RouteGuardProps) {
     );
   }
 
-  // Render Admin Layout for authenticated admin routes
-  if (isAdminRoute) {
+  // Render Admin Layout for authenticated admin routes & staff viewing /settings
+  if (isAdminLayout) {
     return (
       <div className="flex min-h-screen bg-canvas-soft text-ink selection:bg-primary selection:text-white">
         <AdminSidebar

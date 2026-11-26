@@ -4,6 +4,7 @@ import json
 import base64
 import hashlib
 import logging
+import asyncio
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import httpx
@@ -75,13 +76,14 @@ def decrypt_token(encrypted_token: str) -> str:
 def get_google_auth_url(state: str, mode: str = "login", prompt_consent: bool = True) -> str:
     """
     Constructs the Google OAuth 2.0 authorization consent URL.
-    `state` contains serialized CSRF token and redirect mode ('login' or 'byos').
-    - 'login': Requests only non-sensitive identity scopes (openid, email, profile), avoiding the 100-user cap and unverified screen.
+    `state` contains serialized CSRF token and redirect mode ('login', 'link', or 'byos').
+    - 'login' / 'link': Requests only non-sensitive identity scopes (openid, email, profile), avoiding the 100-user cap and unverified screen.
     - 'byos': Requests drive.file for personal Google Drive archival with offline refresh token.
     """
     client_id = settings.GOOGLE_CLIENT_ID
     redirect_uri = settings.GOOGLE_REDIRECT_URI
-    scopes = BYOS_SCOPES if mode in ("byos", "drive") else LOGIN_SCOPES
+    is_drive_mode = mode in ("byos", "drive")
+    scopes = BYOS_SCOPES if is_drive_mode else LOGIN_SCOPES
     scope_str = " ".join(scopes)
 
     params = {
@@ -89,10 +91,10 @@ def get_google_auth_url(state: str, mode: str = "login", prompt_consent: bool = 
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": scope_str,
-        "access_type": "offline" if mode in ("byos", "drive") else "online",
+        "access_type": "offline" if is_drive_mode else "online",
         "state": state,
         "include_granted_scopes": "true",
-        "prompt": "select_account consent" if mode in ("byos", "drive") else "select_account",
+        "prompt": "select_account consent" if is_drive_mode else "select_account",
     }
 
     import urllib.parse
@@ -194,6 +196,53 @@ async def get_google_drive_storage_quota(encrypted_refresh_token: str) -> Dict[s
         }
 
 
+def _escape_drive_query(value: str) -> str:
+    """Escape backslashes and single quotes for Google Drive q search syntax."""
+    return (value or "").replace("\\", "\\\\").replace("'", "\\'")
+
+
+async def check_drive_file_exists(access_token: str, file_id: str) -> Optional[Dict[str, Any]]:
+    """Verify whether a previously synced Drive file still exists and is not trashed."""
+    if not file_id:
+        return None
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{GOOGLE_DRIVE_API_BASE}/files/{file_id}",
+                params={"fields": "id,name,trashed,webViewLink"},
+                headers=headers,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if not data.get("trashed"):
+                    return data
+    except Exception as e:
+        logger.warning(f"Failed verifying Drive file {file_id}: {e}")
+    return None
+
+
+async def find_drive_file_in_folder(access_token: str, folder_id: str, file_name: str) -> Optional[Dict[str, Any]]:
+    """Find an existing non-trashed file with the same name in a Drive folder."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    safe_name = _escape_drive_query(file_name)
+    q = f"name = '{safe_name}' and '{folder_id}' in parents and trashed = false"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{GOOGLE_DRIVE_API_BASE}/files",
+                params={"q": q, "fields": "files(id, name, webViewLink)"},
+                headers=headers,
+            )
+            if resp.status_code == 200:
+                files = resp.json().get("files", [])
+                if files:
+                    return files[0]
+    except Exception as e:
+        logger.warning(f"Failed searching Drive file '{file_name}': {e}")
+    return None
+
+
 async def ensure_drive_folder(
     access_token: str,
     folder_name: str,
@@ -209,7 +258,8 @@ async def ensure_drive_folder(
     }
     async with httpx.AsyncClient(timeout=15.0) as client:
         # Search for existing folder
-        q = f"mimeType = 'application/vnd.google-apps.folder' and name = '{folder_name}' and trashed = false"
+        safe_folder = _escape_drive_query(folder_name)
+        q = f"mimeType = 'application/vnd.google-apps.folder' and name = '{safe_folder}' and trashed = false"
         if parent_id:
             q += f" and '{parent_id}' in parents"
         else:
@@ -299,16 +349,20 @@ async def upload_pdf_to_drive(
 async def sync_published_submission_to_google_drive(
     db: Session,
     submission_id: str,
+    raise_on_error: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     Core BYOS worker function:
     1. Checks if student has an active Google Drive connection.
-    2. Downloads canonical annotated PDF from R2.
-    3. Traverses/creates hierarchy: 'PaperGrade AI / <Year> / <Month> / <Exam Title>'.
-    4. Uploads PDF and records PublishedDocumentArchive record.
+    2. Checks if the annotated PDF is already synced in Google Drive (and not trashed).
+    3. Downloads annotated PDF from storage (or generates it on demand via export_service).
+    4. Traverses/creates hierarchy: 'PaperGrade AI / <Year> / <Month> / <Exam Title>'.
+    5. Uploads PDF (without creating duplicates) and persists PublishedDocumentArchive record.
     """
     submission = db.scalar(select(Submission).where(Submission.id == submission_id))
     if not submission or not submission.student_id:
+        return None
+    if getattr(submission, "is_document_purged", 0):
         return None
 
     student = db.scalar(select(Student).where(Student.id == submission.student_id))
@@ -351,56 +405,89 @@ async def sync_published_submission_to_google_drive(
         # 1. Acquire fresh Google access token
         access_token = await refresh_google_access_token(conn.encrypted_refresh_token)
 
-        # 2. Fetch canonical annotated PDF bytes from storage (R2)
+        # 1a. Check if existing archive file still lives in Google Drive
+        existing_archive = db.scalar(
+            select(PublishedDocumentArchive).where(PublishedDocumentArchive.submission_id == submission_id)
+        )
+        if existing_archive and existing_archive.archive_status == "EXPORTED" and existing_archive.drive_file_id:
+            verified = await check_drive_file_exists(access_token, existing_archive.drive_file_id)
+            if verified:
+                link = verified.get("webViewLink") or existing_archive.drive_web_view_link
+                return {
+                    "status": "success",
+                    "already_exists": True,
+                    "file_id": existing_archive.drive_file_id,
+                    "web_view_link": link,
+                }
+
+        # 2. Fetch canonical annotated PDF bytes (Storage first, on-demand export fallback)
+        from backend.app.services.storage import is_remote_storage, sync_file_to_remote_storage
+        from backend.app.services.export_service import export_service
+        from backend.app.services.grading_service import grading_service
+
         storage = get_storage_service()
-        pdf_key = submission.annotated_pdf_url or submission.pdf_path
-        if not pdf_key:
-            logger.warning(f"Submission {submission_id} has no annotated PDF key available for BYOS sync.")
-            return None
+        sub_annotated = getattr(submission, "annotated_pdf_path", None)
+        annotated_key = (
+            sub_annotated
+            if sub_annotated and sub_annotated not in ("", "PURGED")
+            else f"exports/{submission_id}_annotated.pdf"
+        )
 
-        # Clean key for R2 fetch
-        clean_key = pdf_key.split("?")[0].lstrip("/")
-        if "submissions/" in clean_key:
-            clean_key = clean_key[clean_key.find("submissions/"):]
+        pdf_bytes: Optional[bytes] = None
+        if not grading_service.is_export_dirty(submission_id) and await asyncio.to_thread(storage.file_exists, annotated_key):
+            try:
+                pdf_bytes = await asyncio.to_thread(storage.download_file, annotated_key)
+            except Exception as dl_err:
+                logger.warning(f"Remote annotated PDF download failed for {submission_id}, regenerating locally: {dl_err}")
 
-        pdf_bytes = storage.download_file(clean_key)
         if not pdf_bytes:
-            logger.error(f"Could not retrieve PDF bytes for key '{clean_key}' during BYOS sync.")
+            local_pdf_path = await asyncio.to_thread(export_service.get_submission_pdf_path, submission_id)
+            if local_pdf_path and local_pdf_path.exists():
+                pdf_bytes = local_pdf_path.read_bytes()
+                if is_remote_storage(storage):
+                    await asyncio.to_thread(
+                        sync_file_to_remote_storage,
+                        local_pdf_path,
+                        annotated_key,
+                        "application/pdf",
+                        storage,
+                    )
+
+        if not pdf_bytes:
+            logger.error(f"Could not generate or retrieve annotated PDF bytes for submission '{submission_id}' during BYOS sync.")
             return None
 
         pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
 
         # 3. Create/resolve folder hierarchy in student's Google Drive
-        # Root: PaperGrade AI
         root_id = await ensure_drive_folder(access_token, "PaperGrade AI")
-        # Year folder: e.g. 2026
         year_str = str(now_dt.year)
         year_id = await ensure_drive_folder(access_token, year_str, parent_id=root_id)
-        # Month folder: e.g. November
         month_str = now_dt.strftime("%B")
         month_id = await ensure_drive_folder(access_token, month_str, parent_id=year_id)
-        # Exam folder: e.g. Physics Midterm
-        clean_exam_title = "".join(c for c in exam_title if c.isalnum() or c in (" ", "-", "_")).strip()
+        clean_exam_title = "".join(c for c in exam_title if c.isalnum() or c in (" ", "-", "_")).strip() or "Examination"
         exam_id_dir = await ensure_drive_folder(access_token, clean_exam_title, parent_id=month_id)
 
-        # 4. Upload PDF
+        # 4. Upload PDF (check folder first to avoid duplicate files)
         roll_clean = (student.roll_number or "Student").replace("/", "-")
         target_filename = f"{roll_clean}_{clean_exam_title}_Graded_v1.pdf"
 
-        upload_meta = await upload_pdf_to_drive(
-            access_token=access_token,
-            folder_id=exam_id_dir,
-            file_name=target_filename,
-            pdf_bytes=pdf_bytes,
-        )
-
-        drive_file_id = upload_meta.get("id")
-        drive_link = upload_meta.get("webViewLink")
+        existing_drive_file = await find_drive_file_in_folder(access_token, exam_id_dir, target_filename)
+        if existing_drive_file:
+            drive_file_id = existing_drive_file.get("id")
+            drive_link = existing_drive_file.get("webViewLink")
+        else:
+            upload_meta = await upload_pdf_to_drive(
+                access_token=access_token,
+                folder_id=exam_id_dir,
+                file_name=target_filename,
+                pdf_bytes=pdf_bytes,
+            )
+            drive_file_id = upload_meta.get("id")
+            drive_link = upload_meta.get("webViewLink")
 
         # 5. Persist archive state
-        archive = db.scalar(
-            select(PublishedDocumentArchive).where(PublishedDocumentArchive.submission_id == submission_id)
-        )
+        archive = existing_archive
         if not archive:
             archive = PublishedDocumentArchive(
                 id=f"pdoc_{hashlib.md5(f'{submission_id}:1'.encode()).hexdigest()[:12]}",
@@ -441,4 +528,6 @@ async def sync_published_submission_to_google_drive(
         if conn:
             conn.error_state = str(e)[:255]
             db.commit()
+        if raise_on_error:
+            raise
         return None

@@ -202,12 +202,16 @@ function LoginForm() {
       const nameParam = searchParams.get("name") || "User";
       const branchIdParam = searchParams.get("branch_id") || "";
       const instituteIdParam = searchParams.get("institute_id") || "";
+      const googleEmailParam = searchParams.get("google_email") || "";
+      const googlePictureParam = searchParams.get("google_picture") || "";
 
       const userObj = {
         role: roleParam,
         full_name: nameParam,
         branch_id: branchIdParam,
         institute_id: instituteIdParam,
+        ...(googleEmailParam ? { google_email: googleEmailParam } : {}),
+        ...(googlePictureParam ? { google_picture: googlePictureParam } : {}),
       };
 
       // Store JWT token to 'papergrade_jwt' and user payload to 'papergrade_user'
@@ -246,7 +250,15 @@ function LoginForm() {
     if (oauthError) {
       if (oauthError === "unregistered_email") {
         const em = searchParams.get("email");
-        setError(`No account found matching ${em || "your Google email"}. Please activate your account first using your roll number.`);
+        setError(`No account found matching ${em || "your Google email"}. Please activate your account first or link Google inside Account Settings.`);
+      } else if (oauthError === "email_not_verified") {
+        setError("Your Google account email is not verified. Please use a verified Google account.");
+      } else if (oauthError === "google_account_mismatch") {
+        setError("This PaperGrade account is already linked to a different Google account. Please sign in with that linked Google account or use your password.");
+      } else if (oauthError === "account_deactivated") {
+        setError("This account has been deactivated. Please contact your branch administrator.");
+      } else if (oauthError === "access_denied") {
+        setError("Google Sign-In was cancelled.");
       } else if (oauthError === "role_mismatch_student") {
         const em = searchParams.get("email");
         const r = searchParams.get("role") || "Faculty / Staff";

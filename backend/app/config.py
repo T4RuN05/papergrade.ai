@@ -15,7 +15,7 @@ class Settings:
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
     HOST: str = "127.0.0.1"
     PORT: int = 8000
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://papergrade-ai.vercel.app").strip()
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://www.papergradeai.in").strip()
 
     # Gemini API settings (Single-Pass Flash-Only Architecture: 3.8 -> 3.6 -> 3.5)
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()

@@ -165,7 +165,7 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
   const handleConnectDrive = async () => {
     try {
       setByosState((prev) => ({ ...prev, loading: true }));
-      const res = await api.getGoogleAuthUrl("byos");
+      const res = await api.getGoogleAuthUrl("byos", undefined, "/student/portal");
       if (res?.authorization_url) {
         window.location.href = res.authorization_url;
       } else {
