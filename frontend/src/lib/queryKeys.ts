@@ -17,6 +17,13 @@ export const queryKeys = {
     staffResets: () => ["auth", "resets", "staff"] as const,
   },
 
+  // 2b. Google OAuth & BYOS Drive Archival
+  oauth: {
+    all: () => ["oauth"] as const,
+    googleStatus: () => ["oauth", "google-status"] as const,
+    googleQuota: () => ["oauth", "google-quota"] as const,
+  },
+
   // 3. Tenancy & Institutional Structure
   tenancy: {
     all: () => ["tenancy"] as const,

@@ -1227,6 +1227,27 @@ input[type="number"] {
   will-change: transform, opacity;
 }
 
+/* Lightweight GPU-composited progress bar mount fill */
+@keyframes quotaBarFill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-quota-bar {
+  transform-origin: left center;
+  animation: quotaBarFill 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-quota-bar {
+    animation: none;
+  }
+}
+
 /* Horizontal Scroll Bar Hider */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

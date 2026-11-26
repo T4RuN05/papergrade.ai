@@ -22,10 +22,13 @@ import {
   Unlink,
   Loader2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, setStoredUser } from "@/lib/api";
+import { queryKeys } from "@/lib/queryKeys";
+import { useAuthMe, useGoogleConnectionStatus, useGoogleDriveQuota } from "@/lib/queries";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
-import { BadgePill, FeatureCard } from "@/components/ui";
+import { BadgePill, FeatureCard, Skeleton } from "@/components/ui";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 
 function GoogleDriveIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -89,6 +92,7 @@ function GoogleLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
 
 function SettingsContent() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const {
     currentUser,
@@ -103,70 +107,52 @@ function SettingsContent() {
   const [oauthConnecting, setOauthConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [statusLoading, setStatusLoading] = useState(true);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
-  const [connectionStatus, setConnectionStatus] = useState<{
-    is_connected: boolean;
-    google_email?: string;
-    google_picture?: string;
-    last_sync_at?: string;
-    error_state?: string;
-  }>({
-    is_connected: false,
-    google_email: currentUser?.google_email,
-    google_picture: currentUser?.google_picture,
-  });
+  const {
+    data: meData,
+    isFetching: meFetching,
+    refetch: refetchMe,
+  } = useAuthMe(isMounted);
 
-  const [quotaData, setQuotaData] = useState<{
-    is_connected: boolean;
-    limit_bytes?: number;
-    usage_bytes?: number;
-    limit_gb?: number | null;
-    usage_gb?: number;
-    usage_percent?: number;
-    is_near_full?: boolean;
-    is_critical?: boolean;
-  } | null>(null);
+  const {
+    data: statusData,
+    isLoading: statusInitialLoading,
+    isFetching: statusFetching,
+    refetch: refetchStatus,
+  } = useGoogleConnectionStatus(isMounted);
 
-  const loadAccountData = React.useCallback(async () => {
-    setStatusLoading(true);
-    try {
-      const [me, status] = await Promise.all([
-        api.getMe(true).catch(() => null),
-        api.getGoogleConnectionStatus().catch(() => null),
-      ]);
+  const isDriveConnected = Boolean(statusData?.is_connected);
+  const isStudent = (meData?.role || currentUser?.role) === "STUDENT";
 
-      if (me) {
-        setStoredUser(me);
-        refreshTenancy(me);
-      }
+  const {
+    data: quotaData,
+    isLoading: quotaInitialLoading,
+    isFetching: quotaFetching,
+    refetch: refetchQuota,
+  } = useGoogleDriveQuota(isMounted && isDriveConnected && isStudent);
 
-      if (status) {
-        const connected = Boolean(status.is_connected);
-        setConnectionStatus({
-          is_connected: connected,
-          google_email: status.google_email || me?.google_email || currentUser?.google_email,
-          google_picture: status.google_picture || me?.google_picture || currentUser?.google_picture,
-          last_sync_at: status.last_sync_at,
-          error_state: status.error_state,
-        });
-
-        if (connected) {
-          const q = await api.getGoogleDriveQuota().catch(() => null);
-          if (q?.is_connected) {
-            setQuotaData(q);
-          }
-        } else {
-          setQuotaData(null);
-        }
-      }
-    } finally {
-      setStatusLoading(false);
+  // Sync TanStack Query /api/auth/me updates into TenantContext & localStorage
+  useEffect(() => {
+    if (meData) {
+      setStoredUser(meData);
+      refreshTenancy(meData);
     }
-  }, [currentUser?.google_email, currentUser?.google_picture, refreshTenancy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meData]);
 
-  // Handle OAuth return params (?byos=connected, ?google_linked=1, ?byos_error=...) & load status
+  const statusLoading = meFetching || statusFetching || quotaFetching;
+
+  const refreshAccountStatus = React.useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.oauth.all() });
+    await Promise.all([refetchMe(), refetchStatus()]);
+    if (isDriveConnected && isStudent) {
+      await refetchQuota();
+    }
+  }, [queryClient, refetchMe, refetchStatus, refetchQuota, isDriveConnected, isStudent]);
+
+  // Handle OAuth return params (?byos=connected, ?google_linked=1, ?byos_error=...)
   useEffect(() => {
     if (!isMounted) return;
 
@@ -181,12 +167,14 @@ function SettingsContent() {
         { title: "Google Drive Linked", duration: 5000 }
       );
       window.history.replaceState({}, document.title, window.location.pathname);
+      refreshAccountStatus();
     } else if (googleLinked === "1") {
       toast.success(
         "Your Google account is now linked for 1-click Google Sign-In and profile avatar sync.",
         { title: "Google Account Linked", duration: 5000 }
       );
       window.history.replaceState({}, document.title, window.location.pathname);
+      refreshAccountStatus();
     } else if (byosError) {
       if (byosError === "already_linked_elsewhere") {
         toast.error(
@@ -205,8 +193,6 @@ function SettingsContent() {
       }
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-
-    loadAccountData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted]);
 
@@ -244,7 +230,7 @@ function SettingsContent() {
           : "Google Drive backup connection paused.",
         { title: unlinkIdentity ? "Account Unlinked" : "Drive Disconnected" }
       );
-      await loadAccountData();
+      await refreshAccountStatus();
     } catch (err: any) {
       toast.error(err?.message || "Failed to disconnect Google connection.");
     } finally {
@@ -252,22 +238,27 @@ function SettingsContent() {
     }
   };
 
-  const isStudent = currentUser?.role === "STUDENT";
+  const activeUser = meData || currentUser;
   const dashboardHref =
-    currentUser?.role === "STUDENT"
+    activeUser?.role === "STUDENT"
       ? "/student/portal"
-      : currentUser?.role === "ROOT_ADMIN"
+      : activeUser?.role === "ROOT_ADMIN"
       ? "/overview"
       : "/branch/batches";
 
-  const rollNumber = currentUser?.roll_number || currentUser?.student?.roll_number;
+  const rollNumber = activeUser?.roll_number || activeUser?.student?.roll_number;
   const studentIdNum =
-    currentUser?.student_id_num || currentUser?.student?.student_id_num || currentUser?.student_id;
+    activeUser?.student_id_num || activeUser?.student?.student_id_num || activeUser?.student_id;
 
-  const avatarUrl = connectionStatus.google_picture || currentUser?.google_picture;
-  const linkedEmail = connectionStatus.google_email || currentUser?.google_email;
+  const avatarUrl = statusData?.google_picture || activeUser?.google_picture;
+  const linkedEmail = statusData?.google_email || activeUser?.google_email;
   const isGoogleLinked = Boolean(linkedEmail);
-  const isDriveConnected = connectionStatus.is_connected;
+
+  const showStatusSkeleton = isMounted ? statusInitialLoading && !statusData : true;
+  const showQuotaSkeleton =
+    isStudent &&
+    ((showStatusSkeleton && Boolean(activeUser?.google_email)) ||
+      (isDriveConnected && quotaInitialLoading && !quotaData));
 
   const handleSignOut = () => {
     if (signingOut) return;
@@ -307,7 +298,7 @@ function SettingsContent() {
 
         <button
           type="button"
-          onClick={loadAccountData}
+          onClick={refreshAccountStatus}
           disabled={statusLoading}
           className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink-secondary transition-colors cursor-pointer disabled:opacity-50"
         >
@@ -319,21 +310,23 @@ function SettingsContent() {
       {/* 1. Profile Identity Card */}
       <FeatureCard className="p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="relative h-16 w-16 rounded-full border border-hairline bg-canvas-soft flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={currentUser?.full_name || "User Avatar"}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="text-xl font-bold text-ink select-none uppercase">
-                {currentUser?.full_name ? currentUser.full_name.charAt(0) : <User className="h-6 w-6 text-ink-muted" />}
-              </span>
-            )}
+          <div className="relative h-16 w-16 shrink-0">
+            <div className="h-full w-full rounded-full border border-hairline bg-canvas-soft flex items-center justify-center overflow-hidden shadow-xs">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={activeUser?.full_name || "User Avatar"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-xl font-bold text-ink select-none uppercase">
+                  {activeUser?.full_name ? activeUser.full_name.charAt(0) : <User className="h-6 w-6 text-ink-muted" />}
+                </span>
+              )}
+            </div>
             {isDriveConnected && (
               <span
-                className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-surface"
+                className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-emerald-500 ring-[2.5px] ring-surface shadow-xs z-10"
                 title="Google Drive Sync Active"
               />
             )}
@@ -476,7 +469,9 @@ function SettingsContent() {
               </h3>
             </div>
 
-            {isDriveConnected ? (
+            {showStatusSkeleton ? (
+              <Skeleton className="h-6 w-24 rounded-full shrink-0" />
+            ) : isDriveConnected ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0 whitespace-nowrap">
                 <CheckCircle2 className="h-3 w-3" />
                 Drive Active
@@ -501,7 +496,18 @@ function SettingsContent() {
         </div>
 
         {/* Linked Google Identity Box */}
-        {isGoogleLinked && (
+        {showStatusSkeleton ? (
+          <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-3.5 w-44 max-w-full" />
+                <Skeleton className="h-3 w-52 max-w-full" />
+              </div>
+            </div>
+            <Skeleton className="h-7 w-24 rounded-md shrink-0" />
+          </div>
+        ) : isGoogleLinked ? (
           <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               {avatarUrl ? (
@@ -531,25 +537,40 @@ function SettingsContent() {
               <span>{disconnecting ? "Unlinking..." : "Unlink Account"}</span>
             </button>
           </div>
-        )}
+        ) : null}
 
-        {/* Drive Storage Quota Meter (Shown when Drive BYOS is active) */}
-        {isDriveConnected && quotaData && typeof quotaData.usage_percent === "number" && (
-          <div className="space-y-2 p-3.5 rounded-lg bg-canvas-soft border border-hairline">
-            <div className="flex items-center justify-between text-xs">
+        {/* Drive Storage Quota Meter (TanStack Query + In-Place Skeleton + Smooth Mount Animation) */}
+        {showQuotaSkeleton ? (
+          <div className="space-y-2.5 p-3.5 rounded-lg bg-canvas-soft border border-hairline" aria-busy="true">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Skeleton className="h-3.5 w-44" />
+              <Skeleton className="h-3.5 w-28" />
+            </div>
+            <Skeleton className="h-2.5 w-full" rounded="full" />
+          </div>
+        ) : isDriveConnected && quotaData?.is_connected && typeof quotaData.usage_percent === "number" ? (
+          <div className="space-y-2.5 p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
               <span className="font-medium text-ink-secondary flex items-center gap-1.5">
-                <HardDrive className="h-3.5 w-3.5 text-ink-muted" />
-                Personal Google Drive Storage
+                <HardDrive className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                <span>Personal Google Drive Storage</span>
               </span>
-              <span className="font-mono font-bold text-ink">
+              <span className="font-mono font-bold text-ink whitespace-nowrap">
                 {quotaData.usage_gb} GB / {quotaData.limit_gb ? `${quotaData.limit_gb} GB` : "Unlimited"}{" "}
-                <span className="text-ink-muted">({quotaData.usage_percent}%)</span>
+                <span className="text-ink-muted font-normal">({quotaData.usage_percent}%)</span>
               </span>
             </div>
 
-            <div className="w-full h-2.5 rounded-full bg-surface border border-hairline overflow-hidden">
+            <div
+              className="w-full h-2.5 rounded-full bg-ink/[0.08] dark:bg-white/[0.08] ring-1 ring-inset ring-hairline overflow-hidden"
+              role="progressbar"
+              aria-valuenow={Math.round(quotaData.usage_percent)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Personal Google Drive Storage Usage"
+            >
               <div
-                className={`h-full transition-all duration-500 rounded-full ${
+                className={`h-full rounded-full animate-quota-bar transition-[width] duration-500 ease-out ${
                   quotaData.is_critical
                     ? "bg-red-500"
                     : quotaData.is_near_full
@@ -577,7 +598,7 @@ function SettingsContent() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
 
         {/* Action Buttons for Linking / Disconnecting */}
         <div className="flex flex-col sm:flex-row gap-2.5 pt-1">

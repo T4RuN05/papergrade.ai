@@ -6,8 +6,38 @@ import type { Exam, Submission, Batch } from "@/lib/types";
 import { queryKeys } from "@/lib/queryKeys";
 
 // ============================================================================
-// 1. AUTHENTICATION & IDENTITY QUERIES
+// 1. AUTHENTICATION, IDENTITY & OAUTH QUERIES
 // ============================================================================
+
+export function useAuthMe(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.auth.me(),
+    queryFn: () => api.getMe(true),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useGoogleConnectionStatus(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.oauth.googleStatus(),
+    queryFn: () => api.getGoogleConnectionStatus(),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useGoogleDriveQuota(enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.oauth.googleQuota(),
+    queryFn: () => api.getGoogleDriveQuota(),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+}
 
 // ============================================================================
 // 2. TENANCY QUERIES
