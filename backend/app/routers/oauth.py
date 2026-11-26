@@ -116,7 +116,7 @@ def authorize_google(
             )
 
     state = _generate_oauth_state(mode=mode, user_id=uid, role=role)
-    auth_url = get_google_auth_url(state=state)
+    auth_url = get_google_auth_url(state=state, mode=mode)
     return {"status": "success", "authorization_url": auth_url}
 
 
@@ -269,25 +269,6 @@ async def google_oauth_callback(
 
         if user.is_active != 1:
             return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=account_deactivated")
-
-        # Role enforcement if desired_role was provided from login tab
-        if desired_role == "STUDENT" and user.role != "STUDENT":
-            from urllib.parse import urlencode
-            err_params = urlencode({
-                "oauth_error": "role_mismatch_student",
-                "email": google_email,
-                "role": user.role,
-            })
-            return RedirectResponse(url=f"{frontend_base}/auth/login?{err_params}")
-
-        if desired_role == "STAFF" and user.role == "STUDENT":
-            from urllib.parse import urlencode
-            err_params = urlencode({
-                "oauth_error": "role_mismatch_staff",
-                "email": google_email,
-                "role": user.role,
-            })
-            return RedirectResponse(url=f"{frontend_base}/auth/login?{err_params}")
 
         # Automatically link Google identity if not linked yet
         if not user.google_sub or user.google_sub != google_sub:

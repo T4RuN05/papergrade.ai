@@ -279,6 +279,9 @@ def get_profile(
         "has_changed_password": getattr(user, "has_changed_password", 0),
         "created_at": user.created_at,
         "last_login_at": user.last_login_at,
+        "google_email": getattr(user, "google_email", None),
+        "google_picture": getattr(user, "google_picture", None),
+        "google_linked_at": getattr(user, "google_linked_at", None),
     }
 
     if user.role == "STUDENT":
@@ -288,11 +291,13 @@ def get_profile(
         if st:
             profile["student"] = {
                 "student_id": st.id,
+                "student_id_num": getattr(st, "student_id_num", None),
                 "roll_number": st.roll_number,
                 "batch_id": st.batch_id,
             }
             profile["roll_number"] = st.roll_number
             profile["student_id"] = st.id
+            profile["student_id_num"] = getattr(st, "student_id_num", None)
 
     return profile
 

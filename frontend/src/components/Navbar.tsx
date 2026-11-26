@@ -26,6 +26,7 @@ import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
 import { ChangePasswordModal } from "./ChangePasswordModal";
+import { UserSettingsDrawer } from "./UserSettingsDrawer";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -35,6 +36,7 @@ export function Navbar() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [userSettingsOpen, setUserSettingsOpen] = useState(false);
   const [activeStudentTab, setActiveStudentTab] = useState<"dashboard" | "exams">("dashboard");
   const hasToken = isMounted && Boolean(currentUser || getAuthToken() || tenantLoading);
 
@@ -306,15 +308,25 @@ export function Navbar() {
                 </button>
               )}
 
-              {/* Logout button */}
+              {/* User Avatar Placeholder (Opens Account Settings Stage) */}
               <button
                 type="button"
-                onClick={handleLogout}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                title="Logout"
-                aria-label="Sign out"
+                onClick={() => setUserSettingsOpen(true)}
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-canvas text-ink hover:ring-2 hover:ring-primary/40 transition-all shrink-0 cursor-pointer overflow-hidden shadow-2xs"
+                title="Account & Settings"
+                aria-label="Open account settings"
               >
-                <LogOut className="h-4 w-4" />
+                {currentUser.google_picture ? (
+                  <img
+                    src={currentUser.google_picture}
+                    alt={currentUser.full_name || "User Avatar"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-xs font-bold uppercase text-ink select-none">
+                    {currentUser.full_name ? currentUser.full_name.charAt(0) : "U"}
+                  </span>
+                )}
               </button>
             </div>
           ) : !isMounted || hasToken ? (
@@ -568,6 +580,26 @@ export function Navbar() {
                     )}
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setUserSettingsOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                  >
+                    <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center overflow-hidden shrink-0">
+                      {currentUser.google_picture ? (
+                        <img src={currentUser.google_picture} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-[9px] font-bold text-ink uppercase">
+                          {currentUser.full_name ? currentUser.full_name.charAt(0) : "U"}
+                        </span>
+                      )}
+                    </div>
+                    <span>Account & Settings</span>
+                  </button>
+
                   {currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
                     <button
                       type="button"
@@ -650,6 +682,15 @@ export function Navbar() {
           } catch {}
         }}
         userEmail={currentUser?.email}
+      />
+
+      {/* User Settings Stage Drawer */}
+      <UserSettingsDrawer
+        isOpen={userSettingsOpen}
+        onClose={() => setUserSettingsOpen(false)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onChangePassword={() => setChangePasswordOpen(true)}
       />
     </header>
   );

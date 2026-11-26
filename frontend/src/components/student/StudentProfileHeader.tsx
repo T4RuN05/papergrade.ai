@@ -167,20 +167,10 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
       setByosState((prev) => ({ ...prev, loading: true }));
       const res = await api.getGoogleAuthUrl("byos");
       if (res?.authorization_url) {
-        // PWA Optimization: Open in a centered popup so the PWA never loses standalone mode
-        const width = 500;
-        const height = 650;
-        const left = typeof window !== "undefined" ? window.screenX + (window.outerWidth - width) / 2 : 100;
-        const top = typeof window !== "undefined" ? window.screenY + (window.outerHeight - height) / 2 : 100;
-        const popup = window.open(
-          res.authorization_url,
-          "google_byos_popup",
-          `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-        );
-
-        if (!popup || popup.closed || typeof popup.closed === "undefined") {
-          window.location.href = res.authorization_url;
-        }
+        window.location.href = res.authorization_url;
+      } else {
+        setByosState((prev) => ({ ...prev, loading: false }));
+        toast.error("Unable to obtain Google Drive connection URL.", { title: "Connection Failed" });
       }
     } catch (err: any) {
       toast.error(err?.message || "Could not connect to Google Drive. Please try again.", {

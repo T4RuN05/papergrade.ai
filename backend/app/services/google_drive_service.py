@@ -29,14 +29,23 @@ GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 GOOGLE_DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
 GOOGLE_DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3/files"
 
-# Minimal Non-Sensitive Scopes
-# drive.file only grants access to files created by PaperGrade AI itself
-DEFAULT_SCOPES = [
+# Scopes
+# Non-sensitive base scopes for user authentication
+LOGIN_SCOPES = [
+    "openid",
+    "email",
+    "profile",
+]
+
+# Sensitive scope for BYOS Google Drive archival (restricted to app-created files)
+BYOS_SCOPES = [
     "openid",
     "email",
     "profile",
     "https://www.googleapis.com/auth/drive.file",
 ]
+
+DEFAULT_SCOPES = LOGIN_SCOPES
 
 
 def _get_fernet() -> Fernet:
@@ -63,24 +72,27 @@ def decrypt_token(encrypted_token: str) -> str:
     return f.decrypt(encrypted_token.encode("utf-8")).decode("utf-8")
 
 
-def get_google_auth_url(state: str, prompt_consent: bool = True) -> str:
+def get_google_auth_url(state: str, mode: str = "login", prompt_consent: bool = True) -> str:
     """
     Constructs the Google OAuth 2.0 authorization consent URL.
     `state` contains serialized CSRF token and redirect mode ('login' or 'byos').
+    - 'login': Requests only non-sensitive identity scopes (openid, email, profile), avoiding the 100-user cap and unverified screen.
+    - 'byos': Requests drive.file for personal Google Drive archival with offline refresh token.
     """
     client_id = settings.GOOGLE_CLIENT_ID
     redirect_uri = settings.GOOGLE_REDIRECT_URI
-    scope_str = " ".join(DEFAULT_SCOPES)
+    scopes = BYOS_SCOPES if mode in ("byos", "drive") else LOGIN_SCOPES
+    scope_str = " ".join(scopes)
 
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": scope_str,
-        "access_type": "offline",  # Required to receive refresh_token
+        "access_type": "offline" if mode in ("byos", "drive") else "online",
         "state": state,
         "include_granted_scopes": "true",
-        "prompt": "select_account consent",
+        "prompt": "select_account consent" if mode in ("byos", "drive") else "select_account",
     }
 
     import urllib.parse

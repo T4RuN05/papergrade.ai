@@ -118,8 +118,8 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // If we don't have full user profile or missing role/branch_id for branch manager, fetch from server
-      if (!me?.role || (me.role === "BRANCH_MANAGER" && !me.branch_id)) {
+      // If we don't have full user profile or missing role/branch_id for branch manager or missing student fields, fetch from server
+      if (!me?.role || (me.role === "BRANCH_MANAGER" && !me.branch_id) || (me.role === "STUDENT" && (!me.student_id_num || !me.roll_number))) {
         try {
           const fresh = await api.getMe();
           if (fresh) {

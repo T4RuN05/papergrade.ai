@@ -347,7 +347,27 @@ export const api = {
     return resData;
   },
 
-  async getMe(forceRefresh: boolean = false): Promise<{ id: string; email: string; role: string; full_name: string; roll_number?: string; student_id?: string; branch_id?: string; institute_id?: string; has_changed_password?: number }> {
+  async getMe(forceRefresh: boolean = false): Promise<{
+    id: string;
+    email: string;
+    role: string;
+    full_name: string;
+    roll_number?: string;
+    student_id?: string;
+    student_id_num?: string;
+    google_email?: string;
+    google_picture?: string;
+    google_linked_at?: string;
+    branch_id?: string;
+    institute_id?: string;
+    has_changed_password?: number;
+    student?: {
+      student_id?: string;
+      student_id_num?: string;
+      roll_number?: string;
+      batch_id?: string;
+    };
+  }> {
     if (forceRefresh) clearApiCache("auth:me");
     return fetchWithCache("auth:me", async () => {
       try {

@@ -378,23 +378,12 @@ function LoginForm() {
     try {
       setGoogleLoading(true);
       setError(null);
-      const res = await api.getGoogleAuthUrl("login", loginRole);
+      const res = await api.getGoogleAuthUrl("login");
       if (res?.authorization_url) {
-        // PWA Optimization: Open in a centered popup so the PWA never loses standalone mode
-        const width = 500;
-        const height = 650;
-        const left = typeof window !== "undefined" ? window.screenX + (window.outerWidth - width) / 2 : 100;
-        const top = typeof window !== "undefined" ? window.screenY + (window.outerHeight - height) / 2 : 100;
-        const popup = window.open(
-          res.authorization_url,
-          "google_oauth_popup",
-          `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-        );
-
-        if (!popup || popup.closed || typeof popup.closed === "undefined") {
-          // If popup is blocked by browser, fallback to standard redirect
-          window.location.href = res.authorization_url;
-        }
+        window.location.href = res.authorization_url;
+      } else {
+        setGoogleLoading(false);
+        setError("Unable to obtain Google Sign-In URL.");
       }
     } catch (err: any) {
       setError(err?.message || "Failed to initiate Google Sign-In. Please check your network connection.");
