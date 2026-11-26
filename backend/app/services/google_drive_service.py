@@ -274,6 +274,38 @@ async def find_drive_file_in_folder(access_token: str, folder_id: str, file_name
     return None
 
 
+def _raise_drive_api_error(resp: httpx.Response, action_desc: str) -> None:
+    """Parse Google Drive HTTP error payload and raise a clean, actionable ValueError."""
+    reason = None
+    message = resp.text
+    try:
+        err_obj = resp.json().get("error", {})
+        message = err_obj.get("message") or message
+        errors = err_obj.get("errors") or []
+        if errors and isinstance(errors, list):
+            reason = errors[0].get("reason")
+    except Exception:
+        pass
+
+    logger.error(f"Google Drive API error during {action_desc} ({resp.status_code}, reason={reason}): {resp.text}")
+
+    if resp.status_code == 403 and (
+        reason == "accessNotConfigured"
+        or "has not been used in project" in message
+        or "is disabled" in message
+    ):
+        raise ValueError(
+            "Google Drive API is not enabled on this Google Cloud project. Please contact the administrator to enable drive.googleapis.com."
+        )
+    if reason in ("storageQuotaExceeded", "teamDriveFileLimitExceeded") or "quota" in message.lower():
+        raise ValueError("storageQuotaExceeded: Your Google Drive storage is full.")
+    if resp.status_code == 401 or reason in ("insufficientPermissions", "insufficientFilePermissions", "authError"):
+        raise ValueError(
+            "Google Drive authorization is missing or expired. Please unlink and reconnect your Google account from Account & Settings."
+        )
+    raise ValueError(f"{action_desc}: {message[:220]}")
+
+
 async def ensure_drive_folder(
     access_token: str,
     folder_name: str,
@@ -305,6 +337,8 @@ async def ensure_drive_folder(
             files = search_resp.json().get("files", [])
             if files:
                 return files[0]["id"]
+        elif search_resp.status_code in (401, 403):
+            _raise_drive_api_error(search_resp, f"Could not access Google Drive folder '{folder_name}'")
 
         # If not found, create it
         body: Dict[str, Any] = {
@@ -320,8 +354,7 @@ async def ensure_drive_folder(
             headers=headers,
         )
         if create_resp.status_code not in (200, 201):
-            logger.error(f"Failed to create Google Drive folder '{folder_name}': {create_resp.text}")
-            raise ValueError(f"Could not create Google Drive folder '{folder_name}'")
+            _raise_drive_api_error(create_resp, f"Could not create Google Drive folder '{folder_name}'")
         return create_resp.json()["id"]
 
 
@@ -372,8 +405,7 @@ async def upload_pdf_to_drive(
             headers=headers,
         )
         if resp.status_code not in (200, 201):
-            logger.error(f"Google Drive PDF upload failed: {resp.status_code} {resp.text}")
-            raise ValueError(f"Drive upload failed: {resp.text}")
+            _raise_drive_api_error(resp, "Drive upload failed")
         return resp.json()
 
 

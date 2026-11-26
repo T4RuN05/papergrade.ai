@@ -33,6 +33,7 @@ from backend.app.db.models import (
     Student,
     AuditLog,
 )
+from backend.app.db.models.byos import PublishedDocumentArchive
 from backend.app.services.storage import get_storage_service
 from backend.app.services.portal_cache import PortalStateEpochManager
 from backend.app.services.grading_service import grading_service
@@ -1324,6 +1325,21 @@ def get_submission_details(
             if (norm_roll not in allowed_rolls) and ((sub_stu_id or "") not in allowed_ids):
                 raise HTTPException(status_code=403, detail="Forbidden: You can only view your own submission.")
 
+        drive_archive_data = None
+        arc = db.scalar(
+            select(PublishedDocumentArchive)
+            .where(PublishedDocumentArchive.submission_id == submission_id)
+        )
+        if arc:
+            drive_archive_data = {
+                "id": arc.id,
+                "submission_id": arc.submission_id,
+                "archive_status": arc.archive_status,
+                "drive_file_id": arc.drive_file_id,
+                "drive_web_view_link": arc.drive_web_view_link,
+                "exported_at": arc.exported_at,
+            }
+
     sub = grading_service.get_submission_details(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
@@ -1381,11 +1397,14 @@ def get_submission_details(
                 "revaluation_days_remaining": sub.get("revaluation_days_remaining"),
                 "revaluation_window_open": sub.get("revaluation_window_open"),
                 "storage_notice": sub.get("storage_notice"),
+                "drive_archive": drive_archive_data,
                 "pdf_url": f"/api/submissions/{sub['id']}/pdf",
                 "submitted_at": sub.get("submitted_at") or sub.get("created_at")
             }
 
     sub["pdf_url"] = f"/api/submissions/{sub['id']}/pdf"
+    if is_published:
+        sub["drive_archive"] = drive_archive_data
     return sub
 
 

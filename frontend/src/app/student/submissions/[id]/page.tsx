@@ -18,12 +18,14 @@ import {
   AlertCircle,
   Archive,
   BookOpen,
+  ExternalLink,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { useSubmissionDetail } from "@/lib/queries";
+import { GoogleDriveIcon } from "@/components/student/PastExamCard";
 import {
   ButtonPrimary,
   ButtonUtility,
@@ -98,6 +100,40 @@ export default function StudentSubmissionViewerPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [artifactModalOpen, setArtifactModalOpen] = useState(false);
+  const [syncingDrive, setSyncingDrive] = useState(false);
+  const [driveArchiveOverride, setDriveArchiveOverride] = useState<any>(null);
+
+  useEffect(() => {
+    setDriveArchiveOverride(null);
+  }, [submissionId]);
+
+  const driveArchive = driveArchiveOverride ?? submission?.drive_archive;
+
+  const handleManualDriveSync = async () => {
+    if (!submission?.id || syncingDrive) return;
+    try {
+      setSyncingDrive(true);
+      const res = await api.syncSubmissionToDrive(submission.id);
+      if (res.archive_status === "EXPORTED") {
+        setDriveArchiveOverride({
+          archive_status: "EXPORTED",
+          drive_web_view_link: res.web_view_link,
+          exported_at: res.exported_at || new Date().toISOString(),
+        });
+        queryClient.invalidateQueries({ queryKey: queryKeys.submissions.all() });
+        toast.success(
+          `${submission?.exam?.title || "Exam paper"} successfully backed up to your Google Drive!`,
+          { title: "Drive Synced", duration: 5000 }
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Could not sync exam paper to Google Drive.", {
+        title: "Sync Failed",
+      });
+    } finally {
+      setSyncingDrive(false);
+    }
+  };
 
   // Auto-select first answer when loaded
   useEffect(() => {
@@ -257,6 +293,33 @@ export default function StudentSubmissionViewerPage() {
                 </span>
               )}
             </a>
+          )}
+
+          {isPublished && !submission?.is_document_purged && (
+            driveArchive?.archive_status === "EXPORTED" && driveArchive.drive_web_view_link ? (
+              <a
+                href={driveArchive.drive_web_view_link}
+                target="_blank"
+                rel="noreferrer"
+                className="h-9 px-3.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center whitespace-nowrap"
+                title="Open backed up script in personal Google Drive"
+              >
+                <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                <span>In Drive</span>
+                <ExternalLink className="h-3 w-3 opacity-60 shrink-0" />
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleManualDriveSync}
+                disabled={syncingDrive}
+                className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
+                title="Backup graded paper to personal Google Drive"
+              >
+                <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                <span>{syncingDrive ? "Syncing..." : "Backup to Drive"}</span>
+              </button>
+            )
           )}
         </div>
       </div>

@@ -595,5 +595,15 @@ async def sync_single_submission_to_google_drive(
                 status_code=403,
                 detail="Google Drive storage quota exceeded. Please free up space in your Google Drive and try again.",
             )
+        if "not enabled" in err_msg or "drive.googleapis.com" in err_msg:
+            raise HTTPException(
+                status_code=503,
+                detail=err_msg,
+            )
+        if "authorization is missing or expired" in err_msg.lower():
+            raise HTTPException(
+                status_code=401,
+                detail=err_msg,
+            )
         logger.error(f"Manual Drive sync error for submission {submission_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to sync to Google Drive: {err_msg}")

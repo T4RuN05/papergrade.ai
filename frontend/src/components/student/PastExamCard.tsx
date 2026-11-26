@@ -21,7 +21,7 @@ import { FeatureCard } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
 
-function GoogleDriveIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+export function GoogleDriveIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 87.3 78" fill="none">
       <path
@@ -209,38 +209,6 @@ export const PastExamCard = React.memo(function PastExamCard({
                     ? `${sub.days_remaining}d until purge`
                     : "15d retention"}
                 </span>
-              )}
-
-              {/* Google Drive Archival Indicator (Header Pill) */}
-              {isPublished && !sub.is_document_purged && (
-                driveArchive?.archive_status === "EXPORTED" && driveArchive.drive_web_view_link ? (
-                  <a
-                    href={driveArchive.drive_web_view_link}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors whitespace-nowrap shadow-2xs"
-                    title="Graded answer paper is backed up to Google Drive. Click to view in Google Drive."
-                  >
-                    <GoogleDriveIcon className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                    <span>Backed Up</span>
-                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleManualSync();
-                    }}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-muted hover:text-ink hover:bg-surface transition-colors whitespace-nowrap shadow-2xs cursor-pointer disabled:opacity-50"
-                    title="Click to manually backup this graded exam paper to your Google Drive"
-                  >
-                    <GoogleDriveIcon className="h-3 w-3 text-ink-muted" />
-                    <span>{syncing ? "Syncing..." : "Sync to Drive"}</span>
-                  </button>
-                )
               )}
             </>
           ) : (
