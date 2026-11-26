@@ -23,13 +23,16 @@ import {
   LifeBuoy,
   AlertTriangle,
   BookOpen,
-  Settings,
+  KeyRound,
+  LogOut,
+  Loader2,
 } from "lucide-react";
-import { api, getAuthToken } from "@/lib/api";
+import { api, getAuthToken, setStoredUser } from "@/lib/api";
 import { Skeleton } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
+import { ChangePasswordModal } from "./ChangePasswordModal";
 
 const ReportIssueModal = dynamic(
   () => import("./ReportIssueModal").then((mod) => mod.ReportIssueModal),
@@ -44,9 +47,17 @@ interface AdminSidebarProps {
 export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
   const { toast } = useToast();
-  const { currentUser, isRootAdmin, isInstituteDirector, isBranchManager, selectedBranch } = useTenant();
+  const { currentUser, isRootAdmin, isInstituteDirector, isBranchManager, selectedBranch, logout, refreshTenancy } = useTenant();
   const [mounted, setMounted] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleLogout = () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    logout();
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -329,26 +340,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
 
         {/* Mobile controls */}
         {onCloseMobile && (
-          <div className="flex items-center gap-1.5 md:hidden">
-            <Link
-              href="/settings"
-              onClick={onCloseMobile}
-              className="relative inline-flex h-7 w-7 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-canvas text-ink overflow-hidden shrink-0"
-              title="Account & Settings"
-              aria-label="Account & Settings"
-            >
-              {currentUser?.google_picture ? (
-                <img
-                  src={currentUser.google_picture}
-                  alt={currentUser?.full_name || "Avatar"}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="text-[11px] font-bold uppercase text-ink select-none">
-                  {currentUser?.full_name ? currentUser.full_name.charAt(0) : "U"}
-                </span>
-              )}
-            </Link>
+          <div className="flex items-center md:hidden">
             <button
               onClick={onCloseMobile}
               className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft"
@@ -414,14 +406,14 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
       </div>
 
 
-      {/* Bottom User Profile Section */}
-      <div className="p-3 border-t border-hairline bg-canvas-soft/50 shrink-0">
+      {/* Bottom Drawer Utilities (Zero duplicate account block — Profile Avatar sits in AdminHeader) */}
+      <div className="p-3 border-t border-hairline bg-canvas-soft/50 shrink-0 space-y-2">
         {/* Quick Report Issue Action (Only for Branch Managers and Staff, not Root Admin) */}
         {!isRootAdmin && (
           <button
             type="button"
             onClick={() => setReportModalOpen(true)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer mb-2.5 shadow-2xs"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer shadow-2xs"
           >
             <span className="flex items-center gap-2">
               <AlertTriangle className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -431,54 +423,25 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           </button>
         )}
 
-        <Link
-          href="/settings"
-          onClick={() => onCloseMobile?.()}
-          className="group flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline hover:border-primary/40 hover:bg-canvas-soft/60 shadow-xs transition-all cursor-pointer"
-          title="Open Account & Profile Settings"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-hairline bg-primary/10 text-primary font-bold text-xs overflow-hidden">
-              {currentUser?.google_picture ? (
-                <img
-                  src={currentUser.google_picture}
-                  alt={currentUser?.full_name || "User Avatar"}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span>
-                  {currentUser?.full_name ? currentUser.full_name.charAt(0).toUpperCase() : "A"}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span suppressHydrationWarning className="text-xs font-bold text-ink truncate group-hover:text-primary transition-colors">
-                {currentUser?.full_name || "Administrator"}
-              </span>
-              <span suppressHydrationWarning className="text-[10px] text-ink-muted truncate">
-                {currentUser?.role === "ROOT_ADMIN"
-                  ? "Root Admin"
-                  : currentUser?.role === "INSTITUTE_DIRECTOR"
-                  ? "Institute Director"
-                  : currentUser?.role === "BRANCH_MANAGER"
-                  ? "Branch Mgr"
-                  : "Staff"}
-              </span>
-            </div>
-          </div>
+        {/* Initial Password Setup (Moved out of Header into Drawer) */}
+        {currentUser && currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
+          <button
+            type="button"
+            onClick={() => setChangePasswordOpen(true)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer shadow-2xs"
+          >
+            <KeyRound className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+            <span>One-Time Password Setup</span>
+          </button>
+        )}
 
-          <div className="flex items-center gap-1 shrink-0 text-ink-muted group-hover:text-primary transition-colors pr-0.5">
-            <Settings className="h-3.5 w-3.5" />
-          </div>
-        </Link>
-
-        {/* Quick link to public landing page & theme toggle */}
-        <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-ink-muted">
+        {/* Visual Theme + Public Link */}
+        <div className="flex items-center justify-between px-1.5 py-1 text-[11px] text-ink-muted">
           <Link
             href="/"
-            className="flex items-center gap-1 text-ink-muted hover:text-primary transition-colors"
+            className="flex items-center gap-1.5 text-ink-muted hover:text-primary transition-colors"
           >
-            <Home className="h-3 w-3" />
+            <Home className="h-3.5 w-3.5" />
             <span>Public Site</span>
           </Link>
           <div className="flex items-center gap-2">
@@ -486,6 +449,21 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
             <span className="text-[10px] text-ink-faint">v2.4</span>
           </div>
         </div>
+
+        {/* Sign Out with Loading State */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={signingOut}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100/80 dark:hover:bg-red-900/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+        >
+          {signingOut ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <LogOut className="h-3.5 w-3.5" />
+          )}
+          <span>{signingOut ? "Signing Out..." : "Sign Out"}</span>
+        </button>
       </div>
     </div>
   );
@@ -521,6 +499,22 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           {sidebarContent}
         </div>
       </div>
+
+      {/* One-Time Password Setup Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => {
+          try {
+            const updated = currentUser ? { ...currentUser, has_changed_password: 1 } : null;
+            if (updated) {
+              setStoredUser(updated);
+              refreshTenancy(updated);
+            }
+          } catch {}
+        }}
+        userEmail={currentUser?.email}
+      />
 
       {/* Technical Support & Issue Report Modal */}
       <ReportIssueModal

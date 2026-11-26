@@ -1,34 +1,17 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
-import dynamic from "next/dynamic";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Menu,
   Bell,
-  Sparkles,
-  Database,
   ChevronRight,
-  ExternalLink,
-  Layers,
-  LifeBuoy,
-  KeyRound,
 } from "lucide-react";
-import { api, getAuthToken, getStoredUser, setStoredUser } from "@/lib/api";
-import { BadgePill } from "./ui";
-import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useBreadcrumbs } from "@/lib/BreadcrumbContext";
-import { useToast, queueToast } from "@/lib/ToastContext";
-import { ChangePasswordModal } from "./ChangePasswordModal";
 import { TenancySwitchDropdown } from "./tenancy/TenancySwitchDropdown";
-
-const ReportIssueModal = dynamic(
-  () => import("./ReportIssueModal").then((mod) => mod.ReportIssueModal),
-  { ssr: false }
-);
 
 interface AdminHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -36,22 +19,15 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const pathname = usePathname();
-  const { toast } = useToast();
   const { unreadCount, openDrawer } = useNotifications();
   const { trail } = useBreadcrumbs();
   const [mounted, setMounted] = useState(false);
-  const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const {
-    currentUser,
-    isRootAdmin,
-    refreshTenancy,
-  } = useTenant();
+  const { currentUser } = useTenant();
 
   // Determine canonical 1:1 breadcrumb trail matching sidebar groups
   const getDefaultTrail = () => {
@@ -161,30 +137,13 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
         {/* Center: Custom Responsive Multi-Tenant Scope Dropdown with Apple-style Fluid Popover */}
         <TenancySwitchDropdown />
 
-        {/* Right: Notification Bell + Profile */}
-        <div className="flex items-center gap-1 sm:gap-2">
-
-          {/* Technical Support / Bug Report Button (Only for Branch Managers and Staff, not Root Admin) */}
-          {!isRootAdmin && (
-            <button
-              type="button"
-              onClick={() => setReportModalOpen(true)}
-              className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
-              title="Report Technical Issue"
-              aria-label="Report Technical Issue"
-            >
-              <LifeBuoy className="h-4 w-4" />
-            </button>
-          )}
-
-          {/* Theme Toggle (Light/Dark Mode) */}
-          <ThemeToggle />
-
+        {/* Right: Notification Bell + User Profile Avatar ONLY */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Notification Bell Button (Triggers Right Sidebar Drawer) */}
           <button
             type="button"
             onClick={openDrawer}
-            className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
             title="Open Notifications Sidebar"
             aria-label="Open Notifications"
           >
@@ -195,48 +154,6 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
               </span>
             )}
           </button>
-
-          {/* Role Pill & User Name */}
-          {mounted && currentUser && (
-            <div suppressHydrationWarning className="hidden sm:flex items-center gap-2 pl-2 border-l border-hairline">
-              <BadgePill
-                label={
-                  currentUser.role === "ROOT_ADMIN"
-                    ? "Admin"
-                    : currentUser.role === "INSTITUTE_DIRECTOR"
-                      ? "Director"
-                      : currentUser.role === "BRANCH_MANAGER"
-                        ? "Branch Mgr"
-                        : "Staff"
-                }
-                color={
-                  currentUser.role === "ROOT_ADMIN"
-                    ? "purple"
-                    : currentUser.role === "INSTITUTE_DIRECTOR"
-                      ? "indigo"
-                      : currentUser.role === "BRANCH_MANAGER"
-                        ? "teal"
-                        : "gray"
-                }
-              />
-              <span className="text-xs font-semibold text-ink truncate max-w-[130px]">
-                {currentUser.full_name}
-              </span>
-            </div>
-          )}
-
-          {/* Change Password Button (One-time initial password change only) */}
-          {mounted && currentUser && currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
-            <button
-              type="button"
-              onClick={() => setChangePasswordOpen(true)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
-              title="One-Time Initial Password Change"
-              aria-label="One-Time Initial Password Change"
-            >
-              <KeyRound className="h-4 w-4" />
-            </button>
-          )}
 
           {/* User Avatar Button (Navigates to Profile & Account Settings Page) */}
           {mounted && currentUser && (
@@ -261,29 +178,6 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           )}
         </div>
       </div>
-
-      {/* Change Password Modal */}
-      <ChangePasswordModal
-        isOpen={changePasswordOpen}
-        onClose={() => setChangePasswordOpen(false)}
-        onSuccess={() => {
-          try {
-            const updated = currentUser ? { ...currentUser, has_changed_password: 1 } : null;
-            if (updated) {
-              setStoredUser(updated);
-              refreshTenancy(updated);
-            }
-          } catch {}
-        }}
-        userEmail={currentUser?.email}
-      />
-
-      {/* Technical Support & Issue Report Modal */}
-      <ReportIssueModal
-        isOpen={reportModalOpen}
-        onClose={() => setReportModalOpen(false)}
-        userRole={currentUser?.role}
-      />
     </header>
   );
 }

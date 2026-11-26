@@ -19,9 +19,9 @@ import {
   KeyRound,
   RotateCcw,
   HelpCircle,
+  Loader2,
 } from "lucide-react";
 import { getAuthToken, setStoredUser } from "@/lib/api";
-import { BadgePill } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
@@ -35,6 +35,7 @@ export function Navbar() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [activeStudentTab, setActiveStudentTab] = useState<"dashboard" | "exams">("dashboard");
   const hasToken = isMounted && Boolean(currentUser || getAuthToken() || tenantLoading);
 
@@ -102,6 +103,8 @@ export function Navbar() {
   }, [mobileMenuOpen]);
 
   const handleLogout = () => {
+    if (signingOut) return;
+    setSigningOut(true);
     logout();
   };
 
@@ -113,12 +116,12 @@ export function Navbar() {
       className="sticky top-0 z-50 w-full border-b border-hairline bg-surface shadow-xs transition-colors"
     >
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
-        {/* Brand & Mobile Toggle */}
+        {/* Brand & Navigation Drawer Toggle */}
         <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer"
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileMenuOpen}
           >
@@ -166,95 +169,15 @@ export function Navbar() {
           </Link>
         </div>
 
-        {/* Desktop Navigation (Clean, uncluttered for public/student view) */}
-        <nav className="hidden md:flex items-center gap-1">
-          {(!currentUser || currentUser.role !== "STUDENT") && (
-            <Link
-              href="/"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                pathname === "/"
-                  ? "bg-canvas-soft text-ink font-semibold"
-                  : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-              }`}
-            >
-              Home
-            </Link>
-          )}
-          <Link
-            href="/student/portal"
-            onClick={(e) => isStudent && handleStudentNavClick("dashboard", e)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              isPortalTab
-                ? "bg-canvas-soft text-ink font-semibold"
-                : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-            }`}
-          >
-            <Clock className="h-3.5 w-3.5 text-ink-muted" />
-            Dashboard
-          </Link>
-          {isMounted && currentUser && (
-            <>
-              <Link
-                href="/student/portal?tab=exams"
-                onClick={(e) => isStudent && handleStudentNavClick("exams", e)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isPastExamsTab
-                    ? "bg-canvas-soft text-ink font-semibold"
-                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-                }`}
-              >
-                <BookOpen className="h-3.5 w-3.5 text-ink-muted" />
-                Past Exams
-              </Link>
-              <Link
-                href="/student/revaluation"
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isRevalTab
-                    ? "bg-canvas-soft text-ink font-semibold"
-                    : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-                }`}
-              >
-                <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
-                Revaluations
-              </Link>
-            </>
-          )}
-          <Link
-            href="/help"
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              pathname.startsWith("/help")
-                ? "bg-canvas-soft text-ink font-semibold"
-                : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
-            }`}
-          >
-            <HelpCircle className="h-3.5 w-3.5 text-ink-muted" />
-            Help & Guides
-          </Link>
-          {isAdminUser && (
-            <Link
-              href="/overview"
-              className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/15 transition-colors border border-primary/20"
-            >
-              <Layers className="h-3.5 w-3.5" />
-              Admin Console <ArrowRight className="h-3 w-3" />
-            </Link>
-          )}
-        </nav>
-
-        {/* User Role / Auth Desk */}
-        <div className="flex items-center gap-1 sm:gap-2 min-h-[32px]">
-          {/* Theme Toggle (Desktop) */}
-          <div className="hidden sm:flex items-center mr-0.5">
-            <ThemeToggle size="sm" />
-          </div>
-
+        {/* Minimal Header Right Desk: Bell + Profile Avatar (or Sign In when logged out) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 min-h-[32px]">
           {isMounted && currentUser ? (
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Notification Bell Button (Triggers Right Slide-Over Drawer) */}
               <button
                 type="button"
                 onClick={openDrawer}
-                className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
                 title="Notifications"
                 aria-label="Open notifications"
               >
@@ -265,46 +188,6 @@ export function Navbar() {
                   </span>
                 )}
               </button>
-
-              {/* Role badge (Desktop) */}
-              <div className="hidden sm:flex items-center gap-1.5">
-                <BadgePill
-                  label={
-                    currentUser.role === "ROOT_ADMIN"
-                      ? "Admin"
-                      : currentUser.role === "INSTITUTE_DIRECTOR"
-                      ? "Director"
-                      : currentUser.role === "BRANCH_MANAGER"
-                      ? "Branch Mgr"
-                      : "Student"
-                  }
-                  color={
-                    currentUser.role === "ROOT_ADMIN"
-                      ? "purple"
-                      : currentUser.role === "INSTITUTE_DIRECTOR"
-                      ? "indigo"
-                      : currentUser.role === "BRANCH_MANAGER"
-                      ? "teal"
-                      : "sky"
-                  }
-                />
-                <span className="text-xs font-medium text-ink truncate max-w-[120px]">
-                  {currentUser.full_name}
-                </span>
-              </div>
-
-              {/* Change Password button (One-time initial password change only) */}
-              {currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
-                <button
-                  type="button"
-                  onClick={() => setChangePasswordOpen(true)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors shrink-0"
-                  title="One-Time Initial Password Change"
-                  aria-label="One-Time Initial Password Change"
-                >
-                  <KeyRound className="h-4 w-4" />
-                </button>
-              )}
 
               {/* User Avatar Placeholder (Navigates to Profile & Account Settings Page) */}
               <Link
@@ -369,60 +252,20 @@ export function Navbar() {
       {/* Ambient Backdrop - Clicking closes the menu (only mounted while open) */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-50 md:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
+          className="fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Floating Dropdown Panel (Respects Notion surface with Apple-style smooth slide & scale) */}
+      {/* Navigation Drawer Panel (Works on mobile & desktop, zero redundant profile displays) */}
       <div
-        className={`md:hidden absolute top-full left-0 right-0 w-full border-b border-hairline bg-surface shadow-2xl z-[55] max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
+        className={`absolute top-full left-0 right-0 md:right-auto md:w-80 w-full border-b md:border-r border-hairline bg-surface shadow-2xl z-[55] max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
           mobileMenuOpen
             ? "opacity-100 translate-y-0 scale-y-100 pointer-events-auto"
             : "opacity-0 -translate-y-2 scale-y-98 pointer-events-none"
         }`}
       >
-            {/* Authenticated User Status Summary */}
-            {isMounted && currentUser && (
-              <div
-                className="px-4 py-3 border-b border-hairline flex items-center justify-between gap-3 bg-canvas-soft"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                    {currentUser.full_name?.charAt(0) || "U"}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-ink truncate">
-                      {currentUser.full_name}
-                    </div>
-                    <div className="text-[11px] text-ink-muted truncate">
-                      {currentUser.email}
-                    </div>
-                  </div>
-                </div>
-                <BadgePill
-                  label={
-                    currentUser.role === "ROOT_ADMIN"
-                      ? "Admin"
-                      : currentUser.role === "INSTITUTE_DIRECTOR"
-                      ? "Director"
-                      : currentUser.role === "BRANCH_MANAGER"
-                      ? "Branch Mgr"
-                      : "Student"
-                  }
-                  color={
-                    currentUser.role === "ROOT_ADMIN"
-                      ? "purple"
-                      : currentUser.role === "INSTITUTE_DIRECTOR"
-                      ? "indigo"
-                      : currentUser.role === "BRANCH_MANAGER"
-                      ? "teal"
-                      : "sky"
-                  }
-                />
-              </div>
-            )}
 
             {/* Navigation Links */}
             <nav className="p-3 space-y-1">
@@ -545,9 +388,9 @@ export function Navbar() {
               )}
             </nav>
 
-            {/* Quick Actions & Account Utilities */}
+            {/* Quick Actions & Utilities */}
             <div className="px-3 pb-3 pt-1 border-t border-hairline space-y-1">
-              {/* Mobile Visual Theme Toggle */}
+              {/* Visual Theme Toggle */}
               <div className="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary">
                 <span className="flex items-center gap-2.5">
                   <span className="h-4 w-4 flex items-center justify-center text-ink-muted text-[13px]">◐</span>
@@ -558,42 +401,6 @@ export function Navbar() {
 
               {isMounted && currentUser ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      openDrawer();
-                    }}
-                    className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Bell className="h-4 w-4 text-ink-muted" />
-                      <span>Notifications</span>
-                    </div>
-                    {unreadCount > 0 && (
-                      <span className="flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
-                    )}
-                  </button>
-
-                  <Link
-                    href="/settings"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
-                  >
-                    <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center overflow-hidden shrink-0">
-                      {currentUser.google_picture ? (
-                        <img src={currentUser.google_picture} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-[9px] font-bold text-ink uppercase">
-                          {currentUser.full_name ? currentUser.full_name.charAt(0) : "U"}
-                        </span>
-                      )}
-                    </div>
-                    <span>Account & Settings</span>
-                  </Link>
-
                   {currentUser.role !== "STUDENT" && currentUser.role !== "ROOT_ADMIN" && !currentUser.has_changed_password && (
                     <button
                       type="button"
@@ -601,7 +408,7 @@ export function Navbar() {
                         setMobileMenuOpen(false);
                         setChangePasswordOpen(true);
                       }}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
                     >
                       <KeyRound className="h-4 w-4 text-ink-muted" />
                       <span>One-Time Password Setup</span>
@@ -610,14 +417,16 @@ export function Navbar() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleLogout();
-                    }}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    onClick={handleLogout}
+                    disabled={signingOut}
+                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                   >
-                    <LogOut className="h-4 w-4 text-red-500" />
-                    <span>Sign Out</span>
+                    {signingOut ? (
+                      <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                    ) : (
+                      <LogOut className="h-4 w-4 text-red-500" />
+                    )}
+                    <span>{signingOut ? "Signing Out..." : "Sign Out"}</span>
                   </button>
                 </>
               ) : (

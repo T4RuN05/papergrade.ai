@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   Unlink,
+  Loader2,
 } from "lucide-react";
 import { api, setStoredUser } from "@/lib/api";
 import { useTenant } from "@/lib/TenantContext";
@@ -101,6 +102,7 @@ function SettingsContent() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [oauthConnecting, setOauthConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
@@ -267,14 +269,24 @@ function SettingsContent() {
   const isGoogleLinked = Boolean(linkedEmail);
   const isDriveConnected = connectionStatus.is_connected;
 
+  const handleSignOut = () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    logout();
+  };
+
   const canChangeInitialPassword =
     currentUser &&
     currentUser.role !== "STUDENT" &&
     currentUser.role !== "ROOT_ADMIN" &&
     !currentUser.has_changed_password;
 
+  const containerClass = isStudent
+    ? "max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-5 sm:pt-8 pb-16 space-y-5 sm:space-y-6"
+    : "w-full space-y-5 sm:space-y-6";
+
   return (
-    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+    <div className={containerClass}>
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-hairline">
         <div className="space-y-1">
@@ -440,66 +452,67 @@ function SettingsContent() {
       </FeatureCard>
 
       {/* 2. Google Account & Cloud Archival Card */}
-      <FeatureCard className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                isDriveConnected
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                  : isGoogleLinked
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "bg-canvas-soft text-ink-muted border border-hairline"
-              }`}
-            >
-              {isStudent ? (
-                <GoogleDriveIcon className="h-5 w-5" />
-              ) : (
-                <GoogleLogoIcon className="h-5 w-5" />
-              )}
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-ink">
-                {isStudent ? "Google Account & Personal Drive Sync" : "Google Account Integration"}
+      <FeatureCard className="p-4 sm:p-6 space-y-4">
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  isDriveConnected
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                    : isGoogleLinked
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "bg-canvas-soft text-ink-muted border border-hairline"
+                }`}
+              >
+                {isStudent ? (
+                  <GoogleDriveIcon className="h-5 w-5" />
+                ) : (
+                  <GoogleLogoIcon className="h-5 w-5" />
+                )}
+              </div>
+              <h3 className="text-sm font-bold text-ink leading-snug">
+                {isStudent ? "Google Account & Drive Sync" : "Google Account Integration"}
               </h3>
-              <p className="text-xs text-ink-muted">
-                {isStudent
-                  ? "Link your Google account for 1-click sign-in and automatic backup of evaluated exam scripts."
-                  : "Link your Google account for 1-click sign-in and syncing your profile photo across consoles."}
-              </p>
             </div>
+
+            {isDriveConnected ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0 whitespace-nowrap">
+                <CheckCircle2 className="h-3 w-3" />
+                Drive Active
+              </span>
+            ) : isGoogleLinked ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shrink-0 whitespace-nowrap">
+                <CheckCircle2 className="h-3 w-3" />
+                Google Linked
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-canvas-soft text-ink-muted border border-hairline shrink-0 whitespace-nowrap">
+                Not Linked
+              </span>
+            )}
           </div>
 
-          {isDriveConnected ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
-              <CheckCircle2 className="h-3 w-3" />
-              Drive Active
-            </span>
-          ) : isGoogleLinked ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shrink-0">
-              <CheckCircle2 className="h-3 w-3" />
-              Google Linked
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-canvas-soft text-ink-muted border border-hairline shrink-0">
-              Not Linked
-            </span>
-          )}
+          <p className="text-xs text-ink-muted leading-relaxed">
+            {isStudent
+              ? "Link your Google account for 1-click sign-in and automatic backup of evaluated exam scripts."
+              : "Link your Google account for 1-click sign-in and syncing your profile photo across consoles."}
+          </p>
         </div>
 
         {/* Linked Google Identity Box */}
         {isGoogleLinked && (
-          <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="" className="h-6 w-6 rounded-full border border-hairline shrink-0" />
+                <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full border border-hairline shrink-0 object-cover" />
               ) : (
                 <GoogleLogoIcon className="h-4 w-4 shrink-0" />
               )}
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-ink truncate">{linkedEmail}</div>
-                <div className="text-[10.5px] text-ink-muted">
-                  Linked Google Identity • 1-Click Sign-In Enabled
+                <div className="text-[11px] text-ink-muted leading-snug">
+                  Linked Google Identity &bull; 1-Click Sign-In Enabled
                 </div>
               </div>
             </div>
@@ -508,10 +521,14 @@ function SettingsContent() {
               type="button"
               onClick={() => handleDisconnectGoogle(true)}
               disabled={disconnecting}
-              className="self-start sm:self-center inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-hairline bg-surface hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-950/30 text-[11px] font-semibold text-ink-secondary transition-colors cursor-pointer disabled:opacity-50"
+              className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-hairline bg-surface hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-950/30 text-[11px] font-semibold text-ink-secondary transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             >
-              <Unlink className="h-3 w-3" />
-              <span>Unlink Account</span>
+              {disconnecting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Unlink className="h-3 w-3" />
+              )}
+              <span>{disconnecting ? "Unlinking..." : "Unlink Account"}</span>
             </button>
           </div>
         )}
@@ -639,11 +656,16 @@ function SettingsContent() {
           </div>
           <button
             type="button"
-            onClick={logout}
-            className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100/80 dark:hover:bg-red-900/30 text-xs font-semibold transition-all cursor-pointer shrink-0"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100/80 dark:hover:bg-red-900/30 text-xs font-semibold transition-all cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-wait"
           >
-            <LogOut className="h-4 w-4" />
-            <span>Sign Out</span>
+            {signingOut ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4" />
+            )}
+            <span>{signingOut ? "Signing Out..." : "Sign Out"}</span>
           </button>
         </div>
       </FeatureCard>
