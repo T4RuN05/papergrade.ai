@@ -149,6 +149,51 @@ async def refresh_google_access_token(encrypted_refresh_token: str) -> str:
         return data["access_token"]
 
 
+async def get_google_drive_storage_quota(encrypted_refresh_token: str) -> Dict[str, Any]:
+    """
+    Fetches the user's Google Drive storage quota using their decrypted refresh token.
+    Calls: GET https://www.googleapis.com/drive/v3/about?fields=storageQuota,user
+    Returns usage in bytes, limit in bytes, usage percent, and warning flags.
+    """
+    access_token = await refresh_google_access_token(encrypted_refresh_token)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{GOOGLE_DRIVE_API_BASE}/about?fields=storageQuota,user"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            logger.error(f"Failed to fetch Google Drive storage quota: {resp.status_code} {resp.text}")
+            raise ValueError(f"Drive quota query failed: {resp.text}")
+        data = resp.json()
+        quota = data.get("storageQuota", {})
+
+        limit_bytes = int(quota.get("limit", 0)) if quota.get("limit") is not None else 0
+        usage_bytes = int(quota.get("usage", 0)) if quota.get("usage") is not None else 0
+        usage_in_drive = int(quota.get("usageInDrive", 0)) if quota.get("usageInDrive") is not None else 0
+
+        # Calculate percentages and gigabytes
+        if limit_bytes > 0:
+            usage_percent = round((usage_bytes / limit_bytes) * 100, 1)
+            limit_gb = round(limit_bytes / (1024 ** 3), 2)
+        else:
+            usage_percent = 0.0
+            limit_gb = None  # Unlimited (e.g. Google Workspace pooled storage)
+
+        usage_gb = round(usage_bytes / (1024 ** 3), 2)
+        usage_in_drive_gb = round(usage_in_drive / (1024 ** 3), 2)
+
+        return {
+            "limit_bytes": limit_bytes,
+            "usage_bytes": usage_bytes,
+            "usage_in_drive_bytes": usage_in_drive,
+            "limit_gb": limit_gb,
+            "usage_gb": usage_gb,
+            "usage_in_drive_gb": usage_in_drive_gb,
+            "usage_percent": usage_percent,
+            "is_near_full": bool(limit_bytes > 0 and usage_percent >= 85.0),
+            "is_critical": bool(limit_bytes > 0 and usage_percent >= 95.0),
+        }
+
+
 async def ensure_drive_folder(
     access_token: str,
     folder_name: str,

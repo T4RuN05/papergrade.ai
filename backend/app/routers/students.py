@@ -30,8 +30,9 @@ from backend.app.db.models import (
     SubmissionWindow,
     Submission,
     RevaluationRequest,
-    Answer
+    Answer,
 )
+from backend.app.db.models.byos import PublishedDocumentArchive
 from backend.app.services.auth import get_current_user
 from backend.app.services.retention_service import RetentionService
 
@@ -714,8 +715,23 @@ def _fetch_past_submissions_sync(
         ]
         slice_reval_map: Dict[str, Dict[str, Any]] = {}
         slice_answers_map: Dict[str, List[Dict[str, Any]]] = {}
+        slice_archive_map: Dict[str, Dict[str, Any]] = {}
 
         if slice_published_sub_ids:
+            archive_records = session.scalars(
+                select(PublishedDocumentArchive)
+                .where(PublishedDocumentArchive.submission_id.in_(slice_published_sub_ids))
+            ).all()
+            for arc in archive_records:
+                slice_archive_map[arc.submission_id] = {
+                    "id": arc.id,
+                    "submission_id": arc.submission_id,
+                    "archive_status": arc.archive_status,
+                    "drive_file_id": arc.drive_file_id,
+                    "drive_web_view_link": arc.drive_web_view_link,
+                    "exported_at": arc.exported_at,
+                }
+
             reval_records = session.scalars(
                 select(RevaluationRequest)
                 .where(RevaluationRequest.submission_id.in_(slice_published_sub_ids))
@@ -808,6 +824,7 @@ def _fetch_past_submissions_sync(
                     "has_answer_key": bool(item["is_published"] and (ex.get("answer_key_path") if isinstance(ex, dict) else ex.answer_key_path)),
                     "answers": [],
                     "revaluation": None,
+                    "drive_archive": None,
                     "days_remaining": None,
                     "retention": {"days_remaining": None, "is_active": False}
                 })
@@ -858,6 +875,7 @@ def _fetch_past_submissions_sync(
                     sub_dict["days_remaining"] = sub_dict["retention"].get("days_remaining")
                     sub_dict["revaluation"] = slice_reval_map.get(s.id)
                     sub_dict["answers"] = slice_answers_map.get(s.id, [])
+                    sub_dict["drive_archive"] = slice_archive_map.get(s.id)
 
                 hydrated_items.append(sub_dict)
 

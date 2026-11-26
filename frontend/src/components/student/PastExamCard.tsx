@@ -15,10 +15,47 @@ import {
   Trophy,
   BookOpen,
   Download,
+  ExternalLink,
 } from "lucide-react";
 import { FeatureCard } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
+
+function GoogleDriveIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 87.3 78" fill="none">
+      <path
+        d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z"
+        fill="currentColor"
+        opacity="0.8"
+      />
+      <path
+        d="M43.65 25 29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44C.4 49.9 0 51.45 0 53h27.5z"
+        fill="currentColor"
+        opacity="0.9"
+      />
+      <path
+        d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 10.15z"
+        fill="currentColor"
+        opacity="0.75"
+      />
+      <path
+        d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z"
+        fill="currentColor"
+      />
+      <path
+        d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.4 4.5-1.2z"
+        fill="currentColor"
+        opacity="0.85"
+      />
+      <path
+        d="m73.55 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.8 25l16 27.7h27.5c0-1.55-.4-3.1-1.2-4.5z"
+        fill="currentColor"
+        opacity="0.7"
+      />
+    </svg>
+  );
+}
 
 export const PAST_EXAMS_BATCH_SIZE = 5;
 
@@ -63,6 +100,38 @@ export const PastExamCard = React.memo(function PastExamCard({
   const hasOpenReval =
     reval && (reval.status === "SUBMITTED" || reval.status === "UNDER_REVIEW");
   const isRevalResolved = reval && reval.status === "RESOLVED";
+
+  const [syncing, setSyncing] = React.useState(false);
+  const [driveArchive, setDriveArchive] = React.useState(sub.drive_archive);
+
+  React.useEffect(() => {
+    setDriveArchive(sub.drive_archive);
+  }, [sub.drive_archive]);
+
+  const handleManualSync = async () => {
+    if (syncing) return;
+    try {
+      setSyncing(true);
+      const res = await api.syncSubmissionToDrive(sub.id);
+      if (res.archive_status === "EXPORTED") {
+        setDriveArchive({
+          archive_status: "EXPORTED",
+          drive_web_view_link: res.web_view_link,
+          exported_at: res.exported_at || new Date().toISOString(),
+        });
+        toast.success(
+          `${sub.exam_title || "Exam paper"} successfully backed up to your Google Drive!`,
+          { title: "Drive Synced", duration: 5000 }
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Could not sync exam paper to Google Drive.", {
+        title: "Sync Failed",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <FeatureCard
@@ -140,6 +209,38 @@ export const PastExamCard = React.memo(function PastExamCard({
                     ? `${sub.days_remaining}d until purge`
                     : "15d retention"}
                 </span>
+              )}
+
+              {/* Google Drive Archival Indicator (Header Pill) */}
+              {isPublished && !sub.is_document_purged && (
+                driveArchive?.archive_status === "EXPORTED" && driveArchive.drive_web_view_link ? (
+                  <a
+                    href={driveArchive.drive_web_view_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors whitespace-nowrap shadow-2xs"
+                    title="Graded answer paper is backed up to Google Drive. Click to view in Google Drive."
+                  >
+                    <GoogleDriveIcon className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Backed Up</span>
+                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleManualSync();
+                    }}
+                    disabled={syncing}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-muted hover:text-ink hover:bg-surface transition-colors whitespace-nowrap shadow-2xs cursor-pointer disabled:opacity-50"
+                    title="Click to manually backup this graded exam paper to your Google Drive"
+                  >
+                    <GoogleDriveIcon className="h-3 w-3 text-ink-muted" />
+                    <span>{syncing ? "Syncing..." : "Sync to Drive"}</span>
+                  </button>
+                )
               )}
             </>
           ) : (
@@ -390,6 +491,34 @@ export const PastExamCard = React.memo(function PastExamCard({
                     <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                     <span>PDF Pending</span>
                   </button>
+                )}
+
+                {/* Google Drive Action Button */}
+                {isPublished && !sub.is_document_purged && (
+                  driveArchive?.archive_status === "EXPORTED" && driveArchive.drive_web_view_link ? (
+                    <a
+                      href={driveArchive.drive_web_view_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs"
+                      title="Open backed up script in personal Google Drive"
+                    >
+                      <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span>In Drive</span>
+                      <ExternalLink className="h-3 w-3 opacity-60" />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleManualSync}
+                      disabled={syncing}
+                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs cursor-pointer disabled:opacity-50"
+                      title="Backup graded paper to personal Google Drive"
+                    >
+                      <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span>{syncing ? "Syncing..." : "Backup to Drive"}</span>
+                    </button>
+                  )
                 )}
               </div>
 

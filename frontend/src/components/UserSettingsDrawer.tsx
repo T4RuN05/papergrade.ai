@@ -110,6 +110,16 @@ export function UserSettingsDrawer({
     google_email: currentUser?.google_email,
     google_picture: currentUser?.google_picture,
   });
+  const [quotaData, setQuotaData] = useState<{
+    is_connected: boolean;
+    limit_bytes?: number;
+    usage_bytes?: number;
+    limit_gb?: number | null;
+    usage_gb?: number;
+    usage_percent?: number;
+    is_near_full?: boolean;
+    is_critical?: boolean;
+  } | null>(null);
 
   // Fetch live Google Drive & Identity status when drawer opens
   useEffect(() => {
@@ -120,13 +130,23 @@ export function UserSettingsDrawer({
 
     api
       .getGoogleConnectionStatus()
-      .then((status) => {
+      .then(async (status) => {
         if (!isMounted) return;
+        const connected = Boolean(status?.is_connected);
         setConnectionStatus({
-          is_connected: Boolean(status?.is_connected),
+          is_connected: connected,
           google_email: status?.google_email || currentUser?.google_email,
           google_picture: status?.google_picture || currentUser?.google_picture,
         });
+
+        if (connected) {
+          try {
+            const q = await api.getGoogleDriveQuota();
+            if (isMounted && q?.is_connected) {
+              setQuotaData(q);
+            }
+          } catch {}
+        }
       })
       .catch((e) => {
         console.warn("Failed to check Google connection status:", e);
@@ -413,6 +433,54 @@ export function UserSettingsDrawer({
                   <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">
                     Active
                   </span>
+                </div>
+              ) : null}
+
+              {/* Google Drive Storage Meter */}
+              {isDriveConnected && quotaData && typeof quotaData.usage_percent === "number" ? (
+                <div className="space-y-1.5 p-3 rounded-lg bg-canvas-soft border border-hairline">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[11px] font-medium text-ink-secondary flex items-center gap-1.5">
+                      <HardDrive className="h-3 w-3 text-ink-muted" />
+                      Drive Storage
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-ink">
+                      {quotaData.usage_gb} GB / {quotaData.limit_gb ? `${quotaData.limit_gb} GB` : "Unlimited"}{" "}
+                      <span className="text-ink-muted">({quotaData.usage_percent}%)</span>
+                    </span>
+                  </div>
+
+                  {/* Visual Storage Bar */}
+                  <div className="w-full h-2 rounded-full bg-surface border border-hairline overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 rounded-full ${
+                        quotaData.is_critical
+                          ? "bg-red-500"
+                          : quotaData.is_near_full
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(3, quotaData.usage_percent))}%` }}
+                    />
+                  </div>
+
+                  {/* Warning Banner if storage near full or critical */}
+                  {quotaData.is_near_full && (
+                    <div
+                      className={`mt-2 flex items-start gap-2 p-2 rounded-md text-[11px] leading-tight ${
+                        quotaData.is_critical
+                          ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40"
+                          : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40"
+                      }`}
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        {quotaData.is_critical
+                          ? "Google Drive storage is critically full (>95%). Please free up space immediately so new graded papers can archive."
+                          : "Google Drive storage is nearly full (>85%). We recommend freeing up space to ensure smooth automatic paper archiving."}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ) : null}
 

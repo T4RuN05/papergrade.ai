@@ -532,6 +532,41 @@ export const api = {
     return safeJson(res, "Failed to disconnect Google Drive");
   },
 
+  async getGoogleDriveQuota(): Promise<{
+    is_connected: boolean;
+    google_email?: string;
+    limit_bytes?: number;
+    usage_bytes?: number;
+    usage_in_drive_bytes?: number;
+    limit_gb?: number | null;
+    usage_gb?: number;
+    usage_in_drive_gb?: number;
+    usage_percent?: number;
+    is_near_full?: boolean;
+    is_critical?: boolean;
+    error?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/oauth/google/storage-quota`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    });
+    return safeJson(res, "Failed to check Google Drive storage quota");
+  },
+
+  async syncSubmissionToDrive(submissionId: string): Promise<{
+    status: "synced" | "already_synced";
+    message: string;
+    web_view_link?: string;
+    archive_status: string;
+    exported_at?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/oauth/google/sync-submission/${submissionId}`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+    return safeJson(res, "Failed to sync submission to Google Drive");
+  },
+
   async listPasswordResets(statusFilter?: string, targetType?: "staff" | "student"): Promise<any[]> {
     const params = new URLSearchParams();
     if (statusFilter) params.append("status_filter", statusFilter);

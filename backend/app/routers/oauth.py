@@ -16,7 +16,9 @@ from backend.app.db.session import get_db
 from backend.app.db.base import get_iso_now
 from backend.app.db.models.auth import User
 from backend.app.db.models.tenancy import Student
-from backend.app.db.models.byos import GoogleStorageConnection
+from backend.app.db.models.byos import GoogleStorageConnection, PublishedDocumentArchive
+from backend.app.db.models.grading import Submission
+from backend.app.db.models.academic import Exam
 from backend.app.services.auth import (
     get_current_user,
     create_access_token,
@@ -388,3 +390,129 @@ def disconnect_google_connection(
         "status": "success",
         "message": "Google Drive storage connection removed successfully.",
     }
+
+
+@router.get("/storage-quota")
+async def get_google_storage_quota(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Fetches live Google Drive storage quota and near-full status."""
+    uid = current_user.get("sub")
+    conn = db.scalar(
+        select(GoogleStorageConnection).where(
+            GoogleStorageConnection.user_id == uid,
+            GoogleStorageConnection.is_active == 1,
+        )
+    )
+    if not conn or not conn.encrypted_refresh_token:
+        return {"is_connected": False}
+
+    try:
+        from backend.app.services.google_drive_service import get_google_drive_storage_quota
+        quota_data = await get_google_drive_storage_quota(conn.encrypted_refresh_token)
+        return {
+            "is_connected": True,
+            "google_email": conn.google_email,
+            **quota_data,
+        }
+    except Exception as e:
+        logger.error(f"Failed to query Google Drive storage quota for user {uid}: {e}")
+        return {
+            "is_connected": True,
+            "google_email": conn.google_email,
+            "error": "Failed to fetch storage quota",
+        }
+
+
+@router.post("/sync-submission/{submission_id}")
+async def sync_single_submission_to_google_drive(
+    submission_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    On-demand manual sync of a graded submission PDF to the student's personal Google Drive.
+    1. Validates ownership (student owns submission or staff/admin).
+    2. Checks if an exported archive copy already exists.
+    3. If not, triggers upload and returns Google Drive web_view_link.
+    """
+    uid = current_user.get("sub")
+    role = current_user.get("role")
+
+    sub = db.scalar(select(Submission).where(Submission.id == submission_id))
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    target_user_id = uid
+    if role == "STUDENT":
+        student = db.scalar(select(Student).where(Student.id == sub.student_id))
+        if not student or student.user_id != uid:
+            raise HTTPException(status_code=403, detail="You can only sync your own examination papers.")
+        target_user_id = student.user_id
+    else:
+        if sub.student_id:
+            st = db.scalar(select(Student).where(Student.id == sub.student_id))
+            if st and st.user_id:
+                target_user_id = st.user_id
+
+    # Check publication status
+    exam = db.scalar(select(Exam).where(Exam.id == sub.exam_id))
+    is_pub = bool(
+        sub.publication_status == "PUBLISHED"
+        or (exam and (exam.is_published == 1 or exam.status == "PUBLISHED" or exam.lifecycle_status == "PUBLISHED"))
+    )
+    if not is_pub:
+        raise HTTPException(
+            status_code=400,
+            detail="This exam evaluation is not yet officially published. Only published results can be archived to Google Drive.",
+        )
+
+    # Check if student has connected Google Drive
+    conn = db.scalar(
+        select(GoogleStorageConnection).where(
+            GoogleStorageConnection.user_id == target_user_id,
+            GoogleStorageConnection.is_active == 1,
+        )
+    )
+    if not conn:
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected. Please connect your Google Drive first from Account Settings.",
+        )
+
+    # Check if existing archive is already EXPORTED
+    existing_archive = db.scalar(
+        select(PublishedDocumentArchive).where(PublishedDocumentArchive.submission_id == submission_id)
+    )
+    if existing_archive and existing_archive.archive_status == "EXPORTED" and existing_archive.drive_web_view_link:
+        return {
+            "status": "already_synced",
+            "message": "Exam paper is already backed up to your Google Drive.",
+            "web_view_link": existing_archive.drive_web_view_link,
+            "archive_status": "EXPORTED",
+            "exported_at": existing_archive.exported_at,
+        }
+
+    # Perform sync
+    from backend.app.services.google_drive_service import sync_published_submission_to_google_drive
+    try:
+        res = await sync_published_submission_to_google_drive(db, submission_id)
+        if not res or res.get("status") != "success":
+            raise HTTPException(status_code=500, detail="Failed to sync submission to Google Drive.")
+
+        return {
+            "status": "synced",
+            "message": "Exam paper successfully backed up to Google Drive.",
+            "web_view_link": res.get("web_view_link"),
+            "archive_status": "EXPORTED",
+        }
+    except Exception as e:
+        err_msg = str(e)
+        if "storageQuotaExceeded" in err_msg or "quota" in err_msg.lower():
+            raise HTTPException(
+                status_code=403,
+                detail="Google Drive storage quota exceeded. Please free up space in your Google Drive and try again.",
+            )
+        logger.error(f"Manual Drive sync error for submission {submission_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to sync to Google Drive: {err_msg}")
