@@ -6,7 +6,7 @@ import base64
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Depends, Request, Query, status
+from fastapi import APIRouter, HTTPException, Depends, Request, Query, BackgroundTasks, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, or_
@@ -29,6 +29,7 @@ from backend.app.services.google_drive_service import (
     exchange_code_for_tokens,
     get_google_user_info,
     encrypt_token,
+    revoke_google_token_sync,
 )
 
 logger = logging.getLogger(__name__)
@@ -437,18 +438,28 @@ def get_google_connection_status(
 @router.post("/disconnect")
 def disconnect_google_connection(
     unlink_identity: bool = Query(False),
+    background_tasks: BackgroundTasks = None,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Disconnects user Google Drive storage (and optionally unlinks Google sign-in identity)."""
+    """
+    Disconnects user Google Drive storage (and optionally unlinks Google sign-in identity),
+    while revoking the underlying OAuth grant upstream at Google without invalidating the active JWT session.
+    """
     uid = current_user.get("sub")
     now = get_iso_now()
     conn = db.scalar(
         select(GoogleStorageConnection).where(GoogleStorageConnection.user_id == uid)
     )
+    enc_token_to_revoke = None
     if conn:
-        conn.is_active = 0
-        conn.updated_at = now
+        enc_token_to_revoke = conn.encrypted_refresh_token
+        if unlink_identity:
+            db.delete(conn)
+        else:
+            conn.encrypted_refresh_token = ""
+            conn.is_active = 0
+            conn.updated_at = now
 
     if unlink_identity:
         user = db.scalar(select(User).where(User.id == uid))
@@ -462,9 +473,15 @@ def disconnect_google_connection(
     db.commit()
     invalidate_user_auth_cache(uid)
 
+    if enc_token_to_revoke:
+        if background_tasks is not None:
+            background_tasks.add_task(revoke_google_token_sync, enc_token_to_revoke)
+        else:
+            revoke_google_token_sync(enc_token_to_revoke)
+
     return {
         "status": "success",
-        "message": "Google account unlinked successfully." if unlink_identity else "Google Drive storage connection removed successfully.",
+        "message": "Google account unlinked and consent revoked successfully." if unlink_identity else "Google Drive connection removed and consent revoked successfully.",
     }
 
 

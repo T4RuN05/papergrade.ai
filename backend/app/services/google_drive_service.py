@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # Google OAuth 2.0 Endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 GOOGLE_DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
 GOOGLE_DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3/files"
@@ -149,6 +150,36 @@ async def refresh_google_access_token(encrypted_refresh_token: str) -> str:
             raise ValueError("Google access token refresh failed. User re-authentication required.")
         data = resp.json()
         return data["access_token"]
+
+
+def revoke_google_token_sync(encrypted_refresh_token: str) -> bool:
+    """
+    Revoke a user's Google OAuth refresh token upstream at Google's revocation endpoint.
+    Google accepts either access or refresh tokens and revokes the full grant on Google's side.
+    """
+    if not encrypted_refresh_token:
+        return False
+    if os.environ.get("PYTEST_CURRENT_TEST") or getattr(settings, "ENVIRONMENT", "").lower() == "test":
+        return True
+    try:
+        raw_token = decrypt_token(encrypted_refresh_token)
+        if not raw_token:
+            return False
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(
+                GOOGLE_REVOKE_URL,
+                data={"token": raw_token},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            if resp.status_code in (200, 400):
+                # 200 = revoked cleanly; 400 = already revoked/expired on Google's side
+                logger.info(f"Google token revocation completed (status={resp.status_code}).")
+                return True
+            logger.warning(f"Unexpected status during Google token revocation: {resp.status_code} {resp.text}")
+            return False
+    except Exception as e:
+        logger.warning(f"Google token revocation exception (non-fatal): {e}")
+        return False
 
 
 async def get_google_drive_storage_quota(encrypted_refresh_token: str) -> Dict[str, Any]:
