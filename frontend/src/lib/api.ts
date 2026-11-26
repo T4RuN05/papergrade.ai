@@ -402,6 +402,64 @@ export const api = {
     clearApiCache();
   },
 
+  async logoutServer(): Promise<void> {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        keepalive: true,
+      });
+    } catch {
+      // Best-effort server revocation; client localStorage cleanup still executes
+    }
+  },
+
+  async listActiveSessions(): Promise<{
+    current_session_id?: string | null;
+    sessions: Array<{
+      id: string;
+      is_current: boolean;
+      device_label: string;
+      auth_method: string;
+      ip_address?: string | null;
+      last_active_at: string;
+      created_at: string;
+      expires_at: string;
+    }>;
+  }> {
+    const res = await fetch(`${API_BASE}/api/auth/sessions`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    });
+    return safeJson(res, "Failed to fetch active sessions");
+  },
+
+  async revokeSession(sessionId: string): Promise<{
+    status: string;
+    revoked_session_id: string;
+    revoked_current: boolean;
+  }> {
+    const res = await fetch(`${API_BASE}/api/auth/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return safeJson(res, "Failed to revoke session");
+  },
+
+  async revokeOtherSessions(): Promise<{
+    status: string;
+    revoked_count: number;
+    kept_session_id?: string | null;
+  }> {
+    const res = await fetch(`${API_BASE}/api/auth/sessions?keep_current=true`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return safeJson(res, "Failed to sign out other devices");
+  },
+
   // -------------------------------------------------------------
   // Password Reset & Email OTP Flow
   // -------------------------------------------------------------
@@ -495,6 +553,34 @@ export const api = {
     return safeJson(res, "Failed to change password");
   },
 
+  async getGoogleClientConfig(): Promise<{
+    enabled: boolean;
+    client_id?: string | null;
+  }> {
+    const res = await fetch(`${API_BASE}/api/oauth/google/config`, {
+      cache: "no-store",
+    });
+    return safeJson(res, "Failed to load Google Sign-In configuration");
+  },
+
+  async verifyGoogleIdToken(credential: string): Promise<{
+    status: string;
+    access_token: string;
+    role: string;
+    full_name: string;
+    branch_id: string;
+    institute_id: string;
+    google_email: string;
+    google_picture?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/api/oauth/google/verify-id-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    return safeJson(res, "Failed to verify Google Sign-In");
+  },
+
   async getGoogleAuthUrl(
     mode: "login" | "link" | "byos" = "login",
     role?: string,
@@ -549,10 +635,17 @@ export const api = {
     limit_bytes?: number;
     usage_bytes?: number;
     usage_in_drive_bytes?: number;
+    papergrade_bytes?: number;
+    other_bytes?: number;
+    papergrade_files_count?: number;
     limit_gb?: number | null;
     usage_gb?: number;
     usage_in_drive_gb?: number;
+    other_gb?: number;
+    papergrade_mb?: number;
     usage_percent?: number;
+    other_percent?: number;
+    papergrade_percent?: number;
     is_near_full?: boolean;
     is_critical?: boolean;
     error?: string;

@@ -117,9 +117,9 @@ export function ExamSubmissionWindowModal({
           <ButtonPrimary
             type="submit"
             isLoading={isStarting}
+            icon={<Play className="h-3.5 w-3.5" />}
             disabled={isStarting || !reason.trim()}
           >
-            <Play className="h-3.5 w-3.5 mr-1" />
             {isStarting
               ? "Opening Window..."
               : hasPriorWindow

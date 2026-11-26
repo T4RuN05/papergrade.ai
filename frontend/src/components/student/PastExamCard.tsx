@@ -16,6 +16,7 @@ import {
   BookOpen,
   Download,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { FeatureCard } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -483,7 +484,11 @@ export const PastExamCard = React.memo(function PastExamCard({
                       className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs cursor-pointer disabled:opacity-50"
                       title="Backup graded paper to personal Google Drive"
                     >
-                      <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                      {syncing ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                      ) : (
+                        <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                      )}
                       <span>{syncing ? "Syncing..." : "Backup to Drive"}</span>
                     </button>
                   )

@@ -439,10 +439,10 @@ export function UsageCards({
                   <div>
                     <ButtonPrimary
                       type="submit"
-                      disabled={isSavingQuota}
+                      isLoading={isSavingQuota}
+                      icon={<Save className="h-3.5 w-3.5" />}
                       className="w-full h-9 text-xs font-semibold"
                     >
-                      <Save className="h-3.5 w-3.5 mr-1.5" />
                       {quotaSaved ? "Saved!" : isSavingQuota ? "Saving..." : "Save Limits"}
                     </ButtonPrimary>
                   </div>

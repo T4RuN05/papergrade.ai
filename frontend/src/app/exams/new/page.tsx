@@ -265,8 +265,10 @@ export default function NewExamPage() {
     }
 
     const shouldGenerateRubric = isRootAdmin && qpFiles.length > 0 && akFiles.length > 0;
+    const hasAnswerKey = isRootAdmin && akFiles.length > 0;
     setIsSubmitting(true);
 
+    let activeLoadingToastId: string | null = null;
     try {
       const formData = new FormData();
       formData.append("title", title.trim());
@@ -285,15 +287,39 @@ export default function NewExamPage() {
         formData.append("question_paper", file);
       }
 
+      if (hasAnswerKey) {
+        activeLoadingToastId = toast.loading(
+          "Creating exam and uploading Answer Key...",
+          { title: "Uploading Answer Key" }
+        );
+      }
+
       const createdExam = await api.createExam(formData);
 
-      // Answer key upload is strictly Root Admin only
-      if (isRootAdmin && akFiles.length > 0) {
+      // Answer key upload is strictly Root Admin only — two visible stages
+      if (hasAnswerKey) {
         const akFormData = new FormData();
         for (const file of akFiles) {
           akFormData.append("answer_key", file);
         }
+        akFormData.append("auto_generate_rubric", "false");
         await api.uploadAnswerKey(createdExam.id, akFormData);
+
+        if (activeLoadingToastId) {
+          toast.dismiss(activeLoadingToastId);
+          activeLoadingToastId = null;
+        }
+        toast.success("Answer Key uploaded successfully!", {
+          title: "Answer Key Attached",
+        });
+
+        activeLoadingToastId = toast.loading(
+          "Generating AI draft rubric with Gemini Vision...",
+          { title: "Generating Rubrics" }
+        );
+        await api.generateRubric(createdExam.id);
+        toast.dismiss(activeLoadingToastId);
+        activeLoadingToastId = null;
       }
 
       const targetUrl = shouldGenerateRubric ? `/exams/${createdExam.id}/rubric` : `/exams/${createdExam.id}`;
@@ -324,6 +350,7 @@ export default function NewExamPage() {
         }
       }, 350);
     } catch (err: any) {
+      if (activeLoadingToastId) toast.dismiss(activeLoadingToastId);
       const msg = err.message || "Failed to create exam";
       toast.error(msg, { title: "Exam Creation Failed" });
       setIsSubmitting(false);
@@ -1135,28 +1162,20 @@ export default function NewExamPage() {
 
             <ButtonPrimary
               type="submit"
-              disabled={isSubmitting}
+              isLoading={isSubmitting}
+              icon={isSynthesizingRubric ? <Cpu className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               className="w-full py-3 text-sm font-semibold"
             >
               {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  <span>
-                    {isSynthesizingRubric
-                      ? `Synthesizing Rubric with Agent (${elapsedSeconds}s)...`
-                      : "Creating Examination..."}
-                  </span>
-                </>
+                <span>
+                  {isSynthesizingRubric
+                    ? `Synthesizing Rubric with Agent (${elapsedSeconds}s)...`
+                    : "Creating Examination..."}
+                </span>
               ) : isSynthesizingRubric ? (
-                <>
-                  <Cpu className="h-4 w-4 mr-2" />
-                  <span>Create Exam & Synthesize Rubric</span>
-                </>
+                <span>Create Exam & Synthesize Rubric</span>
               ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  <span>Create Exam</span>
-                </>
+                <span>Create Exam</span>
               )}
             </ButtonPrimary>
           </form>

@@ -70,7 +70,7 @@ export default function ExamDetailPage() {
 
   // Action loading states
   const [isUploadingQp, setIsUploadingQp] = useState(false);
-  const [isUploadingAk, setIsUploadingAk] = useState(false);
+  const [akUploadStage, setAkUploadStage] = useState<"idle" | "uploading" | "generating">("idle");
   const [isPublishing, setIsPublishing] = useState(false);
   const [isStartingEval, setIsStartingEval] = useState(false);
   const [isOpeningWindow, setIsOpeningWindow] = useState(false);
@@ -282,27 +282,49 @@ export default function ExamDetailPage() {
   };
 
   const handleUploadAk = async (file: File) => {
-    setIsUploadingAk(true);
-    const loadingToastId = toast.loading(
-      "Uploading Answer Key & generating AI rubric with Gemini Vision...",
-      { title: "Processing Answer Key" }
-    );
+    setAkUploadStage("uploading");
+    const uploadToastId = toast.loading("Uploading official Answer Key...", {
+      title: "Uploading Answer Key",
+    });
+    let activeToastId: string | null = uploadToastId;
     try {
       const formData = new FormData();
       formData.append("answer_key", file);
+      formData.append("auto_generate_rubric", "false");
       await api.uploadAnswerKey(examId, formData);
+
+      toast.dismiss(uploadToastId);
+      activeToastId = null;
+      toast.success("Answer Key uploaded successfully!", {
+        title: "Answer Key Attached",
+      });
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(examId) });
+
+      setAkUploadStage("generating");
+      const genToastId = toast.loading(
+        "Generating AI draft rubric with Gemini Vision...",
+        { title: "Generating Rubrics" }
+      );
+      activeToastId = genToastId;
+
+      await api.generateRubric(examId);
+
+      toast.dismiss(genToastId);
+      activeToastId = null;
       setUploadAkOpen(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(examId) });
       await refetchExam();
-      toast.dismiss(loadingToastId);
-      toast.success("Official Answer Key uploaded! AI draft rubric generated for your review.", {
-        title: "Answer Key Attached",
+      toast.success("AI draft rubric generated for your review!", {
+        title: "Rubric Ready",
       });
     } catch (err: any) {
-      toast.dismiss(loadingToastId);
-      toast.error(err.message || "Failed to upload answer key", { title: "Upload Failed" });
+      if (activeToastId) toast.dismiss(activeToastId);
+      toast.error(err.message || "Failed to process answer key", {
+        title: akUploadStage === "generating" ? "Rubric Generation Failed" : "Upload Failed",
+      });
     } finally {
-      setIsUploadingAk(false);
+      setAkUploadStage("idle");
     }
   };
 
@@ -586,10 +608,12 @@ export default function ExamDetailPage() {
             size="sm"
             onClick={handleStartEvaluation}
             isLoading={isStartingEval}
+            icon={<Play className="h-3.5 w-3.5" />}
             className="bg-primary hover:bg-primary-active shrink-0 shadow-xs"
           >
-            <Play className="h-3.5 w-3.5 mr-1.5" />
-            Start Evaluation ({unprocessedCount})
+            {isStartingEval
+              ? "Starting Evaluation..."
+              : `Start Evaluation (${unprocessedCount})`}
           </ButtonPrimary>
         </div>
       )}
@@ -701,7 +725,7 @@ export default function ExamDetailPage() {
         isOpen={uploadAkOpen}
         onClose={() => setUploadAkOpen(false)}
         onSubmit={handleUploadAk}
-        isUploading={isUploadingAk}
+        uploadStage={akUploadStage}
       />
 
       <ExamSubmissionWindowModal

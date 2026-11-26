@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bell, RefreshCw, X, Check } from "lucide-react";
+import { Bell, RefreshCw, X, Check, Loader2 } from "lucide-react";
 
 export interface NotificationDrawerHeaderProps {
   isRealtimeActive: boolean;
@@ -107,7 +107,11 @@ export const NotificationDrawerHeader: React.FC<NotificationDrawerHeaderProps> =
             disabled={isClearingAll}
             className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-active transition-colors hover:underline disabled:opacity-50 cursor-pointer"
           >
-            <Check className="h-3 w-3" />
+            {isClearingAll ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )}
             <span>{isClearingAll ? "Clearing..." : "Mark all read"}</span>
           </button>
         )}

@@ -19,6 +19,7 @@ import {
   Archive,
   BookOpen,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
@@ -316,7 +317,11 @@ export default function StudentSubmissionViewerPage() {
                 className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
                 title="Backup graded paper to personal Google Drive"
               >
-                <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                {syncingDrive ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                )}
                 <span>{syncingDrive ? "Syncing..." : "Backup to Drive"}</span>
               </button>
             )

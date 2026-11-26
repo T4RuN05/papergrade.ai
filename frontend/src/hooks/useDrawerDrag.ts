@@ -4,201 +4,343 @@ import { useRef, useCallback, useEffect } from "react";
 
 interface UseDrawerDragOptions {
   onClose: (fromDrag?: boolean) => void;
-  dismissThreshold?: number; // px drag down required to dismiss (default 100)
-  velocityThreshold?: number; // px/ms speed required for quick flick dismiss (default 0.5)
+  dismissThreshold?: number; // px drag down required to dismiss (default 95)
+  velocityThreshold?: number; // px/ms speed required for quick flick dismiss (default 0.45)
   disabled?: boolean;
+}
+
+const SLOP_PX = 6;
+const SCROLLABLE_OVERFLOW_RE = /(auto|scroll|overlay)/;
+
+function findVerticalScrollerAt(
+  target: EventTarget | null,
+  boundary: HTMLElement
+): HTMLElement | null {
+  let node = target instanceof HTMLElement ? target : null;
+  while (node && node !== boundary) {
+    if (node.scrollHeight > node.clientHeight + 2) {
+      const style = window.getComputedStyle(node);
+      if (SCROLLABLE_OVERFLOW_RE.test(style.overflowY)) {
+        return node;
+      }
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function shouldIgnoreTarget(target: EventTarget | null): boolean {
+  const el = target instanceof HTMLElement ? target : null;
+  if (!el) return false;
+  return Boolean(
+    el.closest(
+      "input, textarea, select, option, [contenteditable='true'], [data-no-swipe='true'], .sortable-page-card"
+    )
+  );
 }
 
 export function useDrawerDrag({
   onClose,
-  dismissThreshold = 100,
-  velocityThreshold = 0.5,
+  dismissThreshold = 95,
+  velocityThreshold = 0.45,
   disabled = false,
 }: UseDrawerDragOptions) {
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const dismissThresholdRef = useRef(dismissThreshold);
+  const velocityThresholdRef = useRef(velocityThreshold);
+  const disabledRef = useRef(disabled);
+  onCloseRef.current = onClose;
+  dismissThresholdRef.current = dismissThreshold;
+  velocityThresholdRef.current = velocityThreshold;
+  disabledRef.current = disabled;
+
+  const sheetElRef = useRef<HTMLDivElement | null>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
+  const startXRef = useRef<number>(0);
   const startYRef = useRef<number | null>(null);
+  const dragOriginYRef = useRef<number>(0);
   const currentYRef = useRef<number | null>(null);
+  const prevYRef = useRef<number>(0);
+  const prevTimeRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
-  const isDraggingRef = useRef<boolean>(false);
+  const lastVelocityRef = useRef<number>(0);
+
+  // Touch gesture state machine: idle -> undecided -> sheet | scroll | ignore
+  const gestureModeRef = useRef<"idle" | "undecided" | "sheet" | "scroll" | "ignore">("idle");
+  const activeScrollerRef = useRef<HTMLElement | null>(null);
+  const isPointerDraggingRef = useRef<boolean>(false);
   const isClosingRef = useRef<boolean>(false);
 
-  // Reset any leftover transforms when closed or re-rendered
   const resetStyles = useCallback(() => {
-    if (sheetRef.current) {
-      sheetRef.current.style.transform = "";
-      sheetRef.current.style.transition = "";
-      sheetRef.current.style.animation = "";
+    if (sheetElRef.current) {
+      sheetElRef.current.style.transform = "";
+      sheetElRef.current.style.transition = "";
+      sheetElRef.current.style.animation = "";
     }
     if (backdropRef.current) {
       backdropRef.current.style.opacity = "";
       backdropRef.current.style.transition = "";
     }
-    isDraggingRef.current = false;
+    gestureModeRef.current = "idle";
+    activeScrollerRef.current = null;
+    isPointerDraggingRef.current = false;
     isClosingRef.current = false;
     startYRef.current = null;
     currentYRef.current = null;
+    lastVelocityRef.current = 0;
   }, []);
 
-  useEffect(() => {
-    return () => {
-      resetStyles();
-    };
-  }, [resetStyles]);
+  const engageSheetTransform = useCallback((originY: number) => {
+    dragOriginYRef.current = originY;
+    startTimeRef.current = Date.now();
+    prevYRef.current = originY;
+    prevTimeRef.current = startTimeRef.current;
+    lastVelocityRef.current = 0;
 
-  // Unified drag start
-  const startDrag = useCallback(
-    (clientY: number) => {
-      if (disabled || isClosingRef.current) return;
-      // Only enable drag on mobile viewports (< 640px)
-      if (typeof window !== "undefined" && window.innerWidth >= 640) return;
-
-      startYRef.current = clientY;
-      currentYRef.current = clientY;
-      startTimeRef.current = Date.now();
-      isDraggingRef.current = true;
-
-      if (sheetRef.current) {
-        // Clear active CSS animations so inline transform has immediate, unhindered control
-        sheetRef.current.style.animation = "none";
-        sheetRef.current.style.transition = "none";
-      }
-    },
-    [disabled]
-  );
-
-  // Unified drag move
-  const moveDrag = useCallback((clientY: number) => {
-    if (!isDraggingRef.current || startYRef.current === null || isClosingRef.current) return;
-
-    currentYRef.current = clientY;
-    const rawDelta = clientY - startYRef.current;
-    // Downward drag tracks finger directly; upward drag resists with rubber-band damping
-    const deltaY = rawDelta > 0 ? rawDelta : rawDelta * 0.15;
-
-    if (sheetRef.current) {
-      sheetRef.current.style.transform = `translate3d(0, ${Math.max(0, deltaY)}px, 0)`;
+    if (sheetElRef.current) {
+      // Clear active CSS entrance animation so inline transform tracks finger 1:1
+      sheetElRef.current.style.animation = "none";
+      sheetElRef.current.style.transition = "none";
     }
+  }, []);
 
-    if (backdropRef.current && deltaY > 0) {
+  const applyDragTransform = useCallback((clientY: number) => {
+    currentYRef.current = clientY;
+    const now = Date.now();
+    const dt = now - prevTimeRef.current;
+    if (dt > 0) {
+      lastVelocityRef.current = (clientY - prevYRef.current) / dt;
+    }
+    prevYRef.current = clientY;
+    prevTimeRef.current = now;
+
+    const rawDelta = clientY - dragOriginYRef.current;
+    const deltaY = rawDelta > 0 ? rawDelta : 0;
+
+    if (sheetElRef.current) {
+      sheetElRef.current.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+    }
+    if (backdropRef.current) {
       const progress = Math.min(1, deltaY / 350);
       backdropRef.current.style.opacity = String(Math.max(0.1, 1 - progress * 0.8));
     }
   }, []);
 
-  // Unified drag end / release
-  const endDrag = useCallback(() => {
-    if (!isDraggingRef.current || startYRef.current === null || isClosingRef.current) return;
+  const finishSheetDrag = useCallback(() => {
+    if (isClosingRef.current) return;
 
-    const deltaY = Math.max(0, (currentYRef.current ?? startYRef.current) - startYRef.current);
+    const deltaY = Math.max(0, (currentYRef.current ?? dragOriginYRef.current) - dragOriginYRef.current);
     const elapsed = Math.max(1, Date.now() - startTimeRef.current);
-    const velocity = deltaY / elapsed;
+    const avgVelocity = deltaY / elapsed;
+    const peakVelocity = Math.max(avgVelocity, lastVelocityRef.current);
 
-    isDraggingRef.current = false;
+    gestureModeRef.current = "idle";
+    activeScrollerRef.current = null;
+    isPointerDraggingRef.current = false;
     startYRef.current = null;
     currentYRef.current = null;
 
-    // Check if user pulled down past threshold OR performed a clear downward flick
-    const shouldDismiss = deltaY > dismissThreshold || (deltaY > 45 && velocity > velocityThreshold);
+    const shouldDismiss =
+      deltaY > dismissThresholdRef.current ||
+      (deltaY > 40 && peakVelocity > velocityThresholdRef.current);
 
     if (shouldDismiss) {
       isClosingRef.current = true;
-      if (sheetRef.current) {
-        sheetRef.current.style.transition = "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)";
-        sheetRef.current.style.transform = "translate3d(0, 100%, 0)";
+      if (sheetElRef.current) {
+        sheetElRef.current.style.transition = "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)";
+        sheetElRef.current.style.transform = "translate3d(0, 100%, 0)";
       }
       if (backdropRef.current) {
         backdropRef.current.style.transition = "opacity 0.2s ease-out";
         backdropRef.current.style.opacity = "0";
       }
       setTimeout(() => {
-        onClose(true); // fromDrag = true (bypass re-animating)
+        onCloseRef.current(true); // fromDrag = true (bypass re-animating)
       }, 220);
     } else {
-      // Snap back smoothly to resting position
-      if (sheetRef.current) {
-        sheetRef.current.style.transition = "transform 0.26s cubic-bezier(0.16, 1, 0.3, 1)";
-        sheetRef.current.style.transform = "translate3d(0, 0, 0)";
+      if (sheetElRef.current) {
+        sheetElRef.current.style.transition = "transform 0.26s cubic-bezier(0.16, 1, 0.3, 1)";
+        sheetElRef.current.style.transform = "translate3d(0, 0, 0)";
       }
       if (backdropRef.current) {
         backdropRef.current.style.transition = "opacity 0.25s ease-out";
         backdropRef.current.style.opacity = "";
       }
       setTimeout(() => {
-        if (sheetRef.current && !isClosingRef.current) {
-          sheetRef.current.style.transform = "";
-          sheetRef.current.style.transition = "";
-          sheetRef.current.style.animation = "";
+        if (sheetElRef.current && !isClosingRef.current) {
+          sheetElRef.current.style.transform = "";
+          sheetElRef.current.style.transition = "";
+          sheetElRef.current.style.animation = "";
         }
       }, 280);
     }
-  }, [dismissThreshold, velocityThreshold, onClose]);
+  }, []);
 
-  // Touch handlers (100% reliable on mobile Safari and Chrome)
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      startDrag(e.touches[0].clientY);
+  // Native non-passive touch listeners across the entire bottom-sheet element
+  const cleanupTouchListenersRef = useRef<(() => void) | null>(null);
+
+  const attachListenersToSheet = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (cleanupTouchListenersRef.current) {
+        cleanupTouchListenersRef.current();
+        cleanupTouchListenersRef.current = null;
+      }
+      if (!node) return;
+
+      const onTouchStart = (e: TouchEvent) => {
+        if (disabledRef.current || isClosingRef.current) return;
+        if (typeof window !== "undefined" && window.innerWidth >= 640) return;
+        if (e.touches.length !== 1) {
+          gestureModeRef.current = "ignore";
+          return;
+        }
+        if (shouldIgnoreTarget(e.target)) {
+          gestureModeRef.current = "ignore";
+          return;
+        }
+
+        const t = e.touches[0];
+        startXRef.current = t.clientX;
+        startYRef.current = t.clientY;
+        currentYRef.current = t.clientY;
+        activeScrollerRef.current = findVerticalScrollerAt(e.target, node);
+        gestureModeRef.current = "undecided";
+      };
+
+      const onTouchMove = (e: TouchEvent) => {
+        if (disabledRef.current || isClosingRef.current || e.touches.length !== 1) return;
+        const mode = gestureModeRef.current;
+        if (mode === "idle" || mode === "ignore" || mode === "scroll") return;
+
+        const t = e.touches[0];
+        if (mode === "undecided") {
+          if (startYRef.current === null) return;
+          const dx = t.clientX - startXRef.current;
+          const dy = t.clientY - startYRef.current;
+
+          if (Math.abs(dx) < SLOP_PX && Math.abs(dy) < SLOP_PX) return;
+
+          // Horizontal swipe -> leave alone
+          if (Math.abs(dx) > Math.abs(dy) * 1.15) {
+            gestureModeRef.current = "ignore";
+            return;
+          }
+
+          // Swiping up to scroll down content -> allow native scroll
+          if (dy <= 0) {
+            gestureModeRef.current = "scroll";
+            return;
+          }
+
+          // Swiping down inside a scrollable container that isn't at top -> scroll up first
+          const scroller = activeScrollerRef.current;
+          if (scroller && scroller.scrollTop > 1) {
+            gestureModeRef.current = "scroll";
+            return;
+          }
+
+          // Otherwise: either non-scrollable area OR scroller already at top (scrollTop <= 1)!
+          // Smoothly pull the drawer down from anywhere inside it.
+          gestureModeRef.current = "sheet";
+          engageSheetTransform(t.clientY);
+          if (e.cancelable) e.preventDefault();
+          applyDragTransform(t.clientY);
+          return;
+        }
+
+        if (mode === "sheet") {
+          if (e.cancelable) e.preventDefault();
+          applyDragTransform(t.clientY);
+        }
+      };
+
+      const onTouchEndOrCancel = () => {
+        const mode = gestureModeRef.current;
+        gestureModeRef.current = "idle";
+        activeScrollerRef.current = null;
+        if (mode === "sheet") {
+          finishSheetDrag();
+        } else {
+          startYRef.current = null;
+          currentYRef.current = null;
+        }
+      };
+
+      node.addEventListener("touchstart", onTouchStart, { passive: true });
+      node.addEventListener("touchmove", onTouchMove, { passive: false });
+      node.addEventListener("touchend", onTouchEndOrCancel, { passive: true });
+      node.addEventListener("touchcancel", onTouchEndOrCancel, { passive: true });
+
+      cleanupTouchListenersRef.current = () => {
+        node.removeEventListener("touchstart", onTouchStart);
+        node.removeEventListener("touchmove", onTouchMove);
+        node.removeEventListener("touchend", onTouchEndOrCancel);
+        node.removeEventListener("touchcancel", onTouchEndOrCancel);
+      };
     },
-    [startDrag]
+    [engageSheetTransform, applyDragTransform, finishSheetDrag]
   );
 
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      moveDrag(e.touches[0].clientY);
+  // Callback ref passed to callers (`ref={sheetRef}`) so conditional portal mounts attach cleanly every time
+  const sheetRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      sheetElRef.current = node;
+      attachListenersToSheet(node);
     },
-    [moveDrag]
+    [attachListenersToSheet]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    endDrag();
-  }, [endDrag]);
+  useEffect(() => {
+    return () => {
+      if (cleanupTouchListenersRef.current) {
+        cleanupTouchListenersRef.current();
+        cleanupTouchListenersRef.current = null;
+      }
+      resetStyles();
+    };
+  }, [resetStyles]);
 
-  const handleTouchCancel = useCallback(() => {
-    endDrag();
-  }, [endDrag]);
-
-  // Pointer/Mouse handlers (for desktop mouse testing)
+  // Pointer/Mouse handlers for drag handle (desktop / DevTools mouse simulation)
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // If pointer is touch, TouchEvents handle it natively
-      if (e.pointerType === "touch") return;
+      if (e.pointerType === "touch" || disabledRef.current || isClosingRef.current) return;
+      if (typeof window !== "undefined" && window.innerWidth >= 640) return;
       if (e.button !== 0) return;
       try {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       } catch {}
-      startDrag(e.clientY);
+      isPointerDraggingRef.current = true;
+      engageSheetTransform(e.clientY);
     },
-    [startDrag]
+    [engageSheetTransform]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (e.pointerType === "touch") return;
-      moveDrag(e.clientY);
+      if (e.pointerType === "touch" || !isPointerDraggingRef.current) return;
+      applyDragTransform(e.clientY);
     },
-    [moveDrag]
+    [applyDragTransform]
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (e.pointerType === "touch") return;
+      if (e.pointerType === "touch" || !isPointerDraggingRef.current) return;
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {}
-      endDrag();
+      finishSheetDrag();
     },
-    [endDrag]
+    [finishSheetDrag]
   );
 
   const handlePointerCancel = useCallback(
     (e: React.PointerEvent) => {
-      if (e.pointerType === "touch") return;
-      endDrag();
+      if (e.pointerType === "touch" || !isPointerDraggingRef.current) return;
+      finishSheetDrag();
     },
-    [endDrag]
+    [finishSheetDrag]
   );
 
   return {
@@ -206,10 +348,6 @@ export function useDrawerDrag({
     backdropRef,
     resetStyles,
     handleProps: {
-      onTouchStart: handleTouchStart,
-      onTouchMove: handleTouchMove,
-      onTouchEnd: handleTouchEnd,
-      onTouchCancel: handleTouchCancel,
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,
       onPointerUp: handlePointerUp,

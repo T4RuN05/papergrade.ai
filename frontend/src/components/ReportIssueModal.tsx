@@ -535,11 +535,11 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                     size="md"
                     type="submit"
                     isLoading={isSubmitting}
+                    icon={<Send className="h-3.5 w-3.5" />}
                     disabled={!subject.trim() || !description.trim() || isOverLimit}
-                    className="h-10 px-5 gap-2 text-xs sm:text-sm font-semibold justify-center rounded-lg"
+                    className="h-10 px-5 text-xs sm:text-sm font-semibold justify-center rounded-lg"
                   >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>Submit Technical Report</span>
+                    <span>{isSubmitting ? "Submitting..." : "Submit Technical Report"}</span>
                   </ButtonPrimary>
                 </div>
               </form>

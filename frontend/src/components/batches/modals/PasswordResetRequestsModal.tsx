@@ -131,12 +131,12 @@ export function PasswordResetRequestsModal({
                           size="sm"
                           className="flex-1 sm:flex-none justify-center"
                           isLoading={actionLoadingId === req.id}
+                          icon={<Check className="h-3.5 w-3.5" />}
                           onClick={() =>
                             onApprove(req.id, req.student_name || req.roll_number || "")
                           }
                         >
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          Approve
+                          {actionLoadingId === req.id ? "Approving..." : "Approve"}
                         </ButtonPrimary>
                       </>
                     ) : isApproved ? (

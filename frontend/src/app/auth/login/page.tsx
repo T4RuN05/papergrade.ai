@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { GoogleSignInButton, type GoogleSessionPayload } from "@/components/auth/GoogleSignInButton";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -67,6 +68,212 @@ function LoginForm() {
   const [emailHint, setEmailHint] = useState<string | null>(null);
   const [canEscalate, setCanEscalate] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
+
+  // Strict Mobile Swipe & Smooth Tab Switching (Student | Faculty/Staff | Claim Account)
+  const AUTH_ROLE_TABS: AuthRole[] = ["STUDENT", "STAFF", "CLAIM"];
+  const activeRoleIndex = Math.max(0, AUTH_ROLE_TABS.indexOf(loginRole));
+  const authCarouselRef = useRef<HTMLDivElement>(null);
+  const authTrackRef = useRef<HTMLDivElement>(null);
+  const authPillRef = useRef<HTMLSpanElement>(null);
+  const paneRefs = useRef<[HTMLDivElement | null, HTMLDivElement | null, HTMLDivElement | null]>([
+    null,
+    null,
+    null,
+  ]);
+  const hasMeasuredCarouselRef = useRef(false);
+  const [isAuthTouchDragging, setIsAuthTouchDragging] = useState(false);
+  const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
+  const authTouchStartXRef = useRef<number>(0);
+  const authTouchStartYRef = useRef<number>(0);
+  const authTouchStartTimeRef = useRef<number>(0);
+  const authGestureLockRef = useRef<"horizontal" | "vertical" | null>(null);
+  const authTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncCarouselHeight = React.useCallback((roleIdx: number, animate: boolean) => {
+    const carousel = authCarouselRef.current;
+    const pane = paneRefs.current[roleIdx];
+    if (!carousel || !pane) return;
+    const nextHeight = pane.offsetHeight;
+    if (!nextHeight) return;
+
+    if (!animate || !hasMeasuredCarouselRef.current) {
+      carousel.style.transition = "none";
+      carousel.style.height = `${nextHeight}px`;
+      hasMeasuredCarouselRef.current = true;
+      return;
+    }
+
+    // Lock current height frame before transitioning to target height smoothly
+    const currentHeight = carousel.getBoundingClientRect().height;
+    if (Math.abs(currentHeight - nextHeight) < 1) {
+      carousel.style.height = `${nextHeight}px`;
+      return;
+    }
+    carousel.style.transition = "none";
+    carousel.style.height = `${currentHeight}px`;
+    void carousel.offsetHeight; // Flush layout synchronously for CSS transition start
+    carousel.style.transition = "height 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+    carousel.style.height = `${nextHeight}px`;
+  }, []);
+
+  // Measure active pane height and follow dynamic inner content changes (errors, claim verification, etc.)
+  useEffect(() => {
+    if (viewMode !== "LOGIN") {
+      hasMeasuredCarouselRef.current = false;
+      return;
+    }
+    const activeEl = paneRefs.current[activeRoleIndex];
+    if (!activeEl) return;
+
+    syncCarouselHeight(activeRoleIndex, hasMeasuredCarouselRef.current);
+
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (authGestureLockRef.current === "horizontal") return;
+      syncCarouselHeight(activeRoleIndex, hasMeasuredCarouselRef.current);
+    });
+    ro.observe(activeEl);
+    return () => ro.disconnect();
+  }, [activeRoleIndex, viewMode, syncCarouselHeight]);
+
+  const switchLoginRole = React.useCallback((nextRole: AuthRole) => {
+    if (nextRole === loginRole) return;
+    if (authTransitionTimerRef.current) clearTimeout(authTransitionTimerRef.current);
+
+    setIsAuthTransitioning(true);
+    setLoginRole(nextRole);
+    setError(null);
+    if (nextRole === "CLAIM") setClaimError(null);
+
+    const nextIdx = AUTH_ROLE_TABS.indexOf(nextRole);
+    syncCarouselHeight(nextIdx, true);
+    if (authTrackRef.current) {
+      authTrackRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      authTrackRef.current.style.transform = `translate3d(-${(nextIdx * 100) / 3}%, 0, 0)`;
+    }
+    if (authPillRef.current) {
+      authPillRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      authPillRef.current.style.transform = `translate3d(${nextIdx * 100}%, 0, 0)`;
+    }
+
+    authTransitionTimerRef.current = setTimeout(() => {
+      setIsAuthTransitioning(false);
+    }, 300);
+  }, [loginRole, syncCarouselHeight]);
+
+  useEffect(() => {
+    return () => {
+      if (authTransitionTimerRef.current) clearTimeout(authTransitionTimerRef.current);
+    };
+  }, []);
+
+  const handleAuthTouchStart = (e: React.TouchEvent) => {
+    if (typeof window === "undefined" || window.innerWidth >= 640) return;
+    if (viewMode !== "LOGIN" || e.touches.length !== 1) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [data-no-swipe='true']")) return;
+
+    authTouchStartXRef.current = e.touches[0].clientX;
+    authTouchStartYRef.current = e.touches[0].clientY;
+    authTouchStartTimeRef.current = Date.now();
+    authGestureLockRef.current = null;
+  };
+
+  const handleAuthTouchMove = (e: React.TouchEvent) => {
+    if (typeof window === "undefined" || window.innerWidth >= 640) return;
+    if (viewMode !== "LOGIN" || e.touches.length !== 1) return;
+    const container = authCarouselRef.current;
+    if (!container) return;
+
+    const dx = e.touches[0].clientX - authTouchStartXRef.current;
+    const dy = e.touches[0].clientY - authTouchStartYRef.current;
+
+    if (!authGestureLockRef.current) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+        authGestureLockRef.current = "horizontal";
+        setIsAuthTouchDragging(true);
+      } else {
+        authGestureLockRef.current = "vertical";
+        return;
+      }
+    }
+
+    if (authGestureLockRef.current !== "horizontal") return;
+
+    const width = Math.max(1, container.offsetWidth);
+    const isAtLeftEdge = activeRoleIndex === 0 && dx > 0;
+    const isAtRightEdge = activeRoleIndex === AUTH_ROLE_TABS.length - 1 && dx < 0;
+    const dampedDx = isAtLeftEdge || isAtRightEdge ? dx * 0.25 : dx;
+
+    const trackPct = -(activeRoleIndex * (100 / 3)) + (dampedDx / width) * (100 / 3);
+    const pillPct = activeRoleIndex * 100 - (dampedDx / width) * 100;
+
+    // Live-interpolate outer container height smoothly with horizontal swipe progress
+    const dragProgress = Math.min(1, Math.max(-1, -dampedDx / width));
+    const neighborIdx =
+      dragProgress > 0
+        ? Math.min(AUTH_ROLE_TABS.length - 1, activeRoleIndex + 1)
+        : Math.max(0, activeRoleIndex - 1);
+    const fromH = paneRefs.current[activeRoleIndex]?.offsetHeight || 0;
+    const toH = paneRefs.current[neighborIdx]?.offsetHeight || fromH;
+    if (fromH > 0 && toH > 0) {
+      const ratio = Math.abs(dragProgress);
+      container.style.transition = "none";
+      container.style.height = `${fromH + (toH - fromH) * ratio}px`;
+    }
+
+    if (authTrackRef.current) {
+      authTrackRef.current.style.transition = "none";
+      authTrackRef.current.style.transform = `translate3d(${trackPct}%, 0, 0)`;
+    }
+    if (authPillRef.current) {
+      authPillRef.current.style.transition = "none";
+      authPillRef.current.style.transform = `translate3d(${pillPct}%, 0, 0)`;
+    }
+  };
+
+  const handleAuthTouchEnd = (e: React.TouchEvent) => {
+    if (authGestureLockRef.current !== "horizontal") {
+      authGestureLockRef.current = null;
+      return;
+    }
+    authGestureLockRef.current = null;
+    setIsAuthTouchDragging(false);
+
+    const container = authCarouselRef.current;
+    const width = Math.max(1, container?.offsetWidth || 300);
+    const endX = e.changedTouches[0]?.clientX ?? authTouchStartXRef.current;
+    const dx = endX - authTouchStartXRef.current;
+    const elapsed = Math.max(1, Date.now() - authTouchStartTimeRef.current);
+    const velocity = Math.abs(dx) / elapsed;
+    const shouldAdvance = Math.abs(dx) > width * 0.22 || (Math.abs(dx) > 36 && velocity > 0.35);
+
+    if (shouldAdvance) {
+      if (dx < 0 && activeRoleIndex < AUTH_ROLE_TABS.length - 1) {
+        switchLoginRole(AUTH_ROLE_TABS[activeRoleIndex + 1]);
+        return;
+      }
+      if (dx > 0 && activeRoleIndex > 0) {
+        switchLoginRole(AUTH_ROLE_TABS[activeRoleIndex - 1]);
+        return;
+      }
+    }
+
+    // Spring back cleanly to current active tab and its height
+    setIsAuthTransitioning(true);
+    syncCarouselHeight(activeRoleIndex, true);
+    if (authTrackRef.current) {
+      authTrackRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      authTrackRef.current.style.transform = `translate3d(-${(activeRoleIndex * 100) / 3}%, 0, 0)`;
+    }
+    if (authPillRef.current) {
+      authPillRef.current.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)";
+      authPillRef.current.style.transform = `translate3d(${activeRoleIndex * 100}%, 0, 0)`;
+    }
+    if (authTransitionTimerRef.current) clearTimeout(authTransitionTimerRef.current);
+    authTransitionTimerRef.current = setTimeout(() => setIsAuthTransitioning(false), 300);
+  };
 
   // Sync role from URL query parameters (?role=staff, ?role=student, ?role=claim, ?portal=admin, ?portal=branch)
   useEffect(() => {
@@ -193,17 +400,14 @@ function LoginForm() {
     return () => window.removeEventListener("message", handleMessage);
   }, [queryClient]);
 
-  // Check if user is already authenticated or launched in standalone PWA
-  useEffect(() => {
-    // 1. Check for incoming Google OAuth redirect token or error (Fallback for full redirects)
-    const oauthToken = searchParams.get("oauth_token");
-    if (oauthToken) {
-      const roleParam = searchParams.get("role") || "STUDENT";
-      const nameParam = searchParams.get("name") || "User";
-      const branchIdParam = searchParams.get("branch_id") || "";
-      const instituteIdParam = searchParams.get("institute_id") || "";
-      const googleEmailParam = searchParams.get("google_email") || "";
-      const googlePictureParam = searchParams.get("google_picture") || "";
+  const completeGoogleSession = React.useCallback(
+    (payload: GoogleSessionPayload) => {
+      const roleParam = payload.role || "STUDENT";
+      const nameParam = payload.full_name || "User";
+      const branchIdParam = payload.branch_id || "";
+      const instituteIdParam = payload.institute_id || "";
+      const googleEmailParam = payload.google_email || "";
+      const googlePictureParam = payload.google_picture || "";
 
       const userObj = {
         role: roleParam,
@@ -214,8 +418,7 @@ function LoginForm() {
         ...(googlePictureParam ? { google_picture: googlePictureParam } : {}),
       };
 
-      // Store JWT token to 'papergrade_jwt' and user payload to 'papergrade_user'
-      setAuthToken(oauthToken, userObj);
+      setAuthToken(payload.access_token, userObj);
 
       if (typeof window !== "undefined") {
         if (branchIdParam) {
@@ -243,6 +446,24 @@ function LoginForm() {
 
       startNavigationProgress();
       window.location.replace(dest);
+    },
+    [queryClient]
+  );
+
+  // Check if user is already authenticated or launched in standalone PWA
+  useEffect(() => {
+    // 1. Check for incoming Google OAuth redirect token or error (Fallback for full redirects)
+    const oauthToken = searchParams.get("oauth_token");
+    if (oauthToken) {
+      completeGoogleSession({
+        access_token: oauthToken,
+        role: searchParams.get("role") || "STUDENT",
+        full_name: searchParams.get("name") || "User",
+        branch_id: searchParams.get("branch_id") || "",
+        institute_id: searchParams.get("institute_id") || "",
+        google_email: searchParams.get("google_email") || "",
+        google_picture: searchParams.get("google_picture") || "",
+      });
       return;
     }
 
@@ -730,6 +951,86 @@ function LoginForm() {
     }
   };
 
+  const renderCredentialsPane = (paneRole: "STUDENT" | "STAFF") => {
+    const isActivePane = loginRole === paneRole;
+    return (
+      <form onSubmit={handleLoginSubmit} className="space-y-4">
+        {error && isActivePane && (
+          <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+            <span className="leading-relaxed font-medium">{error}</span>
+          </div>
+        )}
+
+        <FormInput
+          id={isActivePane ? "login-identifier-input" : undefined}
+          label={paneRole === "STUDENT" ? "Student Roll Number" : "Email or Staff ID"}
+          type="text"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={
+            paneRole === "STUDENT"
+              ? "e.g. C25-BVI-001"
+              : "e.g. user@institute.edu or admin"
+          }
+        />
+
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-ink-secondary">Password</label>
+            <button
+              type="button"
+              onClick={() => {
+                setForgotIdentifier(email.trim());
+                setForgotError(null);
+                setViewMode("FORGOT_REQUEST");
+              }}
+              className="text-xs font-medium text-primary hover:underline cursor-pointer"
+            >
+              Forgot password?
+            </button>
+          </div>
+          <FormInput
+            id={isActivePane ? "login-password-input" : undefined}
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••••"
+          />
+        </div>
+
+        <ButtonPrimary
+          id={isActivePane ? "btn-login-submit" : undefined}
+          type="submit"
+          className="w-full"
+          isLoading={loading}
+        >
+          {paneRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In to Console"}
+        </ButtonPrimary>
+
+        <div className="relative my-3">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-hairline" />
+          </div>
+          <div className="relative flex justify-center text-[10px] uppercase">
+            <span className="bg-surface px-2 text-ink-muted font-medium">Or</span>
+          </div>
+        </div>
+
+        <GoogleSignInButton
+          disabled={loading}
+          isActive={isActivePane}
+          isConnectingRedirect={googleLoading}
+          onFallbackRedirect={handleGoogleSignIn}
+          onVerified={completeGoogleSession}
+          onError={(msg) => setError(msg)}
+        />
+      </form>
+    );
+  };
+
   return (
     <div className="flex min-h-[75vh] items-center justify-center py-8">
       <div className="w-full max-w-sm space-y-6">
@@ -779,227 +1080,196 @@ function LoginForm() {
         <FeatureCard className="p-6">
           {/* VIEW: LOGIN OR CLAIM FORM */}
           {viewMode === "LOGIN" && (
-            <div className="space-y-4">
-              {/* Role Toggle Tabs: Student | Faculty / Staff | Claim ID */}
-              <div className="grid grid-cols-3 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs font-semibold">
+            <div
+              className="space-y-4"
+              onTouchStart={handleAuthTouchStart}
+              onTouchMove={handleAuthTouchMove}
+              onTouchEnd={handleAuthTouchEnd}
+              onTouchCancel={handleAuthTouchEnd}
+            >
+              {/* Role Toggle Tabs with Sliding Pill: Student | Faculty / Staff | Claim ID */}
+              <div className="relative grid grid-cols-3 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs font-semibold">
+                <span
+                  ref={authPillRef}
+                  aria-hidden="true"
+                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] rounded-md bg-surface shadow-2xs border border-hairline/50 pointer-events-none will-change-transform"
+                  style={{
+                    transform: `translate3d(${activeRoleIndex * 100}%, 0, 0)`,
+                    transition: isAuthTouchDragging
+                      ? "none"
+                      : "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)",
+                  }}
+                />
+
                 <button
                   type="button"
                   id="tab-role-student"
-                  onClick={() => {
-                    setLoginRole("STUDENT");
-                    setError(null);
-                  }}
-                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                  onClick={() => switchLoginRole("STUDENT")}
+                  className={`relative z-10 py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                     loginRole === "STUDENT"
-                      ? "bg-surface text-ink shadow-2xs font-bold"
+                      ? "text-ink font-bold"
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <Smartphone className="h-3.5 w-3.5 shrink-0" />
+                  <Smartphone className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "STUDENT" ? "text-primary" : ""}`} />
                   <span className="truncate">Student</span>
                 </button>
 
                 <button
                   type="button"
                   id="tab-role-staff"
-                  onClick={() => {
-                    setLoginRole("STAFF");
-                    setError(null);
-                  }}
-                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                  onClick={() => switchLoginRole("STAFF")}
+                  className={`relative z-10 py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                     loginRole === "STAFF"
-                      ? "bg-surface text-ink shadow-2xs font-bold"
+                      ? "text-ink font-bold"
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <Lock className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "STAFF" ? "text-primary" : ""}`} />
                   <span className="truncate">Faculty / Staff</span>
                 </button>
 
                 <button
                   type="button"
                   id="tab-role-claim"
-                  onClick={() => {
-                    setLoginRole("CLAIM");
-                    setError(null);
-                    setClaimError(null);
-                  }}
-                  className={`py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                  onClick={() => switchLoginRole("CLAIM")}
+                  className={`relative z-10 py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                     loginRole === "CLAIM"
-                      ? "bg-surface text-ink shadow-2xs font-bold"
+                      ? "text-ink font-bold"
                       : "text-ink-muted hover:text-ink"
                   }`}
                 >
-                  <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+                  <GraduationCap className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "CLAIM" ? "text-primary" : ""}`} />
                   <span className="truncate">Claim Account</span>
                 </button>
               </div>
 
-              {/* TAB 1 & 2: STUDENT / STAFF CREDENTIALS SIGN-IN */}
-              {loginRole !== "CLAIM" && (
-                <form onSubmit={handleLoginSubmit} className="space-y-4">
-                  {error && (
-                    <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                      <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                      <span className="leading-relaxed font-medium">{error}</span>
-                    </div>
-                  )}
-
-                  <FormInput
-                    id="login-identifier-input"
-                    label={loginRole === "STUDENT" ? "Student Roll Number" : "Email or Staff ID"}
-                    type="text"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={
-                      loginRole === "STUDENT"
-                        ? "e.g. C25-BVI-001"
-                        : "e.g. user@institute.edu or admin"
-                    }
-                  />
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-ink-secondary">Password</label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setForgotIdentifier(email.trim());
-                          setForgotError(null);
-                          setViewMode("FORGOT_REQUEST");
-                        }}
-                        className="text-xs font-medium text-primary hover:underline cursor-pointer"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <FormInput
-                      id="login-password-input"
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                    />
+              {/* 3-Pane Mobile-Swipe Carousel Container with Smooth Height Interpolation */}
+              <div
+                ref={authCarouselRef}
+                className="overflow-hidden -mx-0.5 px-0.5 will-change-[height]"
+              >
+                <div
+                  ref={authTrackRef}
+                  className="flex items-start w-[300%] will-change-transform"
+                  style={{
+                    transform: `translate3d(-${(activeRoleIndex * 100) / 3}%, 0, 0)`,
+                    transition: isAuthTouchDragging
+                      ? "none"
+                      : "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)",
+                  }}
+                >
+                  {/* Pane 0: Student Sign-In */}
+                  <div
+                    ref={(el) => {
+                      paneRefs.current[0] = el;
+                    }}
+                    aria-hidden={loginRole !== "STUDENT"}
+                    className={`w-1/3 shrink-0 min-w-0 px-0.5 transition-opacity duration-200 ${
+                      loginRole === "STUDENT" || isAuthTouchDragging || isAuthTransitioning
+                        ? "opacity-100"
+                        : "opacity-0 pointer-events-none"
+                    }`}
+                  >
+                    {renderCredentialsPane("STUDENT")}
                   </div>
 
-                  <ButtonPrimary
-                    id="btn-login-submit"
-                    type="submit"
-                    className="w-full"
-                    isLoading={loading}
+                  {/* Pane 1: Faculty / Staff Sign-In */}
+                  <div
+                    ref={(el) => {
+                      paneRefs.current[1] = el;
+                    }}
+                    aria-hidden={loginRole !== "STAFF"}
+                    className={`w-1/3 shrink-0 min-w-0 px-0.5 transition-opacity duration-200 ${
+                      loginRole === "STAFF" || isAuthTouchDragging || isAuthTransitioning
+                        ? "opacity-100"
+                        : "opacity-0 pointer-events-none"
+                    }`}
                   >
-                    {loginRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In to Console"}
-                  </ButtonPrimary>
-
-                  <div className="relative my-3">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-hairline" />
-                    </div>
-                    <div className="relative flex justify-center text-[10px] uppercase">
-                      <span className="bg-surface px-2 text-ink-muted font-medium">Or</span>
-                    </div>
+                    {renderCredentialsPane("STAFF")}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={loading || googleLoading}
-                    className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-md border border-hairline bg-surface hover:bg-canvas text-xs font-semibold text-ink transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                  {/* Pane 2: Claim Student Account */}
+                  <div
+                    ref={(el) => {
+                      paneRefs.current[2] = el;
+                    }}
+                    aria-hidden={loginRole !== "CLAIM"}
+                    className={`w-1/3 shrink-0 min-w-0 px-0.5 transition-opacity duration-200 ${
+                      loginRole === "CLAIM" || isAuthTouchDragging || isAuthTransitioning
+                        ? "opacity-100"
+                        : "opacity-0 pointer-events-none"
+                    }`}
                   >
-                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    {googleLoading ? "Connecting to Google..." : "Sign in with Google"}
-                  </button>
-                </form>
-              )}
-
-              {/* TAB 3: CLAIM STUDENT ACCOUNT */}
-              {loginRole === "CLAIM" && (
-                <div>
-                  {claimSuccess ? (
-                    <div className="text-center py-4 space-y-3">
-                      <CheckCircle2 className="h-8 w-8 text-accent-green mx-auto animate-bounce" />
-                      <h2 className="text-sm font-bold text-ink">Account Claimed Successfully!</h2>
-                      <p className="text-xs text-ink-muted">
-                        Your account has been initialized. Redirecting to student portal...
-                      </p>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleClaimSubmit} className="space-y-4">
-                      {claimError && (
-                        <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                          <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                          <span className="leading-relaxed font-medium">{claimError}</span>
+                    <div>
+                      {claimSuccess ? (
+                        <div className="text-center py-4 space-y-3">
+                          <CheckCircle2 className="h-8 w-8 text-accent-green mx-auto animate-bounce" />
+                          <h2 className="text-sm font-bold text-ink">Account Claimed Successfully!</h2>
+                          <p className="text-xs text-ink-muted">
+                            Your account has been initialized. Redirecting to student portal...
+                          </p>
                         </div>
+                      ) : (
+                        <form onSubmit={handleClaimSubmit} className="space-y-4">
+                          {claimError && (
+                            <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
+                              <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                              <span className="leading-relaxed font-medium">{claimError}</span>
+                            </div>
+                          )}
+
+                          <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-muted leading-relaxed">
+                            First time here? Enter your assigned institute roll number to create your password and activate your student account.
+                          </div>
+
+                          <FormInput
+                            id="claim-roll-input"
+                            label="Institute Roll Number"
+                            type="text"
+                            required
+                            value={claimRollNumber}
+                            onChange={(e) => setClaimRollNumber(e.target.value)}
+                            placeholder="e.g. C25-BVI-001"
+                          />
+
+                          <FormInput
+                            id="claim-password-input"
+                            label="Create Password"
+                            type="password"
+                            required
+                            minLength={8}
+                            value={claimPassword}
+                            onChange={(e) => setClaimPassword(e.target.value)}
+                            placeholder="Minimum 8 characters"
+                          />
+
+                          <FormInput
+                            id="claim-confirm-password-input"
+                            label="Confirm Password"
+                            type="password"
+                            required
+                            minLength={8}
+                            value={claimConfirmPassword}
+                            onChange={(e) => setClaimConfirmPassword(e.target.value)}
+                            placeholder="Repeat password"
+                          />
+
+                          <ButtonPrimary
+                            id="btn-claim-submit"
+                            type="submit"
+                            className="w-full"
+                            isLoading={claimLoading}
+                            icon={<GraduationCap className="h-4 w-4" />}
+                          >
+                            {claimLoading ? "Claiming Account..." : "Claim Account & Sign In"}
+                          </ButtonPrimary>
+                        </form>
                       )}
-
-                      <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-muted leading-relaxed">
-                        First time here? Enter your assigned institute roll number to create your password and activate your student account.
-                      </div>
-
-                      <FormInput
-                        id="claim-roll-input"
-                        label="Institute Roll Number"
-                        type="text"
-                        required
-                        value={claimRollNumber}
-                        onChange={(e) => setClaimRollNumber(e.target.value)}
-                        placeholder="e.g. C25-BVI-001"
-                      />
-
-                      <FormInput
-                        id="claim-password-input"
-                        label="Create Password"
-                        type="password"
-                        required
-                        minLength={8}
-                        value={claimPassword}
-                        onChange={(e) => setClaimPassword(e.target.value)}
-                        placeholder="Minimum 8 characters"
-                      />
-
-                      <FormInput
-                        id="claim-confirm-password-input"
-                        label="Confirm Password"
-                        type="password"
-                        required
-                        minLength={8}
-                        value={claimConfirmPassword}
-                        onChange={(e) => setClaimConfirmPassword(e.target.value)}
-                        placeholder="Repeat password"
-                      />
-
-                      <ButtonPrimary
-                        id="btn-claim-submit"
-                        type="submit"
-                        className="w-full"
-                        isLoading={claimLoading}
-                      >
-                        <GraduationCap className="h-4 w-4 mr-1.5" />
-                        Claim Account & Sign In
-                      </ButtonPrimary>
-                    </form>
-                  )}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -1015,8 +1285,8 @@ function LoginForm() {
 
               <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
                 {loginRole === "STAFF"
-                  ? "Provide your registered Staff Email. A real-time password reset request will be dispatched to the Root Administrator for authorization."
-                  : "Provide your Roll Number or Student Email. A real-time password reset request will be dispatched to your Branch Manager for approval."}
+                  ? "Enter your registered Staff Email. We will dispatch a 6-digit verification code to your email, or escalate to the Root Administrator if unavailable."
+                  : "Enter your Roll Number, Student ID, or email. If an email is linked, a 6-digit OTP code will be sent; otherwise a reset request will be sent to your Branch Manager for approval."}
               </div>
 
               <FormInput
@@ -1037,9 +1307,9 @@ function LoginForm() {
                 type="submit"
                 className="w-full"
                 isLoading={forgotLoading}
+                icon={<KeyRound className="h-4 w-4" />}
               >
-                <KeyRound className="h-4 w-4 mr-1.5" />
-                Request Reset Approval
+                {forgotLoading ? "Sending Request..." : "Continue Password Reset"}
               </ButtonPrimary>
 
               <button
@@ -1233,9 +1503,9 @@ function LoginForm() {
                 type="submit"
                 className="w-full"
                 isLoading={forgotLoading}
+                icon={<Lock className="h-4 w-4" />}
               >
-                <Lock className="h-4 w-4 mr-1.5" />
-                Save New Password & Sign In
+                {forgotLoading ? "Saving Password..." : "Save New Password & Sign In"}
               </ButtonPrimary>
             </form>
           )}

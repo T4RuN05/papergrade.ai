@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload, FileText } from "lucide-react";
 import { ModalCard, ButtonPrimary, ButtonUtility } from "@/components/ui";
 
 interface ExamUploadQpModalProps {
@@ -73,19 +73,11 @@ export function ExamUploadQpModal({
           <ButtonPrimary
             type="submit"
             disabled={!selectedFile || isUploading}
+            isLoading={isUploading}
+            icon={<Upload className="h-4 w-4" />}
             className="w-full sm:w-auto justify-center"
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-1.5" />
-                Upload Paper
-              </>
-            )}
+            {isUploading ? "Uploading..." : "Upload Paper"}
           </ButtonPrimary>
         </div>
       </form>

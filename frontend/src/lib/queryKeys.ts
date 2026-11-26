@@ -13,6 +13,7 @@ export const queryKeys = {
   auth: {
     all: () => ["auth"] as const,
     me: () => ["auth", "me"] as const,
+    sessions: () => ["auth", "sessions"] as const,
     users: (branchId?: string) => ["auth", "users", branchId || "all"] as const,
     staffResets: () => ["auth", "resets", "staff"] as const,
   },

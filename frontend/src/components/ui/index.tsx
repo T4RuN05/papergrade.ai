@@ -10,6 +10,7 @@ export interface ButtonPrimaryProps extends React.ButtonHTMLAttributes<HTMLButto
   children: React.ReactNode;
   size?: "sm" | "md" | "lg";
   isLoading?: boolean;
+  icon?: React.ReactNode;
   href?: string;
 }
 
@@ -17,6 +18,7 @@ export function ButtonPrimary({
   children,
   size = "md",
   isLoading = false,
+  icon,
   className = "",
   disabled,
   href,
@@ -34,6 +36,7 @@ export function ButtonPrimary({
         href={href}
         className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
       >
+        {icon && <span className="inline-flex items-center mr-1.5 shrink-0">{icon}</span>}
         {children}
       </Link>
     );
@@ -45,9 +48,9 @@ export function ButtonPrimary({
       disabled={disabled || isLoading}
       {...props}
     >
-      {isLoading && (
+      {isLoading ? (
         <svg
-          className="animate-spin -ml-0.5 mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-white"
+          className="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-white"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -66,6 +69,8 @@ export function ButtonPrimary({
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           ></path>
         </svg>
+      ) : (
+        icon && <span className="inline-flex items-center mr-1.5 shrink-0">{icon}</span>
       )}
       {children}
     </button>
@@ -76,6 +81,8 @@ export interface ButtonUtilityProps extends React.ButtonHTMLAttributes<HTMLButto
   children: React.ReactNode;
   variant?: "default" | "danger" | "danger-solid" | "ghost";
   size?: "sm" | "md" | "lg";
+  isLoading?: boolean;
+  icon?: React.ReactNode;
   href?: string;
 }
 
@@ -83,6 +90,8 @@ export function ButtonUtility({
   children,
   variant = "default",
   size = "md",
+  isLoading = false,
+  icon,
   className = "",
   disabled,
   href,
@@ -107,6 +116,7 @@ export function ButtonUtility({
         href={href}
         className={`inline-flex items-center justify-center font-medium transition-all ${sizeClasses} ${variantClasses} ${className}`}
       >
+        {icon && <span className="inline-flex items-center mr-1.5 shrink-0">{icon}</span>}
         {children}
       </Link>
     );
@@ -115,9 +125,33 @@ export function ButtonUtility({
   return (
     <button
       className={`inline-flex items-center justify-center font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${variantClasses} ${className}`}
-      disabled={disabled}
+      disabled={disabled || isLoading}
       {...props}
     >
+      {isLoading ? (
+        <svg
+          className="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5 shrink-0 text-current"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          ></circle>
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+      ) : (
+        icon && <span className="inline-flex items-center mr-1.5 shrink-0">{icon}</span>
+      )}
       {children}
     </button>
   );
@@ -465,7 +499,7 @@ export function ModalCard({
           )}
         </div>
         {/* Scrollable Content Body */}
-        <div className="overflow-y-auto px-3.5 py-3 sm:px-5 sm:py-4 flex-1 overscroll-contain">
+        <div className="overflow-y-auto px-3.5 py-3 sm:px-5 sm:py-4 flex-1 flex flex-col min-h-0 overscroll-contain">
           {children}
         </div>
       </div>

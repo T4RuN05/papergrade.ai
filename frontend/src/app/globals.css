@@ -1248,6 +1248,142 @@ input[type="number"] {
   }
 }
 
+/* ==========================================================================
+   Luxury Pure-CSS 3D Podium & Top-3 Celebration Animations
+   ========================================================================== */
+@keyframes podiumBoothRise {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes podiumAvatarPop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.68);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes podiumCloudDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.88);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes podiumListReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heroCoinFlipBounce {
+  0% {
+    opacity: 0;
+    transform: perspective(750px) rotateY(540deg) scale(0.32);
+  }
+  58% {
+    opacity: 1;
+    transform: perspective(750px) rotateY(0deg) scale(1.1);
+  }
+  78% {
+    transform: perspective(750px) rotateY(0deg) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(750px) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes confettiRibbonFall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -16px, 0) rotate(0deg);
+  }
+  12% {
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift, 18px), 92vh, 0) rotate(var(--confetti-rot, 420deg));
+  }
+}
+
+@keyframes podiumSettlePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(229, 173, 104, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(229, 173, 104, 0);
+  }
+}
+
+.animate-podium-rise {
+  transform-origin: bottom center;
+  animation: podiumBoothRise 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-podium-avatar {
+  animation: podiumAvatarPop 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-podium-cloud {
+  animation: podiumCloudDrop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-podium-list-reveal {
+  animation: podiumListReveal 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-hero-flip-bounce {
+  animation: heroCoinFlipBounce 950ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-confetti-fall {
+  animation: confettiRibbonFall var(--confetti-dur, 2.4s) cubic-bezier(0.25, 0.46, 0.45, 0.94) var(--confetti-delay, 0ms) both;
+}
+
+.animate-podium-settle-pulse {
+  animation: podiumSettlePulse 700ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-podium-rise,
+  .animate-podium-avatar,
+  .animate-podium-cloud,
+  .animate-podium-list-reveal,
+  .animate-hero-flip-bounce,
+  .animate-confetti-fall,
+  .animate-podium-settle-pulse {
+    animation: none !important;
+  }
+}
+
 /* Horizontal Scroll Bar Hider */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

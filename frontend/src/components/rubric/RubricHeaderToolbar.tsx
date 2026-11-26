@@ -59,11 +59,11 @@ export function RubricHeaderToolbar({
             <ButtonUtility
               type="button"
               onClick={onUnlock}
-              disabled={isUnlocking}
+              isLoading={isUnlocking}
+              icon={<Unlock className="h-3.5 w-3.5 text-[#dd5b00]" />}
               className="py-2 px-3.5 text-xs font-semibold"
               title="Unlock rubric to edit questions or criteria"
             >
-              <Unlock className="h-3.5 w-3.5 mr-1.5 text-[#dd5b00]" />
               {isUnlocking ? "Unlocking..." : "Unlock Rubric to Edit"}
             </ButtonUtility>
           )
@@ -71,10 +71,10 @@ export function RubricHeaderToolbar({
           <ButtonPrimary
             type="button"
             onClick={onApprove}
-            disabled={isSubmitting}
+            isLoading={isSubmitting}
+            icon={<FileCheck2 className="h-4 w-4" />}
             className="py-2 px-4 text-xs font-semibold"
           >
-            <FileCheck2 className="h-4 w-4 mr-1.5" />
             {isSubmitting ? "Locking..." : "Approve & Lock Rubric"}
           </ButtonPrimary>
         )}

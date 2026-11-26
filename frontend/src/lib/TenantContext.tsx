@@ -73,17 +73,23 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignored if queryClient unmounted
     }
-    api.logout();
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_INST_KEY);
-      localStorage.removeItem(STORAGE_BRANCH_KEY);
-      queueToast({
-        type: "success",
-        title: "Logged Out",
-        message: "You have securely signed out of PaperGrade AI.",
-      });
-      window.location.replace("/auth/login");
-    }
+    const finalizeLogout = () => {
+      api.logout();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_INST_KEY);
+        localStorage.removeItem(STORAGE_BRANCH_KEY);
+        queueToast({
+          type: "success",
+          title: "Logged Out",
+          message: "You have securely signed out of PaperGrade AI.",
+        });
+        window.location.replace("/auth/login");
+      }
+    };
+    Promise.race([
+      api.logoutServer(),
+      new Promise<void>((resolve) => setTimeout(resolve, 450)),
+    ]).finally(finalizeLogout);
   }, [queryClient]);
 
   const refreshTenancy = useCallback(async (seedUser?: any) => {

@@ -18,6 +18,7 @@ from backend.app.db.models.tenancy import (
 from backend.app.db.models.auth import (
     User,
     PasswordResetRequest,
+    UserSession,
 )
 
 # Academic Domain
@@ -70,6 +71,7 @@ __all__ = [
     # Auth
     "User",
     "PasswordResetRequest",
+    "UserSession",
     # BYOS
     "GoogleStorageConnection",
     "PublishedDocumentArchive",

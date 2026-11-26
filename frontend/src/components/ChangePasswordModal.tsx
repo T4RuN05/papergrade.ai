@@ -171,10 +171,10 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess, userEmail }: C
               id="btn-submit-change-pwd"
               type="submit"
               isLoading={loading}
+              icon={<KeyRound className="h-4 w-4" />}
               className="w-full sm:w-auto justify-center"
             >
-              <KeyRound className="h-4 w-4 mr-1.5" />
-              Update Password
+              {loading ? "Updating..." : "Update Password"}
             </ButtonPrimary>
           </div>
         </form>

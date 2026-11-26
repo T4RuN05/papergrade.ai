@@ -20,12 +20,15 @@ import {
 } from "lucide-react";
 import { BadgePill } from "./ui";
 import { useToast } from "@/lib/ToastContext";
+import { PodiumBooths } from "./student/PodiumBooths";
+import { PodiumCelebrationOverlay } from "./student/PodiumCelebrationOverlay";
 
 export interface ExamRankedItem {
   id: string;
   student_name: string;
   roll_number?: string;
   student_id?: string;
+  google_picture?: string | null;
   total_awarded_marks?: number | null;
   score?: number | null;
   max_marks?: number;
@@ -162,6 +165,7 @@ interface ExamRankedTableProps {
   isStudentView?: boolean;
   currentStudentRoll?: string;
   currentStudentId?: string;
+  currentUserGooglePicture?: string | null;
   onInspectSubmission?: (submissionId: string) => void;
   hideSummaryCards?: boolean;
   hideToolbar?: boolean;
@@ -178,6 +182,7 @@ export function ExamRankedTable({
   isStudentView = false,
   currentStudentRoll = "",
   currentStudentId = "",
+  currentUserGooglePicture = null,
   hideSummaryCards = false,
   hideToolbar = false,
   searchTerm: propSearchTerm,
@@ -233,6 +238,99 @@ export function ExamRankedTable({
     return rankedAll.find((r) => r.isCurrentStudent);
   }, [rankedAll]);
 
+  // Synchronized Choreography for Student Drawer:
+  // Top-3 (1st time): Greeting (centered) -> Avatar Glide + Podium Mount (3rd -> 2nd -> 1st) -> Student List Mount
+  // Non-Top-3 / Repeat: Podium Mount (3rd -> 2nd -> 1st) -> Student List Mount
+  const targetAvatarElRef = useRef<HTMLDivElement | null>(null);
+  const setTargetAvatarEl = useCallback((el: HTMLDivElement | null) => {
+    targetAvatarElRef.current = el;
+  }, []);
+  const [celebrationSpec, setCelebrationSpec] = useState<{
+    rank: 1 | 2 | 3;
+    studentName: string;
+    googlePicture?: string | null;
+  } | null>(null);
+  const [holdTargetBoothAvatar, setHoldTargetBoothAvatar] = useState(false);
+  const [justSettledMorph, setJustSettledMorph] = useState(false);
+  const [podiumMounted, setPodiumMounted] = useState(!isStudentView);
+  const [listMounted, setListMounted] = useState(!isStudentView);
+  const listRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebrationStartedRef = useRef(false);
+
+  const markCelebratedOnce = useCallback((rankNum: 1 | 2 | 3) => {
+    if (!examId) return;
+    try {
+      window.localStorage.setItem(`pg_podium_celebrated_${examId}_r${rankNum}`, "1");
+    } catch {
+      // Ignore storage failures in restricted contexts
+    }
+  }, [examId]);
+
+  const scheduleListRevealAfterPodium = useCallback(() => {
+    if (listRevealTimerRef.current) clearTimeout(listRevealTimerRef.current);
+    // Allow 3rd -> 2nd -> 1st booth rise & avatars (~1.35s) to settle cleanly before revealing student list
+    listRevealTimerRef.current = setTimeout(() => {
+      setListMounted(true);
+    }, 1350);
+  }, []);
+
+  useEffect(() => {
+    celebrationStartedRef.current = false;
+    return () => {
+      if (listRevealTimerRef.current) clearTimeout(listRevealTimerRef.current);
+    };
+  }, [examId]);
+
+  useEffect(() => {
+    if (!isStudentView || hideSummaryCards) {
+      setPodiumMounted(true);
+      setListMounted(true);
+      return;
+    }
+    if (!examId || stats.total === 0) return;
+
+    // Never interrupt or reset an already-running celebration in the same open session
+    if (celebrationStartedRef.current) return;
+
+    const rankNum = currentStudentEntry?.rank;
+    let shouldCelebrate = false;
+    if (rankNum === 1 || rankNum === 2 || rankNum === 3) {
+      const storageKey = `pg_podium_celebrated_${examId}_r${rankNum}`;
+      try {
+        // NOTE: Read only here — write in onStartGlide/onComplete so React StrictMode double-invoke never cancels it!
+        shouldCelebrate = window.localStorage.getItem(storageKey) !== "1";
+      } catch {
+        shouldCelebrate = true;
+      }
+    }
+
+    if (shouldCelebrate && currentStudentEntry && (rankNum === 1 || rankNum === 2 || rankNum === 3)) {
+      celebrationStartedRef.current = true;
+      setPodiumMounted(false);
+      setListMounted(false);
+      setHoldTargetBoothAvatar(true);
+      setJustSettledMorph(false);
+      setCelebrationSpec({
+        rank: rankNum,
+        studentName: currentStudentEntry.student_name,
+        googlePicture: currentStudentEntry.google_picture || currentUserGooglePicture,
+      });
+    } else {
+      setPodiumMounted(true);
+      setListMounted(false);
+      setHoldTargetBoothAvatar(false);
+      scheduleListRevealAfterPodium();
+    }
+  }, [
+    isStudentView,
+    hideSummaryCards,
+    examId,
+    stats.total,
+    currentStudentEntry,
+    currentUserGooglePicture,
+    scheduleListRevealAfterPodium,
+  ]);
+
   // 3. Apply search & bracket filtering
   const filteredRanked = useMemo(() => {
     return rankedAll.filter((item) => {
@@ -286,16 +384,18 @@ export function ExamRankedTable({
 
   // Handle row initial mount cascade vs scroll-driven morph & snap
   useEffect(() => {
+    if (!listMounted) return;
     isInitialMountRef.current = true;
     setVisibleRows({});
     const timer = setTimeout(() => {
       isInitialMountRef.current = false;
-    }, 450);
+    }, 550);
     return () => clearTimeout(timer);
-  }, [effectiveBracketFilter, effectiveSearchTerm]);
+  }, [effectiveBracketFilter, effectiveSearchTerm, listMounted]);
 
   // IntersectionObserver: Morph upcoming rows from small when entering from bottom
   useEffect(() => {
+    if (!listMounted) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
@@ -327,7 +427,7 @@ export function ExamRankedTable({
 
     rowEls.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [filteredRanked]);
+  }, [filteredRanked, listMounted]);
 
   // 4. Export Ranked List as CSV (Faculty only)
   const handleExportCSV = () => {
@@ -383,14 +483,55 @@ export function ExamRankedTable({
 
   return (
     <div className={hideSummaryCards && hideToolbar ? "w-full" : "space-y-3.5 w-full"}>
-      {/* SUMMARY DISTRIBUTION METRICS BANNER */}
+      {/* TOP-3 CELEBRATORY OPENING ANIMATION (1st / 2nd / 3rd — ONE TIME PER EXAM) */}
+      {celebrationSpec && (
+        <PodiumCelebrationOverlay
+          rank={celebrationSpec.rank}
+          studentName={celebrationSpec.studentName}
+          googlePicture={celebrationSpec.googlePicture}
+          getTargetRect={() => targetAvatarElRef.current?.getBoundingClientRect() || null}
+          onStartGlide={() => {
+            markCelebratedOnce(celebrationSpec.rank);
+            setPodiumMounted(true);
+            scheduleListRevealAfterPodium();
+          }}
+          onRevealTarget={() => {
+            setHoldTargetBoothAvatar(false);
+            setJustSettledMorph(true);
+          }}
+          onComplete={() => {
+            markCelebratedOnce(celebrationSpec.rank);
+            setCelebrationSpec(null);
+            setHoldTargetBoothAvatar(false);
+            setJustSettledMorph(true);
+          }}
+        />
+      )}
+
+      {/* SUMMARY BANNER: Luxury Pure-CSS 3D Podium for Student Drawer | Analytical KPI Cards for Faculty */}
       {!hideSummaryCards && stats.total > 0 && (
+        isStudentView ? (
+          podiumMounted ? (
+            <PodiumBooths
+              rankedAll={rankedAll}
+              maxMarks={maxMarks}
+              isFetching={isFetching}
+              currentUserGooglePicture={currentUserGooglePicture}
+              hideTargetStudentAvatar={holdTargetBoothAvatar}
+              setTargetAvatarEl={setTargetAvatarEl}
+              justSettledFromMorph={justSettledMorph}
+            />
+          ) : (
+            <div
+              className="w-full rounded-2xl border border-hairline/40 bg-canvas-soft/30 min-h-[192px] sm:min-h-[214px]"
+              aria-hidden="true"
+            />
+          )
+        ) : (
         <div
           className={`grid gap-2 sm:gap-3.5 transition-opacity duration-200 ${
             isFetching ? "opacity-75" : "opacity-100"
-          } ${
-            isStudentView ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
-          }`}
+          } grid-cols-2 sm:grid-cols-4`}
         >
           {/* Top Score */}
           <div className="p-2.5 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-0.5 sm:space-y-1 min-w-0">
@@ -428,69 +569,44 @@ export function ExamRankedTable({
             </div>
           </div>
 
-          {/* Student View: Your Standing | Faculty View: Median & Distinctions */}
-          {isStudentView ? (
-            <div className="p-2.5 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-0.5 sm:space-y-1 min-w-0">
-              <div className="flex items-center justify-between text-ink-muted text-[10px] sm:text-[11px] font-medium">
-                <span className="truncate">Your Standing</span>
-                <Award className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-primary shrink-0" />
-              </div>
-              <div className="flex items-baseline gap-1">
-                {currentStudentEntry ? (
-                  <>
-                    <span className="text-sm sm:text-xl font-bold font-mono text-primary">
-                      #{currentStudentEntry.rank}
-                    </span>
-                    <span className="text-[10px] text-ink-muted truncate">of {stats.total}</span>
-                  </>
-                ) : (
-                  <span className="text-xs font-semibold text-ink-secondary">Evaluated</span>
-                )}
-              </div>
-              <div className="text-[9.5px] sm:text-[10.5px] text-ink-muted truncate">
-                {currentStudentEntry
-                  ? `${currentStudentEntry.effectiveScore.toFixed(1)} marks`
-                  : "Rank computed"}
-              </div>
+          {/* Median */}
+          <div className="p-3 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-1">
+            <div className="flex items-center justify-between text-ink-muted text-[11px] font-medium">
+              <span>Median Score</span>
+              <Target className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             </div>
-          ) : (
-            <>
-              {/* Median */}
-              <div className="p-3 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-1">
-                <div className="flex items-center justify-between text-ink-muted text-[11px] font-medium">
-                  <span>Median Score</span>
-                  <Target className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-lg sm:text-xl font-bold font-mono text-ink">
-                    {stats.median}
-                  </span>
-                  <span className="text-xs text-ink-muted font-mono">/ {maxMarks}m</span>
-                </div>
-                <div className="text-[10.5px] text-ink-muted">50th percentile</div>
-              </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg sm:text-xl font-bold font-mono text-ink">
+                {stats.median}
+              </span>
+              <span className="text-xs text-ink-muted font-mono">/ {maxMarks}m</span>
+            </div>
+            <div className="text-[10.5px] text-ink-muted">50th percentile</div>
+          </div>
 
-              {/* Distinction Count */}
-              <div className="p-3 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-1">
-                <div className="flex items-center justify-between text-ink-muted text-[11px] font-medium">
-                  <span>Distinctions (≥75%)</span>
-                  <Sparkles className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-lg sm:text-xl font-bold font-mono text-ink">
-                    {stats.distinctionCount}
-                  </span>
-                  <span className="text-xs text-ink-muted">of {stats.total} students</span>
-                </div>
-                <div className="text-[10.5px] text-ink-muted">
-                  {((stats.distinctionCount / stats.total) * 100).toFixed(0)}% distinction rate
-                </div>
-              </div>
-            </>
-          )}
+          {/* Distinction Count */}
+          <div className="p-3 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-1">
+            <div className="flex items-center justify-between text-ink-muted text-[11px] font-medium">
+              <span>Distinctions (≥75%)</span>
+              <Sparkles className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg sm:text-xl font-bold font-mono text-ink">
+                {stats.distinctionCount}
+              </span>
+              <span className="text-xs text-ink-muted">of {stats.total} students</span>
+            </div>
+            <div className="text-[10.5px] text-ink-muted">
+              {((stats.distinctionCount / stats.total) * 100).toFixed(0)}% distinction rate
+            </div>
+          </div>
         </div>
+        )
       )}
 
+      {/* SEARCH & RANKED TABLE SECTION (Mounts right after Podium mounts for synchronized choreography) */}
+      {listMounted ? (
+      <div className={isStudentView ? "animate-podium-list-reveal space-y-3.5 w-full" : "space-y-3.5 w-full"}>
       {/* SEARCH, BRACKET FILTERS, & TOOLBAR */}
       {!hideToolbar && (
         <div className={`p-2.5 sm:p-3 rounded-2xl bg-surface border border-hairline shadow-2xs ${!isStudentView ? "space-y-2" : ""}`}>
@@ -854,6 +970,10 @@ export function ExamRankedTable({
         </div>
       )}
       </div>
+      </div>
+      ) : (
+        <div className="w-full" aria-hidden="true" />
+      )}
     </div>
   );
 }

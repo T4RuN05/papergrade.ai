@@ -12,13 +12,7 @@ interface UsePortalTabSwipeOptions {
 export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
   const { initialTab = "dashboard", isModalOpen = false } = options;
 
-  const [activeTab, setActiveTab] = useState<PortalTab>(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("tab") === "exams") return "exams";
-    }
-    return initialTab;
-  });
+  const [activeTab, setActiveTab] = useState<PortalTab>(initialTab);
   const activeTabRef = useRef<PortalTab>(activeTab);
   activeTabRef.current = activeTab;
 
@@ -80,16 +74,37 @@ export function usePortalTabSwipe(options: UsePortalTabSwipeOptions = {}) {
   );
 
   useEffect(() => {
+    const syncUrlTabOnMount = () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const tab: PortalTab = params.get("tab") === "exams" ? "exams" : "dashboard";
+        if (tab !== activeTabRef.current) {
+          setActiveTab(tab);
+          activeTabRef.current = tab;
+          if (tabTrackRef.current) {
+            tabTrackRef.current.style.transition = "none";
+            tabTrackRef.current.style.transform =
+              tab === "exams" ? "translate3d(-50%, 0, 0)" : "translate3d(0%, 0, 0)";
+          }
+          if (tabIndicatorPillRef.current) {
+            tabIndicatorPillRef.current.style.transition = "none";
+            tabIndicatorPillRef.current.style.transform =
+              tab === "exams" ? "translate3d(100%, 0, 0)" : "translate3d(0%, 0, 0)";
+          }
+        }
+      }
+    };
+    syncUrlTabOnMount();
+
     const handleUrlTab = () => {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
-        const tab = params.get("tab") === "exams" ? "exams" : "dashboard";
+        const tab: PortalTab = params.get("tab") === "exams" ? "exams" : "dashboard";
         if (tab !== activeTabRef.current) {
           handleTabSwitch(tab, true);
         }
       }
     };
-    handleUrlTab();
 
     const handleCustomTabSwitch = (e: Event) => {
       const ce = e as CustomEvent<PortalTab>;

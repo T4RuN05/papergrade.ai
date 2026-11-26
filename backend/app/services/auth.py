@@ -58,11 +58,98 @@ class BoundedTTLCache:
 
 
 _user_auth_cache = BoundedTTLCache(maxsize=5000, ttl=300.0)    # (is_active, token_version)
+_session_auth_cache = BoundedTTLCache(maxsize=10000, ttl=300.0)  # sid -> (user_id, is_valid, expires_ts)
+_session_touch_cache = BoundedTTLCache(maxsize=10000, ttl=900.0) # sid -> 1 (15-min touch debounce)
 ACTIVE_CACHE_TTL = 300.0  # seconds
 
 def invalidate_user_auth_cache(user_id: str) -> None:
     """Invalidate cached auth state for a user (e.g. upon password change or status update)."""
     _user_auth_cache.invalidate(user_id)
+
+def prime_session_auth_cache(session_id: str, user_id: str, is_valid: bool, expires_iso: str) -> None:
+    """Warm _session_auth_cache immediately on login or verification to avoid an extra DB read."""
+    try:
+        expires_ts = datetime.fromisoformat(expires_iso.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        expires_ts = time.time() + 604800.0
+    _session_auth_cache.set(session_id, (user_id, bool(is_valid), expires_ts))
+
+def mark_session_revoked_cache(session_id: str) -> None:
+    """Immediately mark a session ID revoked in memory so stale JWTs fail with 401 without waiting for TTL."""
+    _session_auth_cache.set(session_id, ("", False, 0.0))
+    _session_touch_cache.invalidate(session_id)
+
+def revoke_all_user_sessions_cache(user_id: str) -> None:
+    """Mark all cached session IDs for a user as revoked immediately."""
+    with _session_auth_cache._lock:
+        for sid, (val, exp) in list(_session_auth_cache._data.items()):
+            if isinstance(val, tuple) and len(val) >= 1 and val[0] == user_id:
+                _session_auth_cache._data[sid] = ((user_id, False, 0.0), exp)
+
+def _touch_session_if_due(session_id: str) -> None:
+    """Update UserSession.last_active_at at most once every 15 minutes off the request hot path."""
+    if _session_touch_cache.get(session_id) is not None:
+        return
+    _session_touch_cache.set(session_id, True)
+
+    def _bg_touch():
+        try:
+            from backend.app.db.session import get_session
+            from backend.app.db.models import UserSession
+            from backend.app.db.base import get_iso_now
+            from sqlalchemy import update
+
+            with get_session() as db:
+                db.execute(
+                    update(UserSession)
+                    .where(UserSession.id == session_id, UserSession.is_revoked == 0)
+                    .values(last_active_at=get_iso_now())
+                )
+                db.commit()
+        except Exception:
+            pass
+
+    threading.Thread(target=_bg_touch, daemon=True, name=f"touch-{session_id[:12]}").start()
+
+def get_session_auth_state(user_id: str, session_id: str) -> bool:
+    """Check whether a session ID is active and un-expired, using _session_auth_cache for zero DB hits."""
+    now_ts = time.time()
+    cached = _session_auth_cache.get(session_id)
+    if cached is not None:
+        c_uid, c_valid, c_exp = cached
+        if not c_valid or c_uid != user_id or now_ts > c_exp:
+            return False
+        return True
+
+    try:
+        from backend.app.db.session import get_session
+        from backend.app.db.models import UserSession
+        from sqlalchemy import select
+
+        with get_session() as db:
+            row = db.execute(
+                select(UserSession.user_id, UserSession.is_revoked, UserSession.expires_at)
+                .where(UserSession.id == session_id)
+            ).first()
+            if row is None:
+                _session_auth_cache.set(session_id, ("", False, 0.0))
+                return False
+
+            r_uid, r_revoked, r_exp_iso = row
+            try:
+                exp_ts = datetime.fromisoformat(str(r_exp_iso).replace("Z", "+00:00")).timestamp()
+            except Exception:
+                exp_ts = 0.0
+
+            is_valid = (r_uid == user_id) and (r_revoked == 0) and (now_ts <= exp_ts)
+            _session_auth_cache.set(session_id, (r_uid, is_valid, exp_ts))
+            return is_valid
+    except Exception as exc:
+        logger.error("Session verification DB error for sid %s: %s", session_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication verification service temporarily unavailable",
+        )
 
 def get_user_auth_state(user_id: str) -> tuple[bool, int]:
     """Retrieve user (is_active, token_version) with short-lived bounded TTL cache."""
@@ -177,6 +264,15 @@ def _validate_payload_state(payload: Dict[str, Any]) -> Dict[str, Any]:
             detail="Session has expired due to a recent password change or token revocation. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    sid = payload.get("sid")
+    if sid:
+        if not get_session_auth_state(user_id, str(sid)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This session has been signed out or revoked. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        _touch_session_if_due(str(sid))
     return payload
 
 

@@ -25,6 +25,7 @@ from backend.app.db.models import (
     Branch,
     Institute,
     Student,
+    User,
     RubricVersion,
     SubmissionWindow,
     Submission,
@@ -501,11 +502,14 @@ async def create_exam(
 async def upload_answer_key(
     exam_id: str,
     answer_key: List[UploadFile] = File(...),
+    auto_generate_rubric: bool = Form(True),
     current_user: Dict[str, Any] = Depends(require_root_admin),
 ):
     """
     Root Admin alone uploads answer key (Zero-Hold DB session boundary around PDF/WAN/Gemini I/O).
-    Triggers draft rubric generation via Gemini, but DOES NOT auto-approve or auto-grade.
+    When auto_generate_rubric=True (default), triggers draft rubric generation via Gemini immediately.
+    When auto_generate_rubric=False, persists the Answer Key PDF and returns so the UI can run
+    POST /api/exams/{exam_id}/generate-rubric as a visible two-stage workflow.
     """
     with get_session() as db:
         exam = db.scalar(select(Exam).where(Exam.id == exam_id))
@@ -537,6 +541,21 @@ async def upload_answer_key(
     except Exception as e:
         logger.warning(f"Failed to sync answer key to storage: {e}")
 
+    now = get_iso_now()
+    if not auto_generate_rubric:
+        with get_session() as db:
+            exam = db.scalar(select(Exam).where(Exam.id == exam_id))
+            if not exam:
+                raise HTTPException(status_code=404, detail="Exam not found")
+            exam.answer_key_path = storage_key
+            exam.updated_at = now
+            db.commit()
+        return {
+            "status": "answer_key_uploaded",
+            "exam_id": exam_id,
+            "answer_key_path": storage_key,
+        }
+
     # Resolve QP locally or download remote QP if present before running Gemini
     qp_path = Path(qp_raw) if qp_raw and Path(qp_raw).exists() else None
     if qp_path is None and qp_raw:
@@ -554,7 +573,6 @@ async def upload_answer_key(
     )
 
     version_id = f"rub_{uuid.uuid4().hex[:12]}"
-    now = get_iso_now()
     rubric_total = getattr(draft_rubric, "total_marks", getattr(draft_rubric, "total_exam_marks", None))
     if rubric_total is None or rubric_total == 0.0:
         rubric_total = sum(getattr(q, "max_marks", 0.0) for q in getattr(draft_rubric, "questions", [])) or 0.0
@@ -1735,6 +1753,28 @@ def get_exam_rankings(
         reverse=True
     )
 
+    # Batch-resolve linked Google profile pictures (zero N+1 queries)
+    picture_by_student_id: Dict[str, str] = {}
+    picture_by_roll: Dict[str, str] = {}
+    sub_student_ids = [s.student_id for s in sorted_subs if s.student_id]
+    sub_rolls = [s.roll_number.strip().upper() for s in sorted_subs if s.roll_number]
+    if sub_student_ids or sub_rolls:
+        stu_filters = []
+        if sub_student_ids:
+            stu_filters.append(Student.id.in_(sub_student_ids))
+        if sub_rolls:
+            stu_filters.append(func.upper(Student.roll_number).in_(sub_rolls))
+        pic_rows = db.execute(
+            select(Student.id, Student.roll_number, User.google_picture)
+            .join(User, Student.user_id == User.id)
+            .where(or_(*stu_filters), User.google_picture.isnot(None))
+        ).all()
+        for st_id, st_roll, g_pic in pic_rows:
+            if st_id and g_pic:
+                picture_by_student_id[st_id] = g_pic
+            if st_roll and g_pic:
+                picture_by_roll[st_roll.strip().upper()] = g_pic
+
     # Compute Dense Rank:
     # Tied scores share the exact same rank.
     # The subsequent distinct score gets rank + 1 (dense ranking: 1, 1, 2, 3...)
@@ -1760,10 +1800,16 @@ def get_exam_rankings(
         sub_max = float(s.max_marks or effective_max)
         pct = round(float(s.percentage if s.percentage is not None else ((score / sub_max) * 100)), 1)
 
+        google_pic = (
+            picture_by_student_id.get(s.student_id or "")
+            or picture_by_roll.get((s.roll_number or "").strip().upper())
+        )
+
         item: Dict[str, Any] = {
             "id": s.id,
             "rank": current_dense_rank,
             "student_name": s.student_name or f"Student {idx + 1}",
+            "google_picture": google_pic,
             "score": score,
             "total_awarded_marks": score,
             "max_marks": sub_max,

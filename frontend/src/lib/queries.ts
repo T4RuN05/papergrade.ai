@@ -19,6 +19,16 @@ export function useAuthMe(enabled = true) {
   });
 }
 
+export function useActiveSessions(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.auth.sessions(),
+    queryFn: () => api.listActiveSessions(),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
 export function useGoogleConnectionStatus(enabled = true) {
   return useQuery({
     queryKey: queryKeys.oauth.googleStatus(),

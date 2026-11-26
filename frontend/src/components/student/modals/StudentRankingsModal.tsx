@@ -4,37 +4,34 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { Trophy } from "lucide-react";
 import { ModalCard, ButtonUtility } from "@/components/ui";
+import { useTenant } from "@/lib/TenantContext";
 
 function RankingsSkeleton() {
   return (
-    <div className="space-y-4 pt-1 w-full animate-pulse">
-      {/* Search / stats bar skeleton */}
-      <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-canvas-soft border border-hairline">
-        <div className="h-4 w-32 bg-ink-muted/15 rounded" />
-        <div className="h-4 w-24 bg-ink-muted/15 rounded" />
+    <div className="space-y-3.5 pt-1 w-full animate-pulse">
+      {/* Compact 3D Booth Podium Skeleton */}
+      <div className="rounded-2xl border border-hairline bg-canvas-soft/60 px-3 pt-3 pb-2.5">
+        <div className="grid grid-cols-3 items-end gap-2 sm:gap-3.5 min-h-[144px] sm:min-h-[164px]">
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="h-4 w-16 rounded-full bg-ink-muted/15" />
+            <div className="h-7 w-7 rounded-full bg-ink-muted/20" />
+            <div className="h-[56px] sm:h-[64px] w-full rounded-b-lg bg-ink-muted/15" />
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="h-4 w-20 rounded-full bg-amber-500/20" />
+            <div className="h-9 w-9 rounded-full bg-amber-500/25" />
+            <div className="h-[74px] sm:h-[84px] w-full rounded-b-lg bg-amber-500/15" />
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="h-4 w-16 rounded-full bg-ink-muted/15" />
+            <div className="h-7 w-7 rounded-full bg-ink-muted/20" />
+            <div className="h-[44px] sm:h-[50px] w-full rounded-b-lg bg-ink-muted/15" />
+          </div>
+        </div>
       </div>
 
-      {/* Top 3 Podium Cards Skeleton */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-1">
-        {/* Rank 2 */}
-        <div className="p-3 sm:p-4 rounded-xl border border-hairline bg-canvas-soft flex flex-col items-center justify-end h-28 space-y-2">
-          <div className="w-7 h-7 rounded-full bg-ink-muted/15" />
-          <div className="w-14 h-3 bg-ink-muted/20 rounded" />
-          <div className="w-10 h-2.5 bg-ink-muted/10 rounded" />
-        </div>
-        {/* Rank 1 */}
-        <div className="p-3 sm:p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 flex flex-col items-center justify-end h-32 space-y-2 relative">
-          <div className="w-9 h-9 rounded-full bg-amber-500/20" />
-          <div className="w-16 h-3.5 bg-ink-muted/25 rounded" />
-          <div className="w-12 h-3 bg-amber-500/20 rounded" />
-        </div>
-        {/* Rank 3 */}
-        <div className="p-3 sm:p-4 rounded-xl border border-hairline bg-canvas-soft flex flex-col items-center justify-end h-28 space-y-2">
-          <div className="w-7 h-7 rounded-full bg-ink-muted/15" />
-          <div className="w-14 h-3 bg-ink-muted/20 rounded" />
-          <div className="w-10 h-2.5 bg-ink-muted/10 rounded" />
-        </div>
-      </div>
+      {/* Search bar skeleton */}
+      <div className="h-11 rounded-2xl bg-canvas-soft border border-hairline" />
 
       {/* Ranked Table Header Skeleton */}
       <div className="h-8 rounded bg-canvas-soft/80 border border-hairline mt-3" />
@@ -91,6 +88,7 @@ export function StudentRankingsModal({
   currentStudentRoll,
   currentStudentId,
 }: StudentRankingsModalProps) {
+  const { currentUser } = useTenant();
   if (!exam && !isOpen) return null;
 
   return (
@@ -101,9 +99,9 @@ export function StudentRankingsModal({
         exam ? `Class Standings • ${exam.title || "Examination"}` : "Class Standings"
       }
       maxWidth="max-w-4xl"
-      className="max-h-[90vh] sm:max-h-[85vh] flex flex-col"
+      className="h-[88vh] sm:h-[84vh] flex flex-col"
     >
-      <div className="flex flex-col w-full max-w-full overflow-hidden">
+      <div className="flex flex-col w-full max-w-full flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 overflow-y-auto min-h-0 pr-0.5">
           {isLoading ? (
             <RankingsSkeleton />
@@ -124,6 +122,7 @@ export function StudentRankingsModal({
               isStudentView={true}
               currentStudentRoll={currentStudentRoll}
               currentStudentId={currentStudentId}
+              currentUserGooglePicture={currentUser?.google_picture}
             />
           )}
         </div>

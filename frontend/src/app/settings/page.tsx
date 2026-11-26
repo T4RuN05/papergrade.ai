@@ -21,14 +21,23 @@ import {
   ShieldCheck,
   Unlink,
   Loader2,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Globe,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setStoredUser } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
-import { useAuthMe, useGoogleConnectionStatus, useGoogleDriveQuota } from "@/lib/queries";
+import {
+  useAuthMe,
+  useActiveSessions,
+  useGoogleConnectionStatus,
+  useGoogleDriveQuota,
+} from "@/lib/queries";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
-import { BadgePill, FeatureCard, Skeleton } from "@/components/ui";
+import { BadgePill, ButtonUtility, FeatureCard, Skeleton, useConfirm } from "@/components/ui";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 
 function GoogleDriveIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -90,15 +99,54 @@ function GoogleLogoIcon({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
+function formatAuthMethodLabel(method: string): string {
+  switch (method) {
+    case "GOOGLE_GIS":
+    case "GOOGLE_OAUTH":
+      return "Google Sign-In";
+    case "CLAIM_ACCOUNT":
+      return "Claim ID";
+    case "PASSWORD_RESET":
+      return "Password Reset";
+    default:
+      return "Password";
+  }
+}
+
+function formatRelativeTime(isoString?: string | null): string {
+  if (!isoString) return "Recently";
+  const ts = Date.parse(isoString);
+  if (Number.isNaN(ts)) return "Recently";
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 90) return "Active now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  return `${diffDays}d ago`;
+}
+
+function formatShortDateTime(isoString?: string | null): string {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+    ", " +
+    d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
 function SettingsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const {
     currentUser,
     selectedInstitute,
     selectedBranch,
     isMounted,
+    isLoggingOut,
     logout,
     refreshTenancy,
   } = useTenant();
@@ -107,20 +155,31 @@ function SettingsContent() {
   const [oauthConnecting, setOauthConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [revokingSessionId, setRevokingSessionId] = useState<string | null>(null);
+  const [revokingOthers, setRevokingOthers] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+
+  const queriesEnabled = isMounted && !isLoggingOut && !signingOut;
 
   const {
     data: meData,
     isFetching: meFetching,
     refetch: refetchMe,
-  } = useAuthMe(isMounted);
+  } = useAuthMe(queriesEnabled);
+
+  const {
+    data: sessionsData,
+    isLoading: sessionsInitialLoading,
+    isFetching: sessionsFetching,
+    refetch: refetchSessions,
+  } = useActiveSessions(queriesEnabled);
 
   const {
     data: statusData,
     isLoading: statusInitialLoading,
     isFetching: statusFetching,
     refetch: refetchStatus,
-  } = useGoogleConnectionStatus(isMounted);
+  } = useGoogleConnectionStatus(queriesEnabled);
 
   const isDriveConnected = Boolean(statusData?.is_connected);
   const isStudent = (meData?.role || currentUser?.role) === "STUDENT";
@@ -130,7 +189,7 @@ function SettingsContent() {
     isLoading: quotaInitialLoading,
     isFetching: quotaFetching,
     refetch: refetchQuota,
-  } = useGoogleDriveQuota(isMounted && isDriveConnected && isStudent);
+  } = useGoogleDriveQuota(queriesEnabled && isDriveConnected && isStudent);
 
   // Sync TanStack Query /api/auth/me updates into TenantContext & localStorage
   useEffect(() => {
@@ -141,16 +200,17 @@ function SettingsContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meData]);
 
-  const statusLoading = meFetching || statusFetching || quotaFetching;
+  const statusLoading = meFetching || statusFetching || quotaFetching || sessionsFetching;
 
   const refreshAccountStatus = React.useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me() });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
     await queryClient.invalidateQueries({ queryKey: queryKeys.oauth.all() });
-    await Promise.all([refetchMe(), refetchStatus()]);
+    await Promise.all([refetchMe(), refetchStatus(), refetchSessions()]);
     if (isDriveConnected && isStudent) {
       await refetchQuota();
     }
-  }, [queryClient, refetchMe, refetchStatus, refetchQuota, isDriveConnected, isStudent]);
+  }, [queryClient, refetchMe, refetchStatus, refetchSessions, refetchQuota, isDriveConnected, isStudent]);
 
   // Handle OAuth return params (?byos=connected, ?google_linked=1, ?byos_error=...)
   useEffect(() => {
@@ -266,6 +326,56 @@ function SettingsContent() {
     logout();
   };
 
+  const handleRevokeSession = async (sessionId: string, deviceLabel: string, isCurrent: boolean) => {
+    if (isCurrent) {
+      handleSignOut();
+      return;
+    }
+    try {
+      setRevokingSessionId(sessionId);
+      await api.revokeSession(sessionId);
+      toast.success(`Signed out ${deviceLabel}.`, { title: "Session Revoked" });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
+      await refetchSessions();
+    } catch (err: any) {
+      toast.error(err?.message || "Could not revoke session.", { title: "Revoke Failed" });
+    } finally {
+      setRevokingSessionId(null);
+    }
+  };
+
+  const handleRevokeOtherSessions = async () => {
+    const otherCount = (sessionsData?.sessions || []).filter((s) => !s.is_current).length;
+    if (otherCount === 0) return;
+
+    const ok = await confirm({
+      title: "Sign Out Other Devices?",
+      message: `This will immediately end ${otherCount} other active ${otherCount === 1 ? "session" : "sessions"} across browsers and PWAs while keeping this device signed in.`,
+      confirmText: "Sign Out Others",
+      cancelText: "Cancel",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    try {
+      setRevokingOthers(true);
+      const res = await api.revokeOtherSessions();
+      toast.success(
+        `Ended ${res?.revoked_count ?? otherCount} other active ${(res?.revoked_count ?? otherCount) === 1 ? "session" : "sessions"}.`,
+        { title: "Devices Signed Out" }
+      );
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
+      await refetchSessions();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to sign out other devices.");
+    } finally {
+      setRevokingOthers(false);
+    }
+  };
+
+  const sessions = sessionsData?.sessions || [];
+  const otherSessionCount = sessions.filter((s) => !s.is_current).length;
+
   const canChangeInitialPassword =
     currentUser &&
     currentUser.role !== "STUDENT" &&
@@ -273,8 +383,8 @@ function SettingsContent() {
     !currentUser.has_changed_password;
 
   const containerClass = isStudent
-    ? "max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-5 sm:pt-8 pb-16 space-y-5 sm:space-y-6"
-    : "w-full space-y-5 sm:space-y-6";
+    ? "max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-5 sm:pt-8 pb-16 space-y-5 sm:space-y-6 cascade-group"
+    : "w-full space-y-5 sm:space-y-6 cascade-group";
 
   return (
     <div className={containerClass}>
@@ -549,55 +659,135 @@ function SettingsContent() {
             <Skeleton className="h-2.5 w-full" rounded="full" />
           </div>
         ) : isDriveConnected && quotaData?.is_connected && typeof quotaData.usage_percent === "number" ? (
-          <div className="space-y-2.5 p-3.5 rounded-lg bg-canvas-soft border border-hairline">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-              <span className="font-medium text-ink-secondary flex items-center gap-1.5">
-                <HardDrive className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                <span>Personal Google Drive Storage</span>
-              </span>
-              <span className="font-mono font-bold text-ink whitespace-nowrap">
-                {quotaData.usage_gb} GB / {quotaData.limit_gb ? `${quotaData.limit_gb} GB` : "Unlimited"}{" "}
-                <span className="text-ink-muted font-normal">({quotaData.usage_percent}%)</span>
-              </span>
-            </div>
+          (() => {
+            const pgBytes = quotaData.papergrade_bytes || 0;
+            const pgFiles = quotaData.papergrade_files_count || 0;
+            const totalPct = Math.min(100, quotaData.usage_percent || 0);
+            const rawOtherPct =
+              typeof quotaData.other_percent === "number" ? quotaData.other_percent : totalPct;
+            const rawPgPct =
+              typeof quotaData.papergrade_percent === "number" ? quotaData.papergrade_percent : 0;
 
-            <div
-              className="w-full h-2.5 rounded-full bg-ink/[0.08] dark:bg-white/[0.08] ring-1 ring-inset ring-hairline overflow-hidden"
-              role="progressbar"
-              aria-valuenow={Math.round(quotaData.usage_percent)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Personal Google Drive Storage Usage"
-            >
-              <div
-                className={`h-full rounded-full animate-quota-bar transition-[width] duration-500 ease-out ${
-                  quotaData.is_critical
-                    ? "bg-red-500"
-                    : quotaData.is_near_full
-                    ? "bg-amber-500"
-                    : "bg-emerald-500"
-                }`}
-                style={{ width: `${Math.min(100, Math.max(3, quotaData.usage_percent))}%` }}
-              />
-            </div>
+            // Ensure PaperGrade AI segment renders a clear visible partition whenever any PaperGrade files exist
+            const pgBarPct =
+              pgBytes > 0 ? Math.min(totalPct || 100, Math.max(2.5, rawPgPct)) : 0;
+            const otherBarPct = Math.max(
+              0,
+              Math.min(100 - pgBarPct, pgBytes > 0 ? Math.max(0, totalPct - pgBarPct) : rawOtherPct)
+            );
+            const freeGb =
+              quotaData.limit_gb != null && quotaData.usage_gb != null
+                ? Math.max(0, quotaData.limit_gb - quotaData.usage_gb).toFixed(2)
+                : null;
+            const pgLabel =
+              pgBytes >= 1024 ** 3
+                ? `${(pgBytes / 1024 ** 3).toFixed(2)} GB`
+                : `${quotaData.papergrade_mb ?? 0} MB`;
 
-            {quotaData.is_near_full && (
-              <div
-                className={`flex items-start gap-2 p-2.5 rounded-md text-xs leading-snug ${
-                  quotaData.is_critical
-                    ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40"
-                    : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40"
-                }`}
-              >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>
-                  {quotaData.is_critical
-                    ? "Your Google Drive storage is critically full (>95%). Please free up space so evaluated answer scripts can continue archiving."
-                    : "Your Google Drive storage is nearly full (>85%). Free up some space for uninterrupted automatic backups."}
-                </span>
+            return (
+              <div className="space-y-2.5 p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                  <span className="font-medium text-ink-secondary flex items-center gap-1.5">
+                    <HardDrive className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                    <span>Personal Google Drive Storage</span>
+                  </span>
+                  <span className="font-mono font-bold text-ink whitespace-nowrap">
+                    {quotaData.usage_gb} GB /{" "}
+                    {quotaData.limit_gb ? `${quotaData.limit_gb} GB` : "Unlimited"}{" "}
+                    <span className="text-ink-muted font-normal">({quotaData.usage_percent}%)</span>
+                  </span>
+                </div>
+
+                {/* Partitioned Stacked Progress Bar: Other Google Storage | PaperGrade AI */}
+                <div
+                  className="w-full h-2.5 rounded-full bg-ink/[0.08] dark:bg-white/[0.08] ring-1 ring-inset ring-hairline overflow-hidden flex items-stretch"
+                  role="progressbar"
+                  aria-valuenow={Math.round(quotaData.usage_percent)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Personal Google Drive Storage Usage"
+                >
+                  {otherBarPct > 0 && (
+                    <div
+                      className={`h-full animate-quota-bar transition-[width] duration-500 ease-out ${
+                        quotaData.is_critical
+                          ? "bg-red-500"
+                          : quotaData.is_near_full
+                          ? "bg-amber-500"
+                          : "bg-slate-400 dark:bg-slate-500"
+                      }`}
+                      style={{ width: `${otherBarPct}%` }}
+                      title={`Other Google Storage: ${quotaData.other_gb ?? quotaData.usage_gb} GB`}
+                    />
+                  )}
+                  {pgBarPct > 0 && (
+                    <div
+                      className={`h-full animate-quota-bar bg-primary transition-[width] duration-500 ease-out ${
+                        otherBarPct > 0 ? "border-l border-surface" : ""
+                      }`}
+                      style={{ width: `${pgBarPct}%` }}
+                      title={`PaperGrade AI Backups: ${pgLabel} (${pgFiles} files)`}
+                    />
+                  )}
+                </div>
+
+                {/* Color-coded Storage Partition Legend */}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-ink-muted">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className={`h-2 w-2 rounded-full shrink-0 ${
+                          quotaData.is_critical
+                            ? "bg-red-500"
+                            : quotaData.is_near_full
+                            ? "bg-amber-500"
+                            : "bg-slate-400 dark:bg-slate-500"
+                        }`}
+                      />
+                      <span>
+                        Other:{" "}
+                        <strong className="font-mono text-ink-secondary">
+                          {quotaData.other_gb ?? quotaData.usage_gb} GB
+                        </strong>
+                      </span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                      <span>
+                        PaperGrade:{" "}
+                        <strong className="font-mono text-primary">{pgLabel}</strong>
+                        <span className="opacity-75 ml-1">
+                          ({pgFiles} {pgFiles === 1 ? "file" : "files"})
+                        </span>
+                      </span>
+                    </span>
+                  </div>
+                  {freeGb !== null && (
+                    <span className="font-mono text-[10.5px] text-ink-faint">
+                      {freeGb} GB free
+                    </span>
+                  )}
+                </div>
+
+                {quotaData.is_near_full && (
+                  <div
+                    className={`flex items-start gap-2 p-2.5 rounded-md text-xs leading-snug ${
+                      quotaData.is_critical
+                        ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40"
+                        : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40"
+                    }`}
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      {quotaData.is_critical
+                        ? "Your Google Drive storage is critically full (>95%). Please free up space so evaluated answer scripts can continue archiving."
+                        : "Your Google Drive storage is nearly full (>85%). Free up some space for uninterrupted automatic backups."}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()
         ) : null}
 
         {/* Action Buttons for Linking / Disconnecting */}
@@ -645,7 +835,7 @@ function SettingsContent() {
         </div>
       </FeatureCard>
 
-      {/* 3. Security & Session Actions */}
+      {/* 3. Password Security */}
       <FeatureCard className="p-5 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -667,28 +857,164 @@ function SettingsContent() {
             </button>
           )}
         </div>
+      </FeatureCard>
 
-        <div className="pt-4 border-t border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h4 className="text-xs font-bold text-ink">Active Session</h4>
-            <p className="text-[11px] text-ink-muted">
-              Sign out from this browser or PWA installation.
+      {/* 4. Active Sessions & Devices */}
+      <FeatureCard className="p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-ink">Active Sessions & Devices</h3>
+              {!sessionsInitialLoading && (
+                <BadgePill
+                  label={`${sessions.length || 1} Active`}
+                  color="sky"
+                />
+              )}
+            </div>
+            <p className="text-xs text-ink-muted">
+              Browsers and installed PWAs currently signed in to your account (valid up to 7 days).
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100/80 dark:hover:bg-red-900/30 text-xs font-semibold transition-all cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-wait"
-          >
-            {signingOut ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4" />
-            )}
-            <span>{signingOut ? "Signing Out..." : "Sign Out"}</span>
-          </button>
+
+          {otherSessionCount > 0 && (
+            <ButtonUtility
+              size="sm"
+              variant="danger"
+              onClick={handleRevokeOtherSessions}
+              isLoading={revokingOthers}
+              className="self-start sm:self-center shrink-0 text-xs"
+            >
+              {revokingOthers ? "Signing Out..." : "Sign Out Other Devices"}
+            </ButtonUtility>
+          )}
         </div>
+
+        {sessionsInitialLoading && sessions.length === 0 ? (
+          <div className="space-y-2.5">
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="p-3.5 rounded-lg border border-hairline bg-canvas-soft flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-lg bg-surface border border-hairline flex items-center justify-center text-ink-muted shrink-0">
+                <Monitor className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-ink">Current Browser Session</span>
+                  <BadgePill label="This Device" color="green" />
+                </div>
+                <p className="text-[11px] text-ink-muted mt-0.5">
+                  Authenticated session active on this device. Re-signing in upgrades this token with full device telemetry.
+                </p>
+              </div>
+            </div>
+            <ButtonUtility
+              size="sm"
+              variant="danger"
+              onClick={handleSignOut}
+              isLoading={signingOut}
+              icon={<LogOut className="h-3.5 w-3.5" />}
+              className="self-end sm:self-center shrink-0 text-xs"
+            >
+              {signingOut ? "Signing Out..." : "Sign Out"}
+            </ButtonUtility>
+          </div>
+        ) : (
+          <div className="divide-y divide-hairline rounded-lg border border-hairline overflow-hidden bg-surface">
+            {sessions.map((sess) => {
+              const lowerLabel = (sess.device_label || "").toLowerCase();
+              const isPhone =
+                lowerLabel.includes("iphone") || lowerLabel.includes("android");
+              const isTablet = lowerLabel.includes("ipad");
+              const DeviceIcon = isTablet
+                ? Tablet
+                : isPhone
+                ? Smartphone
+                : Monitor;
+
+              const isRevokingThis = revokingSessionId === sess.id;
+
+              return (
+                <div
+                  key={sess.id}
+                  className="p-3.5 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-canvas-soft/40 transition-colors"
+                >
+                  <div className="flex items-start sm:items-center gap-3 min-w-0">
+                    <div
+                      className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${
+                        sess.is_current
+                          ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400"
+                          : "bg-canvas-soft border-hairline text-ink-muted"
+                      }`}
+                    >
+                      <DeviceIcon className="h-4 w-4" />
+                    </div>
+
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold text-ink truncate">
+                          {sess.device_label}
+                        </span>
+                        {sess.is_current && (
+                          <BadgePill label="This Device" color="green" />
+                        )}
+                        <span className="px-1.5 py-0.5 rounded bg-canvas-soft border border-hairline text-[10px] font-medium text-ink-secondary">
+                          {formatAuthMethodLabel(sess.auth_method)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap text-[11px] text-ink-muted">
+                        <span className="inline-flex items-center gap-1 font-medium text-ink-secondary">
+                          {formatRelativeTime(sess.last_active_at)}
+                        </span>
+                        {sess.ip_address && (
+                          <>
+                            <span className="text-ink-faint">•</span>
+                            <span className="inline-flex items-center gap-1 font-mono text-[10.5px]">
+                              <Globe className="h-3 w-3 text-ink-faint" />
+                              {sess.ip_address}
+                            </span>
+                          </>
+                        )}
+                        {sess.created_at && (
+                          <>
+                            <span className="text-ink-faint">•</span>
+                            <span>Signed in {formatShortDateTime(sess.created_at)}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="self-end sm:self-center shrink-0">
+                    <ButtonUtility
+                      size="sm"
+                      variant={sess.is_current ? "danger" : "default"}
+                      onClick={() =>
+                        handleRevokeSession(sess.id, sess.device_label, sess.is_current)
+                      }
+                      isLoading={sess.is_current ? signingOut : isRevokingThis}
+                      disabled={revokingOthers}
+                      icon={sess.is_current ? <LogOut className="h-3.5 w-3.5" /> : undefined}
+                      className="text-xs"
+                    >
+                      {sess.is_current
+                        ? signingOut
+                          ? "Signing Out..."
+                          : "Sign Out"
+                        : isRevokingThis
+                        ? "Revoking..."
+                        : "Revoke"}
+                    </ButtonUtility>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </FeatureCard>
 
       {/* Initial Password Change Modal */}

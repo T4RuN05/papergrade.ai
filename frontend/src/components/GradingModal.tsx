@@ -1139,17 +1139,16 @@ export function GradingModal({
               onClick={handleSave}
               disabled={isSaving}
               isLoading={isSaving}
+              icon={saveSuccess ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
               size="sm"
               className={`h-8 px-3 sm:px-4 text-xs font-semibold shrink-0 cursor-pointer ${saveSuccess ? "btn-glass-emerald" : ""}`}
             >
-              {saveSuccess ? (
-                <>
-                  <Check className="h-3.5 w-3.5 mr-1" />
-                  <span>Saved!</span>
-                </>
+              {isSaving ? (
+                <span>Saving...</span>
+              ) : saveSuccess ? (
+                <span>Saved!</span>
               ) : (
                 <>
-                  <Save className="h-3.5 w-3.5 mr-1" />
                   <span className="sm:hidden">Save</span>
                   <span className="hidden sm:inline">Save & Update Marks</span>
                 </>

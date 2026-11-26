@@ -70,3 +70,27 @@ class PasswordResetRequest(Base, TimestampMixin):
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
     approver: Mapped[Optional["User"]] = relationship("User", foreign_keys=[approved_by])
 
+
+class UserSession(Base, TimestampMixin):
+    """Persisted multi-device authentication session ledger mapped to JWT `sid` claims."""
+    __tablename__ = "user_sessions"
+    __table_args__ = (
+        Index("idx_user_sessions_user_active", "user_id", "is_revoked", "expires_at"),
+        Index("idx_user_sessions_last_active", "last_active_at"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: f"sess_{uuid.uuid4().hex[:16]}")
+    user_id: Mapped[str] = mapped_column(Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    auth_method: Mapped[str] = mapped_column(Text, nullable=False, default="PASSWORD", server_default="'PASSWORD'")
+    device_label: Mapped[str] = mapped_column(Text, nullable=False, default="Unknown Device")
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_revoked: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    revoked_at: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_active_at: Mapped[str] = mapped_column(Text, nullable=False, default=get_iso_now)
+    expires_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+

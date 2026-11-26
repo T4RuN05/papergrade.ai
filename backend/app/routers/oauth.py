@@ -4,8 +4,10 @@ import hmac
 import hashlib
 import base64
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timezone, timedelta
+import httpx
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Request, Query, BackgroundTasks, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -24,6 +26,7 @@ from backend.app.services.auth import (
     create_access_token,
     invalidate_user_auth_cache,
 )
+from backend.app.services.session_service import create_user_session
 from backend.app.services.google_drive_service import (
     get_google_auth_url,
     exchange_code_for_tokens,
@@ -117,6 +120,219 @@ def _verify_oauth_state(state_encoded: str) -> Dict[str, Any]:
         )
 
 
+def _authenticate_google_login(
+    db: Session,
+    google_sub: str,
+    google_email: str,
+    google_picture: Optional[str],
+    refresh_token: Optional[str] = None,
+    auth_method: str = "GOOGLE_OAUTH",
+    request: Optional[Request] = None,
+) -> Tuple[Optional[User], Optional[str], Optional[str]]:
+    """
+    Resolve an authenticated Google identity to an active PaperGrade User,
+    update linked metadata/Drive refresh token if provided, and mint a 7-day JWT.
+    Returns (user, jwt_token, error_code).
+    """
+    now = get_iso_now()
+    user = db.scalar(select(User).where(User.google_sub == google_sub).limit(1))
+    if not user:
+        user = db.scalar(
+            select(User).where(
+                or_(
+                    func.lower(User.email) == google_email,
+                    func.lower(User.google_email) == google_email,
+                )
+            ).limit(1)
+        )
+
+    if not user:
+        conn_match = db.scalar(
+            select(GoogleStorageConnection).where(
+                or_(
+                    GoogleStorageConnection.google_sub == google_sub,
+                    func.lower(GoogleStorageConnection.google_email) == google_email,
+                )
+            ).limit(1)
+        )
+        if conn_match and conn_match.user_id:
+            user = db.scalar(select(User).where(User.id == conn_match.user_id))
+
+    if not user:
+        student = db.scalar(
+            select(Student).where(func.lower(Student.email) == google_email).limit(1)
+        )
+        if student and student.user_id:
+            user = db.scalar(select(User).where(User.id == student.user_id))
+
+    if not user:
+        return None, None, "unregistered_email"
+
+    if user.is_active != 1:
+        return None, None, "account_deactivated"
+
+    # Security check: do not silently hijack a user already bound to a different Google Sub
+    if user.google_sub and user.google_sub != google_sub:
+        return None, None, "google_account_mismatch"
+
+    # Link identity on first login or refresh profile metadata (email/picture)
+    user.google_sub = google_sub
+    user.google_email = google_email
+    if google_picture:
+        user.google_picture = google_picture
+    if not user.google_linked_at:
+        user.google_linked_at = now
+    user.last_login_at = now
+    user.updated_at = now
+
+    # Update storage connection if Drive refresh_token was included
+    if refresh_token:
+        enc_token = encrypt_token(refresh_token)
+        conn = db.scalar(select(GoogleStorageConnection).where(GoogleStorageConnection.user_id == user.id))
+        if not conn:
+            conn = GoogleStorageConnection(
+                id=f"gconn_{google_sub[:12]}",
+                user_id=user.id,
+                google_sub=google_sub,
+                google_email=google_email,
+                encrypted_refresh_token=enc_token,
+                is_active=1,
+                created_at=now,
+            )
+            db.add(conn)
+        else:
+            conn.google_sub = google_sub
+            conn.google_email = google_email
+            conn.encrypted_refresh_token = enc_token
+            conn.is_active = 1
+            conn.error_state = None
+            conn.updated_at = now
+
+    sess_row = create_user_session(db=db, user=user, auth_method=auth_method, request=request)
+    db.commit()
+    invalidate_user_auth_cache(user.id)
+
+    token_payload = {
+        "sub": user.id,
+        "role": user.role,
+        "email": user.email or user.google_email or "",
+        "full_name": user.full_name or "User",
+        "institute_id": user.institute_id,
+        "branch_id": user.branch_id,
+        "token_version": getattr(user, "token_version", 1) or 1,
+        "sid": sess_row.id,
+    }
+    token = create_access_token(token_payload)
+    return user, token, None
+
+
+class GoogleIdTokenRequest(BaseModel):
+    credential: str
+
+
+@router.get("/config")
+def get_google_client_config():
+    """Return public Google OAuth Client ID so the frontend can render Google Identity Services."""
+    client_id = (settings.GOOGLE_CLIENT_ID or "").strip()
+    return {
+        "enabled": bool(client_id),
+        "client_id": client_id if client_id else None,
+    }
+
+
+@router.post("/verify-id-token")
+async def verify_google_id_token(
+    body: GoogleIdTokenRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Verify a Google Identity Services (GIS) ID Token JWT returned by renderButton / One Tap,
+    resolve the PaperGrade user account, and mint a 7-day JWT session token in-page.
+    """
+    credential = (body.credential or "").strip()
+    if not credential:
+        raise HTTPException(status_code=400, detail="Missing Google ID token credential.")
+
+    client_id = (settings.GOOGLE_CLIENT_ID or "").strip()
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google Sign-In is not configured on this server.")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": credential},
+            )
+        if resp.status_code != 200:
+            logger.warning(f"Google tokeninfo verification failed: {resp.status_code} {resp.text}")
+            raise HTTPException(status_code=401, detail="Invalid or expired Google credential. Please try again.")
+        info = resp.json()
+    except HTTPException:
+        raise
+    except Exception as net_err:
+        logger.error(f"Google tokeninfo network error: {net_err}")
+        raise HTTPException(status_code=502, detail="Could not verify Google credential. Check your network.")
+
+    if info.get("aud") != client_id:
+        logger.warning(f"Google ID token audience mismatch: expected {client_id}, got {info.get('aud')}")
+        raise HTTPException(status_code=401, detail="Google credential audience mismatch.")
+
+    if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(status_code=401, detail="Untrusted Google credential issuer.")
+
+    if str(info.get("email_verified", "")).lower() != "true":
+        raise HTTPException(
+            status_code=403,
+            detail="Your Google account email is not verified. Please use a verified Google account.",
+        )
+
+    google_sub = (info.get("sub") or "").strip()
+    google_email = (info.get("email") or "").lower().strip()
+    google_picture = info.get("picture")
+    if not google_sub or not google_email:
+        raise HTTPException(status_code=401, detail="Incomplete Google identity payload.")
+
+    user, token, err_code = _authenticate_google_login(
+        db=db,
+        google_sub=google_sub,
+        google_email=google_email,
+        google_picture=google_picture,
+        auth_method="GOOGLE_GIS",
+        request=request,
+    )
+
+    if err_code == "unregistered_email":
+        raise HTTPException(
+            status_code=404,
+            detail=f"No account found matching {google_email}. Please activate your account first or link Google inside Account Settings.",
+        )
+    if err_code == "account_deactivated":
+        raise HTTPException(
+            status_code=403,
+            detail="This account has been deactivated. Please contact your branch administrator.",
+        )
+    if err_code == "google_account_mismatch":
+        raise HTTPException(
+            status_code=409,
+            detail="This PaperGrade account is already linked to a different Google account. Please sign in with that linked Google account or use your password.",
+        )
+
+    if not user or not token:
+        raise HTTPException(status_code=500, detail="Could not complete Google authentication.")
+
+    return {
+        "status": "success",
+        "access_token": token,
+        "role": user.role,
+        "full_name": user.full_name or "User",
+        "branch_id": user.branch_id or "",
+        "institute_id": user.institute_id or "",
+        "google_email": google_email,
+        "google_picture": google_picture or "",
+    }
+
+
 @router.get("/authorize")
 def authorize_google(
     mode: str = Query("login", pattern="^(login|link|byos)$"),
@@ -162,6 +378,7 @@ def authorize_google(
 
 @router.get("/callback")
 async def google_oauth_callback(
+    request: Request,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
@@ -294,99 +511,28 @@ async def google_oauth_callback(
             return RedirectResponse(url=f"{frontend_base}{return_to}?{query_suffix}")
 
         # 3b. Mode: Login (1-Click Google Sign-In)
-        # First prefer exact Google Sub match; otherwise match email only if account has no conflicting Google Sub
-        user = db.scalar(select(User).where(User.google_sub == google_sub).limit(1))
-        if not user:
-            user = db.scalar(
-                select(User).where(
-                    or_(
-                        func.lower(User.email) == google_email,
-                        func.lower(User.google_email) == google_email,
-                    )
-                ).limit(1)
-            )
+        user, token, err_code = _authenticate_google_login(
+            db=db,
+            google_sub=google_sub,
+            google_email=google_email,
+            google_picture=google_picture,
+            refresh_token=refresh_token,
+            auth_method="GOOGLE_OAUTH",
+            request=request,
+        )
 
-        if not user:
-            conn_match = db.scalar(
-                select(GoogleStorageConnection).where(
-                    or_(
-                        GoogleStorageConnection.google_sub == google_sub,
-                        func.lower(GoogleStorageConnection.google_email) == google_email,
-                    )
-                ).limit(1)
-            )
-            if conn_match and conn_match.user_id:
-                user = db.scalar(select(User).where(User.id == conn_match.user_id))
-
-        if not user:
-            student = db.scalar(
-                select(Student).where(func.lower(Student.email) == google_email).limit(1)
-            )
-            if student and student.user_id:
-                user = db.scalar(select(User).where(User.id == student.user_id))
-
-        if not user:
+        if err_code == "unregistered_email":
             from urllib.parse import urlencode
             err_params = urlencode({"oauth_error": "unregistered_email", "email": google_email})
-            return RedirectResponse(
-                url=f"{frontend_base}/auth/login?{err_params}"
-            )
+            return RedirectResponse(url=f"{frontend_base}/auth/login?{err_params}")
 
-        if user.is_active != 1:
+        if err_code == "account_deactivated":
             return RedirectResponse(url=f"{frontend_base}/auth/login?oauth_error=account_deactivated")
 
-        # Security check: do not silently hijack a user already bound to a different Google Sub
-        if user.google_sub and user.google_sub != google_sub:
+        if err_code == "google_account_mismatch":
             from urllib.parse import urlencode
             err_params = urlencode({"oauth_error": "google_account_mismatch", "email": google_email})
             return RedirectResponse(url=f"{frontend_base}/auth/login?{err_params}")
-
-        # Link identity on first login or refresh profile metadata (email/picture)
-        user.google_sub = google_sub
-        user.google_email = google_email
-        user.google_picture = google_picture
-        if not user.google_linked_at:
-            user.google_linked_at = now
-        user.last_login_at = now
-        user.updated_at = now
-
-        # Update storage connection if Drive refresh_token was included
-        if refresh_token:
-            enc_token = encrypt_token(refresh_token)
-            conn = db.scalar(select(GoogleStorageConnection).where(GoogleStorageConnection.user_id == user.id))
-            if not conn:
-                conn = GoogleStorageConnection(
-                    id=f"gconn_{google_sub[:12]}",
-                    user_id=user.id,
-                    google_sub=google_sub,
-                    google_email=google_email,
-                    encrypted_refresh_token=enc_token,
-                    is_active=1,
-                    created_at=now,
-                )
-                db.add(conn)
-            else:
-                conn.google_sub = google_sub
-                conn.google_email = google_email
-                conn.encrypted_refresh_token = enc_token
-                conn.is_active = 1
-                conn.error_state = None
-                conn.updated_at = now
-
-        db.commit()
-        invalidate_user_auth_cache(user.id)
-
-        # Issue 7-Day JWT Token
-        token_payload = {
-            "sub": user.id,
-            "role": user.role,
-            "email": user.email or user.google_email or "",
-            "full_name": user.full_name,
-            "institute_id": user.institute_id,
-            "branch_id": user.branch_id,
-            "token_version": getattr(user, "token_version", 1) or 1,
-        }
-        token = create_access_token(token_payload)
 
         # Redirect user back to their exact frontend origin with user metadata
         from urllib.parse import urlencode

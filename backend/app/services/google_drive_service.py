@@ -184,44 +184,90 @@ def revoke_google_token_sync(encrypted_refresh_token: str) -> bool:
 
 async def get_google_drive_storage_quota(encrypted_refresh_token: str) -> Dict[str, Any]:
     """
-    Fetches the user's Google Drive storage quota using their decrypted refresh token.
-    Calls: GET https://www.googleapis.com/drive/v3/about?fields=storageQuota,user
-    Returns usage in bytes, limit in bytes, usage percent, and warning flags.
+    Fetches the user's Google Drive storage quota AND sums the footprint of files
+    created by PaperGrade AI (visible via drive.file scope) so the UI can show
+    a partitioned bar (Other Google Storage vs PaperGrade AI Backups).
     """
     access_token = await refresh_google_access_token(encrypted_refresh_token)
     headers = {"Authorization": f"Bearer {access_token}"}
-    url = f"{GOOGLE_DRIVE_API_BASE}/about?fields=storageQuota,user"
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(url, headers=headers)
+    about_url = f"{GOOGLE_DRIVE_API_BASE}/about?fields=storageQuota,user"
+
+    papergrade_bytes = 0
+    papergrade_files_count = 0
+
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        resp = await client.get(about_url, headers=headers)
         if resp.status_code != 200:
             logger.error(f"Failed to fetch Google Drive storage quota: {resp.status_code} {resp.text}")
             raise ValueError(f"Drive quota query failed: {resp.text}")
         data = resp.json()
+
+        # Under drive.file scope, files.list returns ONLY non-folder files created/opened by PaperGrade AI
+        try:
+            page_token: Optional[str] = None
+            for _ in range(5):  # Guard max 5 pages (5,000 files)
+                params: Dict[str, Any] = {
+                    "q": "mimeType != 'application/vnd.google-apps.folder' and trashed = false",
+                    "fields": "nextPageToken,files(id,size)",
+                    "pageSize": 1000,
+                }
+                if page_token:
+                    params["pageToken"] = page_token
+                files_resp = await client.get(f"{GOOGLE_DRIVE_API_BASE}/files", params=params, headers=headers)
+                if files_resp.status_code != 200:
+                    break
+                f_data = files_resp.json()
+                for f_item in f_data.get("files", []):
+                    papergrade_files_count += 1
+                    try:
+                        papergrade_bytes += int(f_item.get("size") or 0)
+                    except (TypeError, ValueError):
+                        pass
+                page_token = f_data.get("nextPageToken")
+                if not page_token:
+                    break
+        except Exception as list_err:
+            logger.warning(f"Failed computing PaperGrade Drive footprint (non-fatal): {list_err}")
+
         quota = data.get("storageQuota", {})
 
         limit_bytes = int(quota.get("limit", 0)) if quota.get("limit") is not None else 0
         usage_bytes = int(quota.get("usage", 0)) if quota.get("usage") is not None else 0
         usage_in_drive = int(quota.get("usageInDrive", 0)) if quota.get("usageInDrive") is not None else 0
+        other_bytes = max(0, usage_bytes - papergrade_bytes)
 
-        # Calculate percentages and gigabytes
+        # Calculate percentages and readable units
         if limit_bytes > 0:
             usage_percent = round((usage_bytes / limit_bytes) * 100, 1)
+            papergrade_percent = round((papergrade_bytes / limit_bytes) * 100, 3)
+            other_percent = round((other_bytes / limit_bytes) * 100, 1)
             limit_gb = round(limit_bytes / (1024 ** 3), 2)
         else:
             usage_percent = 0.0
+            papergrade_percent = 0.0
+            other_percent = 0.0
             limit_gb = None  # Unlimited (e.g. Google Workspace pooled storage)
 
         usage_gb = round(usage_bytes / (1024 ** 3), 2)
         usage_in_drive_gb = round(usage_in_drive / (1024 ** 3), 2)
+        other_gb = round(other_bytes / (1024 ** 3), 2)
+        papergrade_mb = round(papergrade_bytes / (1024 ** 2), 2)
 
         return {
             "limit_bytes": limit_bytes,
             "usage_bytes": usage_bytes,
             "usage_in_drive_bytes": usage_in_drive,
+            "papergrade_bytes": papergrade_bytes,
+            "other_bytes": other_bytes,
+            "papergrade_files_count": papergrade_files_count,
             "limit_gb": limit_gb,
             "usage_gb": usage_gb,
             "usage_in_drive_gb": usage_in_drive_gb,
+            "other_gb": other_gb,
+            "papergrade_mb": papergrade_mb,
             "usage_percent": usage_percent,
+            "other_percent": other_percent,
+            "papergrade_percent": papergrade_percent,
             "is_near_full": bool(limit_bytes > 0 and usage_percent >= 85.0),
             "is_critical": bool(limit_bytes > 0 and usage_percent >= 95.0),
         }
@@ -434,6 +480,7 @@ async def sync_published_submission_to_google_drive(
 
     exam = db.scalar(select(Exam).where(Exam.id == submission.exam_id)) if submission.exam_id else None
     exam_title = exam.title if exam else "General Examination"
+    exam_subject = getattr(exam, "subject", None) if exam else None
 
     # Check connection
     conn = db.scalar(
@@ -522,27 +569,30 @@ async def sync_published_submission_to_google_drive(
 
         pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
 
-        # 3. Create/resolve folder hierarchy in student's Google Drive
+        # 3. Create/resolve flat subject-based folder hierarchy: 'PaperGrade AI / <Subject>'
         root_id = await ensure_drive_folder(access_token, "PaperGrade AI")
-        year_str = str(now_dt.year)
-        year_id = await ensure_drive_folder(access_token, year_str, parent_id=root_id)
-        month_str = now_dt.strftime("%B")
-        month_id = await ensure_drive_folder(access_token, month_str, parent_id=year_id)
-        clean_exam_title = "".join(c for c in exam_title if c.isalnum() or c in (" ", "-", "_")).strip() or "Examination"
-        exam_id_dir = await ensure_drive_folder(access_token, clean_exam_title, parent_id=month_id)
+        clean_subject = (
+            "".join(c for c in (exam_subject or "") if c.isalnum() or c in (" ", "-", "_")).strip()
+            or "General"
+        )
+        subject_dir_id = await ensure_drive_folder(access_token, clean_subject, parent_id=root_id)
 
-        # 4. Upload PDF (check folder first to avoid duplicate files)
+        # 4. Upload PDF directly inside subject folder (avoid duplicate files)
+        clean_exam_title = (
+            "".join(c for c in exam_title if c.isalnum() or c in (" ", "-", "_")).strip()
+            or "Examination"
+        )
         roll_clean = (student.roll_number or "Student").replace("/", "-")
-        target_filename = f"{roll_clean}_{clean_exam_title}_Graded_v1.pdf"
+        target_filename = f"{roll_clean}_{clean_exam_title}_Graded.pdf"
 
-        existing_drive_file = await find_drive_file_in_folder(access_token, exam_id_dir, target_filename)
+        existing_drive_file = await find_drive_file_in_folder(access_token, subject_dir_id, target_filename)
         if existing_drive_file:
             drive_file_id = existing_drive_file.get("id")
             drive_link = existing_drive_file.get("webViewLink")
         else:
             upload_meta = await upload_pdf_to_drive(
                 access_token=access_token,
-                folder_id=exam_id_dir,
+                folder_id=subject_dir_id,
                 file_name=target_filename,
                 pdf_bytes=pdf_bytes,
             )

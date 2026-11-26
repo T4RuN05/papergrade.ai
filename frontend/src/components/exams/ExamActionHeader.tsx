@@ -159,13 +159,15 @@ export function ExamActionHeader({
                     onClick={onStartEvaluation}
                     disabled={!canStartEvaluation || isStartingEval}
                     isLoading={isStartingEval}
+                    icon={<Play className="h-3.5 w-3.5" />}
                     title={evaluationDisabledReason}
                     className="text-xs shadow-xs"
                   >
-                    <Play className="h-3.5 w-3.5 mr-1.5" />
-                    {hasFailedPapers
-                      ? `Retry Evaluation (${unprocessedCount})`
-                      : `Start Evaluation (${unprocessedCount})`}
+                    {isStartingEval
+                      ? "Starting Evaluation..."
+                      : hasFailedPapers
+                        ? `Retry Evaluation (${unprocessedCount})`
+                        : `Start Evaluation (${unprocessedCount})`}
                   </ButtonPrimary>
                 )}
 
@@ -180,22 +182,24 @@ export function ExamActionHeader({
                     <ButtonPrimary
                       size="sm"
                       onClick={onTogglePublish}
+                      isLoading={isPublishing}
+                      icon={<Globe className="h-3.5 w-3.5" />}
                       disabled={isPublishing || (totalSubmissions !== undefined && totalSubmissions === 0)}
                       title={totalSubmissions === 0 ? "Submissions must be ingested before publishing results" : undefined}
                       className="text-xs"
                     >
-                      <Globe className="h-3.5 w-3.5 mr-1.5" />
                       {isPublishing ? "Publishing..." : "Publish Results"}
                     </ButtonPrimary>
                   ) : (
                     <ButtonUtility
                       size="sm"
                       onClick={onTogglePublish}
+                      isLoading={isPublishing}
+                      icon={<Globe className="h-3.5 w-3.5" />}
                       disabled={isPublishing}
                       className="text-xs"
                       title="Publish currently graded results"
                     >
-                      <Globe className="h-3.5 w-3.5 mr-1.5" />
                       {isPublishing ? "Publishing..." : "Publish Results"}
                     </ButtonUtility>
                   )

@@ -14,7 +14,17 @@ export interface ScreenshotSlot {
 export interface DocStep {
   title: string;
   description: string;
-  uiPills?: Array<{ label: string; variant?: "primary" | "utility" | "danger" | "status-green" | "status-amber" | "status-orange" | "field" }>;
+  uiPills?: Array<{
+    label: string;
+    variant?:
+      | "primary"
+      | "utility"
+      | "danger"
+      | "status-green"
+      | "status-amber"
+      | "status-orange"
+      | "field";
+  }>;
   note?: string;
   noteType?: "tip" | "important" | "warning";
   screenshot?: ScreenshotSlot;
@@ -24,7 +34,7 @@ export interface DocArticle {
   id: string;
   slug: string;
   role: RoleId;
-  guideCode: string; // e.g. "S-01", "F-04"
+  guideCode: string;
   title: string;
   summary: string;
   readTimeMinutes: number;
@@ -49,7 +59,8 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
     id: "student",
     label: "Student Manual",
     badge: "Students",
-    description: "App installation, scanning with camera, uploading answer sheets, reading marked papers, standings, and appeals.",
+    description:
+      "App installation, signing in, camera scanning, results & standings, revaluations, password recovery, active devices, and Google Drive backup.",
     iconName: "GraduationCap",
     articles: [
       {
@@ -57,84 +68,112 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "pwa-and-account-claim",
         role: "student",
         guideCode: "S-01",
-        title: "Installing the App on Your Phone & First-Time Account Setup",
-        summary: "How to add PaperGrade to your home screen for full-screen camera use and activate your account using your Roll Number.",
-        readTimeMinutes: 3,
+        title: "Installing the App, Claiming Your ID & Signing In",
+        summary:
+          "How to add PaperGrade to your phone home screen, activate your student account for the first time, and sign in with your password or Google.",
+        readTimeMinutes: 4,
         lastUpdated: "November 2026",
         screenshotSlot: {
           suggestedPath: "/docs/student/welcome-portal.png",
-          caption: "Figure 1.1: PaperGrade mobile portal landing page with Student Portal and Claim Student ID options.",
+          caption:
+            "Figure 1.1: PaperGrade portal welcome screen with sign-in and account activation options.",
           pins: [
-            { number: 1, label: "PaperGrade logo & header bar" },
+            { number: 1, label: "PaperGrade header & navigation" },
             { number: 2, label: "Student Portal sign-in button" },
             { number: 3, label: "Claim Student ID activation button" },
           ],
         },
-        overview: "PaperGrade is designed as an installable app for your phone. Installing it gives you quick one-tap access from your home screen, prevents accidental browser tab closures during exams, and enables full-screen document scanning with your camera.",
+        overview:
+          "Installing PaperGrade on your phone gives you one-tap access from your home screen, full-screen camera scanning during exams, and keeps you signed in for 7 days so you are ready before every test starts.",
         steps: [
           {
             title: "1. Install on iPhone or iPad (Safari)",
-            description: "Open the exam portal link in Safari. Tap the Share icon (the square with an arrow pointing upward at the bottom of the screen). Scroll down the share sheet and tap 'Add to Home Screen'. Tap 'Add' in the top right corner. The PaperGrade icon will now appear on your home screen.",
-            note: "Always use Safari on iOS for the initial installation. Chrome on iOS does not support full home-screen app mode.",
+            description:
+              "Open the PaperGrade link in Safari and tap the Share icon at the bottom of the screen. Scroll down and tap 'Add to Home Screen', then tap 'Add' in the top-right corner to place the PaperGrade icon on your home screen.",
+            note: "Always use Safari on iPhone or iPad for installation so home-screen mode and camera permissions work smoothly.",
             noteType: "tip",
             screenshot: {
               suggestedPath: "/docs/student/ios-install-banner.png",
-              caption: "In-app install banner on iOS Safari with step-by-step instructions to Add to Home Screen.",
+              caption:
+                "Step-by-step instructions to add PaperGrade to your iPhone home screen.",
               pins: [
-                { number: 1, label: "Install PaperGrade on iPhone alert banner" },
-                { number: 2, label: "Step 1: Tap Safari Share button" },
-                { number: 3, label: "Step 2: Tap Add to Home Screen" },
-                { number: 4, label: "Step 3: Tap Add in top-right corner" },
+                { number: 1, label: "Install PaperGrade on iPhone banner" },
+                { number: 2, label: "Tap Safari Share button" },
+                { number: 3, label: "Tap Add to Home Screen" },
+                { number: 4, label: "Tap Add in top-right corner" },
               ],
             },
           },
           {
             title: "2. Install on Android (Chrome)",
-            description: "Open the portal link in Google Chrome. Tap the 'Install App' banner that appears at the top or bottom of the screen. If you do not see the banner, tap the three dots in the top-right corner and select 'Install app' (or 'Add to Home screen'). Confirm by tapping 'Install'.",
-            noteType: "tip",
+            description:
+              "Open PaperGrade in Google Chrome and accept the 'Install App' prompt—or go to the Student sign-in tab and tap 'Install Student App on this Device' below the sign-in form.",
+            uiPills: [
+              { label: "Install Student App on this Device", variant: "utility" },
+            ],
+            note: "Your login stays active for 7 days. Sign in before reaching your exam classroom so you can start scanning right away.",
+            noteType: "important",
           },
           {
-            title: "3. Open the App & Choose 'Claim Account'",
-            description: "Launch PaperGrade from your home screen. At the top of the sign-in box, you will see three tabs: [ Student ], [ Faculty / Staff ], and [ Claim Account ]. Tap [ Claim Account ].",
-            uiPills: [{ label: "Claim Account", variant: "utility" }],
+            title: "3. Activate a New Student Account (First Time Only)",
+            description:
+              "On the sign-in screen, switch to 'Claim Account'. Enter your institute Roll Number (or Student ID) and tap 'Verify & Check Status'. Set a personal password of at least 8 characters, confirm it, and tap 'Claim Account & Sign In'.",
+            uiPills: [
+              { label: "Claim Account", variant: "utility" },
+              { label: "Verify & Check Status", variant: "primary" },
+              { label: "Password", variant: "field" },
+              { label: "Confirm Password", variant: "field" },
+              { label: "Claim Account & Sign In", variant: "primary" },
+            ],
+            note: "You only claim your account once when joining. Afterwards, sign in directly on the Student tab.",
+            noteType: "warning",
             screenshot: {
               suggestedPath: "/docs/student/account-claim.png",
-              caption: "First-time account claim tab with Roll Number and password setup.",
+              caption:
+                "Roll Number verification screen for activating your student account.",
               pins: [
-                { number: 1, label: "Claim Account navigation tab" },
-                { number: 2, label: "Institute Roll Number input box" },
-                { number: 3, label: "Password creation (min 8 characters)" },
+                { number: 1, label: "Claim Account tab" },
+                { number: 2, label: "Roll Number / Student ID input" },
+                { number: 3, label: "Verify & Check Status button" },
               ],
             },
           },
           {
-            title: "4. Enter Your Roll Number & Set Password",
-            description: "Type your official Roll Number provided by your institute (for example: C25-BVI-001) in the < Institute Roll Number > box. Enter a secure password (at least 8 characters) in < Create Password >, and repeat it in < Confirm Password >.",
+            title: "4. Sign In with Password or Google",
+            description:
+              "On the Student tab, sign in with your Roll Number or Email and password via 'Sign In to Student Portal', or tap the Google button ('Continue with Google') if your email matches your student profile or linked Google account.",
             uiPills: [
-              { label: "Institute Roll Number", variant: "field" },
-              { label: "Create Password", variant: "field" },
+              { label: "Sign In to Student Portal", variant: "primary" },
+              { label: "Continue with Google", variant: "utility" },
             ],
-          },
-          {
-            title: "5. Activate & Sign In",
-            description: "Tap [ Claim Account & Sign In ]. You will see a green confirmation saying 'Account Claimed Successfully!' and be automatically logged into your Student Portal dashboard. For future logins, use the regular Student Sign-In tab with your roll number and password.",
-            uiPills: [{ label: "Claim Account & Sign In", variant: "primary" }],
-            note: "Remember your password. For all future sign-ins, use the [ Student ] tab with your Roll Number and password.",
-            noteType: "important",
             screenshot: {
               suggestedPath: "/docs/student/account-claim-success.png",
-              caption: "Account Claimed Successfully confirmation screen confirming your account is now active.",
-              pins: [
-                { number: 1, label: "Account Claimed Successfully notification" },
-                { number: 2, label: "Active status message" },
-              ],
+              caption:
+                "Account activation confirmation leading directly to your Student Portal.",
+            },
+          },
+          {
+            title: "5. Notifications & Menu Navigation",
+            description:
+              "Once signed in, use the Bell icon in the top bar to view announcements and your Profile Avatar to open Account Settings (where you can manage Google Drive backup, signed-in devices, and Sign Out). When asked, tap 'Enable Device Notifications' to get phone alerts whenever exam windows open or results are published.",
+            uiPills: [{ label: "Enable Device Notifications", variant: "primary" }],
+            screenshot: {
+              suggestedPath: "/docs/student/student-navigation-drawer.png",
+              caption:
+                "Mobile menu providing quick access to your Portal, Revaluations, Notifications, Account Settings, and User Manual.",
             },
           },
         ],
         faq: [
           {
-            question: "What if the app says 'Roll number not found or already claimed'?",
-            answer: "Check that you typed your roll number with correct dashes and capital letters. If your account was already activated earlier, simply switch to the [ Student ] tab and sign in. If you forgot your password, use the 'Forgot password?' link.",
+            question: "What does 'Already Claimed' mean when trying to Claim Account?",
+            answer:
+              "Your Roll Number already has a password. Switch to the Student tab to sign in—or tap 'Forgot password?' to reset it.",
+          },
+          {
+            question: "Why didn't Google Sign-In recognize my Gmail address?",
+            answer:
+              "If your Google email is different from the email registered with your institute, sign in with your Roll Number first and link your Google account inside Account Settings.",
           },
         ],
       },
@@ -143,86 +182,71 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "taking-exams-and-scanning",
         role: "student",
         guideCode: "S-02",
-        title: "Taking Exams, Camera Scanning & Replacing Answer Sheets",
-        summary: "Step-by-step instructions for clicking clean photos of handwritten pages, rearranging pages, and uploading your answer sheet.",
-        readTimeMinutes: 5,
+        title: "Taking Live Exams & Scanning Answer Sheets",
+        summary:
+          "How to choose an active exam window, photograph handwritten answer pages clearly, reorder sheets, and submit or replace your paper before the deadline.",
+        readTimeMinutes: 4,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/student/active-exam-camera.gif",
-          caption: "Figure 1.2: Animated demonstration of the live exam submission screen, camera scanning, and page reordering.",
-          pins: [
-            { number: 1, label: "Live submission countdown timer" },
-            { number: 2, label: "Scan Page (Camera) button" },
-            { number: 3, label: "Page thumbnails with drag-and-drop reordering" },
-            { number: 4, label: "Replace Answer Sheet button" },
-          ],
-        },
-        overview: "When an examination is in progress, your Student Portal shows an active exam card with a live countdown timer. You can take photos of your handwritten sheets one by one directly inside the app, check thumbnail order, and submit with a single tap.",
+        overview:
+          "Whenever your teacher opens an exam submission window for your batch or branch, an active upload card appears right at the top of your Student Portal.",
         steps: [
           {
-            title: "1. Locate the Active Exam Card",
-            description: "Sign into PaperGrade on your phone. Under 'Active Examinations', you will see your scheduled exam marked with a pulsing green badge: 'ACTIVE NOW'. A real-time countdown timer shows exactly how many minutes remain before the submission window closes.",
-          },
-          {
-            title: "2. Click Photos with the In-App Camera",
-            description: "Tap [ Scan Page (Camera) ]. Your phone camera opens inside PaperGrade. Hold your phone flat over page 1 in good room light, make sure all four corners are visible, and tap the shutter button. The page appears as thumbnail #1. Repeat for page 2, page 3, up to page 15.",
-            uiPills: [{ label: "Scan Page (Camera)", variant: "primary" }],
-            note: "Place your answer sheet on a flat table under bright light. Avoid casting hand or phone shadows over your handwriting.",
-            noteType: "tip",
+            title: "1. Find Your Active Exam Window",
+            description:
+              "Open the Student Portal. Live exams display a green 'Submission Window Open' badge with a live countdown timer. If more than one exam window is open at the same time, use the '{N} Exam Windows Currently Open' bar to pick the exam you want to submit.",
+            uiPills: [
+              { label: "Submission Window Open", variant: "status-green" },
+              { label: "Grace Period (2m)", variant: "status-orange" },
+              { label: "Window Closed", variant: "utility" },
+            ],
+            note: "If the countdown hits 00:00 while you are finishing up, an extra 2-minute 'Grace Period (2m)' buffer gives you time to complete your upload.",
+            noteType: "important",
             screenshot: {
               suggestedPath: "/docs/student/active-exam-camera.gif",
-              caption: "Live submission countdown timer, in-app camera scanning, and page thumbnail strip.",
-              pins: [
-                { number: 1, label: "Live submission countdown timer" },
-                { number: 2, label: "Scan Next Page (Camera) button" },
-                { number: 3, label: "Scanned page thumbnails list" },
-              ],
+              caption:
+                "Live submission flow: opening an active exam, scanning handwritten pages with your phone camera, and submitting.",
             },
           },
           {
-            title: "3. Choose Photos or PDF from Gallery",
-            description: "If you already took photos using your standard camera app or have a scanned PDF document, tap [ Choose Photos / PDF ] to select the images directly from your photo library.",
-            uiPills: [{ label: "Choose Photos / PDF", variant: "utility" }],
+            title: "2. Photograph Pages Using Camera or Gallery",
+            description:
+              "Tap 'Scan Page (Camera)' for your first answer sheet, hold your phone steadily above the page in good lighting, and capture the photo. To add more sheets, tap '+ Scan Next Page (Camera)' or 'Add Photos' to select photos from your phone gallery.",
+            uiPills: [
+              { label: "Scan Page (Camera)", variant: "primary" },
+              { label: "+ Scan Next Page (Camera)", variant: "primary" },
+              { label: "Add Photos", variant: "utility" },
+            ],
+            note: "Make sure all four corners of your page and every question number are clearly readable in the photo.",
+            noteType: "tip",
           },
           {
-            title: "4. Rearrange & Delete Pages (Drag and Drop)",
-            description: "Review the thumbnail strip below the camera button. Each page shows its order number (Page 1, Page 2...). On mobile devices, simply press and hold any card to drag and drop it into the correct sequence with fluid swapping animation. On desktop, you can also use the [ ↑ ] and [ ↓ ] arrows. Tap the [ Trash ] icon to remove any blurred page and retake it.",
-            uiPills: [
-              { label: "Hold & Drag to Reorder", variant: "primary" },
-              { label: "Delete Page", variant: "danger" },
-            ],
+            title: "3. Check Thumbnails & Reorder Pages",
+            description:
+              "Preview every captured page thumbnail. Long-press and drag any page into exact order from first page to last, or remove any blurry shot and retake it.",
             screenshot: {
               suggestedPath: "/docs/student/page-rearranging.gif",
-              caption: "Animated demonstration of rearranging handwritten pages using touch drag and drop with smooth card swapping.",
-              pins: [
-                { number: 1, label: "Page order numbers (Page 1, Page 2, Page 3)" },
-                { number: 2, label: "Press & hold to drag and drop (mobile)" },
-                { number: 3, label: "Fluid 60fps card swapping animation" },
-                { number: 4, label: "Trash icon to delete and retake blurred page" },
-              ],
+              caption:
+                "Dragging captured page thumbnails into proper chronological order before submitting.",
             },
           },
           {
-            title: "5. Submit Your Answer Sheet",
-            description: "When all pages are in order, tap [ Submit Answer Sheet (N Pages) ]. The app automatically combines your photos into one clear document on your phone and uploads it securely to the cloud. You will see a green checkmark saying 'Submission Received Successfully' with your official timestamp.",
-            uiPills: [{ label: "Submit Answer Sheet", variant: "primary" }],
-            note: "Do not close the app while the circular upload progress bar is moving. It takes only a few seconds on a normal 4G/5G or Wi-Fi connection.",
-            noteType: "important",
-          },
-          {
-            title: "6. Replacing Your Answer Sheet Before the Deadline",
-            description: "If you realize you missed a page or submitted the wrong sheet, do not worry: as long as the exam window countdown timer is still running, you can tap [ Replace Answer Sheet ]. This opens the scanner again. Scan your corrected pages and tap [ Confirm Replacement ]. The newest submission replaces the previous one with an updated audit timestamp.",
-            uiPills: [{ label: "Replace Answer Sheet", variant: "utility" }],
+            title: "4. Submit or Replace Within the Time Window",
+            description:
+              "When all pages are in order, tap 'Submit Answer Sheet'. Once uploaded, your card displays 'Answer Sheet Submitted' with a 'Recorded' badge. If you spot a missing page while the window is still open and replacements are allowed, you can re-scan and tap 'Submit Answer Sheet' again—or tap 'Keep Current' to leave your original upload untouched.",
+            uiPills: [
+              { label: "Submit Answer Sheet", variant: "primary" },
+              { label: "Recorded", variant: "status-green" },
+              { label: "Keep Current", variant: "utility" },
+            ],
+            note: "Always wait until you see the 'Answer Sheet Submitted' confirmation before closing the app.",
+            noteType: "warning",
           },
         ],
         faq: [
           {
-            question: "Why does the app say 'Results will be published tomorrow' instead of showing instant marks?",
-            answer: "PaperGrade follows an overnight batch evaluation policy. During the daytime exam hours, server capacity is 100% reserved so that uploading answer sheets is smooth and lag-free for every student. AI evaluation runs overnight after classes finish.",
-          },
-          {
-            question: "What happens if my phone battery dies or internet drops while uploading?",
-            answer: "If the network disconnects, the app safely alerts you. Simply reconnect to Wi-Fi or mobile data and tap Submit again before the window timer reaches zero.",
+            question: "What happens if time runs out while I am taking photos?",
+            answer:
+              "You get an automatic 2-minute 'Grace Period (2m)' after the main timer ends to complete your upload. If you missed the window completely, contact your teacher or invigilator to reopen submissions for unsubmitted students.",
           },
         ],
       },
@@ -231,128 +255,92 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "results-rankings-and-keys",
         role: "student",
         guideCode: "S-03",
-        title: "Checking Evaluated Papers, Scores, Class Rankings & Master Keys",
-        summary: "How to inspect teacher markings on your handwritten paper, view question-by-question scoring, check class standings, and download master question papers.",
-        readTimeMinutes: 4,
+        title: "Viewing Graded Papers, Performance Charts, Class Standings & Keys",
+        summary:
+          "How to review step-by-step marks, switch performance chart views, inspect your graded script, check 3D Class Standings, and view official Question Papers & Answer Keys.",
+        readTimeMinutes: 5,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/student/graded-viewer.png",
-          caption: "Figure 1.3: Graded paper viewer showing official marked score, page navigator, and download options.",
-          pins: [
-            { number: 1, label: "Official awarded score & percentage badge" },
-            { number: 2, label: "Question Paper & Key quick access button" },
-            { number: 3, label: "Download Graded Answer Sheet action" },
-            { number: 4, label: "Interactive handwritten page viewer" },
-          ],
-        },
-        overview: "Once your institute officially publishes exam results, you can review your marked paper with detailed step marks, compare your performance on the trajectory chart, and see your rank in the batch.",
+        overview:
+          "Once results are published, your graded answer script, step-by-step marks breakdown, official solutions, and class standings become available inside the Student Portal.",
         steps: [
           {
-            title: "1. Check Your Dashboard Summary & Past Exams",
-            description: "At the top of your Student Portal, summary tiles show 'Submitted', 'Published', 'Average', and 'Under Review'. Switch to the 'Past Exams' tab to view all completed papers, official scores, and 15-day storage retention badges.",
-            screenshot: {
-              suggestedPath: "/docs/student/past-exams-retention.png",
-              caption: "Past exam submissions list showing published scores and the 15-day paper retention badge.",
-              pins: [
-                { number: 1, label: "Results Published status pill" },
-                { number: 2, label: "15d retention storage badge" },
-                { number: 3, label: "Subject and awarded score (e.g. 10.5 / 25m)" },
-              ],
-            },
-          },
-          {
-            title: "2. Track Your Progress with the Marks Trajectory Graph",
-            description: "Scroll down to the interactive performance graph. Tap [ All Subjects ], [ Physics ], [ Chemistry ], or [ Maths ] to see how your scores are trending in each subject over the school term. Tap any point on the curve to see the exam title, date, score, and whether marks were revised.",
+            title: "1. Performance Trajectory Chart",
+            description:
+              "On your Student Portal dashboard, your Performance Chart tracks scores across subjects such as Physics, Chemistry, Maths, Biology, and any institute subjects. Switch between 'Percent' (individual test percentages) and 'Cumulative' views, or filter by a specific subject. Hover over any point on the chart to inspect exact test scores.",
             uiPills: [
-              { label: "All Subjects", variant: "utility" },
-              { label: "Physics", variant: "utility" },
-              { label: "Chemistry", variant: "utility" },
+              { label: "Percent", variant: "primary" },
+              { label: "Cumulative", variant: "utility" },
             ],
             screenshot: {
               suggestedPath: "/docs/student/student-dashboard-trajectory.png",
-              caption: "Cumulative Marks Trajectory graph with subject filters and overall percentage.",
+              caption:
+                "Student Dashboard showing score summary counters, Google Drive status, and subject trajectory chart.",
               pins: [
-                { number: 1, label: "Cumulative percentage score" },
-                { number: 2, label: "Subject filter pills (All, Physics, Chemistry)" },
-                { number: 3, label: "Historical trajectory trend curve" },
+                { number: 1, label: "Score summary cards" },
+                { number: 2, label: "Performance trajectory chart" },
+                { number: 3, label: "Subject filter buttons" },
               ],
             },
           },
           {
-            title: "3. Open Your Exam Card Action Menu",
-            description: "Tap on any completed exam card to expand its action buttons: [ View Summary ], [ Class Standings ], [ QP & Key ], [ Download PDF ], and [ Request Revaluation ].",
+            title: "2. Past Exams & Available Actions",
+            description:
+              "Open the 'Past Exams' tab to view completed exams. Each exam card displays how many days the full script PDF remains available ('15d retention', 'Nd until purge', or 'PDF Archived') along with quick buttons: 'Inspect in PDF Viewer ->', 'View Summary', 'Class Standings', 'QP & Key', 'Backup to Drive' (or 'In Drive'), 'Download PDF', and 'Request Revaluation'.",
             uiPills: [
+              { label: "Inspect in PDF Viewer ->", variant: "primary" },
               { label: "View Summary", variant: "utility" },
               { label: "Class Standings", variant: "utility" },
               { label: "QP & Key", variant: "utility" },
-              { label: "Download PDF", variant: "utility" },
+              { label: "Backup to Drive", variant: "utility" },
             ],
             screenshot: {
               suggestedPath: "/docs/student/exam-card-actions.png",
-              caption: "Expanded exam card showing all student actions and quick links.",
-              pins: [
-                { number: 1, label: "View Summary breakdown" },
-                { number: 2, label: "Class Standings leaderboard" },
-                { number: 3, label: "QP & Key document viewer" },
-                { number: 4, label: "Download PDF button" },
-              ],
+              caption:
+                "Completed exam card showing score, retention badge, and action buttons.",
             },
           },
           {
-            title: "4. Read Step Marks & Question Deductions",
-            description: "Tap [ View Summary ] or open the paper viewer. Look for red and green badges next to your answers showing marks earned for formulas, substitutions, and answers. At the top right of each page, a stamp shows the total marks for that page. Tap on any question box to open the Question Breakdown details: read where points were awarded or deducted, and review the official model answer.",
+            title: "3. Question Breakdown & Full Paper Viewer",
+            description:
+              "Tap 'View Summary' for a question-by-question breakdown showing your recognized answer, the official solution, detailed grading feedback, and a crop of your handwritten work (use 'Expand All Details' to view every step at once). Tap 'Inspect in PDF Viewer ->' to open your complete answer sheet with highlighted question regions and marks beside each answer.",
+            uiPills: [
+              { label: "Expand All Details", variant: "utility" },
+              { label: "Question Paper & Key", variant: "utility" },
+            ],
             screenshot: {
-              suggestedPath: "/docs/student/evaluation-breakdown.png",
-              caption: "Step-by-step Evaluation Breakdown showing question prompts, awarded marks, and criteria.",
-              pins: [
-                { number: 1, label: "Total Awarded marks header (e.g. 17.5 / 25m)" },
-                { number: 2, label: "Class Standings and Annotated PDF links" },
-                { number: 3, label: "Question prompt and criteria breakdown dropdown" },
-              ],
+              suggestedPath: "/docs/student/graded-viewer.png",
+              caption:
+                "Graded paper viewer showing your scanned pages alongside question-level step scores and feedback.",
             },
+            note: "Each question card breaks down marks step by step so you can see exactly where full or partial credit was awarded.",
+            noteType: "tip",
           },
           {
-            title: "5. Inspect Question Criteria & AI Transcription",
-            description: "Tap into any specific question to see the AI Vision transcription of your handwritten solution alongside the official step-by-step rubric criteria and remarks.",
-            screenshot: {
-              suggestedPath: "/docs/student/question-score-criteria-ai.png",
-              caption: "Question review modal showing AI Vision transcribed student steps and rubric criteria.",
-              pins: [
-                { number: 1, label: "100% Score feedback & remarks" },
-                { number: 2, label: "Step criteria breakdown (C1, C2) with awarded points" },
-                { number: 3, label: "Transcribed student handwriting via AI vision" },
-              ],
-            },
-          },
-          {
-            title: "6. Check Class Standings & Merit Rankings",
-            description: "In the graded paper viewer (or on the past exam card), tap [ Class Standings ] (Trophy icon). The rankings table shows top performers with Gold, Silver, and Bronze trophies. The list automatically highlights your roll number in blue so you can see where you stand in your batch.",
-            uiPills: [{ label: "Class Standings", variant: "utility" }],
+            title: "4. 3D Class Standings & Privacy",
+            description:
+              "Tap 'Class Standings' on any published exam card (or inside 'View Summary') to view your ranking. Top-3 scorers appear on a 3D podium. In the standings table below, only Rank, Student Name, and Score are shown—Roll Numbers are hidden for privacy, and your own row is highlighted with a 'YOU' badge.",
+            uiPills: [
+              { label: "Class Standings", variant: "utility" },
+              { label: "YOU", variant: "status-green" },
+            ],
             screenshot: {
               suggestedPath: "/docs/student/class-standings-modal.png",
-              caption: "Class Standings modal displaying the batch merit leaderboard and student position.",
-              pins: [
-                { number: 1, label: "Standing leaderboard header" },
-                { number: 2, label: "Top merit ranks (#1, #2, #3)" },
-                { number: 3, label: "Student score comparison" },
-              ],
+              caption:
+                "Class Standings view showing student ranks and scores without exposing roll numbers.",
             },
           },
           {
-            title: "7. View & Download Question Papers & Answer Keys",
-            description: "In the top bar of your graded paper or on the exam card, tap [ QP & Key ]. A viewer opens with two tabs: [ Question Paper ] and [ Answer Key ]. You can zoom in and pan around diagrams, or tap [ Download Document ] to save the master PDF to your device.",
+            title: "5. Viewing Question Papers & Official Answer Keys",
+            description:
+              "Tap 'QP & Key' on an exam card—or 'Question Paper & Key' inside the paper viewer—to read the official Question Paper and Answer Key side by side. Use 'Open in Tab' or 'Download PDF' to keep a copy for revision.",
             uiPills: [
-              { label: "Question Paper", variant: "utility" },
-              { label: "Answer Key", variant: "utility" },
-              { label: "Download Document", variant: "primary" },
+              { label: "Open in Tab", variant: "utility" },
+              { label: "Download PDF", variant: "utility" },
             ],
             screenshot: {
               suggestedPath: "/docs/student/master-qp-answer-key-viewer.png",
-              caption: "Master Question Paper and Answer Key in-app document viewer.",
-              pins: [
-                { number: 1, label: "Exam title and page counter (e.g. Page 1 / 14)" },
-                { number: 2, label: "Final Answer Key document with step marks" },
-              ],
+              caption:
+                "Question Paper and Official Answer Key document viewer.",
             },
           },
         ],
@@ -362,98 +350,73 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "revaluations-and-bug-reports",
         role: "student",
         guideCode: "S-04",
-        title: "Filing Revaluation Appeals & Reporting Technical Glitches",
-        summary: "How to challenge a question mark with academic justification, and how to report app bugs or upload issues with screenshots.",
-        readTimeMinutes: 3,
+        title: "Requesting Revaluation Appeals & Reporting Issues",
+        summary:
+          "How to request a teacher re-check on specific questions, follow appeal decisions, and report app or portal issues.",
+        readTimeMinutes: 4,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/student/report-issue-modal.png",
-          caption: "Figure 1.4: Technical Support & Issue Report form with category selection and screenshot attachment.",
-          pins: [
-            { number: 1, label: "Issue Category dropdown" },
-            { number: 2, label: "Subject / Summary title field" },
-            { number: 3, label: "Detailed Description text box (up to 1,000 characters)" },
-            { number: 4, label: "Attach Screenshots slot (up to 3 images)" },
-          ],
-        },
-        overview: "PaperGrade gives students a formal, transparent channel to appeal marking discrepancies and report technical issues directly to teachers and technical administrators.",
+        overview:
+          "If you think a valid step or alternative solution in your answer sheet was missed, you can raise a Revaluation Appeal. If you run into a technical problem with the portal, use Report Issue to notify support.",
         steps: [
           {
-            title: "1. How to File a Revaluation Appeal",
-            description: "Open your graded paper or tap [ Request Revaluation ] on your past exam card. Tap on the question you wish to challenge. At the bottom of the question review dialog, tap [ Submit Appeal for Question ].",
-            uiPills: [{ label: "Submit Appeal for Question", variant: "primary" }],
+            title: "1. Submit a Revaluation Appeal",
+            description:
+              "From a Past Exam card, tap 'Request Revaluation', select one or more questions (or tap 'Select All'), type a clear explanation under 'Academic Justification / Grievance Details:', and tap 'Submit Appeal'. You can also open your paper in the viewer, tap any question, choose 'Request Revaluation', explain why your answer should be reviewed, and tap 'Submit Appeal'.",
+            uiPills: [
+              { label: "Request Revaluation", variant: "utility" },
+              { label: "Select All", variant: "utility" },
+              { label: "Submit Appeal", variant: "primary" },
+            ],
+            note: "Specific notes (such as 'Q4 used energy conservation on the lower half of the page') help teachers review your appeal faster.",
+            noteType: "tip",
             screenshot: {
               suggestedPath: "/docs/student/revaluation-modal.png",
-              caption: "Question review dialog with the Submit Appeal for Question action button.",
-              pins: [
-                { number: 1, label: "Official model solution display" },
-                { number: 2, label: "Submit Appeal for Question button" },
-              ],
+              caption:
+                "Revaluation Appeal dialog for selecting questions and explaining your review request.",
             },
           },
           {
-            title: "2. Write Your Academic Justification",
-            description: "In the justification box, write a clear, academic reason (e.g., 'Formula in Step 2 matches Maharashtra State Board Textbook Page 54. Requesting review of partial mark'). Tap [ Submit Appeal ].",
-            note: "Be respectful and specific. Appeals with clear textbook or formula references are reviewed faster by faculty.",
-            noteType: "tip",
-          },
-          {
-            title: "3. Tracking Your Appeal",
-            description: "Go to 'Revaluations & Appeals' in your navigation menu. You can track real-time status across all your examination appeals: '● Revaluation Pending' (orange) or '● Marks Revised' (gold). When revised, your paper is automatically re-stamped with the new score.",
+            title: "2. Track Appeal Decisions Under Revaluations",
+            description:
+              "Open 'Revaluations' from the menu to filter by 'All Appeals', 'Under Review', 'Marks Revised', or 'Marks Upheld'. Each appeal displays its status badge ('Under Faculty Review', 'Marks Revised (+Xm)', or 'Evaluation Upheld') along with the teacher's decision note.",
+            uiPills: [
+              { label: "Under Faculty Review", variant: "status-amber" },
+              { label: "Marks Revised (+Xm)", variant: "status-green" },
+              { label: "Evaluation Upheld", variant: "utility" },
+            ],
             screenshot: {
               suggestedPath: "/docs/student/my-revaluation-appeals.png",
-              caption: "My Revaluation Appeals dashboard tracking real-time status across exams.",
-              pins: [
-                { number: 1, label: "My Revaluation Appeals header" },
-                { number: 2, label: "Search by exam or subject bar" },
-                { number: 3, label: "Appeal status cards & step review tracking" },
-              ],
+              caption:
+                "Student Revaluation tracker displaying appeal status filters and teacher feedback.",
             },
           },
           {
-            title: "4. How to Report a Technical Bug or App Glitch",
-            description: "If you experience an upload error, layout glitch, or screen freeze, tap [ Report Issue ] at the top of your student dashboard or inside the Student Support card.",
-            uiPills: [{ label: "Report Issue", variant: "utility" }],
-          },
-          {
-            title: "5. Choose Category & Attach Screenshots",
-            description: "Select the issue category: 'PDF Upload / Submission Problem', 'Marks & Evaluation Display Issue', 'Login & Authentication Problem', or 'Page Visual Glitch'. Describe what happened and tap [ Click to attach screenshot ] to attach up to 3 photos of the error. Tap [ Submit Report ].",
-            note: "The app automatically includes your device model, browser version, and page URL so engineers can resolve the issue quickly.",
-            noteType: "tip",
+            title: "3. Report a Portal Problem",
+            description:
+              "If you experience an upload problem, login issue, or display error, tap 'Report Issue' in your Student Portal header (or 'Report Technical Issue' in the Support card). Select a category—PDF Upload / Submission Problem, Marks & Evaluation Display Issue, Login & Authentication Problem, Page Visual Glitch / Mobile Layout, or Other Technical Issue—attach an optional screenshot, and tap 'Submit Technical Report'.",
+            uiPills: [
+              { label: "Report Issue", variant: "utility" },
+              { label: "Submit Technical Report", variant: "primary" },
+            ],
             screenshot: {
               suggestedPath: "/docs/student/report-issue-modal.png",
-              caption: "Technical Support & Issue Report submission dialog.",
-              pins: [
-                { number: 1, label: "Category selector (e.g. PDF Upload / Submission Problem)" },
-                { number: 2, label: "Subject summary and detailed explanation" },
-                { number: 3, label: "Screenshot file uploader (up to 3 files, max 500KB each)" },
-              ],
+              caption:
+                "Issue reporting dialog with category choices and screenshot upload.",
             },
           },
           {
-            title: "6. Check Status in 'My Reports'",
-            description: "Switch to the [ My Reports ] tab anytime to see your ticket status (Pending, Investigating, Resolved) and read comments from technical staff.",
-            uiPills: [{ label: "My Reports", variant: "utility" }],
+            title: "4. Check Status Under 'My Past Reports'",
+            description:
+              "Open the 'My Past Reports' tab inside the Report Issue window to see whether your ticket is OPEN, IN PROGRESS, or RESOLVED, along with administrator notes.",
+            uiPills: [
+              { label: "OPEN", variant: "status-amber" },
+              { label: "IN PROGRESS", variant: "status-orange" },
+              { label: "RESOLVED", variant: "status-green" },
+            ],
             screenshot: {
               suggestedPath: "/docs/student/my-reports-history.png",
-              caption: "My Reports history tab showing resolved status and staff feedback.",
-              pins: [
-                { number: 1, label: "Resolved badge pill" },
-                { number: 2, label: "Issue category and timestamp" },
-                { number: 3, label: "Summary of problem report" },
-              ],
-            },
-          },
-          {
-            title: "7. Real-Time Resolution Alerts",
-            description: "When an engineer or manager resolves your technical ticket, an in-app alert notifies you immediately with a direct link to view details.",
-            screenshot: {
-              suggestedPath: "/docs/student/issue-resolved-notification.png",
-              caption: "In-app resolution alert notification.",
-              pins: [
-                { number: 1, label: "Technical Issue Resolved alert banner" },
-                { number: 2, label: "View Details and Mark read actions" },
-              ],
+              caption:
+                "Report history tab showing live resolution status and replies.",
             },
           },
         ],
@@ -463,71 +426,129 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "student-password-recovery",
         role: "student",
         guideCode: "S-05",
-        title: "Student Password Recovery (Forgot Password Workflow)",
-        summary: "How to reset your student password securely through live Branch Manager approval without losing account data.",
+        title: "Resetting a Forgotten Password",
+        summary:
+          "How to reset your password instantly with a 6-digit email verification code, or request Branch Manager approval if no email is linked.",
         readTimeMinutes: 3,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/student/password-reset-wait.png",
-          caption: "Figure 1.5: Password reset request screen and live manager approval waiting radar.",
-          pins: [
-            { number: 1, label: "Live awaiting authorization radar" },
-            { number: 2, label: "Do Not Refresh or Leave notice" },
-            { number: 3, label: "Automatic unlock notification" },
-          ],
-        },
-        overview: "To prevent unauthorized password resets or account hijacking, student password resets are authorized in real time by your institute's Branch Manager.",
+        overview:
+          "If your account has a linked email address, you can reset your password yourself in seconds using a 6-digit verification code. If you do not have an email linked or cannot check your inbox, your Branch Manager can approve the reset live.",
         steps: [
           {
-            title: "1. Start Password Reset",
-            description: "On the sign-in screen, make sure the [ Student ] tab is selected. Under the password field, tap 'Forgot password?'.",
-            uiPills: [{ label: "Student", variant: "utility" }],
-          },
-          {
-            title: "2. Enter Your Student Roll Number",
-            description: "In the < Student Roll Number or Email > box, enter your official roll number (e.g. TEST_INST-TEST_BVI-001). Tap [ Request Reset Approval ].",
+            title: "1. Start a Password Reset",
+            description:
+              "On the login screen, tap 'Forgot password?'. Enter your Roll Number, Student ID, or registered Email address and tap 'Continue Password Reset'.",
             uiPills: [
-              { label: "Student Roll Number or Email", variant: "field" },
-              { label: "Request Reset Approval", variant: "primary" },
+              { label: "Forgot password?", variant: "utility" },
+              { label: "Continue Password Reset", variant: "primary" },
             ],
             screenshot: {
               suggestedPath: "/docs/student/student-forgot-password-request.png",
-              caption: "Reset Student Password request form dispatched to your Branch Manager.",
-              pins: [
-                { number: 1, label: "Reset Student Password header" },
-                { number: 2, label: "Student Roll Number or Email input" },
-                { number: 3, label: "Back to Sign In navigation link" },
-              ],
+              caption:
+                "Forgot Password form accepting your Roll Number, Student ID, or Email.",
             },
           },
           {
-            title: "3. Keep the Waiting Screen Open",
-            description: "Your screen will transition to: 'Awaiting Branch Manager Approval' with an active radar animation. A real-time request is sent to your Branch Manager's computer.",
-            note: "DO NOT refresh or close this browser tab. Keep it open while awaiting approval.",
-            noteType: "warning",
+            title: "2. Enter the 6-Digit Verification Code (If Email Is Linked)",
+            description:
+              "When an email is linked to your account, PaperGrade emails a 6-digit verification code valid for 10 minutes. Enter the 6 digits and tap 'Verify Code & Set Password'. If the email did not arrive after 60 seconds, tap 'Resend Code'.",
+            uiPills: [
+              { label: "Verify Code & Set Password", variant: "primary" },
+              { label: "Resend Code", variant: "utility" },
+            ],
+            note: "Do not have access to your email inbox right now? Tap 'Request Manager Approval' on the verification screen to notify your Branch Manager instead.",
+            noteType: "tip",
+          },
+          {
+            title: "3. Branch Manager Approval (When No Email Is Available)",
+            description:
+              "If no email is linked to your student profile—or you selected 'Request Manager Approval'—your Branch Manager receives a live notification. Keep the waiting screen open; it automatically moves forward as soon as your manager taps 'Approve'.",
+            uiPills: [{ label: "Request Manager Approval", variant: "utility" }],
             screenshot: {
               suggestedPath: "/docs/student/password-reset-wait.png",
-              caption: "Live Manager Authorization screen waiting for Branch Manager approval.",
-              pins: [
-                { number: 1, label: "Awaiting Branch Manager Approval title" },
-                { number: 2, label: "Do Not Refresh or Leave security warning" },
-                { number: 3, label: "Real-time socket connection indicator" },
-              ],
+              caption:
+                "Waiting screen shown while your Branch Manager reviews your password reset request.",
             },
           },
           {
-            title: "4. Instant Unlock & Setting New Password",
-            description: "As soon as your Branch Manager clicks approve, your screen automatically changes to 'Set New Password' without needing any page reload. Enter your new password, confirm it, and tap [ Save New Password & Sign In ]. You are signed in immediately.",
+            title: "4. Create a New Password",
+            description:
+              "Once verified or approved, choose a new password (at least 8 characters), confirm it, and tap 'Save New Password & Sign In'.",
+            uiPills: [
+              { label: "Save New Password & Sign In", variant: "primary" },
+            ],
+          },
+        ],
+      },
+      {
+        id: "s-06",
+        slug: "account-settings-and-drive-backup",
+        role: "student",
+        guideCode: "S-06",
+        title: "Account Settings, Active Devices & Google Drive Backup",
+        summary:
+          "How to check your profile details, save graded answer scripts permanently to your personal Google Drive, monitor Drive space, and sign out of active devices.",
+        readTimeMinutes: 4,
+        lastUpdated: "November 2026",
+        overview:
+          "Published answer script PDFs remain hosted on PaperGrade for 15 days after results come out. Linking your personal Google Drive lets you automatically save a permanent copy of every graded paper neatly organized by subject—and manage all your signed-in devices from one place.",
+        steps: [
+          {
+            title: "1. Open Account Settings",
+            description:
+              "Tap your Profile Avatar in the top-right corner (or open the menu and select 'Settings'). You can view and copy your Roll Number or User ID, link or unlink your Google account, and manage your password and signed-in sessions.",
+            uiPills: [
+              { label: "Change Password", variant: "utility" },
+              { label: "Sign Out", variant: "danger" },
+            ],
+          },
+          {
+            title: "2. Connect Your Personal Google Drive",
+            description:
+              "Tap 'Link Gdrive' from your Student Portal header—or use the Google Drive section inside Account Settings—to grant permission. Once connected, your header shows a green 'Gdrive Linked' badge. PaperGrade only accesses the folders and papers it creates itself.",
+            uiPills: [
+              { label: "Link Gdrive", variant: "utility" },
+              { label: "Gdrive Linked", variant: "status-green" },
+            ],
+            note: "You can check our Privacy Policy and Terms of Service links in the footer anytime for details on how Google Drive access works.",
+            noteType: "tip",
+          },
+          {
+            title: "3. Organized Subject Folders & Manual Backup",
+            description:
+              "PaperGrade automatically organizes your saved answer papers inside Google Drive under: My Drive / PaperGrade AI / Subject (for example: PaperGrade AI / Physics / Mid-Term.pdf). For any published exam not yet backed up, tap 'Backup to Drive' on the exam card or viewer; once saved, it turns into 'In Drive' so you can open the file directly.",
+            uiPills: [
+              { label: "Backup to Drive", variant: "utility" },
+              { label: "In Drive", variant: "status-green" },
+            ],
+          },
+          {
+            title: "4. Storage Bar & Pause Auto-Sync",
+            description:
+              "Inside Account Settings, the Google Drive storage bar shows how much of your Drive space is used by PaperGrade papers compared to your other Drive files, with alerts if your Drive gets nearly full. You can click 'Pause Drive Auto-Sync' anytime without deleting papers already saved in your Drive.",
+            uiPills: [{ label: "Pause Drive Auto-Sync", variant: "utility" }],
+          },
+          {
+            title: "5. Manage Active Sessions & Signed-In Devices",
+            description:
+              "At the bottom of Account Settings, the 'Active Sessions & Devices' section lists every phone, tablet, or browser currently signed into your account (marking your current browser with a 'This Device' badge). Click 'Revoke' on any unrecognized or old device to sign it out immediately, or click 'Sign Out Other Devices' to keep only your current device signed in.",
+            uiPills: [
+              { label: "This Device", variant: "status-green" },
+              { label: "Revoke", variant: "utility" },
+              { label: "Sign Out Other Devices", variant: "danger" },
+            ],
           },
         ],
       },
     ],
   },
+
   {
     id: "faculty",
     label: "Faculty & Branch Manager Manual",
-    badge: "Faculty",
-    description: "Batches, student roster imports, exam setup, question papers, AI rubrics, submission windows, grading overrides, and publishing.",
+    badge: "Teachers & Managers",
+    description:
+      "Batch rosters, Excel imports, exam setup, reviewing rubrics, running submission windows, manual paper grading, marks tables, and resolving appeals.",
     iconName: "Users",
     articles: [
       {
@@ -535,84 +556,61 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "batches-roster-and-resets",
         role: "faculty",
         guideCode: "F-01",
-        title: "Batches, Student Rosters, CSV Bulk Imports & Reset Approvals",
-        summary: "Managing classroom batches, adding students individually or via spreadsheet, and approving student password resets.",
+        title: "Signing In, Batch Rosters, Excel Import & Student Resets",
+        summary:
+          "How Branch Managers and Teachers sign in, create student batches, import class rosters from Excel, and approve student password reset requests.",
         readTimeMinutes: 4,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/batch-roster-overview.png",
-          caption: "Figure 2.1: Batches and student roster overview with active batches and password reset alert banner.",
-          pins: [
-            { number: 1, label: "Student Password Reset Request banner" },
-            { number: 2, label: "Active Batches and Enrolled student counters" },
-            { number: 3, label: "PWA Claim percentage indicator" },
-            { number: 4, label: "Batch cards (CET-1, CET-2)" },
-          ],
-        },
-        overview: "Branch Managers oversee student rosters for their assigned branch. You can create academic batches, onboard students in bulk, and authorize password resets from a single dashboard.",
+        overview:
+          "Keeping your batch rosters up to date ensures students receive the right exam windows, notifications, and login access.",
         steps: [
           {
-            title: "1. Faculty & Staff Sign-In",
-            description: "Navigate to the portal and select the [ Faculty / Staff ] tab. Enter your registered institutional email or Staff ID and your password to enter the administrative operations console.",
-            uiPills: [{ label: "Faculty / Staff", variant: "utility" }],
+            title: "1. Staff Sign-In & Initial Password Setup",
+            description:
+              "Staff accounts are created by your Administrator. Sign in on the 'Faculty / Staff' tab with your email and password—or tap 'Continue with Google' if your Google account matches. If you were given a temporary starting password, choose 'One-Time Password Setup' in the sidebar or 'Set Personal Password' inside Account Settings.",
+            uiPills: [
+              { label: "Faculty / Staff", variant: "utility" },
+              { label: "Sign In to Console", variant: "primary" },
+            ],
             screenshot: {
-              suggestedPath: "/docs/faculty/staff-sign-in.png",
-              caption: "Faculty & Staff Sign-In form for branch managers and teachers.",
-              pins: [
-                { number: 1, label: "Faculty / Staff tab selected" },
-                { number: 2, label: "Institutional Email or Staff ID input" },
-                { number: 3, label: "Password and Forgot password link" },
-              ],
+              suggestedPath: "/docs/faculty/staff-initial-password-setup.png",
+              caption:
+                "Security panel where newly onboarded staff set their personal password.",
             },
-          },
-          {
-            title: "2. Create Academic Batches & Review Roster",
-            description: "Go to /branch/batches. In the top toolbar, view active batches, enrolled student counts, and PWA claim percentages. Click [ + Create Batch ] to add new classrooms.",
-            uiPills: [{ label: "+ Create Batch", variant: "utility" }],
-            screenshot: {
-              suggestedPath: "/docs/faculty/batch-roster-overview.png",
-              caption: "Batches & Student Roster operational view with batch summary metrics.",
-              pins: [
-                { number: 1, label: "Batches & Student Roster header" },
-                { number: 2, label: "Active Batches (2) and Enrolled (28)" },
-                { number: 3, label: "100% PWA Claimed badge" },
-              ],
-            },
-          },
-          {
-            title: "3. Bulk Import Rosters from Excel or CSV",
-            description: "To onboard a full class at once, click [ Import Roster (CSV) ]. Prepare a spreadsheet with columns: roll_number, full_name, and email. Drag and drop the file. The dialog validates each row and alerts you to any duplicates. Click [ Confirm Import ].",
-            uiPills: [{ label: "Import Roster (CSV)", variant: "utility" }],
-            note: "Ensure roll numbers match your institute's official format (e.g. C25-BVI-001) so students can activate their accounts without confusion.",
+            note: "If you ever forget your password, use 'Forgot password?' on the Faculty / Staff login tab for a 6-digit email code (or escalate to your Administrator if needed).",
             noteType: "tip",
           },
           {
-            title: "4. Authorize Student Password Resets",
-            description: "When a student requests a password reset from the login screen, a yellow alert appears on your batches page: 'Student Password Reset Request Pending Approval'. Click the card to open the authorization desk, verify the student's roll number, and click [ Approve Reset ]. Their phone unlocks immediately in real time.",
+            title: "2. Create Batches & Import Students from Excel",
+            description:
+              "Open 'Batches & Students' and click 'Create Batch' (for example: Class 12 JEE Morning). Inside any batch, use 'Add Student' for individual enrollments or click 'Import Excel' to upload an .xlsx or .xls spreadsheet. Only the Full Name column is required (Roll Numbers are assigned automatically in order; Email and Phone are optional). Click 'Process Import' to finish.",
             uiPills: [
-              { label: "Student Password Reset Requests", variant: "utility" },
-              { label: "Approve Reset", variant: "primary" },
+              { label: "Create Batch", variant: "primary" },
+              { label: "Import Excel", variant: "utility" },
+              { label: "Process Import", variant: "primary" },
             ],
+            note: "Including student email addresses in your Excel sheet enables self-service email password resets and result email/notification delivery.",
+            noteType: "important",
             screenshot: {
-              suggestedPath: "/docs/faculty/approve-student-reset-modal.png",
-              caption: "Student Password Reset Requests modal showing pending approvals.",
-              pins: [
-                { number: 1, label: "Student Password Reset Requests header" },
-                { number: 2, label: "Pending student request card with roll number" },
-                { number: 3, label: "Approval action button" },
-              ],
+              suggestedPath: "/docs/faculty/batch-roster-overview.png",
+              caption:
+                "Batches & Students workspace showing active batches, student rosters, and Import Excel action.",
             },
           },
           {
-            title: "5. One-Time Initial Password Setup for Staff",
-            description: "When a new staff account is provisioned by the Director, enter your initial credentials to set your personal permanent password. Subsequent password resets must be authorized by Root Admin.",
+            title: "3. Approve Student Password Reset Requests",
+            description:
+              "Whenever a student without a linked email (or who asks for manager approval) submits a password reset, an alert banner appears on Batches & Students. Click 'Review & Approve' (or the 'Password Resets' button at the top), verify the student in person, and click 'Approve' or 'Reject'.",
+            uiPills: [
+              { label: "Review & Approve", variant: "primary" },
+              { label: "Password Resets", variant: "utility" },
+              { label: "Approve", variant: "primary" },
+              { label: "Reject", variant: "danger" },
+            ],
             screenshot: {
-              suggestedPath: "/docs/faculty/staff-initial-password-setup.png",
-              caption: "One-Time Initial Password Setup modal for newly appointed staff.",
-              pins: [
-                { number: 1, label: "One-Time Initial Password Setup alert" },
-                { number: 2, label: "New Password & Confirm Password inputs" },
-              ],
+              suggestedPath: "/docs/faculty/approve-student-reset-modal.png",
+              caption:
+                "Pending Student Password Reset queue with Approve and Reject actions.",
             },
           },
         ],
@@ -622,48 +620,44 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "exam-setup-and-materials",
         role: "faculty",
         guideCode: "F-02",
-        title: "Creating Exams & Uploading Question Papers / Keys",
-        summary: "Setting up a new examination, assigning batches, and uploading master Question Papers and Answer Keys.",
-        readTimeMinutes: 3,
+        title: "Creating Exams, Selecting Batches & Attaching Papers",
+        summary:
+          "How to set up a new exam for specific batches or an entire branch, attach Question Papers, and archive finished tests.",
+        readTimeMinutes: 4,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/exam-lifecycle-card.png",
-          caption: "Figure 2.2: Exam card showing Finalized, Published, and Rubric Approved lifecycle statuses.",
-          pins: [
-            { number: 1, label: "Exam title and subject (Electromagnetic Induction / Physics)" },
-            { number: 2, label: "Total marks badge (25 Marks)" },
-            { number: 3, label: "Lifecycle status badges (Finalized, Published, Rubric Approved)" },
-          ],
-        },
-        overview: "Every exam requires an assigned subject, target batches, total marks, and official master documents (Question Paper and Answer Key Scheme).",
+        overview:
+          "Creating an examination defines the test name, subject, target batches, and Question Paper before you open student submission windows.",
         steps: [
           {
-            title: "1. Create New Exam",
-            description: "Navigate to /exams and click [ + Create Exam ]. Enter Title (e.g. 'Electromagnetic Induction (EMI) Exam'), Subject (e.g. 'Physics'), Total Marks (e.g. '25'), and check the assigned batches.",
-            uiPills: [{ label: "+ Create Exam", variant: "primary" }],
+            title: "1. Enter Exam Details, Subject & Target Batches",
+            description:
+              "Go to 'Examinations' and click 'Create New Exam'. Enter the Exam Title, pick a Subject (or click 'Add Custom' to add a new subject), and choose 'Student Access & Batch Scope': either 'Whole Branch (All Batches)' or 'Select Batches (Single / Multiple)'. You can also add optional grading notes for special marking preferences—Total Marks will fill in automatically once the Official Answer Key and Rubric are ready.",
+            uiPills: [
+              { label: "Create New Exam", variant: "primary" },
+              { label: "Add Custom", variant: "utility" },
+            ],
+          },
+          {
+            title: "2. Attach Master Question Paper & Governance Rules",
+            description:
+              "Attach the Question Paper PDF or images and click 'Create Exam'. To protect official grading standards, uploading or replacing Official Answer Keys ('Upload Key') and deleting published exams are restricted to the Root Administrator. Teachers and Branch Managers can open uploaded Question Papers and Answer Keys anytime using 'View PDF'.",
+            uiPills: [
+              { label: "Create Exam", variant: "primary" },
+              { label: "View PDF", variant: "utility" },
+              { label: "Upload Key", variant: "utility" },
+            ],
+            note: "When the Root Administrator uploads an Official Answer Key, PaperGrade confirms the upload first and then generates the draft grading rubric automatically.",
+            noteType: "important",
             screenshot: {
               suggestedPath: "/docs/faculty/exam-lifecycle-card.png",
-              caption: "Exam management card with status indicators.",
-              pins: [
-                { number: 1, label: "Finalized status indicator" },
-                { number: 2, label: "Total Marks display" },
-                { number: 3, label: "Rubric Approved and Published badges" },
-              ],
+              caption:
+                "Exam overview displaying Question Paper, Official Answer Key, and Grading Rubric cards.",
             },
           },
           {
-            title: "2. Upload Master Question Paper (QP)",
-            description: "On the exam dashboard, locate the Academic Materials section. Click [ Upload QP ] and choose your master Question Paper PDF.",
-            uiPills: [{ label: "Upload QP", variant: "utility" }],
-          },
-          {
-            title: "3. Upload Official Answer Key",
-            description: "Click [ Upload Key ] and choose your official Answer Key / Solution Scheme PDF.",
-            uiPills: [{ label: "Upload Key", variant: "utility" }],
-          },
-          {
-            title: "4. Verify Document Rendering",
-            description: "Click [ Preview QP ] and [ Preview Key ] to view the documents inside the preview window. Check that formulas, subscripts, and diagrams are clearly readable.",
+            title: "3. Archiving & Restoring Finished Exams",
+            description:
+              "Use 'Archive' on older exams to keep your main Examinations list clean without losing any marks or records. You can switch to the 'Archived Exams' filter and click 'Restore' anytime.",
           },
         ],
       },
@@ -672,56 +666,48 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "ai-rubrics-and-best-of-n",
         role: "faculty",
         guideCode: "F-03",
-        title: "Setting Up AI Rubrics & Optional Choice Questions (Best-of-N)",
-        summary: "Generating step-marking rubrics from answer keys, setting up optional choice rules, and approving rubrics.",
-        readTimeMinutes: 4,
+        title: "Reviewing Grading Rubrics & Best-of-N Sections",
+        summary:
+          "How step-by-step marking schemes and optional Best-of-N question sections work inside the Rubric Matrix.",
+        readTimeMinutes: 3,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/exam-rubric.png",
-          caption: "Figure 2.3: AI rubric generator with step criteria editor and Best-of-N choice configuration.",
-          pins: [
-            { number: 1, label: "Step-by-step criteria breakdown" },
-            { number: 2, label: "Marks stepper for partial credit" },
-            { number: 3, label: "Best-of-N choice section toggle" },
-            { number: 4, label: "Approve Rubric action button" },
-          ],
-        },
-        overview: "PaperGrade grades handwritten answers using step-marking rubrics derived from your official answer key. You can review every point, adjust partial credit, and configure choice rules.",
+        overview:
+          "Every evaluated exam uses a clear step-by-step Rubric Matrix so marks are awarded consistently across all students—including partial credit and optional choice sections.",
         steps: [
           {
-            title: "1. Generate Rubric from Key",
-            description: "On your exam page, click [ Generate Rubric with AI ]. The system analyzes your Question Paper and Answer Key, identifies all questions, and drafts step-by-step marking criteria (e.g., +1 for Formula, +1 for Substitution, +1 for Final Answer with Units).",
-            uiPills: [{ label: "Generate Rubric with AI", variant: "primary" }],
+            title: "1. How Draft Rubrics Are Created",
+            description:
+              "Once both the Question Paper and Official Answer Key are attached by the Root Administrator, PaperGrade automatically extracts every question, marking step, model answer, and total mark value into the Rubric Matrix (accessible via 'Configure Rubric ->' or 'View Rubric Matrix').",
+            uiPills: [
+              { label: "Configure Rubric ->", variant: "utility" },
+              { label: "View Rubric Matrix", variant: "utility" },
+            ],
             screenshot: {
               suggestedPath: "/docs/faculty/exam-rubric.png",
-              caption: "AI rubric matrix showing step-by-step criteria breakdown and mark weights.",
-              pins: [
-                { number: 1, label: "Step-by-step criteria breakdown" },
-                { number: 2, label: "Marks stepper for partial credit" },
-                { number: 3, label: "Approve Rubric action button" },
-              ],
+              caption:
+                "Rubric Matrix displaying questions, step-by-step marks, and key concepts.",
             },
           },
           {
-            title: "2. Configure Optional Choice Questions (Best-of-N)",
-            description: "If your exam contains choice sections (for example: 'Answer any 3 out of 5 questions in Section B'), click [ Add Choice Rule ]. Select the eligible question numbers (e.g., Q5, Q6, Q7, Q8, Q9) and set the rule to 'Best 3 of 5'. The evaluation engine will automatically award marks to the 3 highest-scoring answers.",
-            uiPills: [{ label: "Add Choice Rule", variant: "utility" }],
-            note: "The rubric mathematically enforces that total points equal your exam's total marks. You cannot approve a rubric if the points do not match.",
-            noteType: "important",
+            title: "2. Best-of-N Optional Question Rules",
+            description:
+              "If an exam has optional sections (for example, 'Attempt any 3 of 5 questions in Section B'), PaperGrade highlights them with a 'Best of N Rule Active' banner. Even if a student answers extra questions, only their top-scoring eligible answers count toward the final total.",
+            uiPills: [{ label: "Best of N Rule Active", variant: "status-green" }],
             screenshot: {
               suggestedPath: "/docs/faculty/exam-rubric-best3.png",
-              caption: "Rubric editor displaying Best-of-3 choice section rules and step-by-step partial marks.",
-              pins: [
-                { number: 1, label: "Best of 3 Rule Active indicator" },
-                { number: 2, label: "Choice section description (Solve Any 3)" },
-                { number: 3, label: "Question statement and partial marks breakdown" },
-              ],
+              caption:
+                "Best-of-N section rule automatically selecting a student's highest-scoring questions.",
             },
           },
           {
-            title: "3. Review & Approve the Rubric",
-            description: "Check the criteria for each question. Use the [+] and [-] steppers to adjust marks if needed. Once satisfied, click [ Approve Rubric ]. The exam status turns green: 'Rubric Approved'.",
-            uiPills: [{ label: "Approve Rubric", variant: "primary" }],
+            title: "3. Approved & Locked Rubrics Before Evaluation",
+            description:
+              "Before evaluation can begin, the Root Administrator reviews and locks the marking scheme using 'Approve & Lock Rubric' (or unlocks it with 'Unlock Rubric to Edit' if changes are needed before grading). Faculty and Branch Managers can inspect every question and step weight in the Rubric Matrix at any time.",
+            uiPills: [
+              { label: "Approve & Lock Rubric", variant: "primary" },
+              { label: "Approved & Locked", variant: "status-green" },
+              { label: "Unlock Rubric to Edit", variant: "utility" },
+            ],
           },
         ],
       },
@@ -730,52 +716,47 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "submission-windows-and-extensions",
         role: "faculty",
         guideCode: "F-04",
-        title: "Controlling Live Submission Windows & Emergency Extensions",
-        summary: "Opening live submission windows, monitoring submission counters in real time, giving +15 min extensions, and closing windows.",
+        title: "Opening Live Submission Windows & Adding Extra Time",
+        summary:
+          "How to open timed student upload sessions, extend active windows by 15 minutes, close submissions, and reopen windows for absent or late students.",
         readTimeMinutes: 3,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/live-window.png",
-          caption: "Figure 2.4: Live exam submission control card showing real-time countdown and +15 min extension button.",
-          pins: [
-            { number: 1, label: "Active submission window countdown" },
-            { number: 2, label: "+15 Min emergency extension button" },
-            { number: 3, label: "Real-time submission counter" },
-            { number: 4, label: "Close Window action" },
-          ],
-        },
-        overview: "Students can only submit answer sheets during an active window opened by faculty. You retain real-time control over time limits and extensions.",
+        overview:
+          "Teachers and Branch Managers directly control when students are allowed to upload their answer sheets.",
         steps: [
           {
-            title: "1. Open the Submission Window",
-            description: "When students are seated and ready, go to the exam page and click [ + Open Window ]. Set the window duration in minutes (e.g. 60 minutes) and click Confirm. Student phones immediately show the active exam card.",
-            uiPills: [{ label: "+ Open Window", variant: "primary" }],
+            title: "1. Open a Timed Submission Window",
+            description:
+              "Inside any exam page, click 'Open Window' on the Submission Window bar. Select a duration (from 5 up to 120 minutes), choose who can upload ('All Students (Replacements Allowed)' or 'Unsubmitted Students Only'), enter a short Session Note / Audit Reason, and submit.",
+            uiPills: [
+              { label: "Open Window", variant: "primary" },
+              { label: "All Students (Replacements Allowed)", variant: "utility" },
+              { label: "Unsubmitted Students Only", variant: "utility" },
+            ],
+            note: "Choose 'Unsubmitted Students Only' when reopening for absentees so already-submitted scripts cannot be overwritten.",
+            noteType: "important",
           },
           {
-            title: "2. Monitor Submissions Live",
-            description: "Watch the live counter on your screen: 'Submitted: X / Total: Y'. The list updates automatically as students submit their papers.",
-          },
-          {
-            title: "3. Grant Emergency Extra Time (+15 Min)",
-            description: "If students need extra time to finish scanning their pages, click [ +15 Min ]. The window extends immediately for all unsubmitted students across the batch.",
-            uiPills: [{ label: "+15 Min", variant: "utility" }],
-            note: "You can click [+15 Min] multiple times if needed. Every extension is recorded in the operational audit log.",
-            noteType: "tip",
+            title: "2. Monitor Submissions, Extend by 15 Min, or Close Early",
+            description:
+              "While open, the banner shows 'Student Submission Window is LIVE' with a live MM:SS countdown. Click '+15 Min' anytime to give students 15 extra minutes, or click 'Close Window' to end uploads right away. Click 'Refresh' in the Submissions Grid and check 'Total Submissions' to watch papers come in.",
+            uiPills: [
+              { label: "Student Submission Window is LIVE", variant: "status-green" },
+              { label: "15 Min", variant: "utility" },
+              { label: "Close Window", variant: "danger" },
+              { label: "Refresh", variant: "utility" },
+            ],
             screenshot: {
               suggestedPath: "/docs/faculty/live-window.png",
-              caption: "Active submission window card with countdown timer and emergency +15 Min extension button.",
-              pins: [
-                { number: 1, label: "Student Submission Window is LIVE status" },
-                { number: 2, label: "Remaining time countdown (e.g. 25:00)" },
-                { number: 3, label: "+15 Min emergency extension button" },
-                { number: 4, label: "Close Window action" },
-              ],
+              caption:
+                "Live submission bar showing countdown timer, +15 Min extend button, and Close Window button.",
             },
           },
           {
-            title: "4. Close the Window",
-            description: "When the exam ends, click [ Close Window ]. Submissions lock immediately, preventing any late uploads.",
-            uiPills: [{ label: "Close Window", variant: "danger" }],
+            title: "3. Grace Period & Reopening Later",
+            description:
+              "Students still uploading when the countdown ends automatically receive a 2-minute grace period. To reopen submissions later, click 'Open Window' again and confirm via 'Confirm Reopening'.",
+            uiPills: [{ label: "Confirm Reopening", variant: "primary" }],
           },
         ],
       },
@@ -784,51 +765,52 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "batch-evaluation-and-overrides",
         role: "faculty",
         guideCode: "F-05",
-        title: "AI Batch Evaluation, Flagged Papers & Manual Overrides",
-        summary: "Running batch evaluation, clearing papers flagged for teacher review, and editing question marks.",
-        readTimeMinutes: 4,
+        title: "Overnight Evaluation, Reviewing Flagged Papers & Editing Marks",
+        summary:
+          "How overnight AI grading works after 8:00 PM IST, how to review NEEDS REVIEW papers, adjust answer regions on scanned sheets, and update marks.",
+        readTimeMinutes: 5,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/batch-eval.png",
-          caption: "Figure 2.5: Batch evaluation queue progress and teacher manual review panel.",
-          pins: [
-            { number: 1, label: "Batch evaluation progress bar" },
-            { number: 2, label: "Needs Review flagged paper queue" },
-            { number: 3, label: "Teacher mark override input" },
-            { number: 4, label: "Audit reason note field" },
-          ],
-        },
-        overview: "PaperGrade uses a time-decoupled evaluation workflow. Daytime hours are dedicated to live exam submissions, while batch AI grading runs overnight so system performance never slows down.",
+        overview:
+          "PaperGrade runs AI grading overnight so student exam sessions stay completely fast during the day. Once papers are evaluated, Teachers review flagged answers and fine-tune marks directly on each scanned script.",
         steps: [
           {
-            title: "1. The Daytime vs Overnight Evaluation Rule",
-            description: "Live exam submissions and portal browsing take place during the day. AI grading is scheduled after exam hours (overnight batch processing). This ensures 100% of server speed is dedicated to student uploads with zero lag.",
-            note: "Client Commitment: Exam results are published the next day or next-to-next day, maintaining highest grading accuracy without rushing.",
-            noteType: "important",
-          },
-          {
-            title: "2. Start Batch Evaluation",
-            description: "Once the submission window has closed and exam hours are finished, click [ Start Evaluation ]. The evaluation queue processes all submitted answer sheets against the approved rubric.",
+            title: "1. Daytime Uploads & Overnight Grading Schedule (8:00 PM IST)",
+            description:
+              "During daytime exam hours (before 8:00 PM IST), all student uploads are saved safely without running AI grading. After 8:00 PM IST—once the submission window is closed, Official Answer Key is uploaded, and the Rubric is 'Approved & Locked'—the Root Administrator triggers 'Start Evaluation' so papers are graded overnight for next-day or next-to-next-day review.",
             uiPills: [{ label: "Start Evaluation", variant: "primary" }],
+            note: "Because evaluation runs overnight, teachers wake up to graded scripts ready for quick review before results are published.",
+            noteType: "important",
             screenshot: {
               suggestedPath: "/docs/faculty/batch-eval.png",
-              caption: "Batch evaluation dashboard showing total submissions (28), evaluation status, and flagged papers.",
-              pins: [
-                { number: 1, label: "Total Submissions counter (28 papers)" },
-                { number: 2, label: "Evaluated progress indicator" },
-                { number: 3, label: "Needs Review human inspection counter" },
-              ],
+              caption:
+                "Evaluation status checklist and submission queue overview.",
             },
           },
           {
-            title: "3. Inspect Flagged Papers ('Needs Review')",
-            description: "If a student's handwriting is partially obscured, or if an unusual solution method was used, the system flags the paper as '● Needs Review' (amber badge). Click [ Review Paper ] to inspect the flagged page.",
-            uiPills: [{ label: "Review Paper", variant: "utility" }],
+            title: "2. Filter Flagged Papers ('NEEDS REVIEW') & Bulk Unflag",
+            description:
+              "In the exam submissions list, filter by 'NEEDS REVIEW' (purple badge highlighting unclear handwriting or crossed-out work) or by score tier ('Distinction (>=75%)', 'Passing (40% - 74%)', 'Needs Attention (<40%)'). You can also select multiple checked rows and click 'Unflag (N)' once reviewed.",
+            uiPills: [
+              { label: "NEEDS REVIEW", variant: "utility" },
+              { label: "Canvas ->", variant: "utility" },
+              { label: "Unflag (N)", variant: "utility" },
+            ],
           },
           {
-            title: "4. Make Audited Manual Overrides",
-            description: "If you wish to adjust marks for any question, click [ Edit Marks ]. Enter the new score and write a brief teacher note (e.g. 'Alternative trigonometric identity accepted per board syllabus'). The paper total recalculates automatically.",
-            uiPills: [{ label: "Edit Marks", variant: "utility" }],
+            title: "3. Inspect Scanned Pages & Adjust Answer Highlights",
+            description:
+              "Click 'Canvas ->' beside any student to view their full handwritten answer sheets. Highlighted boxes mark where each question was answered. If an answer spans pages or part of a solution was missed, drag/resize any highlight box or click 'Add Box to Page' / 'Add Sheet' to include the missing area.",
+            uiPills: [{ label: "Add Box to Page", variant: "utility" }],
+          },
+          {
+            title: "4. Edit Step Marks, Request AI Second Opinion & Save",
+            description:
+              "Click any question on the paper to open its grading panel with 4 tabs: 'Handwriting & Crop' (zoomed handwritten image), 'Rubric & Uncertainty' (editable step marks), 'AI Second Opinion' (run a second AI check on tricky steps), and 'Audit Trail' (history of mark edits). Enter any updated score, add an optional Edit Reason, and click 'Save & Update Marks'.",
+            uiPills: [
+              { label: "AI Second Opinion", variant: "utility" },
+              { label: "Audit Trail", variant: "utility" },
+              { label: "Save & Update Marks", variant: "primary" },
+            ],
           },
         ],
       },
@@ -837,54 +819,37 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "publishing-and-marks-matrix",
         role: "faculty",
         guideCode: "F-06",
-        title: "Publishing Results, Class Spreadsheet & CSV Exports",
-        summary: "Publishing marks to students, inspecting the question-by-question marks matrix, and exporting official grade sheets.",
-        readTimeMinutes: 4,
+        title: "Ranked Standings, Class Marks Matrix & Publishing Results",
+        summary:
+          "How to inspect class standings and question-wise marks matrices, export spreadsheets, and coordinate result publication.",
+        readTimeMinutes: 3,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/marks-matrix.png",
-          caption: "Figure 2.6: Class Marks Matrix spreadsheet and Ranked Standings with CSV export.",
-          pins: [
-            { number: 1, label: "Class Marks Matrix & Results header" },
-            { number: 2, label: "Rubric Matrix and Ranked Standings tabs" },
-            { number: 3, label: "Export CSV grade sheet button" },
-            { number: 4, label: "Student rows with marks and rankings" },
-          ],
-        },
-        overview: "Publishing releases marks, vector-stamped papers, and class standings to student phones. You can inspect the entire class in a spreadsheet matrix and export reports.",
+        overview:
+          "Once paper reviews are complete, use Marks & Inspection to review overall standings or question-by-question performance across the entire batch before results go live.",
         steps: [
           {
-            title: "1. Clear All 'Needs Review' Flags First",
-            description: "The system enforces a strict quality guardrail: you CANNOT publish results if any papers remain in 'Needs Review' status. All flagged papers must be checked and cleared by a teacher first.",
-            note: "If you try to publish with uncleared reviews, the app will block the action and list the unfinished papers.",
-            noteType: "important",
-          },
-          {
-            title: "2. Publish Results",
-            description: "Once all papers are evaluated and cleared, click [ Publish Results ] in the top action bar. The status changes to '● PUBLISHED'. Students can now see their scores and graded papers.",
-            uiPills: [{ label: "Publish Results", variant: "primary" }],
-          },
-          {
-            title: "3. Inspect the Class Marks Matrix (/marks)",
-            description: "Go to 'Marks & Inspection' in the sidebar and choose your exam. Switch between [ Rubric Matrix ] (a full spreadsheet showing every student across rows and each question across columns with class averages) and [ Ranked Standings ] (merit leaderboard).",
+            title: "1. Ranked Standings & Class Marks Matrix",
+            description:
+              "Open 'Marks & Inspection' from the menu. By default you see 'Ranked Standings' sorted by rank and percentage. Switch to 'Marks Matrix' to inspect every student's individual score on every question side by side.",
             uiPills: [
-              { label: "Rubric Matrix", variant: "utility" },
-              { label: "Ranked Standings", variant: "utility" },
+              { label: "Ranked Standings", variant: "primary" },
+              { label: "Marks Matrix", variant: "utility" },
             ],
             screenshot: {
               suggestedPath: "/docs/faculty/marks-matrix.png",
-              caption: "Class Marks Matrix and Results dashboard showing student standings and CSV export.",
-              pins: [
-                { number: 1, label: "Rubric Matrix & Ranked Standings toggle" },
-                { number: 2, label: "Exam selection dropdown" },
-                { number: 3, label: "Export CSV button" },
-              ],
+              caption:
+                "Class Marks Matrix showing question-by-question marks across all students.",
             },
           },
           {
-            title: "4. Export CSV Reports",
-            description: "Click [ Export CSV ] to download the official grade sheet with roll numbers, total marks, and sorted merit rankings for school records.",
-            uiPills: [{ label: "Export CSV", variant: "utility" }],
+            title: "2. Publishing Results & Exporting Spreadsheets",
+            description:
+              "Clicking 'Publish Results' (which marks the exam as 'Finalized', alerts students, and saves copies to linked student Google Drives) is performed by the Root Administrator once faculty checks finish. Authorized staff can download results anytime from 'More Actions (...) -> Export Standings CSV' or 'Export Roster CSV'.",
+            uiPills: [
+              { label: "Publish Results", variant: "primary" },
+              { label: "Finalized", variant: "status-green" },
+              { label: "Export Standings CSV", variant: "utility" },
+            ],
           },
         ],
       },
@@ -893,59 +858,54 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "resolving-revaluations",
         role: "faculty",
         guideCode: "F-07",
-        title: "Handling Student Revaluation Appeals",
-        summary: "Reviewing challenged questions at the Revaluation Desk, revising marks, and generating updated stamped papers.",
-        readTimeMinutes: 3,
+        title: "Resolving Student Revaluation Appeals",
+        summary:
+          "How to review student appeal requests on the Revaluation Desk, compare against the Answer Key, adjust page highlights if needed, and publish final decisions.",
+        readTimeMinutes: 4,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/faculty/revaluation-desk.png",
-          caption: "Figure 2.7: Faculty Revaluation Desk for reviewing student appeals and revising marks.",
-          pins: [
-            { number: 1, label: "Pending Appeals counter (e.g. 0 Pending Appeals)" },
-            { number: 2, label: "Zero Open Grievances status indicator" },
-            { number: 3, label: "Branch operations header" },
-          ],
-        },
-        overview: "When students submit revaluation appeals, they appear grouped by paper in the Revaluation Desk for faculty review.",
+        overview:
+          "The Revaluation Desk brings each student's written grievance, scanned handwriting, and official solution together so teachers can resolve appeals quickly and fairly.",
         steps: [
           {
-            title: "1. Open the Revaluation Desk",
-            description: "Click 'Revaluation Desk' in the left menu. Filter requests by 'Pending' or 'Resolved'. When all student appeals are handled, the screen displays 'Zero Open Grievances'.",
+            title: "1. Pick a Student Appeal from the Top Strip",
+            description:
+              "Open 'Revaluation Desk' from the menu. Pending student appeals appear first in the horizontal 'Student Papers with Appeals' strip at the top. Select a student card (and switch tabs like Appeal #1 if they challenged more than one question).",
             screenshot: {
               suggestedPath: "/docs/faculty/revaluation-desk.png",
-              caption: "Revaluation Desk overview showing zero pending appeals.",
-              pins: [
-                { number: 1, label: "0 Pending Appeals counter" },
-                { number: 2, label: "Zero Open Grievances message" },
-              ],
+              caption:
+                "Revaluation Desk displaying student appeal selection alongside the paper viewer.",
             },
           },
           {
-            title: "2. Inspect the Appeal",
-            description: "Click [ Inspect Appeal ] on any pending student row. The student's paper loads zoomed directly onto the challenged question.",
-            uiPills: [{ label: "Inspect Appeal", variant: "utility" }],
-          },
-          {
-            title: "3. Decide the Outcome",
-            description: "Read the student's justification alongside the rubric. If the original score was correct, click [ Maintain Original Marks ] and leave a brief teacher note. If the student made a valid point, click [ Revise Marks ], enter the updated score, and explain the change. Click [ Confirm Resolution ].",
+            title: "2. Review Highlighted Answer & Adjust Box if Needed",
+            description:
+              "Challenged areas are marked 'REVALUATION APPEAL' on the scanned sheet. Click the highlighted box to read the student's justification alongside the grading notes and model answer. If part of the student's work was outside the box, click 'Adjust Box on Canvas' to include it.",
             uiPills: [
-              { label: "Maintain Original Marks", variant: "utility" },
-              { label: "Revise Marks", variant: "primary" },
+              { label: "REVALUATION APPEAL", variant: "status-amber" },
+              { label: "Adjust Box on Canvas", variant: "utility" },
             ],
           },
           {
-            title: "4. Automatic Paper Re-stamping",
-            description: "The system automatically recalculates the student's total score, updates the class rankings, and re-stamps the annotated paper within seconds.",
+            title: "3. Revise or Uphold Marks & Publish Decision",
+            description:
+              "Select 'Revise Marks' (and enter the new score) or 'Uphold Original Score', add clear Reviewer Notes explaining your decision, and click 'Finalize & Publish Decision'. The student is notified right away and their appeal status updates automatically.",
+            uiPills: [
+              { label: "Revise Marks", variant: "primary" },
+              { label: "Uphold Original Score", variant: "utility" },
+              { label: "Finalize & Publish Decision", variant: "primary" },
+            ],
           },
         ],
       },
     ],
   },
+
   {
     id: "director",
-    label: "Institute Director Manual",
-    badge: "Director",
-    description: "Multi-branch oversight, student distribution brackets, staff provisioning, staff password resets, and 15-day paper retention.",
+    label: "Director & Root Admin Manual",
+    badge: "Leadership & Admin",
+    description:
+      "Multi-branch Director oversight, campus & staff setup, 15-day paper retention, overnight evaluation governance, and support reports.",
     iconName: "Building2",
     articles: [
       {
@@ -953,41 +913,31 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "multi-branch-oversight",
         role: "director",
         guideCode: "D-01",
-        title: "Multi-Branch Academic Performance Overview",
-        summary: "Viewing aggregated student performance, comparing branches, and tracking distinction brackets.",
+        title: "Multi-Branch Academic Oversight (Institute Directors)",
+        summary:
+          "How Institute Directors switch across all branches in their institute to monitor batches, exams, student performance tiers, and appeal resolution.",
         readTimeMinutes: 3,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/director/branch-switcher-roster.png",
-          caption: "Figure 3.1: Director Multi-Branch operational selector and branch roster table.",
-          pins: [
-            { number: 1, label: "Operational branch selector dropdown" },
-            { number: 2, label: "Branch roster overview metrics" },
-            { number: 3, label: "Student activation status list" },
-          ],
-        },
-        overview: "Directors have complete cross-branch visibility to monitor student enrollment, active exams, and academic performance distribution across all centers.",
+        overview:
+          "Institute Directors can inspect and oversee every physical campus under their institute from one account—without waiting for separate branch reports.",
         steps: [
           {
-            title: "1. Switch Between Branches",
-            description: "Use the Operational Branch dropdown in the top header to toggle between viewing the entire institute or isolating a specific branch (e.g. Test Branch - Borivali vs Kandivali).",
+            title: "1. Switch Branches via the Operational Branch Selector",
+            description:
+              "Use the 'Operational Branch' selector in the top header to switch between any branch in your institute. Batches, Examinations, Marks & Inspection, and Revaluation Desk immediately show data for the selected campus.",
+            uiPills: [{ label: "Operational Branch", variant: "utility" }],
             screenshot: {
               suggestedPath: "/docs/director/branch-switcher-roster.png",
-              caption: "Operational Branch selector dropdown showing Mumbai branches and roster details.",
-              pins: [
-                { number: 1, label: "Operational branch dropdown" },
-                { number: 2, label: "Active batches & student enrollment" },
-                { number: 3, label: "Student roster with claimed status" },
-              ],
+              caption:
+                "Operational Branch selector in the header for instant switching across institute branches.",
             },
           },
           {
-            title: "2. Track Academic Brackets",
-            description: "The dashboard classifies student performance into three standard academic tiers: Distinction (students scoring 75% or above), Average (students scoring 40% to 74%), and Needs Help (students scoring below 40%).",
-          },
-          {
-            title: "3. Compare Batch Trajectories",
-            description: "Review exam participation rates and average score distributions across subjects to identify batches needing additional classroom support.",
+            title: "2. Monitor Score Tiers & Revaluation Turnaround",
+            description:
+              "Inside each exam and standings view, filter results across 'Distinction (>=75%)', 'Passing (40% - 74%)', and 'Needs Attention (<40%)', and check the Revaluation Desk to ensure student appeals are resolved on time across branches.",
+            note: "System-wide administration (setting up new branches/staff, uploading Official Answer Keys, locking rubrics, starting overnight evaluation, and publishing final results) is managed by the Root Administrator.",
+            noteType: "important",
           },
         ],
       },
@@ -996,56 +946,48 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "staff-management-and-resets",
         role: "director",
         guideCode: "D-02",
-        title: "Managing Staff Accounts & Approving Staff Password Resets",
-        summary: "Provisioning branch managers, managing access permissions, and authorizing faculty password resets.",
-        readTimeMinutes: 3,
+        title: "Managing Institutes, Branches & Staff Accounts (Root Admin)",
+        summary:
+          "How Root Administrators onboard coaching institutes, add physical branches and subjects, assign Directors and Branch Managers, and approve escalated staff password resets.",
+        readTimeMinutes: 4,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/director/staff-reset-awaiting-director.png",
-          caption: "Figure 3.2: Staff password reset authorization screen awaiting Root Administrator approval.",
-          pins: [
-            { number: 1, label: "Awaiting Root Administrator Authorization title" },
-            { number: 2, label: "Director identity tag" },
-            { number: 3, label: "Do Not Refresh or Leave security notice" },
-          ],
-        },
-        overview: "Directors appoint and manage Branch Managers and authorize staff credential changes.",
+        overview:
+          "Institutes, campuses, subject lists, and leadership accounts are centrally created and maintained under Tenancy Management by the Root Administrator.",
         steps: [
           {
-            title: "1. Appoint a Branch Manager",
-            description: "Go to /admin/tenancy. Locate the target branch card and click [ Provision Manager ]. Enter their Full Name, Official Email, and initial password. Click Save.",
-            uiPills: [{ label: "Provision Manager", variant: "utility" }],
-          },
-          {
-            title: "2. Update or Revoke Staff Access",
-            description: "Use [ Edit Manager ] to update contact details or [ Delete Manager ] to revoke branch management credentials.",
+            title: "1. Add Institutes, Branches & Subjects",
+            description:
+              "Open Tenancy Management from the sidebar. Click 'Register Coaching Institute' to create an organization, then use 'Add Physical Branch' and 'Add Subject' on its card to configure its branches and curriculum subjects.",
             uiPills: [
-              { label: "Edit Manager", variant: "utility" },
-              { label: "Delete Manager", variant: "danger" },
+              { label: "Register Coaching Institute", variant: "primary" },
+              { label: "Add Physical Branch", variant: "utility" },
+              { label: "Add Subject", variant: "utility" },
             ],
           },
           {
-            title: "3. Authorize Staff Password Resets",
-            description: "If a Branch Manager or faculty member forgets their password, they submit a reset request on the staff login screen using their institutional email. The request routes directly to the Root Administrator for authorization.",
-            screenshot: {
-              suggestedPath: "/docs/faculty/staff-password-reset-request.png",
-              caption: "Staff Institutional Email password reset request form.",
-              pins: [
-                { number: 1, label: "Staff Institutional Email input" },
-                { number: 2, label: "Dispatch to Root Administrator note" },
-              ],
-            },
+            title: "2. Appoint Directors & Assign Branch Managers",
+            description:
+              "Click 'Appoint Director' on an Institute card to grant multi-branch oversight, or click 'Assign Manager' on any Branch card to create or update campus Branch Manager accounts.",
+            uiPills: [
+              { label: "Appoint Director", variant: "primary" },
+              { label: "Assign Manager", variant: "utility" },
+            ],
+            note: "Staff members can sign in with their assigned password or with Google whenever their email matches.",
+            noteType: "tip",
           },
           {
-            title: "4. Root Administrator Live Waiting & Unlock",
-            description: "While awaiting Director authorization, the staff member's screen displays the live authorization radar. Once approved in /admin/tenancy, their screen instantly unlocks to create a new password.",
+            title: "3. Resolve Escalated Staff Password Resets",
+            description:
+              "Staff members reset forgotten passwords first through a 6-digit email verification code. When a staff member escalates a reset request, open 'Staff Password Resets' inside Tenancy Management and click 'Approve Reset' or 'Reject' after verifying their identity.",
+            uiPills: [
+              { label: "Staff Password Resets", variant: "utility" },
+              { label: "Approve Reset", variant: "primary" },
+              { label: "Reject", variant: "danger" },
+            ],
             screenshot: {
               suggestedPath: "/docs/director/staff-reset-awaiting-director.png",
-              caption: "Live radar screen awaiting Root Administrator authorization.",
-              pins: [
-                { number: 1, label: "Awaiting Root Administrator Authorization title" },
-                { number: 2, label: "Director name & role display" },
-              ],
+              caption:
+                "Staff password reset waiting screen when escalated to Administrator review.",
             },
           },
         ],
@@ -1055,37 +997,71 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "paper-retention-and-records",
         role: "director",
         guideCode: "D-03",
-        title: "15-Day Paper Retention Policy & Permanent Academic Records",
-        summary: "Understanding how long scanned papers are kept in active storage, and how official student marks are preserved permanently.",
+        title: "15-Day Paper Retention, Permanent Transcripts & Drive Backup",
+        summary:
+          "How long scanned answer sheet PDFs remain available on PaperGrade, why marks remain permanent, and how students keep lifelong PDF copies in Google Drive.",
         readTimeMinutes: 3,
         lastUpdated: "November 2026",
-        screenshotSlot: {
-          suggestedPath: "/docs/student/past-exams-retention.png",
-          caption: "Figure 3.3: Past exam cards showing the official 15-day scanned paper retention badge.",
-          pins: [
-            { number: 1, label: "Results Published status pill" },
-            { number: 2, label: "15d retention badge" },
-            { number: 3, label: "Exam title & score" },
-          ],
-        },
-        overview: "PaperGrade maintains a clear two-tier data retention policy to keep platform speed high while preserving official academic transcripts permanently.",
+        overview:
+          "PaperGrade keeps active scanned PDFs online for 15 days after results are published while keeping all academic scores permanent—and gives students a one-click option to archive full PDFs forever in their own Google Drive.",
         steps: [
           {
-            title: "1. The 15-Day Scanned Paper Retention Window",
-            description: "Full-resolution scanned handwritten papers are kept in fast active storage for 15 days after an exam's results are officially published. This gives students and teachers ample time to inspect markings, download copies, and resolve any revaluation appeals.",
+            title: "1. 15-Day Scanned Paper Window",
+            description:
+              "Full-resolution answer sheet PDFs remain downloadable from PaperGrade for 15 days after result publication (indicated on exam cards by badges like '15d retention' before changing to 'PDF Archived').",
+            uiPills: [
+              { label: "15d retention", variant: "status-green" },
+              { label: "PDF Archived", variant: "utility" },
+            ],
             screenshot: {
               suggestedPath: "/docs/student/past-exams-retention.png",
-              caption: "Exam cards displaying the active 15d retention badge.",
-              pins: [
-                { number: 1, label: "15d retention indicator" },
-              ],
+              caption:
+                "Exam cards showing the 15-day scanned document retention badge.",
             },
           },
           {
-            title: "2. Permanent Academic Records (Never Deleted)",
-            description: "After 15 days, the heavy raw paper images are safely archived, but all official academic data—including student total marks, question-by-question scores, percentages, rank standings, and appeal logs—are preserved permanently in the institute's official academic ledger.",
-            note: "Teachers and directors can search and review historical student marks from previous years at any time under 'Marks & Inspection'.",
+            title: "2. Permanent Marks Ledger & Student Google Drive Copies",
+            description:
+              "All official academic records—total scores, question-level marks, grading feedback, class ranks, and revaluation decisions—are preserved permanently and remain searchable under Marks & Inspection. Students who link Google Drive in Account Settings also keep their full graded PDFs permanently inside 'My Drive / PaperGrade AI / Subject' even after 15 days.",
+            note: "Encourage students to connect their personal Google Drive early so every published answer sheet backs up automatically.",
             noteType: "important",
+          },
+        ],
+      },
+      {
+        id: "d-04",
+        slug: "platform-governance-and-operations",
+        role: "director",
+        guideCode: "D-04",
+        title: "Overnight Evaluation, Result Publishing & Support Desk (Root Admin)",
+        summary:
+          "Root Administrator workflow for monitoring readiness, running overnight grading after 8:00 PM IST, publishing results, and resolving user-reported issues.",
+        readTimeMinutes: 4,
+        lastUpdated: "November 2026",
+        overview:
+          "Root Administrators oversee overall readiness, control final Official Answer Key and Publish steps, run overnight evaluations after daytime exams finish, and manage incoming support tickets.",
+        steps: [
+          {
+            title: "1. Overview Checklist, Overnight Grading (>= 8:00 PM IST) & Publishing",
+            description:
+              "Check 'Overview' to verify exam readiness. Daytime exam hours before 8:00 PM IST are kept strictly dedicated to smooth student submissions. From 8:00 PM IST onward—once submissions are closed, the Official Answer Key is uploaded, and the Rubric is 'Approved & Locked'—click 'Start Evaluation' on the exam page to process scripts overnight, then click 'Publish Results' once faculty verification is done.",
+            uiPills: [
+              { label: "Start Evaluation", variant: "primary" },
+              { label: "Publish Results", variant: "primary" },
+            ],
+            note: "Standard result turnaround is next day or next-to-next day after overnight evaluation and teacher review.",
+            noteType: "important",
+          },
+          {
+            title: "2. Resolving Technical Support Tickets & Monitoring Usage",
+            description:
+              "Open 'Technical Reports' from the sidebar to review bug reports and screenshots submitted by students or staff, updating tickets across OPEN, IN PROGRESS, and RESOLVED states with helpful responses. Visit 'Usage & Analytics' anytime to inspect grading activity and configure daily limits ('Save Limits').",
+            uiPills: [
+              { label: "Save Limits", variant: "primary" },
+              { label: "OPEN", variant: "status-amber" },
+              { label: "IN PROGRESS", variant: "status-orange" },
+              { label: "RESOLVED", variant: "status-green" },
+            ],
           },
         ],
       },
@@ -1093,7 +1069,10 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
   },
 ];
 
-export function getArticleBySlug(role: RoleId, slug: string): DocArticle | undefined {
+export function getArticleBySlug(
+  role: RoleId,
+  slug: string
+): DocArticle | undefined {
   const track = HELP_ROLE_TRACKS.find((t) => t.id === role);
   if (!track) return undefined;
   return track.articles.find((a) => a.slug === slug);
@@ -1103,14 +1082,18 @@ export function getAllArticles(): DocArticle[] {
   return HELP_ROLE_TRACKS.flatMap((t) => t.articles);
 }
 
-export function getAdjacentArticles(role: RoleId, slug: string): { prev?: DocArticle; next?: DocArticle } {
+export function getAdjacentArticles(
+  role: RoleId,
+  slug: string
+): { prev?: DocArticle; next?: DocArticle } {
   const track = HELP_ROLE_TRACKS.find((t) => t.id === role);
   if (!track) return {};
   const idx = track.articles.findIndex((a) => a.slug === slug);
   if (idx === -1) return {};
   return {
     prev: idx > 0 ? track.articles[idx - 1] : undefined,
-    next: idx < track.articles.length - 1 ? track.articles[idx + 1] : undefined,
+    next:
+      idx < track.articles.length - 1 ? track.articles[idx + 1] : undefined,
   };
 }
 
@@ -1130,4 +1113,3 @@ export function searchHelpDocs(query: string): DocArticle[] {
       )
   );
 }
-

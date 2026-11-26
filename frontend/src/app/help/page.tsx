@@ -15,6 +15,8 @@ import {
   RotateCcw,
   KeyRound,
   FileSpreadsheet,
+  HardDrive,
+  ShieldCheck,
 } from "lucide-react";
 import { HELP_ROLE_TRACKS, searchHelpDocs } from "@/lib/helpDocsData";
 import { FeatureCard, BadgePill } from "@/components/ui";
@@ -31,39 +33,46 @@ export default function HelpHubPage() {
 
   const popularShortcuts = [
     {
-      title: "Scanning Answer Sheets with Phone Camera",
+      title: "Scanning Answer Sheets & Replacing Pages",
       role: "student",
       slug: "taking-exams-and-scanning",
       guideCode: "S-02",
       icon: Camera,
     },
     {
-      title: "Replacing an Answer Sheet Within Time Window",
-      role: "student",
-      slug: "taking-exams-and-scanning",
-      guideCode: "S-02",
-      icon: RotateCcw,
-    },
-    {
-      title: "Student Forgot Password & Live Approval",
+      title: "Resetting a Forgotten Password",
       role: "student",
       slug: "student-password-recovery",
       guideCode: "S-05",
       icon: KeyRound,
     },
     {
-      title: "Opening Live Submission Windows & +15 Min Time",
+      title: "Account Settings, Active Devices & Google Drive Backup",
+      role: "student",
+      slug: "account-settings-and-drive-backup",
+      guideCode: "S-06",
+      icon: HardDrive,
+    },
+    {
+      title: "Opening Live Submission Windows & Adding Extra Time",
       role: "faculty",
       slug: "submission-windows-and-extensions",
       guideCode: "F-04",
       icon: Clock,
     },
     {
-      title: "Publishing Results & Class Marks Matrix",
+      title: "Ranked Standings, Class Marks Matrix & Exports",
       role: "faculty",
       slug: "publishing-and-marks-matrix",
       guideCode: "F-06",
       icon: FileSpreadsheet,
+    },
+    {
+      title: "Overnight Evaluation & Publishing Results",
+      role: "director",
+      slug: "platform-governance-and-operations",
+      guideCode: "D-04",
+      icon: ShieldCheck,
     },
   ];
 
@@ -183,21 +192,16 @@ export default function HelpHubPage() {
                   </div>
 
                   <div className="border-t border-hairline pt-3 space-y-1">
-                    {track.articles.slice(0, 4).map((art) => (
+                    {track.articles.map((art) => (
                       <Link
                         key={art.id}
                         href={`/help/${track.id}/${art.slug}`}
                         className="flex items-center gap-2 py-1 text-xs text-ink-secondary hover:text-primary transition-colors truncate"
                       >
-                        <span className="font-mono text-[10px] text-ink-muted">{art.guideCode}</span>
+                        <span className="font-mono text-[10px] text-ink-muted shrink-0">{art.guideCode}</span>
                         <span className="truncate">{art.title}</span>
                       </Link>
                     ))}
-                    {track.articles.length > 4 && (
-                      <span className="text-[10px] text-ink-muted pl-6 block">
-                        + {track.articles.length - 4} more guides
-                      </span>
-                    )}
                   </div>
                 </div>
 

@@ -100,22 +100,22 @@ export function SubmissionWindowControlBar({
             <ButtonUtility
               size="sm"
               onClick={onExtendWindow}
-              disabled={isExtendingWindow}
+              isLoading={isExtendingWindow}
+              icon={<Plus className="h-3.5 w-3.5" />}
               className="text-xs"
               title="Add 15 minutes to submission window"
             >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              {isExtendingWindow ? "Extending..." : "+15 Min"}
+              {isExtendingWindow ? "Extending..." : "15 Min"}
             </ButtonUtility>
             <ButtonUtility
               size="sm"
               variant="danger"
               onClick={onCloseWindow}
-              disabled={isClosingWindow}
+              isLoading={isClosingWindow}
+              icon={<Lock className="h-3.5 w-3.5" />}
               className="text-xs"
               title="Close submission window now"
             >
-              <Lock className="h-3.5 w-3.5 mr-1" />
               {isClosingWindow ? "Closing..." : "Close Window"}
             </ButtonUtility>
           </div>
@@ -147,10 +147,10 @@ export function SubmissionWindowControlBar({
         <ButtonPrimary
           size="sm"
           onClick={onOpenWindowModal}
-          disabled={isOpeningWindow}
+          isLoading={isOpeningWindow}
+          icon={<Clock className="h-3.5 w-3.5 shrink-0" />}
           className="self-start sm:self-auto shrink-0 shadow-2xs cursor-pointer"
         >
-          <Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" />
           {isOpeningWindow ? "Starting Session..." : "Open Window"}
         </ButtonPrimary>
       )}

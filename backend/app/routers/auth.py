@@ -16,6 +16,7 @@ from backend.app.db.models import (
     Branch,
     Institute,
     PasswordResetRequest,
+    UserSession,
     SubmissionWindow,
     Exam,
     Notification,
@@ -30,6 +31,13 @@ from backend.app.services.auth import (
     require_branch_manager,
     invalidate_user_auth_cache,
     BoundedTTLCache,
+)
+from backend.app.services.session_service import (
+    create_user_session,
+    mask_ip_address,
+    revoke_session_by_id,
+    revoke_other_user_sessions,
+    revoke_all_user_sessions,
 )
 from backend.app.services.notification_service import (
     send_notification,
@@ -224,6 +232,10 @@ async def login(
             select(Student).where(Student.user_id == user.id).order_by(Student.claimed_at.desc()).limit(1)
         )
 
+    # Create persistent session entry before minting 7-day JWT so token embeds `sid`
+    sess_row = create_user_session(db=db, user=user, auth_method="PASSWORD", request=request)
+    db.commit()
+
     token_payload = {
         "sub": user.id,
         "role": user.role,
@@ -233,6 +245,7 @@ async def login(
         "branch_id": user.branch_id,
         "has_changed_password": getattr(user, "has_changed_password", 0),
         "token_version": getattr(user, "token_version", 1) or 1,
+        "sid": sess_row.id,
     }
     user_response = {
         "id": user.id,
@@ -307,7 +320,11 @@ def get_profile(
 
 
 @router.post("/claim-account", response_model=LoginResponse)
-def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
+def claim_account(
+    req: ClaimAccountRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """
     One-time onboarding account claim for students using their assigned roll number.
     Validates identity, hashes new password, links user record, and logs student in.
@@ -432,6 +449,13 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
             link_url="/student/portal"
         )
 
+    db.flush()
+    sess_row = create_user_session(
+        db=db,
+        user=db.scalar(select(User).where(User.id == new_user_id)),
+        auth_method="CLAIM_ACCOUNT",
+        request=request,
+    )
     db.commit()
 
     # 5. Emit token
@@ -446,6 +470,7 @@ def claim_account(req: ClaimAccountRequest, db: Session = Depends(get_db)):
         "roll_number": student.roll_number,
         "has_changed_password": 1,
         "token_version": 1,
+        "sid": sess_row.id,
     }
     token = create_access_token(token_payload)
 
@@ -509,6 +534,7 @@ def change_password(
     user.token_version = (getattr(user, "token_version", 1) or 1) + 1
     user.updated_at = now
     invalidate_user_auth_cache(user.id)
+    revoke_all_user_sessions(db, user.id)
 
     send_notification(
         cursor=db,
@@ -682,6 +708,7 @@ def update_user(
     if security_updated:
         user.token_version = (getattr(user, "token_version", 1) or 1) + 1
         invalidate_user_auth_cache(user.id)
+        revoke_all_user_sessions(db, user.id)
 
     db.commit()
 
@@ -1237,6 +1264,7 @@ def complete_password_reset(req: ResetPasswordSubmission, db: Session = Depends(
         user.token_version = (getattr(user, "token_version", 1) or 1) + 1
         user.updated_at = now
         invalidate_user_auth_cache(user.id)
+        revoke_all_user_sessions(db, user.id)
 
     # Mark request COMPLETED and clear reset token
     pr.status = "COMPLETED"
@@ -1464,4 +1492,104 @@ def reject_password_reset(
         "status": "success",
         "message": f"Password reset request for {req.student_name or 'user'} rejected.",
         "request_id": request_id,
+    }
+
+
+@router.get("/sessions")
+def list_active_sessions(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List non-revoked, unexpired login sessions for the authenticated user."""
+    user_id = current_user["sub"]
+    current_sid = current_user.get("sid")
+    now_iso = get_iso_now()
+
+    rows = list(
+        db.scalars(
+            select(UserSession)
+            .where(
+                UserSession.user_id == user_id,
+                UserSession.is_revoked == 0,
+                UserSession.expires_at > now_iso,
+            )
+            .order_by(UserSession.last_active_at.desc(), UserSession.created_at.desc())
+        ).all()
+    )
+
+    sessions = [
+        {
+            "id": r.id,
+            "is_current": bool(current_sid and r.id == current_sid),
+            "device_label": r.device_label,
+            "auth_method": r.auth_method,
+            "ip_address": mask_ip_address(r.ip_address),
+            "last_active_at": r.last_active_at,
+            "created_at": r.created_at,
+            "expires_at": r.expires_at,
+        }
+        for r in rows
+    ]
+    # Surface current browser session first
+    sessions.sort(key=lambda s: (0 if s["is_current"] else 1), reverse=False)
+
+    return {
+        "current_session_id": current_sid,
+        "sessions": sessions,
+    }
+
+
+@router.post("/logout")
+def logout_current_session(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Server-side sign out: immediately revoke current JWT session ID so replay fails with 401."""
+    user_id = current_user["sub"]
+    current_sid = current_user.get("sid")
+    revoked = False
+    if current_sid:
+        revoked = revoke_session_by_id(db, user_id, str(current_sid))
+        db.commit()
+    return {
+        "status": "success",
+        "revoked": revoked,
+        "session_id": current_sid,
+    }
+
+
+@router.delete("/sessions/{session_id}")
+def revoke_session(
+    session_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke one specific active session belonging to the current user."""
+    user_id = current_user["sub"]
+    ok = revoke_session_by_id(db, user_id, session_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    db.commit()
+    return {
+        "status": "success",
+        "revoked_session_id": session_id,
+        "revoked_current": bool(current_user.get("sid") == session_id),
+    }
+
+
+@router.delete("/sessions")
+def revoke_other_sessions(
+    keep_current: bool = True,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Sign out all other devices (or all devices when keep_current=False)."""
+    user_id = current_user["sub"]
+    current_sid = current_user.get("sid") if keep_current else None
+    count = revoke_other_user_sessions(db, user_id, keep_session_id=current_sid)
+    db.commit()
+    return {
+        "status": "success",
+        "revoked_count": count,
+        "kept_session_id": current_sid,
     }

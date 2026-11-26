@@ -1,36 +1,49 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, CheckCircle2, Loader2 } from "lucide-react";
+import { Upload, CheckCircle2 } from "lucide-react";
 import { ModalCard, ButtonPrimary, ButtonUtility } from "@/components/ui";
+
+export type AnswerKeyUploadStage = "idle" | "uploading" | "generating";
 
 interface ExamUploadAkModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (file: File) => Promise<void>;
-  isUploading: boolean;
+  uploadStage?: AnswerKeyUploadStage;
+  isUploading?: boolean;
 }
 
 export function ExamUploadAkModal({
   isOpen,
   onClose,
   onSubmit,
-  isUploading,
+  uploadStage,
+  isUploading = false,
 }: ExamUploadAkModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const stage: AnswerKeyUploadStage = uploadStage ?? (isUploading ? "uploading" : "idle");
+  const isBusy = stage !== "idle";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile || isUploading) return;
+    if (!selectedFile || isBusy) return;
     await onSubmit(selectedFile);
     setSelectedFile(null);
   };
 
   const handleClose = () => {
-    if (isUploading) return;
+    if (isBusy) return;
     setSelectedFile(null);
     onClose();
   };
+
+  const submitLabel =
+    stage === "uploading"
+      ? "Uploading Answer Key..."
+      : stage === "generating"
+      ? "Generating Rubrics..."
+      : "Upload Answer Key";
 
   return (
     <ModalCard
@@ -40,7 +53,7 @@ export function ExamUploadAkModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-xs text-ink-muted leading-relaxed">
-          Upload the official solutions or scoring key. The AI vision agent uses this document to verify student steps and compute rubric scores.
+          Upload the official solutions or scoring key. The AI vision agent uses this document to extract grading criteria and verify student steps.
         </p>
 
         <div className="border-2 border-dashed border-hairline rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer bg-canvas-soft">
@@ -50,7 +63,7 @@ export function ExamUploadAkModal({
             onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
             className="hidden"
             id="ak-upload-input"
-            disabled={isUploading}
+            disabled={isBusy}
           />
           <label htmlFor="ak-upload-input" className="cursor-pointer space-y-2 block">
             <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
@@ -65,27 +78,19 @@ export function ExamUploadAkModal({
           <ButtonUtility
             type="button"
             onClick={handleClose}
-            disabled={isUploading}
+            disabled={isBusy}
             className="w-full sm:w-auto justify-center"
           >
             Cancel
           </ButtonUtility>
           <ButtonPrimary
             type="submit"
-            disabled={!selectedFile || isUploading}
+            disabled={!selectedFile || isBusy}
+            isLoading={isBusy}
+            icon={<Upload className="h-4 w-4" />}
             className="w-full sm:w-auto justify-center"
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                Uploading Key...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-1.5" />
-                Upload Answer Key
-              </>
-            )}
+            {submitLabel}
           </ButtonPrimary>
         </div>
       </form>

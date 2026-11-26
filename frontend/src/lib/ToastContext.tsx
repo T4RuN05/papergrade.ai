@@ -422,15 +422,17 @@ function ToastCard({
           )}
         </div>
 
-        {/* Dismiss button */}
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="shrink-0 p-1 rounded-md text-ink-faint hover:text-ink hover:bg-canvas-soft transition-colors"
-          aria-label="Dismiss toast"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        {/* Dismiss button — hidden while a loading toast is active */}
+        {toast.type !== "loading" && (
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="shrink-0 p-1 rounded-md text-ink-faint hover:text-ink hover:bg-canvas-soft transition-colors"
+            aria-label="Dismiss toast"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Auto-dismiss reverse loading progress track */}

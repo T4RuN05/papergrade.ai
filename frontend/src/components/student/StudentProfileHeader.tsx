@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useToast } from "@/lib/ToastContext";
@@ -226,7 +226,11 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold btn-glass-utility transition-all cursor-pointer shadow-2xs disabled:opacity-50"
             title="Link your Google Drive for automatic result paper archiving"
           >
-            <GoogleDriveIcon className="w-3.5 h-3.5 shrink-0" />
+            {byosState.loading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            ) : (
+              <GoogleDriveIcon className="w-3.5 h-3.5 shrink-0" />
+            )}
             <span>{byosState.loading ? "Linking..." : "Link Gdrive"}</span>
           </button>
         )}
