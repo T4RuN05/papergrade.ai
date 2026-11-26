@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import {
   X,
   Check,
-  AlertCircle,
   HelpCircle,
   Edit3,
   History,
@@ -14,17 +13,15 @@ import {
   Image as ImageIcon,
   FileText,
   Save,
-  CheckCircle2,
   Move,
   Plus,
   Loader2,
   ArrowRight,
-  RotateCcw,
   Wand2,
 } from "lucide-react";
 import { GradedAnswer, Submission, CriterionScore } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill, MathText, hasLatexMath, ButtonPrimary, ButtonUtility, StatusWell } from "./ui";
+import { BadgePill, MathText, hasLatexMath, StatusWell } from "./ui";
 import { ClippedAnswerCrop } from "./ClippedAnswerCrop";
 import { useToast } from "@/lib/ToastContext";
 import { useDrawerDrag } from "@/hooks/useDrawerDrag";
@@ -378,43 +375,43 @@ export function GradingModal({
         <div className="flex border-b border-hairline bg-surface px-3 sm:px-6 gap-1 sm:gap-6 text-xs overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
           <button
             onClick={() => setActiveTab("verification")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "verification"
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "verification"
               ? "border-primary text-primary"
               : "border-transparent text-ink-muted hover:text-ink"
               }`}
           >
             <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Handwriting</span>
-            <span className="hidden sm:inline">Handwriting & Transcription</span>
+            <span className="hidden sm:inline">Handwriting &amp; Transcription</span>
           </button>
           <button
             onClick={() => setActiveTab("rubric")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "rubric"
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "rubric"
               ? "border-primary text-primary"
               : "border-transparent text-ink-muted hover:text-ink"
               }`}
           >
             <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">Rubric</span>
-            <span className="hidden sm:inline">Rubric & Criteria</span>
+            <span className="hidden sm:inline">Rubric &amp; Criteria</span>
           </button>
           <button
             onClick={() => setActiveTab("reeval")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "reeval"
-              ? "border-amber-500 text-amber-500 dark:text-amber-400"
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "reeval"
+              ? "border-primary text-primary"
               : "border-transparent text-ink-muted hover:text-ink"
               }`}
           >
-            <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+            <Wand2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="sm:hidden">AI Opinion</span>
             <span className="hidden sm:inline">AI Second Opinion</span>
-            <span className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+            <span className="hidden sm:inline-flex ml-1 px-1.5 py-0.5 rounded-xs text-[10px] font-mono font-medium bg-canvas-soft text-ink-muted border border-hairline">
               3.5 Flash Lite
             </span>
           </button>
           <button
             onClick={() => setActiveTab("audit")}
-            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "audit"
+            className={`py-2.5 sm:py-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 text-xs shrink-0 px-2 sm:px-0 cursor-pointer ${activeTab === "audit"
               ? "border-primary text-primary"
               : "border-transparent text-ink-muted hover:text-ink"
               }`}
@@ -426,16 +423,16 @@ export function GradingModal({
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-canvas-soft/30">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-canvas-soft/40">
           {activeTab === "verification" && (
             <div className="space-y-4">
               {/* Question Statement */}
               {answer.question_text && (
-                <div className="rounded-md border border-hairline bg-canvas-soft p-3.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
+                <div className="rounded-md border border-hairline bg-surface p-3.5">
+                  <span className="notion-eyebrow text-ink-muted block">
                     Question Statement
                   </span>
-                  <div className="mt-1 text-xs font-semibold text-ink leading-relaxed">
+                  <div className="mt-1 text-xs font-medium text-ink leading-relaxed">
                     <MathText text={answer.question_text} />
                   </div>
                 </div>
@@ -444,7 +441,7 @@ export function GradingModal({
               {/* Side-by-Side: Handwriting Crop vs Extracted Text */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 1. Original Answer Crop */}
-                <div className="rounded-lg border border-hairline bg-surface p-4 flex flex-col shadow-2xs">
+                <div className="notion-card p-4 flex flex-col">
                   {(() => {
                     const allRegions = answer.regions || [];
                     const activeRegion = allRegions[selectedRegionIndex] || allRegions[0];
@@ -459,12 +456,12 @@ export function GradingModal({
                       <>
                         <div className="flex items-center justify-between gap-1.5 sm:gap-2 mb-2.5">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-xs font-bold text-ink flex items-center gap-1.5 shrink-0">
-                              <ImageIcon className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-semibold text-ink flex items-center gap-1.5 shrink-0">
+                              <ImageIcon className="h-3.5 w-3.5 text-primary" />
                               Handwriting Crop
                             </span>
                             {allRegions.length <= 1 && activePage && (
-                              <span className="hidden sm:inline-flex text-[10px] text-ink-muted font-mono bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded whitespace-nowrap">
+                              <span className="hidden sm:inline-flex text-[11px] text-ink-muted font-mono bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded-xs whitespace-nowrap">
                                 Page {activePage}
                               </span>
                             )}
@@ -481,7 +478,7 @@ export function GradingModal({
                                     onAdjustOnCanvas(answer, activePage || undefined);
                                   }
                                 }}
-                                className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold h-7 px-2.5 rounded-md cursor-pointer transition-all"
+                                className="notion-btn-utility min-h-0 h-7 px-2.5 text-[11px]"
                                 title="Close modal and adjust box handles directly on canvas"
                               >
                                 <Move className="h-3 w-3 text-primary" />
@@ -491,16 +488,16 @@ export function GradingModal({
                                 <button
                                   type="button"
                                   onClick={() => setShowAddPageDropdown((prev) => !prev)}
-                                  className="btn-glass-utility inline-flex items-center gap-1 text-[11px] font-semibold h-7 px-2.5 rounded-md cursor-pointer transition-all"
+                                  className="notion-btn-utility min-h-0 h-7 px-2.5 text-[11px]"
                                   title="Add an additional bounding box continuation on another sheet"
                                 >
-                                  <Plus className="h-3 w-3 text-[#165651] dark:text-[#80cbc4]" />
+                                  <Plus className="h-3 w-3 text-primary" />
                                   <span>Add Sheet</span>
                                 </button>
                                 {showAddPageDropdown && (
-                                  <div className="absolute top-full right-0 mt-1 w-48 bg-surface border border-hairline shadow-lg rounded-lg p-1.5 z-50 space-y-1">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-ink-muted px-2 py-1 border-b border-hairline flex items-center justify-between">
-                                      <span>Link on Sheet:</span>
+                                  <div className="absolute top-full right-0 mt-1 w-48 bg-surface border border-hairline shadow-notion-modal rounded-lg p-1.5 z-50 space-y-1">
+                                    <div className="text-xs font-semibold text-ink-muted px-2 py-1 border-b border-hairline flex items-center justify-between">
+                                      <span>Link on Sheet</span>
                                       <button
                                         type="button"
                                         onClick={() => setShowAddPageDropdown(false)}
@@ -522,10 +519,10 @@ export function GradingModal({
                                               onClose();
                                               onAdjustOnCanvas(answer, pNum);
                                             }}
-                                            className="w-full flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-canvas-soft transition-colors cursor-pointer"
+                                            className="w-full flex items-center justify-between px-2 py-1 rounded-sm text-xs hover:bg-canvas-soft transition-colors cursor-pointer"
                                           >
                                             <span className="font-medium text-ink">Page {pNum}</span>
-                                            <span className={`text-[10px] ${hasRegOnP ? "text-emerald-600 font-semibold" : "text-ink-muted"}`}>
+                                            <span className={`text-[11px] ${hasRegOnP ? "text-[#1aae39] font-medium" : "text-ink-muted"}`}>
                                               {hasRegOnP ? "(Has Box)" : "+ Add Box"}
                                             </span>
                                           </button>
@@ -540,8 +537,8 @@ export function GradingModal({
                         </div>
 
                         {allRegions.length > 1 && (
-                          <div className="flex items-center gap-1.5 mb-2.5 p-1 bg-canvas-soft rounded-lg border border-hairline overflow-x-auto scrollbar-none">
-                            <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider px-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 mb-2.5 p-1 bg-canvas-soft rounded-md border border-hairline overflow-x-auto scrollbar-none">
+                            <span className="text-[11px] font-medium text-ink-muted px-1.5 shrink-0">
                               Sheets:
                             </span>
                             {allRegions.map((reg, rIdx) => (
@@ -549,8 +546,8 @@ export function GradingModal({
                                 key={reg.id || rIdx}
                                 type="button"
                                 onClick={() => setSelectedRegionIndex(rIdx)}
-                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${selectedRegionIndex === rIdx
-                                  ? "bg-primary text-white shadow-2xs font-bold"
+                                className={`px-2.5 py-1 rounded-sm text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer shrink-0 ${selectedRegionIndex === rIdx
+                                  ? "bg-primary text-white font-semibold"
                                   : "text-ink-secondary hover:text-ink hover:bg-surface"
                                   }`}
                               >
@@ -560,7 +557,7 @@ export function GradingModal({
                           </div>
                         )}
 
-                        <div className="flex-1 flex flex-col items-center justify-center rounded-lg bg-canvas-soft/40 border border-hairline p-1 sm:p-2 overflow-hidden">
+                        <div className="flex-1 flex flex-col items-center justify-center rounded-md bg-canvas-soft border border-hairline p-1.5 sm:p-2 overflow-hidden">
                           {activeCropUrl && !answer.is_missing ? (
                             <ClippedAnswerCrop
                               submissionId={submission.id}
@@ -582,10 +579,10 @@ export function GradingModal({
                             </div>
                           )}
                         </div>
-                        <p className="mt-2 text-[10px] text-ink-muted text-center">
+                        <p className="mt-2 text-[11px] text-ink-muted text-center">
                           {allRegions.length > 1
-                            ? `Showing Part ${selectedRegionIndex + 1} of ${allRegions.length}. Click pills above to switch pages.`
-                            : `Page ${activePage || answer.page_number} • Cropped directly from student script using AI bounding box.`}
+                            ? `Showing Part ${selectedRegionIndex + 1} of ${allRegions.length}. Click tabs above to switch pages.`
+                            : `Page ${activePage || answer.page_number} • Cropped directly from student script using bounding box.`}
                         </p>
                       </>
                     );
@@ -593,10 +590,10 @@ export function GradingModal({
                 </div>
 
                 {/* 2. Extracted Student Answer (Editable) */}
-                <div className="rounded-lg border border-hairline bg-surface p-4 flex flex-col shadow-2xs">
+                <div className="notion-card p-4 flex flex-col">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-ink flex items-center gap-1.5">
-                      <Edit3 className="h-4 w-4 text-emerald-600" />
+                    <span className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                      <Edit3 className="h-3.5 w-3.5 text-primary" />
                       Extracted Student Transcription
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -604,17 +601,19 @@ export function GradingModal({
                         <button
                           type="button"
                           onClick={() => setShowTranscriptionMath((prev) => !prev)}
-                          className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer"
+                          className="text-[11px] font-medium px-2 py-0.5 rounded-xs border border-hairline text-primary bg-canvas-soft hover:bg-surface transition-colors cursor-pointer"
                         >
                           {showTranscriptionMath ? "Edit Raw" : "KaTeX View"}
                         </button>
                       )}
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60 px-1.5 py-0.5 rounded font-mono font-medium">Editable</span>
+                      <span className="text-[11px] text-ink-muted bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded-xs font-mono font-medium">
+                        Editable
+                      </span>
                     </div>
                   </div>
 
                   {showTranscriptionMath && hasLatexMath(extractedText) ? (
-                    <div className="w-full flex-1 rounded-md border border-hairline bg-canvas-soft p-3 text-xs text-ink leading-relaxed whitespace-pre-wrap overflow-y-auto min-h-[160px] max-h-72">
+                    <div className="w-full flex-1 rounded-xs border border-hairline bg-canvas-soft p-3 text-xs text-ink leading-relaxed whitespace-pre-wrap overflow-y-auto min-h-[160px] max-h-72">
                       <MathText text={extractedText} />
                     </div>
                   ) : (
@@ -623,14 +622,14 @@ export function GradingModal({
                       value={extractedText}
                       onChange={(e) => setExtractedText(e.target.value)}
                       placeholder="Student's extracted response text..."
-                      className="w-full flex-1 rounded-md border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary font-mono leading-relaxed transition-colors"
+                      className="w-full flex-1 rounded-xs border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none font-mono leading-relaxed transition-colors"
                     />
                   )}
 
                   {!showTranscriptionMath && hasLatexMath(extractedText) && (
-                    <div className="mt-2 rounded-md border border-hairline bg-canvas-soft/70 p-2.5 text-xs text-ink leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
-                      <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">
-                        Live KaTeX Preview:
+                    <div className="mt-2 rounded-xs border border-hairline bg-canvas-soft p-2.5 text-xs text-ink leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
+                      <div className="notion-eyebrow text-primary mb-1">
+                        Live KaTeX Preview
                       </div>
                       <MathText text={extractedText} />
                     </div>
@@ -648,12 +647,12 @@ export function GradingModal({
 
               {/* Official Solution / Model Answer */}
               {answer.official_answer && (
-                <div className="rounded-lg border border-emerald-200/80 bg-[#edf7ed]/80 dark:bg-[#101d15] dark:border-[#1a3324] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] p-3.5 text-xs">
-                  <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-[#86d4a4] mb-1.5">
-                    <Check className="h-4 w-4 text-emerald-600 dark:text-[#86d4a4]" />
-                    Official Solution / Model Answer
+                <div className="notion-card border-l-2 border-l-[#1aae39] p-4 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-semibold text-ink">
+                    <span className="h-2 w-2 rounded-full bg-[#1aae39] shrink-0" />
+                    <span>Official Solution / Model Answer</span>
                   </div>
-                  <div className="text-emerald-950 dark:text-[#86d4a4]/90 font-mono leading-relaxed whitespace-pre-wrap bg-white/60 dark:bg-[#0b140e] p-2.5 rounded-md border border-emerald-200/60 dark:border-[#1a3324]/80">
+                  <div className="text-ink-secondary font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-3 rounded-xs border border-hairline">
                     <MathText text={answer.official_answer} />
                   </div>
                 </div>
@@ -664,22 +663,22 @@ export function GradingModal({
           {activeTab === "rubric" && (
             <div className="space-y-4">
               {/* Criterion Level Breakdown */}
-              <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-3">
-                <h4 className="text-xs font-bold text-ink flex items-center gap-2">
+              <div className="notion-card p-4 space-y-3">
+                <h4 className="notion-section-title text-sm text-ink flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   Approved Marking Criteria Breakdown
                 </h4>
 
                 <StatusWell
-                  variant="amber"
-                  icon={<Wand2 className="h-3.5 w-3.5 text-amber-500" />}
+                  variant="neutral"
+                  icon={<Wand2 className="h-3.5 w-3.5 text-primary" />}
                   title="Alternate derivation or strict evaluation?"
                   description="Request targeted second opinion on handwriting crop with custom teacher hints."
                   badge={
                     <button
                       type="button"
                       onClick={() => setActiveTab("reeval")}
-                      className="btn-glass-amber px-2.5 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                      className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                     >
                       <span>AI Second Opinion</span>
                       <span>&rarr;</span>
@@ -700,16 +699,16 @@ export function GradingModal({
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-primary">
+                            <span className="font-mono text-xs font-semibold text-primary">
                               {c.criterion_id}
                             </span>
-                            <span className="text-xs font-semibold text-ink">
+                            <span className="text-xs font-medium text-ink">
                               <MathText text={c.description} />
                             </span>
                           </div>
                           {c.evidence && (
-                            <div className="mt-1 text-[11px] text-ink-secondary leading-relaxed">
-                              <span className="font-semibold text-ink-muted">Evidence: </span>
+                            <div className="mt-1 text-xs text-ink-secondary leading-relaxed">
+                              <span className="font-medium text-ink-muted">Evidence: </span>
                               <span className="italic">
                                 <MathText text={c.evidence} />
                               </span>
@@ -728,7 +727,7 @@ export function GradingModal({
                             onChange={(e) =>
                               handleCriterionChange(c.criterion_id, parseFloat(e.target.value) || 0)
                             }
-                            className="w-16 rounded border border-hairline bg-surface px-2 py-1 text-center font-mono text-xs font-bold text-ink focus:border-primary focus:outline-none shadow-2xs"
+                            className="w-16 rounded-xs border border-hairline bg-surface px-2 py-1 text-center font-mono text-xs font-semibold text-ink focus:border-primary focus:outline-none tabular-nums"
                           />
                           <span className="text-xs text-ink-muted font-mono font-medium">/ {c.max_marks}</span>
                         </div>
@@ -739,22 +738,22 @@ export function GradingModal({
               </div>
 
               {/* AI Grading Rationale & Explanation */}
-              <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs space-y-2">
-                <span className="text-xs font-bold text-ink flex items-center gap-2">
-                  <Edit3 className="h-4 w-4 text-amber-600" />
-                  Grading Explanation & Rationale
+              <div className="notion-card p-4 space-y-2">
+                <span className="notion-section-title text-sm text-ink flex items-center gap-2">
+                  <Edit3 className="h-4 w-4 text-primary" />
+                  Grading Explanation &amp; Rationale
                 </span>
                 <textarea
                   rows={4}
                   value={rationale}
                   onChange={(e) => setRationale(e.target.value)}
                   placeholder="Grading explanation..."
-                  className="w-full rounded-md border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink focus:border-primary focus:outline-none leading-relaxed transition-colors font-sans"
+                  className="w-full rounded-xs border border-hairline bg-canvas-soft focus:bg-surface p-3 text-xs text-ink focus:border-primary focus:outline-none leading-relaxed transition-colors font-sans"
                 />
                 {hasLatexMath(rationale) && (
-                  <div className="mt-1.5 rounded-md border border-hairline bg-canvas-soft/70 p-2.5 text-xs text-ink leading-relaxed">
-                    <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1">
-                      Live KaTeX Preview:
+                  <div className="mt-1.5 rounded-xs border border-hairline bg-canvas-soft p-2.5 text-xs text-ink leading-relaxed">
+                    <div className="notion-eyebrow text-ink-muted mb-1">
+                      Live KaTeX Preview
                     </div>
                     <MathText text={rationale} />
                   </div>
@@ -763,40 +762,40 @@ export function GradingModal({
 
               {/* Uncertainty Gauges */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="rounded-md border border-hairline bg-surface p-3 shadow-2xs">
+                <div className="notion-card p-3.5">
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-ink-muted">Transcription Uncertainty:</span>
-                    <span className="font-mono font-bold text-ink">
+                    <span className="text-ink-muted">Transcription Uncertainty</span>
+                    <span className="font-mono font-semibold text-ink tabular-nums">
                       {Math.round((answer.transcription_uncertainty || 0) * 100)}%
                     </span>
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-canvas-soft border border-hairline overflow-hidden">
                     <div
                       className={`h-full transition-all duration-300 ${(answer.transcription_uncertainty || 0) > 0.4
-                        ? "bg-[#872323] dark:bg-[#e87878]"
+                        ? "bg-[#c93b3b]"
                         : (answer.transcription_uncertainty || 0) > 0.15
-                          ? "bg-[#7a4e18] dark:bg-[#e5ad68]"
-                          : "bg-[#1e613b] dark:bg-[#86d4a4]"
+                          ? "bg-[#dd5b00]"
+                          : "bg-[#1aae39]"
                         }`}
                       style={{ width: `${Math.round((answer.transcription_uncertainty || 0) * 100)}%` }}
                     />
                   </div>
                 </div>
 
-                <div className="rounded-md border border-hairline bg-surface p-3 shadow-2xs">
+                <div className="notion-card p-3.5">
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-ink-muted">Grading Uncertainty:</span>
-                    <span className="font-mono font-bold text-ink">
+                    <span className="text-ink-muted">Grading Uncertainty</span>
+                    <span className="font-mono font-semibold text-ink tabular-nums">
                       {Math.round((answer.grading_uncertainty || 0) * 100)}%
                     </span>
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-canvas-soft border border-hairline overflow-hidden">
                     <div
                       className={`h-full transition-all duration-300 ${(answer.grading_uncertainty || 0) > 0.4
-                        ? "bg-[#872323] dark:bg-[#e87878]"
+                        ? "bg-[#c93b3b]"
                         : (answer.grading_uncertainty || 0) > 0.15
-                          ? "bg-[#7a4e18] dark:bg-[#e5ad68]"
-                          : "bg-[#1e613b] dark:bg-[#86d4a4]"
+                          ? "bg-[#dd5b00]"
+                          : "bg-[#1aae39]"
                         }`}
                       style={{ width: `${Math.round((answer.grading_uncertainty || 0) * 100)}%` }}
                     />
@@ -807,19 +806,18 @@ export function GradingModal({
           )}
 
           {activeTab === "reeval" && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Context & Description Banner */}
-              <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-3.5 shadow-2xs relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500/80 dark:bg-amber-400/70" />
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pl-1">
+              <div className="notion-card p-4 sm:p-5 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-amber-500 shrink-0">
+                    <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-primary shrink-0">
                       <Wand2 className="h-4 w-4" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink flex items-center gap-2">
-                        Targeted AI Re-evaluation &amp; Second Opinion
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-canvas-soft border border-hairline text-ink-muted">
+                      <h4 className="notion-section-title text-sm text-ink flex items-center gap-2 flex-wrap">
+                        <span>Targeted AI Re-evaluation &amp; Second Opinion</span>
+                        <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-mono font-medium bg-canvas-soft border border-hairline text-ink-muted">
                           3.5 Flash Lite
                         </span>
                       </h4>
@@ -828,8 +826,8 @@ export function GradingModal({
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 self-start sm:self-auto pl-1 sm:pl-0">
-                    <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-canvas-soft border border-hairline text-ink shadow-2xs">
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-xs bg-canvas-soft border border-hairline text-ink tabular-nums">
                       Current: {awardedMarks} / {answer.max_marks} marks
                     </span>
                   </div>
@@ -837,8 +835,8 @@ export function GradingModal({
 
                 {/* Question Statement preview */}
                 {answer.question_text && (
-                  <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs text-ink leading-relaxed">
-                    <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider block mb-1">
+                  <div className="p-3 rounded-xs bg-canvas-soft border border-hairline text-xs text-ink leading-relaxed">
+                    <span className="notion-eyebrow text-ink-muted block mb-1">
                       Question Statement
                     </span>
                     <MathText text={answer.question_text} />
@@ -847,23 +845,23 @@ export function GradingModal({
               </div>
 
               {/* Teacher Guidance Input Section */}
-              <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-3.5 shadow-2xs">
+              <div className="notion-card p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <label className="text-xs font-bold text-ink flex items-center gap-1.5">
-                    <Edit3 className="h-4 w-4 text-primary" />
+                  <label className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                    <Edit3 className="h-3.5 w-3.5 text-primary" />
                     Teacher Guidance &amp; Correction Instructions
                   </label>
-                  <span className="text-[11px] text-ink-muted">Optional: Direct the AI model on what to consider</span>
+                  <span className="text-xs text-ink-muted">Optional: Direct the AI model on what to consider</span>
                 </div>
 
                 {/* Quick Suggestion Chips */}
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-ink-muted mr-1 font-medium">Suggestions:</span>
+                  <span className="text-xs text-ink-muted mr-1 font-medium">Suggestions:</span>
                   {[
-                    { label: "💡 Alternate Method", text: "Student used an alternative mathematical derivation not in official key. Evaluate if the method is mathematically sound and award full/partial marks." },
-                    { label: "⚖️ Lenient on Minor Slip", text: "Be lenient on minor arithmetic slip or unsimplified fraction; award partial credit if conceptual steps and formulas are correct." },
-                    { label: "🔍 Re-read Handwriting", text: "Handwriting in the crop was ambiguous. Carefully re-examine handwritten mathematical symbols and indices." },
-                    { label: "🎯 Verify Final Answer", text: "Verify whether the student's final boxed expression is mathematically equivalent to the required solution." },
+                    { label: "Alternate Method", text: "Student used an alternative mathematical derivation not in official key. Evaluate if the method is mathematically sound and award full/partial marks." },
+                    { label: "Lenient on Minor Slip", text: "Be lenient on minor arithmetic slip or unsimplified fraction; award partial credit if conceptual steps and formulas are correct." },
+                    { label: "Re-read Handwriting", text: "Handwriting in the crop was ambiguous. Carefully re-examine handwritten mathematical symbols and indices." },
+                    { label: "Verify Final Answer", text: "Verify whether the student's final boxed expression is mathematically equivalent to the required solution." },
                   ].map((chip) => (
                     <button
                       key={chip.label}
@@ -871,7 +869,7 @@ export function GradingModal({
                       onClick={() => {
                         setTeacherGuidancePrompt((prev) => (prev ? `${prev}\n${chip.text}` : chip.text));
                       }}
-                      className="btn-glass-utility px-2.5 py-1 rounded-full text-[11px] font-medium text-ink transition-all cursor-pointer"
+                      className="notion-btn-utility min-h-0 h-7 px-2.5 text-xs"
                     >
                       {chip.label}
                     </button>
@@ -880,7 +878,7 @@ export function GradingModal({
                     <button
                       type="button"
                       onClick={() => setTeacherGuidancePrompt("")}
-                      className="text-[11px] text-red-500 hover:underline ml-1 font-medium"
+                      className="text-xs text-[#c93b3b] hover:underline ml-1 font-medium cursor-pointer"
                     >
                       Clear
                     </button>
@@ -893,28 +891,28 @@ export function GradingModal({
                   value={teacherGuidancePrompt}
                   onChange={(e) => setTeacherGuidancePrompt(e.target.value)}
                   placeholder="E.g., Student substituted u = tan(x/2); check if step 2 is valid... or be lenient on minor arithmetic slip in C2..."
-                  className="w-full rounded-md border border-hairline bg-canvas-soft p-3 font-mono text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                  className="w-full rounded-xs border border-hairline bg-canvas-soft focus:bg-surface p-3 font-mono text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
                 />
 
                 {/* Execution Button */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
-                  <span className="text-[11px] text-ink-muted font-sans">
+                  <span className="text-xs text-ink-muted font-sans">
                     Cropped region from Page {activePage || answer.page_number}
                   </span>
                   <button
                     type="button"
                     onClick={handleRunReevaluation}
                     disabled={isReevaluating}
-                    className="btn-glass-amber inline-flex items-center justify-center gap-2 rounded-md font-semibold text-xs px-5 py-2.5 disabled:opacity-50 cursor-pointer"
+                    className="notion-btn-primary disabled:opacity-50"
                   >
                     {isReevaluating ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         <span>Evaluating with 3.5 Flash Lite... ({reevalElapsedSec.toFixed(1)}s)</span>
                       </>
                     ) : (
                       <>
-                        <Wand2 className="h-4 w-4" />
+                        <Wand2 className="h-3.5 w-3.5" />
                         <span>Run AI Second Opinion</span>
                       </>
                     )}
@@ -924,30 +922,30 @@ export function GradingModal({
 
               {/* Proposal Result View (if available) */}
               {reevalResult && (
-                <div className="rounded-xl border border-emerald-500/30 bg-surface p-4 sm:p-5 space-y-4 shadow-sm animate-in fade-in duration-200">
+                <div className="notion-card border-l-2 border-l-[#1aae39] p-4 sm:p-5 space-y-4">
                   {/* Proposal Header Status Well */}
                   <StatusWell
-                    variant="green"
-                    icon={<CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                    variant="neutral"
+                    icon={<span className="h-2.5 w-2.5 rounded-full bg-[#1aae39]" />}
                     title="AI Second Opinion Ready"
                     description={reevalResult.adjustment_summary}
                     badge={
-                      <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-lg border border-hairline font-mono text-xs self-start sm:self-auto">
+                      <div className="flex items-center gap-2 bg-canvas-soft px-3 py-1.5 rounded-xs border border-hairline font-mono text-xs self-start sm:self-auto tabular-nums">
                         <span className="text-ink-muted line-through">
                           {reevalResult.previous_awarded_marks} / {reevalResult.max_marks}
                         </span>
                         <ArrowRight className="h-3.5 w-3.5 text-ink-muted" />
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        <span className="font-semibold text-[#1aae39]">
                           {reevalResult.proposed_awarded_marks} / {reevalResult.max_marks}
                         </span>
                         {(() => {
                           const diff = Number(reevalResult.proposed_awarded_marks) - Number(reevalResult.previous_awarded_marks);
                           if (diff > 0) {
-                            return <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">+{diff}</span>;
+                            return <span className="text-[11px] font-semibold text-[#1aae39]">+{diff}</span>;
                           } else if (diff < 0) {
-                            return <span className="text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">{diff}</span>;
+                            return <span className="text-[11px] font-semibold text-[#c93b3b]">{diff}</span>;
                           }
-                          return <span className="text-[10px] font-bold text-ink-muted bg-surface px-1.5 py-0.5 rounded">0.0</span>;
+                          return <span className="text-[11px] font-medium text-ink-muted">0.0</span>;
                         })()}
                       </div>
                     }
@@ -956,11 +954,11 @@ export function GradingModal({
                   {/* Proposed Criteria Breakdown */}
                   {reevalResult.proposed_criteria_scores && reevalResult.proposed_criteria_scores.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-ink flex items-center gap-1.5">
                         <Sparkles className="h-3.5 w-3.5 text-primary" />
                         Proposed Marking Criteria Breakdown
                       </span>
-                      <div className="divide-y divide-hairline rounded-lg border border-hairline bg-canvas-soft/40 overflow-hidden">
+                      <div className="divide-y divide-hairline rounded-md border border-hairline bg-canvas-soft overflow-hidden">
                         {reevalResult.proposed_criteria_scores.map((cs: any, idx: number) => {
                           const origCrit = criterionScores.find((c) => c.criterion_id === cs.criterion_id);
                           const maxM = origCrit?.max_marks || 1;
@@ -970,13 +968,13 @@ export function GradingModal({
                                 <span className="font-semibold text-ink">
                                   Criterion {cs.criterion_id}
                                 </span>
-                                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-surface border border-hairline text-ink">
+                                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-xs bg-surface border border-hairline text-ink tabular-nums">
                                   Awarded: {cs.awarded_marks} / {maxM}
                                 </span>
                               </div>
                               {cs.evidence && (
-                                <div className="text-[11px] text-ink-muted leading-relaxed font-mono">
-                                  <span className="font-bold text-primary mr-1">Evidence:</span>
+                                <div className="text-xs text-ink-muted leading-relaxed font-mono">
+                                  <span className="font-semibold text-primary mr-1">Evidence:</span>
                                   <MathText text={cs.evidence} />
                                 </div>
                               )}
@@ -990,11 +988,11 @@ export function GradingModal({
                   {/* Refined Student Transcription */}
                   {reevalResult.proposed_extracted_text && (
                     <div className="space-y-1.5">
-                      <span className="text-xs font-bold text-ink flex items-center gap-1.5">
-                        <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
                         Refined Student Transcription (KaTeX)
                       </span>
-                      <div className="p-3 rounded-lg border border-hairline bg-canvas-soft text-xs text-ink font-mono whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                      <div className="p-3 rounded-xs border border-hairline bg-canvas-soft text-xs text-ink font-mono whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
                         <MathText text={reevalResult.proposed_extracted_text} />
                       </div>
                     </div>
@@ -1003,34 +1001,32 @@ export function GradingModal({
                   {/* Proposed Rationale */}
                   {reevalResult.proposed_rationale && (
                     <div className="space-y-1.5">
-                      <span className="text-xs font-bold text-ink flex items-center gap-1.5">
-                        <HelpCircle className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                        <HelpCircle className="h-3.5 w-3.5 text-primary" />
                         Updated Explanation &amp; Rationale
                       </span>
-                      <div className="p-3 rounded-lg border border-hairline bg-canvas-soft text-xs text-ink leading-relaxed">
+                      <div className="p-3 rounded-xs border border-hairline bg-canvas-soft text-xs text-ink leading-relaxed">
                         <MathText text={reevalResult.proposed_rationale} />
                       </div>
                     </div>
                   )}
 
                   {/* Apply / Discard Actions */}
-                  <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-hairline">
-                    <ButtonUtility
+                  <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2.5 pt-2 border-t border-hairline">
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
                       onClick={() => setReevalResult(null)}
-                      className="w-full sm:w-auto text-center"
+                      className="notion-btn-utility w-full sm:w-auto"
                     >
                       Discard Proposal
-                    </ButtonUtility>
+                    </button>
                     <button
                       type="button"
                       onClick={handleApplyReevaluation}
-                      className="btn-glass-emerald inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white w-full sm:w-auto cursor-pointer"
+                      className="notion-btn-primary w-full sm:w-auto"
                     >
-                      <Check className="h-4 w-4" />
-                      Apply Proposal to Modal &amp; Review
+                      <Check className="h-3.5 w-3.5" />
+                      <span>Apply Proposal</span>
                     </button>
                   </div>
                 </div>
@@ -1040,30 +1036,30 @@ export function GradingModal({
 
           {activeTab === "audit" && (
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-ink">
+              <h4 className="notion-section-title text-sm text-ink">
                 Audit Trail for Question {answer.question_id}
               </h4>
               {relevantAuditLogs.length === 0 ? (
-                <div className="rounded-md border border-hairline bg-surface p-8 text-center text-xs text-ink-muted">
+                <div className="notion-card p-8 text-center text-xs text-ink-muted">
                   No manual overrides recorded. Values reflect pristine AI evaluation.
                 </div>
               ) : (
-                <div className="divide-y divide-hairline rounded-md border border-hairline bg-surface overflow-hidden">
+                <div className="divide-y divide-hairline rounded-lg border border-hairline bg-surface overflow-hidden">
                   {relevantAuditLogs.map((log) => (
-                    <div key={log.id} className="p-3 text-xs space-y-1">
+                    <div key={log.id} className="p-3.5 text-xs space-y-1">
                       <div className="flex items-center justify-between text-ink-muted">
-                        <span className="font-bold text-primary">{log.field_name}</span>
-                        <span className="text-[10px] text-ink-muted">
+                        <span className="font-semibold text-primary">{log.field_name}</span>
+                        <span className="text-[11px] text-ink-muted">
                           {new Date(log.created_at).toLocaleTimeString()} by {log.edited_by}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-ink">
                         <span className="line-through text-ink-muted font-mono">{log.old_value}</span>
                         <span>→</span>
-                        <span className="font-bold text-emerald-600 font-mono">{log.new_value}</span>
+                        <span className="font-semibold text-[#1aae39] font-mono">{log.new_value}</span>
                       </div>
                       {log.reason && (
-                        <p className="text-[11px] text-ink-secondary italic">Reason: {log.reason}</p>
+                        <p className="text-xs text-ink-secondary italic">Reason: {log.reason}</p>
                       )}
                     </div>
                   ))}
@@ -1074,11 +1070,11 @@ export function GradingModal({
         </div>
 
         {/* Footer / Action Bar - Compact & Non-Leaking Responsive Layout */}
-        <div className="border-t border-hairline bg-canvas-soft/95 backdrop-blur-xs px-3.5 sm:px-6 py-2.5 sm:py-3 shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4">
+        <div className="border-t border-hairline bg-canvas-soft px-3.5 sm:px-6 py-3 shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4">
           {/* Controls: Marks, Review Flag, & AI Second Opinion Shortcut */}
           <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-4">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <label className="text-xs font-bold text-ink whitespace-nowrap">Marks:</label>
+              <label className="text-xs font-semibold text-ink whitespace-nowrap">Marks:</label>
               <input
                 type="number"
                 step="0.5"
@@ -1086,9 +1082,9 @@ export function GradingModal({
                 max={answer.max_marks}
                 value={awardedMarks}
                 onChange={(e) => setAwardedMarks(parseFloat(e.target.value) || 0)}
-                className="w-14 sm:w-18 h-8 rounded-md border border-hairline bg-surface px-1.5 sm:px-2 text-center font-mono text-xs sm:text-sm font-bold text-ink focus:border-primary focus:outline-none shadow-2xs"
+                className="w-16 h-8 rounded-xs border border-hairline bg-surface px-2 text-center font-mono text-xs sm:text-sm font-semibold text-ink focus:border-primary focus:outline-none tabular-nums"
               />
-              <span className="text-xs font-bold text-ink-muted whitespace-nowrap">
+              <span className="text-xs font-medium text-ink-muted whitespace-nowrap">
                 / {answer.max_marks} <span className="hidden sm:inline">Max</span>
               </span>
             </div>
@@ -1098,13 +1094,13 @@ export function GradingModal({
               <button
                 type="button"
                 onClick={() => setNeedsReview((prev) => !prev)}
-                className={`inline-flex items-center gap-1 sm:gap-1.5 h-8 px-2.5 rounded-md text-xs font-semibold border transition-all cursor-pointer ${needsReview
-                  ? "bg-purple-500/15 border-purple-500/30 text-purple-700 dark:text-purple-300 font-bold shadow-2xs"
-                  : "bg-surface border-hairline text-ink-muted hover:text-ink hover:bg-canvas-soft"
+                className={`notion-btn-utility min-h-0 h-8 px-2.5 ${needsReview
+                  ? "border-primary text-primary bg-primary/[0.06] font-semibold"
+                  : "text-ink-muted"
                   }`}
                 title="Flag this question for senior review"
               >
-                <Flag className={`h-3.5 w-3.5 ${needsReview ? "text-purple-600 fill-purple-600 dark:text-purple-400" : "text-ink-muted"}`} />
+                <Flag className={`h-3.5 w-3.5 ${needsReview ? "text-primary fill-primary" : "text-ink-muted"}`} />
                 <span>Review</span>
               </button>
 
@@ -1112,48 +1108,52 @@ export function GradingModal({
               <button
                 type="button"
                 onClick={() => setActiveTab("reeval")}
-                className={`inline-flex items-center gap-1 h-8 px-2 sm:px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${activeTab === "reeval"
-                  ? "btn-glass-amber"
-                  : "btn-glass-utility text-ink hover:text-ink"
+                className={`notion-btn-utility min-h-0 h-8 px-2.5 ${activeTab === "reeval"
+                  ? "border-primary text-primary bg-primary/[0.06] font-semibold"
+                  : "text-ink-secondary"
                   }`}
                 title="Open targeted AI Second Opinion re-evaluator"
               >
-                <Wand2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                <span className="hidden xs:inline sm:inline">AI Opinion</span>
+                <Wand2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>AI Opinion</span>
               </button>
             </div>
           </div>
 
           {/* Action Row: Optional Reason & Save Button */}
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
             <input
               type="text"
               value={editReason}
               onChange={(e) => setEditReason(e.target.value)}
               placeholder="Edit reason (optional)..."
-              className="flex-1 sm:w-52 md:w-60 h-8 rounded-md border border-hairline bg-surface px-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none shadow-2xs"
+              className="flex-1 sm:w-52 md:w-60 h-8 rounded-xs border border-hairline bg-surface px-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
             />
 
-            <ButtonPrimary
+            <button
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              isLoading={isSaving}
-              icon={saveSuccess ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-              size="sm"
-              className={`h-8 px-3 sm:px-4 text-xs font-semibold shrink-0 cursor-pointer ${saveSuccess ? "btn-glass-emerald" : ""}`}
+              className="notion-btn-primary min-h-0 h-8 px-3.5 shrink-0 disabled:opacity-50"
             >
               {isSaving ? (
-                <span>Saving...</span>
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
               ) : saveSuccess ? (
-                <span>Saved!</span>
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Saved!</span>
+                </>
               ) : (
                 <>
+                  <Save className="h-3.5 w-3.5" />
                   <span className="sm:hidden">Save</span>
-                  <span className="hidden sm:inline">Save & Update Marks</span>
+                  <span className="hidden sm:inline">Save &amp; Update Marks</span>
                 </>
               )}
-            </ButtonPrimary>
+            </button>
           </div>
         </div>
       </div>

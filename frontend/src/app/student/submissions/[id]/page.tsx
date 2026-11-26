@@ -233,23 +233,24 @@ export default function StudentSubmissionViewerPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
         <Link
           href="/student/portal"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline transition-colors py-1 px-1.5 -ml-1.5 rounded-md hover:bg-canvas-soft w-fit"
         >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back to Dashboard</span>
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Back to Overview</span>
         </Link>
 
-        {/* Actions Group: View QP/Answer Key & Download Graded PDF */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        {/* Actions Group */}
+        <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1 sm:flex sm:flex-wrap sm:items-center gap-2 w-full sm:w-auto">
           {isPublished && (submission?.exam?.has_question_paper || submission?.exam?.has_answer_key || submission?.has_question_paper || submission?.has_answer_key) && (
             <button
               type="button"
               onClick={() => setArtifactModalOpen(true)}
-              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
+              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs"
               title="View Question Paper and Official Answer Key"
             >
               <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span>Question Paper & Key</span>
+              <span className="sm:hidden truncate">QP & Key</span>
+              <span className="hidden sm:inline">Question Paper & Key</span>
             </button>
           )}
 
@@ -260,21 +261,21 @@ export default function StudentSubmissionViewerPage() {
             <button
               type="button"
               disabled
-              className="h-9 px-3.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted text-xs font-medium shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto inline-flex items-center justify-center gap-2 text-center"
+              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs opacity-55 cursor-not-allowed text-ink-muted"
               title="Graded PDF copy with annotations will become available once results are officially published by faculty."
             >
               <Clock className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-              <span>Graded PDF Pending Publication</span>
+              <span className="truncate">Graded PDF Pending</span>
             </button>
           ) : isPurged ? (
             <button
               type="button"
               disabled
-              className="h-9 px-3.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted text-xs font-medium shadow-2xs opacity-60 cursor-not-allowed w-full sm:w-auto inline-flex items-center justify-center gap-2 text-center"
+              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs opacity-55 cursor-not-allowed text-ink-muted"
               title="Scanned PDF was permanently deleted after retention period."
             >
-              <AlertCircle className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-              <span>Document Expired</span>
+              <AlertCircle className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+              <span className="truncate">Document Expired</span>
             </button>
           ) : (
             <a
@@ -284,13 +285,14 @@ export default function StudentSubmissionViewerPage() {
               onClick={() =>
                 toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
               }
-              className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98]"
+              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs"
             >
               <Download className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span>Download Graded Answer Sheet</span>
+              <span className="sm:hidden truncate">Graded PDF</span>
+              <span className="hidden sm:inline">Download Graded PDF</span>
               {submission.days_remaining !== undefined && submission.days_remaining !== null && (
-                <span className="text-[10px] text-primary font-mono font-bold">
-                  ({submission.days_remaining}d left)
+                <span className="text-[11px] text-ink-muted font-mono tabular-nums shrink-0">
+                  ({Math.max(0, Math.round(submission.days_remaining))}d)
                 </span>
               )}
             </a>
@@ -302,23 +304,24 @@ export default function StudentSubmissionViewerPage() {
                 href={driveArchive.drive_web_view_link}
                 target="_blank"
                 rel="noreferrer"
-                className="h-9 px-3.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center whitespace-nowrap"
+                className="notion-btn-utility justify-center px-3 py-1.5 text-xs whitespace-nowrap"
                 title="Open backed up script in personal Google Drive"
               >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
                 <span>In Drive</span>
-                <ExternalLink className="h-3 w-3 opacity-60 shrink-0" />
+                <ExternalLink className="h-3 w-3 text-ink-muted shrink-0" />
               </a>
             ) : (
               <button
                 type="button"
                 onClick={handleManualDriveSync}
                 disabled={syncingDrive}
-                className="h-9 px-3.5 rounded-md btn-glass-utility text-ink hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-2 shadow-2xs transition-colors w-full sm:w-auto text-center cursor-pointer active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
+                className="notion-btn-utility justify-center px-3 py-1.5 text-xs disabled:opacity-50 whitespace-nowrap"
                 title="Backup graded paper to personal Google Drive"
               >
                 {syncingDrive ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-ink-muted" />
                 ) : (
                   <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
                 )}
@@ -329,11 +332,11 @@ export default function StudentSubmissionViewerPage() {
         </div>
       </div>
 
-      {/* Student & Examination Banner — Permanently Mounted (CLS = 0.00) */}
-      <FeatureCard className="p-3.5 sm:p-6 border-hairline bg-surface">
+      {/* Student & Examination Banner */}
+      <FeatureCard className="p-4 sm:p-5 rounded-lg border-hairline bg-surface">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-          <div className="space-y-0.5 sm:space-y-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               {isColdLoading || !submission ? (
                 <>
                   <Skeleton className="h-6 w-56 rounded" />
@@ -341,11 +344,11 @@ export default function StudentSubmissionViewerPage() {
                 </>
               ) : (
                 <>
-                  <h1 className="text-base sm:text-xl font-bold text-ink tracking-tight truncate max-w-[280px] sm:max-w-none">
+                  <h1 className="notion-heading-3 text-ink truncate max-w-[280px] sm:max-w-none">
                     {submission.exam?.title || submission.exam_title || "Examination Answer Sheet"}
                   </h1>
-                  <span className="font-mono text-[11px] sm:text-xs font-semibold rounded-md bg-canvas-soft border border-hairline px-2 py-0.5 text-ink">
-                    Roll: {submission.roll_number}
+                  <span className="font-mono text-xs font-medium rounded-xs bg-canvas-soft border border-hairline px-2 py-0.5 text-ink-secondary">
+                    {submission.roll_number}
                   </span>
                   <span className="text-xs text-ink-muted hidden sm:inline">
                     • {submission.student_name}
@@ -353,7 +356,7 @@ export default function StudentSubmissionViewerPage() {
                 </>
               )}
             </div>
-            <p className="text-[11px] sm:text-xs text-ink-muted leading-relaxed">
+            <p className="text-xs text-ink-muted leading-relaxed">
               {isColdLoading || !submission
                 ? "Loading evaluated examination record..."
                 : !isPublished
@@ -364,8 +367,8 @@ export default function StudentSubmissionViewerPage() {
             </p>
           </div>
 
-          {/* Scores Overview Pill Cluster */}
-          <div className="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-3 border-t md:border-t-0 md:border-l border-hairline pt-3 md:pt-0 md:pl-6 shrink-0">
+          {/* Scores Overview Cluster */}
+          <div className="grid grid-cols-3 sm:flex items-center gap-3 border-t md:border-t-0 md:border-l border-hairline pt-3 md:pt-0 md:pl-6 shrink-0">
             {isColdLoading || !submission ? (
               <div className="flex items-center gap-4">
                 <Skeleton className="h-8 w-20 rounded" />
@@ -374,51 +377,49 @@ export default function StudentSubmissionViewerPage() {
             ) : isPublished ? (
               <>
                 <div>
-                  <span className="text-[10px] text-ink-muted block uppercase tracking-wider font-semibold leading-none">
+                  <span className="text-[11px] text-ink-muted block font-medium leading-none">
                     Marks
                   </span>
-                  <span className="font-mono text-base sm:text-lg font-bold text-ink mt-0.5 block leading-tight">
+                  <span className="font-mono tabular-nums text-base sm:text-lg font-semibold text-ink mt-1 block leading-tight">
                     <MetricValue
                       value={totalScore}
                       isLoading={isColdLoading}
                       width="w-10"
-                      className="font-mono text-base sm:text-lg font-bold text-ink inline-block"
+                      className="font-mono tabular-nums text-base sm:text-lg font-semibold text-ink inline-block"
                     />
-                    <span className="text-[10px] sm:text-xs text-ink-muted font-normal"> / {maxScore}</span>
+                    <span className="text-xs text-ink-muted font-normal"> / {maxScore}</span>
                   </span>
                 </div>
 
                 <div className="text-center sm:text-right">
-                  <span className="text-[10px] text-ink-muted block uppercase tracking-wider font-semibold leading-none">
+                  <span className="text-[11px] text-ink-muted block font-medium leading-none">
                     Score
                   </span>
-                  <BadgePill
-                    label={`${pct.toFixed(1)}%`}
-                    color={scoreBadgeColor}
-                    className="text-xs px-2.5 py-0.5 font-mono font-bold mt-0.5"
-                  />
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-mono tabular-nums font-semibold text-ink mt-1">
+                    {pct.toFixed(1)}%
+                  </span>
                 </div>
 
-                <div className="text-right sm:text-left sm:pl-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[10px] sm:text-xs font-semibold">
-                    <CheckCircle2 className="h-3 w-3 shrink-0" />
-                    <span className="hidden sm:inline">Results </span>Published
+                <div className="text-right sm:text-left sm:pl-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-soft border border-hairline px-2.5 py-0.5 text-[11px] font-medium text-ink-secondary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                    <span><span className="hidden sm:inline">Results </span>Published</span>
                   </span>
                 </div>
               </>
             ) : (
               <div className="col-span-3 sm:flex items-center gap-3">
                 <div className="text-left">
-                  <span className="text-[10px] text-ink-muted block uppercase tracking-wider font-semibold leading-none">
+                  <span className="text-[11px] text-ink-muted block font-medium leading-none">
                     Marks
                   </span>
-                  <span className="text-xs font-semibold text-ink-secondary mt-0.5 block leading-tight">
+                  <span className="text-xs font-semibold text-ink-secondary mt-1 block leading-tight">
                     Pending Publication
                   </span>
                 </div>
                 <div className="text-right sm:text-left sm:pl-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 text-xs font-semibold">
-                    <Clock className="h-3 w-3 shrink-0 text-amber-600 animate-pulse" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-soft border border-hairline px-2.5 py-1 text-xs font-medium text-ink-secondary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                     Grading in Progress
                   </span>
                 </div>
@@ -432,16 +433,16 @@ export default function StudentSubmissionViewerPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
         {/* Left: Interactive Document Viewer OR Archived Ledger (3 cols) */}
         {isPurged ? (
-          <div className="lg:col-span-3 rounded-lg border border-hairline bg-surface p-5 sm:p-7 space-y-6 shadow-xs">
+          <div className="lg:col-span-3 rounded-lg border border-hairline bg-surface p-5 sm:p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-hairline">
               <div>
-                <h2 className="text-base font-bold text-ink">Official Archived Marks Ledger</h2>
-                <p className="text-xs text-ink-muted">
+                <h2 className="notion-heading-3 text-ink">Official Archived Marks Ledger</h2>
+                <p className="text-xs text-ink-muted mt-0.5">
                   Scanned document was purged per 15-day storage retention policy. Question marks and evaluator remarks are permanently preserved.
                 </p>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
-                <ShieldCheck className="h-3.5 w-3.5 text-slate-500" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-canvas-soft text-ink-secondary border border-hairline shrink-0">
+                <ShieldCheck className="h-3.5 w-3.5 text-ink-muted" />
                 Marks Verified & Preserved
               </span>
             </div>
@@ -450,7 +451,7 @@ export default function StudentSubmissionViewerPage() {
             <div className="overflow-x-auto -mx-1 sm:mx-0">
               <table className="w-full min-w-[640px] text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-hairline text-ink-muted uppercase font-semibold text-[10px] tracking-wider">
+                  <tr className="border-b border-hairline text-ink-muted font-medium text-[11px]">
                     <th className="py-2.5 px-3 whitespace-nowrap">Question</th>
                     <th className="py-2.5 px-3 whitespace-nowrap">Awarded Marks</th>
                     <th className="py-2.5 px-3 whitespace-nowrap">Max Marks</th>
@@ -469,30 +470,30 @@ export default function StudentSubmissionViewerPage() {
 
                     return (
                       <tr key={ans.id} className="hover:bg-canvas-soft/50 transition-colors">
-                        <td className="py-3 px-3 font-bold text-ink whitespace-nowrap">
+                        <td className="py-3 px-3 font-semibold text-ink whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <span>{ans.question_id}</span>
                             {ans.is_manual_override && (
-                              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-normal">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-xs bg-canvas-soft border border-hairline text-ink-secondary font-medium">
                                 Override
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-3 font-mono font-bold text-ink whitespace-nowrap">
+                        <td className="py-3 px-3 font-mono tabular-nums font-semibold text-ink whitespace-nowrap">
                           {ansScore.toFixed(1)}
                         </td>
-                        <td className="py-3 px-3 font-mono text-ink-muted whitespace-nowrap">
+                        <td className="py-3 px-3 font-mono tabular-nums text-ink-muted whitespace-nowrap">
                           {ansMax.toFixed(1)}
                         </td>
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span
-                            className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                            className={`inline-block font-mono tabular-nums text-[11px] font-semibold px-2 py-0.5 rounded-xs border border-hairline bg-canvas-soft ${
                               isFull
-                                ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                ? "text-emerald-700 dark:text-emerald-300"
                                 : isZero
-                                ? "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                                : "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                ? "text-rose-700 dark:text-rose-300"
+                                : "text-ink-secondary"
                             }`}
                           >
                             {ansPct}%
@@ -544,12 +545,12 @@ export default function StudentSubmissionViewerPage() {
 
         {/* Right Sidebar: Questions List & Revaluation Badges (1 col) */}
         <div className="space-y-4">
-          <FeatureCard className="p-3.5 sm:p-4 space-y-2.5 sm:space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-hairline">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
+          <FeatureCard className="p-4 rounded-lg space-y-3">
+            <div className="flex items-center justify-between pb-2.5 border-b border-hairline">
+              <h3 className="text-xs font-semibold text-ink">
                 Questions ({answers.length})
               </h3>
-              <span className="text-[10px] text-primary font-medium">Tap to inspect</span>
+              <span className="text-[11px] text-ink-muted">Tap to inspect</span>
             </div>
 
             <div className="space-y-1.5 max-h-[580px] overflow-y-auto pr-1">
@@ -577,10 +578,10 @@ export default function StudentSubmissionViewerPage() {
                   const ansMax = Number(ans.max_marks || 1);
                   const scoreColor =
                     ansScore >= ansMax
-                      ? "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                      ? "text-emerald-700 dark:text-emerald-300"
                       : ansScore > 0
-                      ? "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                      : "bg-[#fbf0f0] text-[#872323] border-[#ecd0d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]";
+                      ? "text-ink"
+                      : "text-rose-700 dark:text-rose-300";
 
                   const reval = ans.revaluation;
                   const hasPendingReval =
@@ -591,45 +592,45 @@ export default function StudentSubmissionViewerPage() {
                     <button
                       key={ans.id}
                       onClick={() => handleSelectAnswer(ans, true)}
-                      className={`w-full flex flex-col p-2.5 rounded-md border text-left transition-all cursor-pointer ${
+                      className={`w-full flex flex-col p-2.5 rounded-md border text-left transition-colors cursor-pointer ${
                         isSelected
-                          ? "border-primary bg-primary/5 shadow-2xs"
-                          : "border-hairline bg-surface hover:bg-canvas-soft hover:border-[#d0d0d0]"
+                          ? "border-primary bg-primary/5"
+                          : "border-hairline bg-surface hover:bg-canvas-soft"
                       }`}
                     >
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-xs font-bold text-ink">
+                          <span className="font-mono text-xs font-semibold text-ink">
                             {ans.question_id}
                           </span>
                           {hasPendingReval && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
-                              <RotateCcw className="h-2.5 w-2.5 animate-spin text-amber-600" />
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-ink-secondary bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                               Reval Pending
                             </span>
                           )}
                           {isResolved && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
-                              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-ink-secondary bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                               Resolved
                             </span>
                           )}
                         </div>
 
                         {isPublished ? (
-                          <span className={`font-mono text-xs font-bold px-1.5 py-0.5 rounded border ${scoreColor}`}>
+                          <span className={`font-mono tabular-nums text-xs font-semibold px-1.5 py-0.5 rounded-xs border border-hairline bg-canvas-soft ${scoreColor}`}>
                             {ansScore.toFixed(1)} / {ansMax}m
                           </span>
                         ) : (
-                          <span className="text-[10px] font-semibold text-ink-muted bg-canvas-soft px-1.5 py-0.5 rounded border border-hairline">
+                          <span className="text-[11px] font-medium text-ink-muted bg-canvas-soft px-1.5 py-0.5 rounded-xs border border-hairline">
                             Pending
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between mt-1 text-[10px] text-ink-muted">
+                      <div className="flex items-center justify-between mt-1 text-[11px] text-ink-muted">
                         <span>{ans.page_number ? `Page ${ans.page_number}` : "Full Paper"}</span>
-                        <span className="text-primary font-semibold hover:underline">
+                        <span className="text-primary font-medium hover:underline">
                           View Analysis →
                         </span>
                       </div>
@@ -642,8 +643,8 @@ export default function StudentSubmissionViewerPage() {
 
           {/* Academic Guidance Note */}
           <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 text-xs text-ink-secondary space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-ink text-xs">
-              <ShieldCheck className="h-4 w-4 text-primary" />
+            <div className="flex items-center gap-1.5 font-semibold text-ink text-xs">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />
               <span>Verified AI Evaluation</span>
             </div>
             <p className="text-[11px] leading-relaxed text-ink-muted">

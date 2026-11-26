@@ -23,7 +23,7 @@ export function PageScoreStamp({
         transform: `scale(${invScale})`,
       }}
     >
-      <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-red-700">
+      <div className="text-[9px] sm:text-[10px] font-semibold text-red-700">
         Total Marks
       </div>
       <div className="text-sm sm:text-3xl font-black text-red-600 font-mono tracking-tight leading-none mt-0.5">

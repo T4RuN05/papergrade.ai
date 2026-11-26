@@ -4,19 +4,12 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  GraduationCap,
   Plus,
   ArrowRight,
-  CheckCircle2,
   Clock,
   FileText,
   RotateCcw,
   Square,
-  Sparkles,
-  BarChart3,
-  Layers,
-  Building2,
-  AlertCircle,
   FileSpreadsheet,
   Trash2,
   AlertTriangle,
@@ -24,7 +17,6 @@ import {
   Users,
   Search,
   X,
-  Filter,
   Lock,
   Archive,
 } from "lucide-react";
@@ -36,12 +28,7 @@ import { useExamsList } from "@/lib/queries";
 import { queryKeys } from "@/lib/queryKeys";
 import { useWindowCountdown } from "@/hooks/useWindowCountdown";
 import {
-  ButtonPrimary,
-  ButtonUtility,
-  FeatureCard,
-  BadgePill,
   ModalCard,
-  FormInput,
   useConfirm,
   AppleSelect,
   RefetchProgressLine,
@@ -63,23 +50,31 @@ function ExamWindowCountdownLabel({
 
   if (win?.is_active && remainingSeconds > 0) {
     return (
-      <span className="text-emerald-700 dark:text-emerald-400 font-bold whitespace-nowrap">
+      <span className="text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums whitespace-nowrap">
         Active ({minutesRemaining}m left)
       </span>
     );
   }
   if (win?.is_in_grace) {
     return (
-      <span className="text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
+      <span className="text-amber-700 dark:text-amber-400 font-semibold tabular-nums whitespace-nowrap">
         Grace ({win?.grace_seconds_remaining || 0}s)
       </span>
     );
   }
   if (isExamPublished) {
-    return <span className="text-purple-700 dark:text-purple-400 font-semibold whitespace-nowrap">Closed (Published)</span>;
+    return (
+      <span className="text-ink-secondary font-medium whitespace-nowrap">
+        Closed (Published)
+      </span>
+    );
   }
   if (isEvaluationLocked) {
-    return <span className="text-teal-700 dark:text-teal-400 font-semibold whitespace-nowrap">Closed (Evaluated)</span>;
+    return (
+      <span className="text-ink-secondary font-medium whitespace-nowrap">
+        Closed (Evaluated)
+      </span>
+    );
   }
   return <span className="text-ink-muted font-medium whitespace-nowrap">Closed</span>;
 }
@@ -106,6 +101,7 @@ export default function ExamsPage() {
   const [isSubmittingWindow, setIsSubmittingWindow] = useState(false);
 
   // Delete Exam State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [targetExamForDelete, setTargetExamForDelete] = useState<Exam | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeletingExam, setIsDeletingExam] = useState(false);
@@ -183,7 +179,6 @@ export default function ExamsPage() {
     (isInstituteDirector && (!currentUser?.institute_id || !exam.institute_id || currentUser.institute_id === exam.institute_id))
   );
 
-
   // Synchronize initial window status map whenever exams cache updates (per-card hooks handle live countdown ticking)
   useEffect(() => {
     if (exams.length > 0) {
@@ -257,7 +252,6 @@ export default function ExamsPage() {
         title: "Window Opened",
       });
 
-      // Optimistic immediate update + fetch status
       const win = await api.getWindowStatus(examId).catch(() => ({
         has_window: true,
         is_active: true,
@@ -324,6 +318,7 @@ export default function ExamsPage() {
     }
     setTargetExamForDelete(exam);
     setDeleteConfirmText("");
+    setDeleteModalOpen(true);
   };
 
   const handleDeleteExam = async () => {
@@ -361,7 +356,7 @@ export default function ExamsPage() {
         return next;
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
-      setTargetExamForDelete(null);
+      setDeleteModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete exam", { title: "Deletion Failed" });
     } finally {
@@ -369,133 +364,154 @@ export default function ExamsPage() {
     }
   };
 
+  const hasActiveFilters = Boolean(
+    searchQuery || selectedSubject !== "ALL" || selectedStatus !== "ALL"
+  );
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16 cascade-group">
-      {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
-        <div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <BadgePill label="Academic Operations" color="purple" />
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 cascade-group">
+      {/* 1. Notion Page Header */}
+      <header className="pb-4 border-b border-hairline flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <span className="notion-eyebrow text-ink-secondary">Academic Operations</span>
             {selectedBranch && (
-              <span className="text-xs font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md truncate max-w-[220px] sm:max-w-none">
-                {selectedBranch.name} • {selectedBranch.city}
-              </span>
+              <>
+                <span className="text-ink-faint">•</span>
+                <span className="font-medium text-ink-muted truncate max-w-[240px] sm:max-w-none">
+                  {selectedBranch.name}
+                  {selectedBranch.city ? ` (${selectedBranch.city})` : ""}
+                </span>
+              </>
             )}
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink mt-1">
-            Examinations & Evaluation Rubrics
+          <h1 className="notion-heading-2 text-2xl sm:text-[26px] text-ink">
+            Examinations &amp; Rubrics
           </h1>
-          <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
-            Manage question papers, answer keys, AI rubrics, and 30-minute student upload windows for{" "}
-            <span className="font-semibold text-ink">{selectedBranch?.name || "Active Branch"}</span>.
+          <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
+            Manage question papers, answer keys, AI rubrics, and student submission windows for{" "}
+            <span className="font-medium text-ink">{selectedBranch?.name || "Active Branch"}</span>.
           </p>
         </div>
 
-        <ButtonPrimary href="/exams/new" size="sm" className="w-full sm:w-auto justify-center">
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Create New Exam
-        </ButtonPrimary>
-      </div>
+        <Link
+          href="/exams/new"
+          className="notion-btn-primary w-full sm:w-auto justify-center px-4 py-2 text-xs shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <span>Create New Exam</span>
+        </Link>
+      </header>
 
-      {/* 2. Search & Filter Bar (Permanently Mounted) */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 bg-surface p-2.5 sm:p-3 rounded-lg border border-hairline shadow-2xs">
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setSearchQuery("");
-            }}
-            placeholder="Search exams by title, subject, batch..."
-            className="w-full rounded-md border border-hairline bg-canvas-soft pl-9 pr-8 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:border-primary focus:bg-surface focus:outline-none transition-colors shadow-2xs"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full flex items-center justify-center text-[10px] text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
-              title="Clear search"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
+      {/* 2. Symmetrical Section Header + Search & Filter Bar */}
+      <section className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+                Examination Ledger
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface border border-hairline text-ink-muted tabular-nums">
+                {filteredExams.length}
+                {filteredExams.length !== exams.length ? ` of ${exams.length}` : ""}
+              </span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-ink-muted">
+              Search and filter active or archived exam schedules.
+            </p>
+          </div>
         </div>
 
-        {/* Filters Row */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Subject Selector */}
-          {availableSubjects.length > 0 && (
-            <AppleSelect
-              value={selectedSubject}
-              onChange={(val) => setSelectedSubject(val)}
-              options={[
-                { value: "ALL", label: "All Subjects" },
-                ...availableSubjects.map((sub) => ({ value: sub, label: sub })),
-              ]}
-              className="min-w-[130px] flex-1 sm:flex-initial"
-            />
-          )}
-
-          {/* Rubric / Window Status Filter */}
-          <AppleSelect
-            value={selectedStatus}
-            onChange={(val) => setSelectedStatus(val)}
-            options={[
-              { value: "ALL", label: "All Statuses" },
-              { value: "PUBLISHED", label: "Published" },
-              { value: "APPROVED_RUBRIC", label: "Rubric Approved" },
-              { value: "DRAFT_RUBRIC", label: "Draft Rubric" },
-              { value: "NO_RUBRIC", label: "No Rubric" },
-              { value: "WINDOW_OPEN", label: "Window Open" },
-              { value: "WINDOW_CLOSED", label: "Window Closed" },
-              { value: "ARCHIVED", label: "Archived Exams" },
-            ]}
-            className="min-w-[140px] flex-1 sm:flex-initial"
-          />
-
-          {/* Reset Filter Button if active */}
-          {(searchQuery || selectedSubject !== "ALL" || selectedStatus !== "ALL") && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setSelectedSubject("ALL");
-                setSelectedStatus("ALL");
+        <div className="notion-card rounded-lg p-3 sm:p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSearchQuery("");
               }}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline transition-colors cursor-pointer shrink-0"
-              title="Reset all filters"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span className="hidden sm:inline">Reset</span>
-            </button>
-          )}
+              placeholder="Search exams by title, subject, batch..."
+              className="w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface pl-9 pr-8 py-2 text-xs sm:text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 h-5 w-5 rounded-xs flex items-center justify-center text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
 
-          {/* Count Tag */}
-          <span className="text-[11px] font-mono text-ink-muted whitespace-nowrap pl-1">
-            {filteredExams.length} of {exams.length}
-          </span>
+          {/* Balanced Mobile Filter Grid */}
+          <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:flex sm:items-center gap-2 shrink-0">
+            {availableSubjects.length > 0 && (
+              <AppleSelect
+                value={selectedSubject}
+                onChange={(val) => setSelectedSubject(val)}
+                options={[
+                  { value: "ALL", label: "All Subjects" },
+                  ...availableSubjects.map((sub) => ({ value: sub, label: sub })),
+                ]}
+                className="w-full sm:w-auto sm:min-w-[136px]"
+              />
+            )}
+
+            <AppleSelect
+              value={selectedStatus}
+              onChange={(val) => setSelectedStatus(val)}
+              options={[
+                { value: "ALL", label: "All Statuses" },
+                { value: "PUBLISHED", label: "Published" },
+                { value: "APPROVED_RUBRIC", label: "Rubric Approved" },
+                { value: "DRAFT_RUBRIC", label: "Draft Rubric" },
+                { value: "NO_RUBRIC", label: "No Rubric" },
+                { value: "WINDOW_OPEN", label: "Window Open" },
+                { value: "WINDOW_CLOSED", label: "Window Closed" },
+                { value: "ARCHIVED", label: "Archived Exams" },
+              ]}
+              className="w-full sm:w-auto sm:min-w-[144px]"
+            />
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedSubject("ALL");
+                  setSelectedStatus("ALL");
+                }}
+                className="notion-btn-utility justify-center px-3 text-xs shrink-0"
+                title="Reset all filters"
+              >
+                <RotateCcw className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* Refetch progress indicator */}
       <RefetchProgressLine isFetching={examsFetching} />
 
-      {/* 3. Main Content Area */}
+      {/* 3. Main Content Grid */}
       {examsLoading && exams.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-4 sm:p-5 rounded-xl border border-hairline bg-surface space-y-4">
+            <div key={i} className="notion-card rounded-lg p-4 sm:p-5 space-y-4">
               <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-24 rounded-full" />
                 <Skeleton className="h-5 w-20 rounded-full" />
-                <Skeleton className="h-5 w-16 rounded-full" />
               </div>
               <Skeleton className="h-6 w-3/4 rounded-md" />
               <div className="space-y-1.5">
-                <Skeleton className="h-3 w-full rounded" />
-                <Skeleton className="h-3 w-4/5 rounded" />
+                <Skeleton className="h-12 w-full rounded-md" />
               </div>
               <div className="pt-3 border-t border-hairline flex items-center justify-between">
                 <Skeleton className="h-8 w-24 rounded-md" />
@@ -505,51 +521,56 @@ export default function ExamsPage() {
           ))}
         </div>
       ) : exams.length === 0 ? (
-        <FeatureCard className="p-12 text-center space-y-3">
-          <div className="mx-auto h-12 w-12 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
-            <FileText className="h-6 w-6" />
+        <div className="notion-card rounded-lg p-10 sm:p-12 text-center space-y-3">
+          <div className="mx-auto h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
+            <FileText className="h-5 w-5" />
           </div>
           <p className="text-sm font-semibold text-ink">
             No examinations found for {selectedBranch?.name || "this branch"}.
           </p>
-          <p className="text-xs text-ink-muted max-w-sm mx-auto">
+          <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
             Create an examination and upload a question paper to begin automated rubric generation and student testing.
           </p>
           <div className="pt-2">
-            <ButtonPrimary href="/exams/new" size="sm">
+            <Link href="/exams/new" className="notion-btn-primary px-4 py-2 text-xs">
               Create Exam Now →
-            </ButtonPrimary>
+            </Link>
           </div>
-        </FeatureCard>
+        </div>
       ) : filteredExams.length === 0 ? (
-        <FeatureCard className="p-12 text-center space-y-3">
-          <div className="mx-auto h-12 w-12 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
+        <div className="notion-card rounded-lg p-10 sm:p-12 text-center space-y-3">
+          <div className="mx-auto h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
             <Search className="h-5 w-5" />
           </div>
           <p className="text-sm font-semibold text-ink">
             No examinations match your search or filter criteria.
           </p>
-          <p className="text-xs text-ink-muted max-w-sm mx-auto">
+          <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
             {searchQuery
               ? `No matches found for "${searchQuery}". Try searching by another keyword, subject, or batch.`
               : "No examinations match the selected subject or status filter."}
           </p>
           <div className="pt-2">
-            <ButtonUtility
+            <button
+              type="button"
               onClick={() => {
                 setSearchQuery("");
                 setSelectedSubject("ALL");
                 setSelectedStatus("ALL");
               }}
-              size="sm"
+              className="notion-btn-utility px-4 py-2 text-xs"
             >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Clear Search & Filters
-            </ButtonUtility>
+              <RotateCcw className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+              <span>Clear Search &amp; Filters</span>
+            </button>
           </div>
-        </FeatureCard>
+        </div>
       ) : (
-        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast transition-opacity duration-200 ${examsFetching ? "opacity-60" : "opacity-100"}`}>
+        <div
+          className={`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 cascade-fast transition-opacity duration-200 ${
+            examsFetching ? "opacity-60" : "opacity-100"
+          }`}
+        >
           {filteredExams.map((exam) => {
             const win = windowsMap[exam.id];
             const isWindowActive = win?.is_active;
@@ -569,54 +590,54 @@ export default function ExamsPage() {
               exam.lifecycle_status === "EVALUATING"
             );
 
+            const lifecycleBadge = isExamPublished
+              ? { label: "Published", dot: "bg-emerald-500" }
+              : exam.status === "EVALUATED" || exam.lifecycle_status === "EVALUATED"
+              ? { label: "Evaluated", dot: "bg-teal-500" }
+              : exam.status === "EVALUATING" || exam.lifecycle_status === "EVALUATING"
+              ? { label: "Evaluating", dot: "bg-primary" }
+              : null;
+
+            const rubricBadge = isRubricApproved
+              ? { label: "Rubric Approved", dot: "bg-emerald-500" }
+              : exam.current_rubric_version_id
+              ? { label: "Draft Rubric", dot: "bg-amber-500" }
+              : { label: "No Rubric", dot: "bg-ink-faint" };
+
             return (
-              <FeatureCard
+              <div
                 key={exam.id}
-                className="p-3.5 sm:p-5 flex flex-col justify-between space-y-3.5 sm:space-y-4 hover:border-[#c5c5c5] transition-colors"
+                className="notion-card rounded-lg p-4 sm:p-5 flex flex-col justify-between space-y-4 hover:border-[#d0d0d0] dark:hover:border-[#404040] transition-colors min-w-0"
               >
                 {/* Top Section */}
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    {/* Title and Badges */}
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2.5">
-                      <h3 className="text-sm sm:text-base font-bold text-ink leading-snug break-words min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <h3 className="notion-heading-3 text-base sm:text-[17px] text-ink leading-snug break-words min-w-0">
                         {exam.title}
                       </h3>
 
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:justify-end">
-                        {isExamPublished ? (
-                          <BadgePill label="Published" color="purple" />
-                        ) : exam.status === "EVALUATED" || exam.lifecycle_status === "EVALUATED" ? (
-                          <BadgePill label="Evaluated" color="teal" />
-                        ) : exam.status === "EVALUATING" || exam.lifecycle_status === "EVALUATING" ? (
-                          <BadgePill label="Evaluating" color="purple" />
-                        ) : null}
+                        {lifecycleBadge && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">
+                            <span className={`w-1.5 h-1.5 rounded-full ${lifecycleBadge.dot} shrink-0`} />
+                            {lifecycleBadge.label}
+                          </span>
+                        )}
 
-                        <BadgePill
-                          label={
-                            isRubricApproved
-                              ? "Rubric Approved"
-                              : exam.current_rubric_version_id
-                              ? "Draft Rubric"
-                              : "No Rubric"
-                          }
-                          color={
-                            isRubricApproved
-                              ? "green"
-                              : exam.current_rubric_version_id
-                              ? "orange"
-                              : "gray"
-                          }
-                        />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">
+                          <span className={`w-1.5 h-1.5 rounded-full ${rubricBadge.dot} shrink-0`} />
+                          {rubricBadge.label}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Subject & Scoped Batch Meta Tags */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="inline-flex items-center text-[11px] font-semibold text-ink-secondary bg-canvas-soft px-2.5 py-0.5 rounded-md border border-hairline/80">
+                    {/* Subject & Scoped Batch Meta */}
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-ink-muted">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline font-medium text-ink-secondary">
                         {exam.subject}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-muted bg-canvas-soft px-2.5 py-0.5 rounded-md border border-hairline/80">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-muted max-w-full">
                         <Users className="h-3 w-3 text-ink-secondary shrink-0" />
                         <span className="truncate max-w-[200px] sm:max-w-none">
                           {exam.batch_scope === "SPECIFIC" && exam.scoped_batches && exam.scoped_batches.length > 0
@@ -630,16 +651,17 @@ export default function ExamsPage() {
                   </div>
 
                   {/* Submission Window Controller */}
-                  <div className="p-2.5 sm:p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-md border shrink-0 ${
-                        isWindowActive
-                          ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400"
-                          : isInGrace
-                          ? "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400"
-                          : "bg-surface border-hairline text-ink-secondary"
-                      }`}>
+                  <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface border border-hairline text-ink-secondary shrink-0 relative">
                         <Clock className="h-4 w-4" />
+                        {(isWindowActive || isInGrace) && (
+                          <span
+                            className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-surface ${
+                              isWindowActive ? "bg-emerald-500" : "bg-amber-500"
+                            }`}
+                          />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-ink flex items-center gap-1.5 flex-wrap">
@@ -650,7 +672,7 @@ export default function ExamsPage() {
                             isEvaluationLocked={isEvaluationLocked}
                           />
                         </div>
-                        <p className="text-[10.5px] sm:text-[11px] text-ink-muted leading-tight mt-0.5">
+                        <p className="text-[11px] text-ink-muted leading-tight mt-0.5">
                           {isWindowActive
                             ? "Eligible students can submit or replace PDF."
                             : isExamPublished
@@ -662,63 +684,59 @@ export default function ExamsPage() {
                       </div>
                     </div>
 
-                    <div className="shrink-0 flex items-center">
+                    <div className="shrink-0 flex items-center w-full sm:w-auto">
                       {isEvaluationLocked ? (
-                        <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
+                        <span className="w-full sm:w-auto h-9 px-3 rounded-md border border-hairline bg-surface text-ink-muted text-xs font-medium inline-flex items-center justify-center gap-1.5 select-none">
                           <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                           <span>Finalized</span>
                         </span>
                       ) : !isWindowActive && !isInGrace ? (
-                        <ButtonPrimary
-                          size="sm"
+                        <button
                           type="button"
                           onClick={() => {
                             setTargetExamForReopen(exam);
                             setReopenModalOpen(true);
                           }}
-                          className="shadow-2xs cursor-pointer"
+                          className="notion-btn-primary w-full sm:w-auto justify-center"
                         >
-                          <Clock className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
                           <span>Open Window</span>
-                        </ButtonPrimary>
+                        </button>
                       ) : (
-                        <ButtonUtility
-                          variant="danger"
-                          size="sm"
+                        <button
                           type="button"
                           onClick={() => handleHardCloseWindow(exam.id, exam.title)}
                           disabled={closingExamId === exam.id}
-                          className="shadow-2xs cursor-pointer"
+                          className="notion-btn-danger w-full sm:w-auto justify-center"
                           title="Terminate active submission window immediately"
                         >
-                          <Square className="h-3 w-3 mr-1.5 fill-red-600 text-red-600 shrink-0" />
+                          <Square className="h-3 w-3 fill-current shrink-0" />
                           <span>{closingExamId === exam.id ? "Closing..." : "Close"}</span>
-                        </ButtonUtility>
+                        </button>
                       )}
                     </div>
                   </div>
                 </div>
 
                 {/* Bottom Action Footer */}
-                <div className="border-t border-hairline pt-3 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs text-ink-muted">
+                <div className="border-t border-hairline pt-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2 text-xs text-ink-muted">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-ink-muted text-xs">Total Marks:</span>
-                      <span className="font-mono font-bold text-ink bg-canvas-soft px-1.5 py-0.5 rounded-md border border-hairline/70 text-xs">
+                      <span className="text-ink-muted">Total Marks</span>
+                      <span className="font-mono tabular-nums font-semibold text-ink bg-canvas-soft px-2 py-0.5 rounded-xs border border-hairline">
                         {exam.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {/* Archive / Restore actions */}
                       {exam.status === "ARCHIVED" || exam.lifecycle_status === "ARCHIVED" ? (
                         <button
                           type="button"
                           onClick={() => handleRestoreExam(exam)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors cursor-pointer text-xs font-medium"
+                          className="notion-btn-utility min-h-0 h-8 px-2.5 text-xs"
                           title="Restore Archived Exam"
                         >
-                          <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                          <RotateCcw className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                           <span>Restore</span>
                         </button>
                       ) : (
@@ -726,10 +744,10 @@ export default function ExamsPage() {
                           <button
                             type="button"
                             onClick={() => handleArchiveExam(exam)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer text-xs font-medium"
+                            className="notion-btn-utility min-h-0 h-8 px-2.5 text-xs"
                             title="Archive Exam (Preserves all historical grades and records)"
                           >
-                            <Archive className="h-3.5 w-3.5 shrink-0" />
+                            <Archive className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                             <span>Archive</span>
                           </button>
                         )
@@ -739,27 +757,28 @@ export default function ExamsPage() {
                         <button
                           type="button"
                           onClick={() => promptDeleteExam(exam)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-ink-muted hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer text-xs font-medium"
+                          className="notion-btn-danger min-h-0 h-8 px-2.5 text-xs"
                           title="Permanently Delete Exam"
                         >
                           <Trash2 className="h-3.5 w-3.5 shrink-0" />
-                          <span className="text-[11px] sm:hidden">Delete</span>
+                          <span>Delete</span>
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                  {/* Balanced Action Strip: 2-col with full-width Submissions on mobile, 3-col on sm+ */}
+                  <div className="grid grid-cols-2 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2 sm:grid-cols-3 gap-2">
                     <Link
                       href={`/exams/${exam.id}/rubric`}
-                      className="h-9 px-3 rounded-md btn-glass-utility text-ink-secondary hover:text-ink font-semibold text-xs inline-flex items-center justify-center transition-all shadow-2xs text-center cursor-pointer active:scale-[0.98]"
+                      className="notion-btn-utility justify-center text-xs"
                     >
                       <span>Rubric</span>
                     </Link>
 
                     <Link
                       href={`/marks?exam_id=${exam.id}`}
-                      className="h-9 px-3 rounded-md btn-glass-utility text-ink-secondary hover:text-ink font-semibold text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs text-center cursor-pointer active:scale-[0.98]"
+                      className="notion-btn-utility justify-center text-xs"
                     >
                       <FileSpreadsheet className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                       <span>Marks</span>
@@ -767,14 +786,14 @@ export default function ExamsPage() {
 
                     <Link
                       href={`/exams/${exam.id}`}
-                      className="h-9 px-3 rounded-md btn-glass-primary text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs text-center cursor-pointer active:scale-[0.98]"
+                      className="notion-btn-primary justify-center text-xs"
                     >
                       <span className="truncate">Submissions</span>
                       <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                     </Link>
                   </div>
                 </div>
-              </FeatureCard>
+              </div>
             );
           })}
         </div>
@@ -796,28 +815,30 @@ export default function ExamsPage() {
       />
 
       {/* MODAL: Delete Exam Permanently */}
-      {targetExamForDelete && (
-        <ModalCard
-          title="Delete Examination Permanently"
-          onClose={() => !isDeletingExam && setTargetExamForDelete(null)}
-        >
+      <ModalCard
+        isOpen={deleteModalOpen && Boolean(targetExamForDelete)}
+        title="Delete Examination Permanently"
+        disableClose={isDeletingExam}
+        onClose={() => !isDeletingExam && setDeleteModalOpen(false)}
+      >
+        {targetExamForDelete && (
           <div className="space-y-4">
             {/* Warning Banner */}
-            <div className="p-3.5 rounded-lg bg-red-50 border border-red-200/80 text-red-900 space-y-2">
-              <div className="flex items-center gap-2 font-bold text-sm text-red-700">
-                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+            <div className="p-3.5 rounded-lg bg-red-50/80 dark:bg-[#2a1313] border border-red-200/80 dark:border-[#4a1f1f] text-red-900 dark:text-[#f28b82] space-y-2">
+              <div className="flex items-center gap-2 font-bold text-sm text-red-700 dark:text-[#f28b82]">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-[#f28b82] shrink-0" />
                 <span>CRITICAL WARNING: Irreversible Cascade Deletion</span>
               </div>
-              <p className="text-xs text-red-800 leading-relaxed">
+              <p className="text-xs leading-relaxed">
                 Deleting <span className="font-bold underline">{targetExamForDelete.title}</span> will permanently wipe out all related academic and evaluation assets across the entire system:
               </p>
-              <ul className="text-xs text-red-800 list-disc list-inside space-y-1 pl-1">
+              <ul className="text-xs list-disc list-inside space-y-1 pl-1">
                 <li><span className="font-semibold">All Uploaded Answer Sheets:</span> Physical PDF and rendered image files permanently purged from Database and Cloud Storage / CDN.</li>
-                <li><span className="font-semibold">All Evaluation Scores & Marks:</span> Criterion-level marks, AI feedback, question breakdowns, and marks ledgers.</li>
+                <li><span className="font-semibold">All Evaluation Scores &amp; Marks:</span> Criterion-level marks, AI feedback, question breakdowns, and marks ledgers.</li>
                 <li><span className="font-semibold">Exam Artifacts:</span> Question paper, answer key master documents, and rubric matrices.</li>
-                <li><span className="font-semibold">Student Access & Revaluations:</span> Submission windows, student portal publications, and dispute logs.</li>
+                <li><span className="font-semibold">Student Access &amp; Revaluations:</span> Submission windows, student portal publications, and dispute logs.</li>
               </ul>
-              <p className="text-xs font-bold text-red-700 pt-1">
+              <p className="text-xs font-bold pt-1">
                 This action cannot be undone. No recovery or rollback is possible.
               </p>
             </div>
@@ -828,7 +849,7 @@ export default function ExamsPage() {
                 {targetExamForDelete.is_published ? (
                   <>
                     Because results are published, type the exact exam title{" "}
-                    <span className="font-mono font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-200">
+                    <span className="font-mono font-bold text-red-600 dark:text-[#f28b82] bg-red-50 dark:bg-[#2a1313] px-1.5 py-0.5 rounded-xs border border-red-200 dark:border-[#4a1f1f]">
                       {targetExamForDelete.title}
                     </span>{" "}
                     below to confirm permanent destruction of published academic records:
@@ -836,7 +857,7 @@ export default function ExamsPage() {
                 ) : (
                   <>
                     To proceed, type{" "}
-                    <span className="font-mono font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded border border-red-200">
+                    <span className="font-mono font-bold text-red-600 dark:text-[#f28b82] bg-red-50 dark:bg-[#2a1313] px-1.5 py-0.5 rounded-xs border border-red-200 dark:border-[#4a1f1f]">
                       DELETE
                     </span>{" "}
                     in the box below:
@@ -853,20 +874,20 @@ export default function ExamsPage() {
                     : "Type DELETE to confirm"
                 }
                 disabled={isDeletingExam}
-                className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-xs font-mono text-ink focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
-                autoFocus
+                className="w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface px-3 py-2 text-xs sm:text-sm font-mono text-ink focus:border-red-500 focus:outline-none"
               />
             </div>
 
             {/* Modal Actions */}
-            <div className="flex justify-end gap-2 pt-2 border-t border-hairline">
-              <ButtonUtility
+            <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-hairline">
+              <button
                 type="button"
-                onClick={() => setTargetExamForDelete(null)}
+                onClick={() => !isDeletingExam && setDeleteModalOpen(false)}
                 disabled={isDeletingExam}
+                className="notion-btn-utility justify-center"
               >
                 Cancel
-              </ButtonUtility>
+              </button>
               <button
                 type="button"
                 onClick={handleDeleteExam}
@@ -876,24 +897,24 @@ export default function ExamsPage() {
                     ? deleteConfirmText.trim() !== targetExamForDelete.title.trim()
                     : deleteConfirmText.trim().toUpperCase() !== "DELETE")
                 }
-                className="btn-glass-danger inline-flex items-center justify-center px-4 py-2 rounded-md text-xs font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+                className="notion-btn-danger justify-center font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isDeletingExam ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    Purging Exam & CDN Files...
+                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                    <span>Purging...</span>
                   </>
                 ) : (
                   <>
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                    Permanently Delete Exam
+                    <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>Delete Exam</span>
                   </>
                 )}
               </button>
             </div>
           </div>
-        </ModalCard>
-      )}
+        )}
+      </ModalCard>
     </div>
   );
 }

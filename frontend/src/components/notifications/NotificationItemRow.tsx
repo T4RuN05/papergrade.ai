@@ -231,7 +231,7 @@ export const NotificationItemRow: React.FC<NotificationItemRowProps> = ({
     >
       {/* Icon */}
       <div
-        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-2xs ${iconMeta.containerClass}`}
+        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${iconMeta.containerClass}`}
       >
         {iconMeta.icon}
       </div>

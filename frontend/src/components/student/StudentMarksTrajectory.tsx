@@ -325,72 +325,26 @@ export function StudentMarksTrajectory({ submissions }: StudentMarksTrajectoryPr
   }
 
   return (
-    <FeatureCard className="p-3.5 sm:p-4 space-y-3">
-      {/* Top Header: Title + Scale Toggle */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-sm sm:text-base font-bold text-ink">Marks Trajectory</h2>
-          {revalUpgradesCount > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-              <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-              {revalUpgradesCount} Upgraded
-            </span>
-          )}
-        </div>
-
-        <div
-          role="group"
-          aria-label="Trajectory scale"
-          className="inline-flex items-center rounded-full border border-hairline bg-canvas-soft p-0.5 text-[10.5px] font-semibold shrink-0"
-        >
+    <FeatureCard className="p-4 sm:p-5 space-y-3.5 rounded-lg">
+      {/* Top Toolbar: Subject Tabs + Scale Toggle (No redundant heading) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-3 border-b border-hairline">
+        {/* Subject Tabs Navigation */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs min-w-0">
           <button
             type="button"
-            onClick={() => setViewMode("percentage")}
-            aria-pressed={!isCumulative}
-            title="Each paper plotted as a percentage of its own maximum"
-            className={`px-2.5 py-0.5 rounded-full transition-colors cursor-pointer ${
-              !isCumulative
-                ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Percent
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("cumulative")}
-            aria-pressed={isCumulative}
-            title="Running total of marks accumulated across papers"
-            className={`px-2.5 py-0.5 rounded-full transition-colors cursor-pointer ${
-              isCumulative
-                ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            Cumulative
-          </button>
-        </div>
-      </div>
-
-      {/* Subject Tabs Navigation */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs border-b border-hairline/60">
-        <button
-          type="button"
-          onClick={() => setSelectedSubject("ALL")}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
+            onClick={() => setSelectedSubject("ALL")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium border transition-colors cursor-pointer shrink-0 text-[11px] ${
             selectedSubject === "ALL"
-              ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs font-semibold"
-              : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
+              ? "bg-primary text-white border-primary"
+              : "bg-surface hover:bg-canvas-soft border-hairline text-ink-secondary hover:text-ink"
           }`}
         >
           <span>All Subjects</span>
           <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+            className={`px-1.5 py-0.2 rounded-xs text-[10px] font-mono tabular-nums ${
               selectedSubject === "ALL"
-                ? "bg-surface/25 text-surface dark:bg-zinc-900/20 dark:text-zinc-900 font-bold"
-                : publishedSubmissions.length > 0
-                ? "bg-primary/10 text-primary font-bold"
-                : "bg-surface text-ink-muted"
+                ? "bg-white/20 text-white font-semibold"
+                : "bg-canvas-soft text-ink-muted"
             }`}
           >
             {publishedSubmissions.length}
@@ -404,20 +358,18 @@ export function StudentMarksTrajectory({ submissions }: StudentMarksTrajectoryPr
               key={subj}
               type="button"
               onClick={() => setSelectedSubject(subj)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-medium transition-all cursor-pointer shrink-0 text-[11px] ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium border transition-colors cursor-pointer shrink-0 text-[11px] ${
                 isSelected
-                  ? "bg-ink text-surface dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs font-semibold"
-                  : "bg-canvas-soft hover:bg-surface border border-hairline text-ink-secondary hover:text-ink"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface hover:bg-canvas-soft border-hairline text-ink-secondary hover:text-ink"
               }`}
             >
               <span>{subj}</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                className={`px-1.5 py-0.2 rounded-xs text-[10px] font-mono tabular-nums ${
                   isSelected
-                    ? "bg-surface/25 text-surface dark:bg-zinc-900/20 dark:text-zinc-900 font-bold"
-                    : pCount > 0
-                    ? "bg-primary/10 text-primary font-bold"
-                    : "bg-surface text-ink-muted"
+                    ? "bg-white/20 text-white font-semibold"
+                    : "bg-canvas-soft text-ink-muted"
                 }`}
               >
                 {pCount}
@@ -425,6 +377,49 @@ export function StudentMarksTrajectory({ submissions }: StudentMarksTrajectoryPr
             </button>
           );
         })}
+        </div>
+
+        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
+          {revalUpgradesCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span>{revalUpgradesCount} Upgraded</span>
+            </span>
+          )}
+
+          <div
+            role="group"
+            aria-label="Trajectory scale"
+            className="grid grid-cols-2 sm:inline-flex items-center rounded-md border border-hairline bg-canvas-soft p-0.5 text-[11px] font-medium flex-1 sm:flex-initial shrink-0"
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode("percentage")}
+              aria-pressed={!isCumulative}
+              title="Each paper plotted as a percentage of its own maximum"
+              className={`px-2.5 py-1 rounded-[6px] transition-colors cursor-pointer text-center ${
+                !isCumulative
+                  ? "bg-primary text-white"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              Percent
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cumulative")}
+              aria-pressed={isCumulative}
+              title="Running total of marks accumulated across papers"
+              className={`px-2.5 py-1 rounded-[6px] transition-colors cursor-pointer text-center ${
+                isCumulative
+                  ? "bg-primary text-white"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              Cumulative
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Chart Canvas or Subject-Specific Empty State */}

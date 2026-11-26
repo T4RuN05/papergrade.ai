@@ -35,10 +35,10 @@ export function IOSInstallBanner() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto animate-in fade-in slide-in-from-bottom-5 duration-300">
-      <div className="bg-surface/95 dark:bg-surface-elevated/95 backdrop-blur-md border border-hairline shadow-xl rounded-xl p-4 text-ink">
+      <div className="bg-surface border border-hairline shadow-notion-modal rounded-lg p-4 text-ink">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="p-2 rounded-md bg-primary/10 text-primary">
               <Smartphone className="h-5 w-5" />
             </div>
             <div>
@@ -48,7 +48,7 @@ export function IOSInstallBanner() {
           </div>
           <button
             onClick={handleDismiss}
-            className="text-ink-muted hover:text-ink p-1 rounded-md transition-colors"
+            className="text-ink-muted hover:text-ink p-1 rounded-md transition-colors cursor-pointer"
             aria-label="Dismiss banner"
           >
             <X className="h-4 w-4" />
@@ -57,25 +57,25 @@ export function IOSInstallBanner() {
 
         <div className="mt-3.5 pt-3 border-t border-hairline/60 space-y-2 text-xs">
           <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-accent-soft text-accent text-[11px] font-bold shrink-0">
+            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-canvas-soft border border-hairline text-ink-secondary text-[11px] font-bold shrink-0">
               1
             </span>
             <span>
-              Tap the Safari <strong className="inline-flex items-center gap-1 font-semibold text-ink"><Share className="h-3.5 w-3.5 inline text-blue-500" /> Share</strong> button in the bottom bar.
+              Tap the Safari <strong className="inline-flex items-center gap-1 font-semibold text-ink"><Share className="h-3.5 w-3.5 inline text-primary" /> Share</strong> button in the bottom bar.
             </span>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-accent-soft text-accent text-[11px] font-bold shrink-0">
+            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-canvas-soft border border-hairline text-ink-secondary text-[11px] font-bold shrink-0">
               2
             </span>
             <span>
-              Scroll down and tap <strong className="inline-flex items-center gap-1 font-semibold text-ink"><PlusSquare className="h-3.5 w-3.5 inline text-emerald-500" /> Add to Home Screen</strong>.
+              Scroll down and tap <strong className="inline-flex items-center gap-1 font-semibold text-ink"><PlusSquare className="h-3.5 w-3.5 inline text-primary" /> Add to Home Screen</strong>.
             </span>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-accent-soft text-accent text-[11px] font-bold shrink-0">
+            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-canvas-soft border border-hairline text-ink-secondary text-[11px] font-bold shrink-0">
               3
             </span>
             <span>
@@ -87,7 +87,7 @@ export function IOSInstallBanner() {
         <div className="mt-3 text-right">
           <button
             onClick={handleDismiss}
-            className="text-xs font-medium text-ink-muted hover:text-ink px-2.5 py-1 rounded transition-colors"
+            className="text-xs font-medium text-ink-muted hover:text-ink px-2.5 py-1 rounded-md hover:bg-canvas-soft transition-colors cursor-pointer"
           >
             Got it, thanks
           </button>

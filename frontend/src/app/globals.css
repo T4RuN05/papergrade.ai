@@ -97,11 +97,132 @@ html.dark {
 body {
   color: var(--ink);
   background-color: var(--canvas-soft);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "lnum" 1;
+  font-feature-settings: "lnum" 1, "locl" 1, "cv02", "cv03", "cv04", "cv11";
+  line-height: 1.5;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* DESIGN-notion.md Typography & Pure Flat Surface Primitives */
+.notion-heading-1 {
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.notion-heading-2 {
+  font-weight: 700;
+  line-height: 1.23;
+  letter-spacing: -0.024em;
+}
+
+.notion-heading-3 {
+  font-weight: 700;
+  line-height: 1.27;
+  letter-spacing: -0.012em;
+}
+
+.notion-section-title {
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.008em;
+}
+
+.notion-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.33;
+  letter-spacing: 0.01em;
+}
+
+.notion-card {
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: var(--shadow-notion-card);
+}
+
+@layer components {
+  .notion-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2.25rem;
+    padding: 0 0.875rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--primary);
+    color: var(--on-primary);
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+  }
+  .notion-btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-active);
+  }
+  .notion-btn-primary:active:not(:disabled) {
+    transform: scale(0.985);
+  }
+
+  .notion-btn-utility {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2.25rem;
+    padding: 0 0.875rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--hairline);
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .notion-btn-utility:hover:not(:disabled) {
+    background-color: var(--canvas-soft);
+  }
+  .notion-btn-utility:active:not(:disabled) {
+    transform: scale(0.985);
+  }
+
+  .notion-btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2.25rem;
+    padding: 0 0.875rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--surface);
+    color: #c93b3b;
+    border: 1px solid var(--hairline);
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  .dark .notion-btn-danger {
+    color: #f28b82;
+  }
+  .notion-btn-danger:hover:not(:disabled) {
+    background-color: rgba(220, 38, 38, 0.06);
+    border-color: rgba(220, 38, 38, 0.25);
+  }
 }
 
 /* Custom Sleek Floating Scrollbar (Cross-browser: Chrome, Edge, Safari, Firefox, Mobile PWA) */
@@ -457,32 +578,46 @@ body {
 
 /* ==========================================================================
    Mobile Bottom-Sheet Drawer Slide In / Out Animations
-   Silky deceleration curve for native iOS/Android bottom-drawer feel
+   Calm deceleration curve on mobile; crisp fade/scale dialog on sm+ viewports
    ========================================================================== */
 @keyframes drawerSlideUp {
   0% {
-    transform: translate3d(0, 100%, 0);
+    opacity: 0;
+    transform: translate3d(0, 32px, 0);
   }
   100% {
+    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes drawerSlideDown {
   0% {
+    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
   100% {
-    transform: translate3d(0, 100%, 0);
+    opacity: 0;
+    transform: translate3d(0, 32px, 0);
   }
 }
 
 .animate-drawer-in {
-  animation: drawerSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: drawerSlideUp 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .animate-drawer-out {
-  animation: drawerSlideDown 0.25s cubic-bezier(0.32, 0, 0.67, 0) both;
+  animation: drawerSlideDown 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@media (min-width: 640px) {
+  .animate-drawer-in {
+    animation: modalContentIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .animate-drawer-out {
+    animation: modalContentOut 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
 }
 
 /* ==========================================================================
@@ -577,333 +712,161 @@ body {
 }
 
 /* ==========================================================================
-   Curved-Glass Micro-Tactility System (Minimal/No Blur, Specular Edge Refraction)
+   Flat Notion Tactile Button System (Zero Gradients, Zero Specular Gloss)
    ========================================================================== */
 .btn-glass-primary {
   position: relative;
-  background: linear-gradient(180deg, #1d8cf8 0%, #006fe6 100%);
-  border: 1px solid rgba(0, 90, 190, 0.45);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.18),
-    0 2px 5px -1px rgba(0, 110, 230, 0.28),
-    0 1px 2px 0 rgba(0, 0, 0, 0.08);
-  color: #ffffff !important;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.2);
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--primary);
+  border: 1px solid transparent;
+  color: var(--on-primary) !important;
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
 
 .btn-glass-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #2b95fa 0%, #0077f5 100%);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
-    0 3px 8px -1px rgba(0, 110, 230, 0.36),
-    0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  background-color: var(--primary-active);
 }
 
 .btn-glass-primary:active:not(:disabled) {
-  background: linear-gradient(180deg, #0060cc 0%, #0050ab 100%);
-  box-shadow:
-    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.32),
-    0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(1px);
-}
-
-.dark .btn-glass-primary {
-  background: linear-gradient(180deg, #2888ec 0%, #176fc8 100%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.48),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 3px 10px -2px rgba(0, 0, 0, 0.55);
-  color: #ffffff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-.dark .btn-glass-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #3895f5 0%, #1e7ddb 100%);
-  box-shadow:
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.62),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 4px 14px -2px rgba(35, 131, 226, 0.35);
-  transform: translateY(-1px);
-}
-
-.dark .btn-glass-primary:active:not(:disabled) {
-  background: linear-gradient(180deg, #1462b3 0%, #105296 100%);
-  box-shadow:
-    inset 0 2px 4px 0 rgba(0, 0, 0, 0.5),
-    0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  transform: translateY(1px);
+  background-color: var(--primary-active);
+  transform: scale(0.985);
 }
 
 .btn-glass-utility {
   position: relative;
-  background: linear-gradient(180deg, #ffffff 0%, #f6f5f4 100%);
-  border: 1px solid rgba(0, 0, 0, 0.11);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.04),
-    0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
   color: var(--ink);
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-glass-utility:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #eeeeec 100%);
-  border-color: rgba(0, 0, 0, 0.16);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
-    0 2px 5px -1px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+  background-color: var(--canvas-soft);
 }
 
 .btn-glass-utility:active:not(:disabled) {
-  background: #ebe9e6;
-  box-shadow:
-    inset 0 1px 2px 0 rgba(0, 0, 0, 0.08);
-  transform: translateY(1px);
+  background-color: var(--hairline-subtle);
+  transform: scale(0.985);
 }
 
-.dark .btn-glass-utility {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), #222222;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25),
-    0 1px 3px 0 rgba(0, 0, 0, 0.3);
-  color: var(--ink);
-}
-
-.dark .btn-glass-utility:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%), #262626;
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 2px 6px 0 rgba(0, 0, 0, 0.4);
-  transform: translateY(-1px);
-}
-
-.dark .btn-glass-utility:active:not(:disabled) {
-  background: #1c1c1c;
-  box-shadow:
-    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.45);
-  transform: translateY(1px);
-}
-
-/* Amber Curved-Glass Action Button (e.g. AI Second Opinion) */
+/* Amber Flat Notion Action Button (e.g. AI Second Opinion) */
 .btn-glass-amber {
   position: relative;
-  background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
-  border: 1px solid rgba(180, 83, 9, 0.55);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
-    0 2px 5px -1px rgba(180, 83, 9, 0.32),
-    0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  background-color: #b45309;
+  border: 1px solid transparent;
   color: #ffffff !important;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.25);
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
 
 .btn-glass-amber:hover:not(:disabled) {
-  background: linear-gradient(180deg, #f59e0b 0%, #c65e08 100%);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.6),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
-    0 3px 8px -1px rgba(180, 83, 9, 0.42),
-    0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  background-color: #92400e;
 }
 
 .btn-glass-amber:active:not(:disabled) {
-  background: linear-gradient(180deg, #92400e 0%, #78350f 100%);
-  box-shadow:
-    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
-    0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(1px);
+  background-color: #78350f;
+  transform: scale(0.985);
 }
 
 .dark .btn-glass-amber {
-  background: linear-gradient(180deg, #b45309 0%, #8c3e06 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.42),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 3px 10px -2px rgba(0, 0, 0, 0.55);
+  background-color: #b45309;
+  border-color: transparent;
   color: #ffffff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .dark .btn-glass-amber:hover:not(:disabled) {
-  background: linear-gradient(180deg, #c76008 0%, #9e4606 100%);
-  transform: translateY(-1px);
+  background-color: #c25e0a;
 }
 
-/* Emerald Curved-Glass Action Button (e.g. Apply Proposal, Verify) */
+/* Emerald Flat Notion Action Button (e.g. Apply Proposal, Verify) */
 .btn-glass-emerald {
   position: relative;
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border: 1px solid rgba(4, 120, 87, 0.55);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
-    0 2px 5px -1px rgba(4, 120, 87, 0.32),
-    0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  background-color: #047857;
+  border: 1px solid transparent;
   color: #ffffff !important;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.25);
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
 
 .btn-glass-emerald:hover:not(:disabled) {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.6),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
-    0 3px 8px -1px rgba(4, 120, 87, 0.42),
-    0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  background-color: #065f46;
 }
 
 .btn-glass-emerald:active:not(:disabled) {
-  background: linear-gradient(180deg, #065f46 0%, #064e3b 100%);
-  box-shadow:
-    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
-    0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(1px);
+  background-color: #064e3b;
+  transform: scale(0.985);
 }
 
 .dark .btn-glass-emerald {
-  background: linear-gradient(180deg, #047857 0%, #035e44 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.42),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 3px 10px -2px rgba(0, 0, 0, 0.55);
+  background-color: #059669;
+  border-color: transparent;
   color: #ffffff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .dark .btn-glass-emerald:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #046e50 100%);
-  transform: translateY(-1px);
+  background-color: #047857;
 }
 
-/* Crimson/Danger Curved-Glass Utility Button (e.g. Delete, Wipe, Revoke) */
+/* Crimson/Danger Flat Notion Utility Button (e.g. Delete, Wipe, Revoke) */
 .btn-glass-danger-utility {
   position: relative;
-  background: linear-gradient(180deg, #ffffff 0%, #fff7f7 100%);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 1px 0 rgba(239, 68, 68, 0.08),
-    0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  color: #dc2626;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  color: #c93b3b;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-glass-danger-utility:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff 0%, #fee2e2 100%);
-  border-color: rgba(220, 38, 38, 0.55);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
-    0 2px 6px -1px rgba(220, 38, 38, 0.18);
+  background-color: rgba(220, 38, 38, 0.06);
+  border-color: rgba(220, 38, 38, 0.25);
   color: #b91c1c;
-  transform: translateY(-1px);
 }
 
 .btn-glass-danger-utility:active:not(:disabled) {
-  background: #fecaca;
-  box-shadow:
-    inset 0 1px 2px 0 rgba(185, 28, 28, 0.15);
-  transform: translateY(1px) scale(0.98);
+  background-color: rgba(220, 38, 38, 0.1);
+  transform: scale(0.985);
 }
 
 .dark .btn-glass-danger-utility {
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.09) 0%, rgba(239, 68, 68, 0.02) 100%), #1c1818;
-  border: 1px solid rgba(239, 68, 68, 0.28);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 0 0 1px rgba(239, 68, 68, 0.08),
-    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.3),
-    0 1px 3px 0 rgba(0, 0, 0, 0.35);
-  color: #f87171;
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  color: #f28b82;
 }
 
 .dark .btn-glass-danger-utility:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.06) 100%), #261a1b;
-  border-color: rgba(248, 113, 113, 0.45);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.24),
-    inset 0 0 0 1px rgba(239, 68, 68, 0.12),
-    0 2px 8px 0 rgba(220, 38, 38, 0.3);
+  background-color: rgba(242, 139, 130, 0.08);
+  border-color: rgba(242, 139, 130, 0.28);
   color: #fca5a5;
-  transform: translateY(-1px);
 }
 
 .dark .btn-glass-danger-utility:active:not(:disabled) {
-  background: #191213;
-  box-shadow:
-    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.5);
-  transform: translateY(1px) scale(0.98);
+  background-color: rgba(242, 139, 130, 0.14);
+  transform: scale(0.985);
 }
 
-/* Crimson Curved-Glass Solid Button (e.g. Confirm Delete Modal) */
+/* Crimson Flat Notion Solid Button (e.g. Confirm Delete Modal) */
 .btn-glass-danger {
   position: relative;
-  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-  border: 1px solid rgba(185, 28, 28, 0.55);
-  box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.2),
-    0 2px 5px -1px rgba(220, 38, 38, 0.35),
-    0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  background-color: #dc2626;
+  border: 1px solid transparent;
   color: #ffffff !important;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.25);
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
 
 .btn-glass-danger:hover:not(:disabled) {
-  background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.6),
-    inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.22),
-    0 3px 8px -1px rgba(220, 38, 38, 0.45),
-    0 1px 2px 0 rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  background-color: #b91c1c;
 }
 
 .btn-glass-danger:active:not(:disabled) {
-  background: linear-gradient(180deg, #b91c1c 0%, #991b1b 100%);
-  box-shadow:
-    inset 0 1.5px 3px 0 rgba(0, 0, 0, 0.35),
-    0 1px 2px 0 rgba(0, 0, 0, 0.12);
-  transform: translateY(1px) scale(0.98);
+  background-color: #991b1b;
+  transform: scale(0.985);
 }
 
 .dark .btn-glass-danger {
-  background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow:
-    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.42),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4),
-    0 3px 10px -2px rgba(220, 38, 38, 0.45);
+  background-color: #dc2626;
+  border-color: transparent;
   color: #ffffff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .dark .btn-glass-danger:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ef4444 0%, #c81e1e 100%);
-  transform: translateY(-1px);
+  background-color: #b91c1c;
 }
 
 /* ==========================================================================
@@ -1475,16 +1438,6 @@ input[type="number"] {
     transform: none !important;
     transition: none !important;
   }
-
-  .btn-glass-primary { background-color: #0d7ae8 !important; }
-  .btn-glass-utility { background-color: #ffffff !important; }
-  .btn-glass-amber { background-color: #d97706 !important; }
-  .btn-glass-emerald { background-color: #059669 !important; }
-  .btn-glass-danger-utility { background-color: #ffffff !important; }
-  .btn-glass-danger { background-color: #ef4444 !important; }
-
-  .dark .btn-glass-utility { background-color: #222222 !important; }
-  .dark .btn-glass-danger-utility { background-color: #1c1818 !important; }
 
   @keyframes mobile-skeleton-pulse {
     0%, 100% {

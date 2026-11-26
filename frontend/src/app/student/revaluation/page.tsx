@@ -198,64 +198,65 @@ export default function StudentRevaluationPage() {
   }, [requests, activeFilter, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-canvas text-ink pb-20 relative">
+    <div className="min-h-screen bg-canvas-soft text-ink pb-20 relative">
       {/* Background Refetch Line */}
       <RefetchProgressLine isFetching={isFetching} />
 
-      <div className="max-w-5xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 space-y-6">
-        {/* Navigation Breadcrumb Bar — Permanently Mounted (CLS = 0.00) */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-8 space-y-6">
+        {/* Navigation Breadcrumb Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-hairline">
           <Link
             href="/student/portal"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors py-1.5 px-2 -ml-2 rounded-lg hover:bg-canvas-soft w-fit"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline transition-colors py-1 px-1.5 -ml-1.5 rounded-md hover:bg-surface w-fit"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Back to Overview</span>
           </Link>
         </div>
 
-        {/* Header Title Section — Permanently Mounted (CLS = 0.00) */}
-        <div className="space-y-1.5">
+        {/* Header Title Section */}
+        <header className="space-y-1.5">
+          <p className="notion-eyebrow">Academic Review</p>
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+            <h1 className="notion-heading-2 text-ink">
               My Revaluation Appeals
             </h1>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-surface border border-hairline text-ink-secondary flex items-center gap-1">
+            <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-surface border border-hairline text-ink-secondary inline-flex items-center gap-1 tabular-nums">
               <MetricValue
                 value={totalCount}
                 isLoading={isColdLoading}
                 width="w-4"
-                className="text-xs font-semibold"
+                className="text-xs font-medium"
               />
               <span>Total</span>
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-ink-secondary max-w-2xl leading-relaxed">
+          <p className="text-xs sm:text-sm text-ink-muted max-w-2xl leading-relaxed">
             Track real-time status, faculty step-marking reviews, and revised marks across your examination appeals.
           </p>
-        </div>
+        </header>
 
-        {/* Filter Pills & Search Bar Toolbar — Permanently Mounted (CLS = 0.00) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        {/* Filter Pills & Search Bar Toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           {/* Segmented Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
             <button
               type="button"
               onClick={() => setActiveFilter("ALL")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+              className={`h-8 px-3 rounded-md font-medium border transition-colors cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5 ${
                 activeFilter === "ALL"
-                  ? "bg-primary text-white shadow-xs"
-                  : "bg-surface border border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
               }`}
             >
               <span>All Appeals</span>
-              <span className="opacity-80">
+              <span className="opacity-80 font-mono tabular-nums">
                 (
                 <MetricValue
                   value={totalCount}
                   isLoading={isColdLoading}
                   width="w-3"
-                  className="font-semibold"
+                  className="font-medium"
                 />
                 )
               </span>
@@ -264,21 +265,21 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("PENDING")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
+              className={`h-8 px-3 rounded-md font-medium border transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === "PENDING"
-                  ? "bg-amber-600 text-white shadow-xs"
-                  : "bg-surface border border-hairline text-ink-secondary hover:text-amber-700 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
               }`}
             >
-              <Clock className="h-3 w-3" />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeFilter === "PENDING" ? "bg-white" : "bg-amber-500"}`} />
               <span>Under Review</span>
-              <span className="opacity-80">
+              <span className="opacity-80 font-mono tabular-nums">
                 (
                 <MetricValue
                   value={pendingCount}
                   isLoading={isColdLoading}
                   width="w-3"
-                  className="font-semibold"
+                  className="font-medium"
                 />
                 )
               </span>
@@ -287,21 +288,21 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("REVISED")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
+              className={`h-8 px-3 rounded-md font-medium border transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === "REVISED"
-                  ? "bg-emerald-600 text-white shadow-xs"
-                  : "bg-surface border border-hairline text-ink-secondary hover:text-emerald-700 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
               }`}
             >
-              <CheckCircle2 className="h-3 w-3" />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeFilter === "REVISED" ? "bg-white" : "bg-emerald-500"}`} />
               <span>Marks Revised</span>
-              <span className="opacity-80">
+              <span className="opacity-80 font-mono tabular-nums">
                 (
                 <MetricValue
                   value={revisedCount}
                   isLoading={isColdLoading}
                   width="w-3"
-                  className="font-semibold"
+                  className="font-medium"
                 />
                 )
               </span>
@@ -310,43 +311,43 @@ export default function StudentRevaluationPage() {
             <button
               type="button"
               onClick={() => setActiveFilter("UPHELD")}
-              className={`h-8 px-3 rounded-lg font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
+              className={`h-8 px-3 rounded-md font-medium border transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap ${
                 activeFilter === "UPHELD"
-                  ? "bg-slate-700 text-white shadow-xs"
-                  : "bg-surface border border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-surface border-hairline text-ink-secondary hover:text-ink hover:bg-canvas-soft"
               }`}
             >
-              <ShieldCheck className="h-3 w-3" />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeFilter === "UPHELD" ? "bg-white" : "bg-ink-faint"}`} />
               <span>Marks Upheld</span>
-              <span className="opacity-80">
+              <span className="opacity-80 font-mono tabular-nums">
                 (
                 <MetricValue
                   value={upheldCount}
                   isLoading={isColdLoading}
                   width="w-3"
-                  className="font-semibold"
+                  className="font-medium"
                 />
                 )
               </span>
             </button>
           </div>
 
-          {/* Search Box — Permanently Mounted & Focus-Retaining */}
+          {/* Search Box */}
           <div className="relative w-full sm:w-64 shrink-0">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
             <input
               type="text"
               aria-label="Search revaluation appeals"
               placeholder="Search by exam or subject..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 text-xs bg-surface border border-hairline rounded-lg text-ink placeholder:text-ink-muted focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
+              className="w-full h-8 pl-8 pr-12 text-xs bg-surface border border-hairline rounded-xs text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-2 text-[10px] text-ink-muted hover:text-ink font-semibold"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-ink-muted hover:text-ink font-medium cursor-pointer"
               >
                 Clear
               </button>
@@ -358,12 +359,12 @@ export default function StudentRevaluationPage() {
         {isColdLoading ? (
           <RevaluationListSkeleton />
         ) : error ? (
-          <FeatureCard className="p-8 text-center space-y-4 max-w-xl mx-auto">
-            <div className="mx-auto h-12 w-12 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 dark:bg-rose-950/30 dark:border-rose-800">
-              <AlertCircle className="h-6 w-6" />
+          <FeatureCard className="p-8 rounded-lg text-center space-y-4 max-w-xl mx-auto">
+            <div className="mx-auto h-11 w-11 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-rose-600">
+              <AlertCircle className="h-5 w-5" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-ink">Failed to Load Appeals</h3>
+              <h3 className="text-base font-semibold text-ink">Failed to Load Appeals</h3>
               <p className="text-xs text-ink-muted">{error}</p>
             </div>
             <ButtonPrimary onClick={() => refetchAppeals()} className="mx-auto">
@@ -372,16 +373,16 @@ export default function StudentRevaluationPage() {
             </ButtonPrimary>
           </FeatureCard>
         ) : filteredRequests.length === 0 ? (
-          <FeatureCard className="p-10 text-center space-y-4 max-w-lg mx-auto">
-            <div className="mx-auto h-12 w-12 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
+          <FeatureCard className="p-10 rounded-lg text-center space-y-4 max-w-lg mx-auto">
+            <div className="mx-auto h-11 w-11 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted">
               {requests.length === 0 ? (
-                <RotateCcw className="h-6 w-6 text-primary" />
+                <RotateCcw className="h-5 w-5 text-primary" />
               ) : (
-                <Filter className="h-6 w-6" />
+                <Filter className="h-5 w-5" />
               )}
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-ink">
+              <h3 className="text-base font-semibold text-ink">
                 {requests.length === 0 ? "No Revaluation Appeals Found" : "No Appeals Match Filter"}
               </h3>
               <p className="text-xs text-ink-muted leading-relaxed">
@@ -404,7 +405,7 @@ export default function StudentRevaluationPage() {
             </div>
           </FeatureCard>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             {filteredRequests.map((req) => {
               const qids = parseQuestionIds(req.question_ids_json);
               const isResolved = req.status === "RESOLVED";
@@ -415,23 +416,21 @@ export default function StudentRevaluationPage() {
               return (
                 <FeatureCard
                   key={req.id}
-                  className="p-5 sm:p-6 border-hairline bg-surface space-y-4 transition-all hover:shadow-2xs"
+                  className="p-4 sm:p-5 rounded-lg border-hairline bg-surface space-y-3.5 transition-colors hover:border-hairline-strong"
                 >
-                  {/* Top Bar: Exam Title, Subject Badge, and Resolution Status Pill */}
+                  {/* Top Bar */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <BadgePill
-                          label={req.exam_subject || "General"}
-                          color={getSubjectBadgeColor(req.exam_subject)}
-                        />
-                        <h2 className="text-base sm:text-lg font-bold text-ink truncate">
-                          {req.exam_title || "Examination Paper"}
-                        </h2>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-ink-muted">
-                        <span>Submitted on {formatDate(req.requested_at)}</span>
-                        <span>•</span>
+                      <h2 className="notion-heading-3 text-ink truncate">
+                        {req.exam_title || "Examination Paper"}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+                        <span className="font-medium text-ink-secondary">
+                          {req.exam_subject || "General"}
+                        </span>
+                        <span className="text-ink-faint">•</span>
+                        <span>Submitted {formatDate(req.requested_at)}</span>
+                        <span className="text-ink-faint">•</span>
                         <span>
                           {qids.length === 0 ? "Entire Paper" : `Question ${qids.join(", ")}`}
                         </span>
@@ -440,20 +439,22 @@ export default function StudentRevaluationPage() {
 
                     <div className="shrink-0">
                       {isPending && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                          <Clock className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                           <span>Under Faculty Review</span>
                         </span>
                       )}
                       {isRevised && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>Marks Revised ({req.delta_marks && req.delta_marks > 0 ? `+${req.delta_marks}` : req.delta_marks}m)</span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span>
+                            Marks Revised ({req.delta_marks && req.delta_marks > 0 ? `+${req.delta_marks}` : req.delta_marks}m)
+                          </span>
                         </span>
                       )}
                       {isUpheld && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                          <ShieldCheck className="h-3.5 w-3.5 text-slate-500" />
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                          <span className="w-1.5 h-1.5 rounded-full bg-ink-faint shrink-0" />
                           <span>Evaluation Upheld</span>
                         </span>
                       )}
@@ -462,40 +463,40 @@ export default function StudentRevaluationPage() {
 
                   {/* Student Justification */}
                   {req.student_reason && (
-                    <div className="p-3 rounded-lg bg-canvas-soft border border-hairline/70 text-xs space-y-1">
-                      <div className="font-semibold text-ink-secondary">Your Appeal Reason:</div>
-                      <p className="text-ink-muted italic">&ldquo;{req.student_reason}&rdquo;</p>
+                    <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs space-y-1">
+                      <div className="font-medium text-ink-secondary">Your Appeal Reason</div>
+                      <p className="text-ink-muted leading-relaxed">&ldquo;{req.student_reason}&rdquo;</p>
                     </div>
                   )}
 
                   {/* Evaluator Notes / Decision Banner */}
                   {isResolved && (req.reviewer_notes || req.resolution_notes) && (
-                    <div className="p-3.5 rounded-lg border border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between font-bold text-emerald-900 dark:text-emerald-300">
+                    <div className="p-3.5 rounded-md border border-hairline bg-canvas-soft text-xs space-y-1.5">
+                      <div className="flex items-center justify-between font-semibold text-ink">
                         <span className="flex items-center gap-1.5">
-                          <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                          Faculty Review Decision
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span>Faculty Review Decision</span>
                         </span>
                         {req.resolved_at && (
-                          <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-400">
+                          <span className="text-[11px] font-normal text-ink-muted">
                             {formatDate(req.resolved_at)}
                           </span>
                         )}
                       </div>
-                      <p className="text-emerald-950 dark:text-emerald-200 leading-relaxed">
+                      <p className="text-ink-secondary leading-relaxed">
                         {req.reviewer_notes || req.resolution_notes}
                       </p>
                     </div>
                   )}
 
                   {/* Footer: Link to Paper View */}
-                  <div className="flex items-center justify-between pt-3 border-t border-hairline/60 text-xs">
+                  <div className="flex items-center justify-between pt-3 border-t border-hairline text-xs">
                     <span className="text-ink-muted">
-                      Paper ID: <code className="font-mono">{req.submission_id.slice(0, 8)}...</code>
+                      Paper ID <code className="font-mono text-ink-secondary">{req.submission_id.slice(0, 8)}</code>
                     </span>
                     <Link
                       href={`/student/submissions/${req.submission_id}`}
-                      className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-hover hover:underline transition-colors"
+                      className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline transition-colors"
                     >
                       <span>View Evaluated Script</span>
                       <ExternalLink className="h-3.5 w-3.5" />

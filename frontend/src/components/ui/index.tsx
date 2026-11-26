@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { AlertTriangle, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { AlertTriangle, AlertCircle, CheckCircle2, Eye, EyeOff, X } from "lucide-react";
 import { useDrawerDrag } from "@/hooks/useDrawerDrag";
 
 export interface ButtonPrimaryProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -25,16 +25,16 @@ export function ButtonPrimary({
   ...props
 }: ButtonPrimaryProps) {
   const sizeClasses = {
-    sm: "h-8 px-3.5 text-xs font-semibold rounded-md",
-    md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-semibold rounded-md",
-    lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-semibold rounded-lg",
+    sm: "h-8 px-3.5 text-xs font-medium rounded-md",
+    md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-medium rounded-md",
+    lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-medium rounded-md",
   }[size];
 
   if (href) {
     return (
       <Link
         href={href}
-        className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
+        className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${className}`}
       >
         {icon && <span className="inline-flex items-center mr-1.5 shrink-0">{icon}</span>}
         {children}
@@ -44,7 +44,7 @@ export function ButtonPrimary({
 
   return (
     <button
-      className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${className}`}
+      className={`inline-flex items-center justify-center font-medium btn-glass-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
@@ -101,20 +101,20 @@ export function ButtonUtility({
     default: "btn-glass-utility",
     danger: "btn-glass-danger-utility",
     "danger-solid": "btn-glass-danger",
-    ghost: "bg-transparent text-ink-secondary hover:bg-canvas-soft",
+    ghost: "bg-transparent text-ink-secondary hover:text-ink hover:bg-canvas-soft",
   }[variant];
 
   const sizeClasses = {
-    sm: "h-8 px-3.5 text-xs font-semibold rounded-md",
-    md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-semibold rounded-md",
-    lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-semibold rounded-lg",
+    sm: "h-8 px-3.5 text-xs font-medium rounded-md",
+    md: "h-9 sm:h-10 px-4 text-xs sm:text-sm font-medium rounded-md",
+    lg: "h-11 sm:h-12 px-5 text-sm sm:text-base font-medium rounded-md",
   }[size];
 
   if (href) {
     return (
       <Link
         href={href}
-        className={`inline-flex items-center justify-center font-medium transition-all ${sizeClasses} ${variantClasses} ${className}`}
+        className={`inline-flex items-center justify-center font-medium transition-colors ${sizeClasses} ${variantClasses} ${className}`}
       >
         {icon && <span className="inline-flex items-center mr-1.5 shrink-0">{icon}</span>}
         {children}
@@ -124,7 +124,7 @@ export function ButtonUtility({
 
   return (
     <button
-      className={`inline-flex items-center justify-center font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${variantClasses} ${className}`}
+      className={`inline-flex items-center justify-center font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${sizeClasses} ${variantClasses} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
@@ -201,17 +201,17 @@ export function StatusWell({
   ...props
 }: StatusWellProps) {
   const accentBorder = {
-    amber: "border-amber-200/80 bg-amber-50/40 dark:bg-[#1d160e]/80 dark:border-[#382613] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-    blue: "border-sky-200/80 bg-sky-50/40 dark:bg-[#0e1724]/80 dark:border-[#1a2d46] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-    green: "border-emerald-200/80 bg-emerald-50/40 dark:bg-[#101d15]/80 dark:border-[#1a3324] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-    rose: "border-rose-200/80 bg-rose-50/40 dark:bg-[#221014]/80 dark:border-[#3f1922] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-    purple: "border-purple-200/80 bg-purple-50/40 dark:bg-[#1a1024]/80 dark:border-[#311c46] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+    amber: "border-amber-200/80 bg-amber-50/40 dark:bg-[#1d160e]/80 dark:border-[#382613]",
+    blue: "border-sky-200/80 bg-sky-50/40 dark:bg-[#0e1724]/80 dark:border-[#1a2d46]",
+    green: "border-emerald-200/80 bg-emerald-50/40 dark:bg-[#101d15]/80 dark:border-[#1a3324]",
+    rose: "border-rose-200/80 bg-rose-50/40 dark:bg-[#221014]/80 dark:border-[#3f1922]",
+    purple: "border-purple-200/80 bg-purple-50/40 dark:bg-[#1a1024]/80 dark:border-[#311c46]",
     neutral: "border-hairline bg-surface",
   }[variant];
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border ${accentBorder} shadow-2xs ${className}`}
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-lg border ${accentBorder} ${className}`}
       {...props}
     >
       <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -281,16 +281,16 @@ export interface BadgePillProps {
 
 export function BadgePill({ label, color = "gray", rounded = "md", className = "" }: BadgePillProps) {
   const colorMap: Record<StickerColor, string> = {
-    green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    teal: "bg-[#eaf4f3] text-[#165651] border-[#c4e2df] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    sky: "bg-[#ebf4fa] text-[#1b5380] border-[#c2def1] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#102030] dark:text-[#90caf9] dark:border-[#1d3550] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    indigo: "bg-[#edf0f9] text-[#2c3e80] border-[#c8d4f0] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#141b30] dark:text-[#9db2f8] dark:border-[#1e2c50] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    purple: "bg-[#f3eff8] text-[#552e80] border-[#d8c8ed] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#20152e] dark:text-[#c4b5fd] dark:border-[#35204c] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    pink: "bg-[#fcf0f3] text-[#7f263f] border-[#f4c6d2] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#281318] dark:text-[#f4a7b5] dark:border-[#461e27] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    orange: "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#221c17] dark:text-[#d7ba9d] dark:border-[#3a2f26] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
-    gray: "bg-zinc-100 text-zinc-700 border-zinc-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-white/[0.05] dark:text-zinc-300 dark:border-white/[0.08] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
-    red: "bg-[#faeeee] text-[#7c2626] border-[#f0c4c4] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-[#2a1313] dark:text-[#f28b82] dark:border-[#4a1f1f] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+    green: "bg-[#edf5f0] text-[#1e613b] border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a]",
+    teal: "bg-[#eaf4f3] text-[#165651] border-[#c4e2df] dark:bg-[#0e2322] dark:text-[#80cbc4] dark:border-[#173d3a]",
+    sky: "bg-[#ebf4fa] text-[#1b5380] border-[#c2def1] dark:bg-[#102030] dark:text-[#90caf9] dark:border-[#1d3550]",
+    indigo: "bg-[#edf0f9] text-[#2c3e80] border-[#c8d4f0] dark:bg-[#141b30] dark:text-[#9db2f8] dark:border-[#1e2c50]",
+    purple: "bg-[#f3eff8] text-[#552e80] border-[#d8c8ed] dark:bg-[#20152e] dark:text-[#c4b5fd] dark:border-[#35204c]",
+    pink: "bg-[#fcf0f3] text-[#7f263f] border-[#f4c6d2] dark:bg-[#281318] dark:text-[#f4a7b5] dark:border-[#461e27]",
+    orange: "bg-[#faf4ec] text-[#7a4e18] border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17]",
+    brown: "bg-[#f4f1ec] text-[#594532] border-[#ded5c7] dark:bg-[#221c17] dark:text-[#d7ba9d] dark:border-[#3a2f26]",
+    gray: "bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-white/[0.05] dark:text-zinc-300 dark:border-white/[0.08]",
+    red: "bg-[#faeeee] text-[#7c2626] border-[#f0c4c4] dark:bg-[#2a1313] dark:text-[#f28b82] dark:border-[#4a1f1f]",
   };
 
   const roundedClass = rounded === "full" ? "rounded-full" : rounded === "sm" ? "rounded-sm" : "rounded-md";
@@ -326,7 +326,7 @@ export function FormInput({ label, error, className = "", id, type, ...props }: 
         <input
           id={inputId}
           type={actualType}
-          className={`w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface dark:bg-[#1a1a1a] focus:dark:bg-[#202020] px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:shadow-notion-card transition-all ${
+          className={`w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none focus:shadow-notion-card transition-colors ${
             isPassword ? "pr-10" : ""
           } ${error ? "border-red-400 focus:border-red-500" : ""} ${className}`}
           {...props}
@@ -336,7 +336,7 @@ export function FormInput({ label, error, className = "", id, type, ...props }: 
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
             tabIndex={-1}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink transition-colors cursor-pointer rounded-xs focus:outline-hidden"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink transition-colors cursor-pointer rounded-xs focus:outline-none"
             title={showPassword ? "Hide password" : "Show password"}
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
@@ -383,6 +383,7 @@ export function ModalCard({
   }, []);
 
   const resetStylesRef = React.useRef<() => void>(() => {});
+  const prevIsOpenRef = React.useRef<boolean>(false);
 
   const handleRequestClose = useCallback((fromDrag?: any) => {
     if (disableClose || isExiting) return;
@@ -391,14 +392,14 @@ export function ModalCard({
       setIsRendered(false);
       return;
     }
-    // Clean up any gesture inline styles so CSS slide-down animation takes over immediately
+    // Clean up any gesture inline styles so CSS exit animation takes over cleanly
     resetStylesRef.current();
     setIsExiting(true);
     setTimeout(() => {
       onClose();
       setIsRendered(false);
       setIsExiting(false);
-    }, 250);
+    }, 200);
   }, [disableClose, isExiting, onClose]);
 
   const { sheetRef, backdropRef, handleProps, resetStyles } = useDrawerDrag({
@@ -409,18 +410,24 @@ export function ModalCard({
   resetStylesRef.current = resetStyles;
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setIsRendered(true);
       setIsExiting(false);
       resetStyles();
-    } else if (isRendered) {
+    } else if (isOpen && !isRendered) {
+      setIsRendered(true);
+      setIsExiting(false);
+    } else if (!isOpen && isRendered) {
+      resetStyles();
       setIsExiting(true);
       const timer = setTimeout(() => {
         setIsRendered(false);
         setIsExiting(false);
       }, 200);
+      prevIsOpenRef.current = isOpen;
       return () => clearTimeout(timer);
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, isRendered, resetStyles]);
 
   // Lock body scroll and handle Escape key while modal is open
@@ -457,7 +464,7 @@ export function ModalCard({
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden pointer-events-auto">
       <div
         ref={backdropRef}
-        className={`fixed inset-0 bg-black/50 backdrop-blur-xs ${
+        className={`fixed inset-0 bg-black/45 ${
           isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
         }`}
         onClick={handleBackdropClick}
@@ -465,7 +472,7 @@ export function ModalCard({
       />
       <div
         ref={sheetRef}
-        className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-t-2xl sm:rounded-xl shadow-notion-modal border-t border-x sm:border border-hairline z-10 overflow-hidden ${
+        className={`relative w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-surface rounded-t-lg sm:rounded-lg shadow-notion-modal border-t border-x sm:border border-hairline z-10 overflow-hidden ${
           isExiting ? "animate-drawer-out" : "animate-drawer-in"
         } ${className}`}
         role="dialog"
@@ -484,17 +491,18 @@ export function ModalCard({
 
         {/* Sticky Header */}
         <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b border-hairline bg-surface shrink-0">
-          <h2 id="modal-card-title" className="text-xs sm:text-sm md:text-base font-bold text-ink truncate pr-2">
+          <h2 id="modal-card-title" className="notion-section-title text-sm sm:text-base font-bold text-ink truncate pr-2">
             {title}
           </h2>
           {!disableClose && (
             <button
               type="button"
               onClick={handleRequestClose}
-              className="hidden sm:inline-flex text-ink-muted hover:text-ink p-1 rounded-md hover:bg-canvas-soft transition-colors cursor-pointer shrink-0 text-xs sm:text-sm"
+              className="hidden sm:inline-flex items-center justify-center text-ink-muted hover:text-ink p-1 rounded-md hover:bg-canvas-soft transition-colors cursor-pointer shrink-0"
               title="Close modal"
+              aria-label="Close modal"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -604,16 +612,16 @@ export function ConfirmModal({
   const isWarning = variant === "warning";
 
   let icon = <AlertCircle className="h-5 w-5 text-primary" />;
-  let iconBgClass = "bg-[#edf5fd] text-primary border border-primary/20";
-  let confirmBtnClass = "bg-primary hover:bg-primary-active text-white";
+  let iconBgClass = "bg-primary/10 text-primary border border-primary/20";
+  let confirmBtnClass = "bg-primary hover:bg-primary-active text-on-primary";
 
   if (isDanger) {
-    icon = <AlertTriangle className="h-5 w-5 text-red-600" />;
-    iconBgClass = "bg-red-50 text-red-600 border border-red-200/60";
+    icon = <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />;
+    iconBgClass = "bg-red-50 text-red-600 border border-red-200/70";
     confirmBtnClass = "bg-red-600 hover:bg-red-700 text-white";
   } else if (isWarning) {
-    icon = <AlertTriangle className="h-5 w-5 text-amber-600" />;
-    iconBgClass = "bg-amber-50 text-amber-600 border border-amber-200/60";
+    icon = <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />;
+    iconBgClass = "bg-amber-50 text-amber-600 border border-amber-200/70";
     confirmBtnClass = "bg-amber-600 hover:bg-amber-700 text-white";
   }
 
@@ -626,17 +634,17 @@ export function ConfirmModal({
       aria-modal="true"
     >
       <div
-        className="fixed inset-0 bg-black/45 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-black/45 transition-opacity"
         onClick={handleRequestClose}
         aria-hidden="true"
       />
       <div
-        className={`relative w-full max-w-md bg-surface rounded-xl shadow-notion-modal border border-hairline z-10 overflow-hidden p-5 sm:p-6 space-y-4 ${
+        className={`relative w-full max-w-md bg-surface rounded-lg shadow-notion-modal border border-hairline z-10 overflow-hidden p-5 sm:p-6 space-y-4 ${
           isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
         }`}
       >
         <div className="flex items-start gap-3.5">
-          <div className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${iconBgClass}`}>
+          <div className={`flex h-10 w-10 items-center justify-center rounded-lg shrink-0 ${iconBgClass}`}>
             {icon}
           </div>
           <div className="space-y-1.5 min-w-0 flex-1">
@@ -644,11 +652,11 @@ export function ConfirmModal({
             <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">{message}</p>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-hairline">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-hairline">
           <button
             type="button"
             onClick={handleRequestClose}
-            className="px-3.5 py-1.5 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink text-xs sm:text-sm font-medium transition-colors"
+            className="px-3.5 py-2 sm:py-1.5 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink text-xs sm:text-sm font-medium transition-colors cursor-pointer"
           >
             {cancelText}
           </button>
@@ -656,7 +664,7 @@ export function ConfirmModal({
             type="button"
             onClick={handleRequestConfirm}
             autoFocus
-            className={`px-4 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition-colors shadow-xs ${confirmBtnClass}`}
+            className={`px-4 py-2 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors cursor-pointer ${confirmBtnClass}`}
           >
             {confirmText}
           </button>

@@ -181,19 +181,19 @@ export function UsageCards({
       {/* Telemetry Source Selector & Currency Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hairline pb-3">
         {/* Source Switcher */}
-        <div className="flex items-center gap-1.5 bg-canvas-soft p-1 rounded-xl border border-hairline w-fit">
+        <div className="flex items-center gap-1 bg-canvas-soft p-1 rounded-lg border border-hairline w-full sm:w-fit">
           <button
             type="button"
             onClick={() => setActiveTab("free_pool")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-initial min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
               activeTab === "free_pool"
-                ? "bg-surface text-ink shadow-2xs border border-hairline"
-                : "text-ink-muted hover:text-ink"
+                ? "bg-surface text-ink font-semibold border border-hairline"
+                : "text-ink-muted hover:text-ink border border-transparent"
             }`}
           >
-            <Zap className="h-3.5 w-3.5 text-primary" />
+            <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
             <span>AI Studio Pool</span>
-            <span className="ml-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.2 text-[10px] font-mono">
+            <span className="ml-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-secondary px-1.5 py-0.5 text-[10px] font-sans tabular-nums whitespace-nowrap shrink-0">
               {activeKeyCount} Keys
             </span>
           </button>
@@ -201,15 +201,15 @@ export function UsageCards({
           <button
             type="button"
             onClick={() => setActiveTab("gcp_paid")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-initial min-w-0 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
               activeTab === "gcp_paid"
-                ? "bg-surface text-ink shadow-2xs border border-hairline"
-                : "text-ink-muted hover:text-ink"
+                ? "bg-surface text-ink font-semibold border border-hairline"
+                : "text-ink-muted hover:text-ink border border-transparent"
             }`}
           >
-            <Cloud className="h-3.5 w-3.5 text-amber-500" />
+            <Cloud className="h-3.5 w-3.5 text-ink-muted shrink-0" />
             <span>GCP Paid</span>
-            <span className="ml-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 px-1.5 py-0.2 text-[10px] font-bold">
+            <span className="ml-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-secondary px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap shrink-0">
               PAID
             </span>
           </button>
@@ -217,27 +217,27 @@ export function UsageCards({
 
         {/* Currency Display Controls (INR / USD / Dual) */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-canvas-soft p-1 rounded-xl border border-hairline text-xs font-semibold">
+          <div className="flex items-center gap-1 bg-canvas-soft p-1 rounded-lg border border-hairline text-xs font-medium w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setCurrencyMode("INR")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
                 currencyMode === "INR"
-                  ? "bg-surface text-emerald-700 dark:text-emerald-300 shadow-2xs border border-hairline font-bold"
-                  : "text-ink-muted hover:text-ink"
+                  ? "bg-surface text-ink border border-hairline font-semibold"
+                  : "text-ink-muted hover:text-ink border border-transparent"
               }`}
               title="Display all figures in Indian Rupee (INR)"
             >
-              <IndianRupee className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              <IndianRupee className="h-3 w-3 text-primary" />
               <span>INR (₹)</span>
             </button>
             <button
               type="button"
               onClick={() => setCurrencyMode("USD")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
                 currencyMode === "USD"
-                  ? "bg-surface text-primary shadow-2xs border border-hairline font-bold"
-                  : "text-ink-muted hover:text-ink"
+                  ? "bg-surface text-primary border border-hairline font-semibold"
+                  : "text-ink-muted hover:text-ink border border-transparent"
               }`}
               title="Display all figures in US Dollars (USD)"
             >
@@ -247,10 +247,10 @@ export function UsageCards({
             <button
               type="button"
               onClick={() => setCurrencyMode("DUAL")}
-              className={`px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
                 currencyMode === "DUAL"
-                  ? "bg-surface text-ink shadow-2xs border border-hairline font-bold"
-                  : "text-ink-muted hover:text-ink"
+                  ? "bg-surface text-ink border border-hairline font-semibold"
+                  : "text-ink-muted hover:text-ink border border-transparent"
               }`}
               title="Display both INR and USD side by side"
             >
@@ -258,7 +258,7 @@ export function UsageCards({
             </button>
           </div>
 
-          <span className="text-[10px] text-ink-muted hidden md:inline font-mono">
+          <span className="text-[10px] text-ink-muted hidden md:inline font-sans tabular-nums">
             1 USD ≈ ₹{USD_TO_INR.toFixed(2)}
           </span>
         </div>
@@ -276,16 +276,16 @@ export function UsageCards({
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {/* Total Calls */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
                       Total Requests
                     </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 dark:bg-primary/20 border border-primary/20 text-primary dark:text-sky-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
                       <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {summary.total_requests}
                     </div>
                     <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
@@ -300,16 +300,16 @@ export function UsageCards({
 
                 {/* Latency Duration */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
                       Avg Latency
                     </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {latency.average_ms > 1000 ? `${(latency.average_ms / 1000).toFixed(1)}s` : `${latency.average_ms}ms`}
                     </div>
                     <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
@@ -324,16 +324,16 @@ export function UsageCards({
 
                 {/* Tokens Per Paper */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
                       Tokens / Paper
                     </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       <Cpu className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {Math.round(per_paper_metrics.avg_total_tokens).toLocaleString()}
                     </div>
                     <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
@@ -348,16 +348,16 @@ export function UsageCards({
 
                 {/* Cost Estimation */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
                       Est Value / Paper
                     </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 text-purple-600 dark:text-purple-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       {currencyMode === "USD" ? <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {currencyMode === "USD"
                         ? `$${per_paper_metrics.avg_cost_usd.toFixed(4)}`
                         : `₹${(per_paper_metrics.avg_cost_usd * USD_TO_INR).toFixed(3)}`}
@@ -369,7 +369,7 @@ export function UsageCards({
                   <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Free Tier Value</span>
                     {currencyMode === "DUAL" && (
-                      <span className="font-mono text-[9px] text-ink-muted">
+                      <span className="font-sans tabular-nums text-[9px] text-ink-muted">
                         (${per_paper_metrics.avg_cost_usd.toFixed(4)})
                       </span>
                     )}
@@ -605,16 +605,16 @@ export function UsageCards({
           {activeTab === "gcp_paid" && (
             <div className="space-y-6">
               {/* Header Account Summary Banner */}
-              <FeatureCard className="p-4 sm:p-6 border-amber-200/60 bg-gradient-to-r from-amber-500/5 via-surface to-surface">
+              <FeatureCard className="p-4 sm:p-6 border-hairline bg-surface">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs shrink-0">
+                      <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                         <Cloud className="h-5 w-5" />
                       </div>
                       <div>
-                        <h3 className="text-base font-bold text-ink flex items-center gap-2">
-                          Google Cloud Paid Vertex AI Account
+                        <h3 className="text-base font-bold text-ink flex flex-wrap items-center gap-2">
+                          <span>Google Cloud Paid Vertex AI Account</span>
                           <BadgePill label="Pay-As-You-Go" color="purple" />
                         </h3>
                         <p className="text-xs text-ink-muted">
@@ -625,21 +625,21 @@ export function UsageCards({
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 text-xs font-mono">
                       <div className="bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5">
-                        <span className="text-[10px] text-ink-muted uppercase block">Project ID</span>
+                        <span className="text-[10px] text-ink-muted uppercase block font-sans">Project ID</span>
                         <span className="font-semibold text-ink break-all">
                           {gcp_paid?.project_id || "project-fe04c36f-bda1-4c99-86b"}
                         </span>
                       </div>
                       <div className="bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5">
-                        <span className="text-[10px] text-ink-muted uppercase block">Service Account</span>
+                        <span className="text-[10px] text-ink-muted uppercase block font-sans">Service Account</span>
                         <span className="font-semibold text-ink truncate block" title={gcp_paid?.service_account_email}>
                           {gcp_paid?.service_account_email || "1040007059825-compute@developer.gserviceaccount.com"}
                         </span>
                       </div>
                       <div className="bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5">
-                        <span className="text-[10px] text-ink-muted uppercase block">Location & Status</span>
-                        <span className="font-semibold text-ink flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                        <span className="text-[10px] text-ink-muted uppercase block font-sans">Location & Status</span>
+                        <span className="font-semibold text-ink flex items-center gap-1.5 font-sans">
+                          <span className="h-2 w-2 rounded-full bg-accent-green inline-block" />
                           {gcp_paid?.location || "global"} • {gcp_paid?.is_configured ? "Ready" : "Active"}
                         </span>
                       </div>
@@ -652,7 +652,6 @@ export function UsageCards({
                       onClick={handleTestGcpConnection}
                       disabled={isTestingGcp}
                       size="sm"
-                      className="bg-amber-600 hover:bg-amber-700 text-white"
                     >
                       <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isTestingGcp ? "animate-spin" : ""}`} />
                       {isTestingGcp ? "Pinging Vertex AI..." : "Test Paid Connection"}
@@ -708,15 +707,15 @@ export function UsageCards({
               </FeatureCard>
 
               {/* GCP ₹28,569 INR Free Trial Budget Tracker */}
-              <FeatureCard className="p-4 sm:p-5 border-emerald-300/60 bg-gradient-to-r from-emerald-500/5 via-surface to-surface space-y-3">
+              <FeatureCard className="p-4 sm:p-5 border-hairline bg-surface space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-9 w-9 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       <IndianRupee className="h-5 w-5" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-ink flex items-center gap-2">
-                        Google Cloud ₹{totalCreditsInr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Trial Credits Ledger
+                      <h4 className="text-xs font-bold text-ink flex flex-wrap items-center gap-2">
+                        <span>Google Cloud ₹{totalCreditsInr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Trial Credits Ledger</span>
                         <BadgePill label={`₹${totalCreditsInr.toLocaleString("en-IN", { minimumFractionDigits: 0 })} Active`} color="green" />
                       </h4>
                       <p className="text-[11px] text-ink-muted">
@@ -726,7 +725,7 @@ export function UsageCards({
                   </div>
 
                   <div className="flex items-center gap-3 self-start sm:self-auto">
-                    <div className="text-left sm:text-right font-mono text-xs">
+                    <div className="text-left sm:text-right font-sans tabular-nums text-xs">
                       <span className="text-ink-muted text-[10px] uppercase block">Remaining Balance</span>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                         ₹{(Math.max(0, totalCreditsInr - ((gcp_paid?.total_spent_usd || 0) * USD_TO_INR))).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -744,10 +743,10 @@ export function UsageCards({
                         setCalibrationRateInput(usdToInrRate.toFixed(3));
                         setShowSyncModal(true);
                       }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-muted hover:text-ink transition-colors shadow-2xs cursor-pointer text-xs font-medium"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-hairline bg-surface hover:bg-canvas-soft text-ink-secondary hover:text-ink transition-colors cursor-pointer text-xs font-medium"
                       title="Calibrate and Sync with Google Cloud Console"
                     >
-                      <SlidersHorizontal className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
                       <span className="hidden sm:inline">Sync / Calibrate</span>
                     </button>
                   </div>
@@ -757,7 +756,7 @@ export function UsageCards({
                 <div className="space-y-1 pt-1">
                   <div className="w-full bg-canvas-soft h-2 rounded-full overflow-hidden border border-hairline">
                     <div
-                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      className="bg-primary h-full rounded-full transition-all duration-500"
                       style={{
                         width: `${Math.min(100, Math.max(0.1, (((gcp_paid?.total_spent_usd || 0) * USD_TO_INR) / totalCreditsInr) * 100))}%`,
                       }}
@@ -773,17 +772,17 @@ export function UsageCards({
               {/* Paid KPI Scorecards (2x2 on mobile, 4-col on desktop) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 {/* Total Money Spent */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3 border-amber-300/40">
-                  <div className="flex items-center justify-between">
+                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
                       {currencyMode === "USD" ? "Total Billed (USD)" : currencyMode === "INR" ? "Total Billed (INR)" : "Total Billed"}
                     </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-600 dark:text-amber-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
                       {currencyMode === "USD" ? <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {currencyMode === "USD"
                         ? `$${(gcp_paid?.total_spent_usd || 0).toFixed(4)}`
                         : `₹${((gcp_paid?.total_spent_usd || 0) * USD_TO_INR).toFixed(2)}`}
@@ -793,11 +792,11 @@ export function UsageCards({
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold truncate">
+                    <span className="text-[10px] text-ink-secondary font-semibold truncate">
                       {currencyMode === "INR" ? "Billed to Trial" : "Incurred Cost"}
                     </span>
                     {currencyMode === "DUAL" && (
-                      <span className="text-[9px] font-mono text-ink-muted">
+                      <span className="text-[9px] font-sans tabular-nums text-ink-muted">
                         (${(gcp_paid?.total_spent_usd || 0).toFixed(4)})
                       </span>
                     )}
@@ -806,14 +805,14 @@ export function UsageCards({
 
                 {/* Total Paid Requests */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Paid API Calls</span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       <Server className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {gcp_paid?.total_requests || 0}
                     </div>
                     <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
@@ -828,14 +827,14 @@ export function UsageCards({
 
                 {/* Tokens Billed */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Tokens Incurred</span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 text-purple-600 dark:text-purple-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       <Cpu className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {((gcp_paid?.total_input_tokens || 0) + (gcp_paid?.total_output_tokens || 0)).toLocaleString()}
                     </div>
                     <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
@@ -850,14 +849,14 @@ export function UsageCards({
 
                 {/* Average Latency */}
                 <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Avg Latency</span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs shrink-0">
+                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                       <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
                   </div>
                   <div>
-                    <div className="font-mono text-xl sm:text-2xl font-bold text-ink leading-tight">
+                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
                       {(gcp_paid?.avg_latency_ms || 0) > 1000 ? `${((gcp_paid?.avg_latency_ms || 0) / 1000).toFixed(1)}s` : `${gcp_paid?.avg_latency_ms || 0}ms`}
                     </div>
                     <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
@@ -1289,17 +1288,18 @@ export function UsageCards({
 
       {/* GCP Trial Budget Sync & Calibration Modal (Single Root Render) */}
       {showSyncModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-surface border border-hairline rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="bg-surface border border-hairline rounded-lg max-w-md w-full p-5 space-y-4 shadow-notion-modal">
             <div className="flex items-center justify-between border-b border-hairline pb-3">
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-emerald-600" />
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-bold text-ink">GCP Trial Budget Calibration</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowSyncModal(false)}
-                className="text-ink-muted hover:text-ink p-1 rounded-md cursor-pointer"
+                className="text-ink-muted hover:text-ink p-1 rounded-md hover:bg-canvas-soft cursor-pointer transition-colors"
+                aria-label="Close modal"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1319,7 +1319,7 @@ export function UsageCards({
                   step="0.01"
                   value={calibrationTotalInput}
                   onChange={(e) => setCalibrationTotalInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-hairline bg-canvas-soft text-ink font-mono text-xs focus:outline-hidden focus:border-primary"
+                  className="w-full px-3 py-1.5 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface text-ink font-sans tabular-nums text-xs focus:outline-none focus:border-primary"
                   placeholder="28569.00"
                 />
               </div>
@@ -1328,13 +1328,13 @@ export function UsageCards({
                 <label className="font-semibold text-ink-secondary block mb-1">
                   Current Console Remaining Balance (INR ₹)
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="number"
                     step="0.01"
                     value={calibrationRemainingInput}
                     onChange={(e) => setCalibrationRemainingInput(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-md border border-hairline bg-canvas-soft text-ink font-mono text-xs focus:outline-hidden focus:border-primary"
+                    className="flex-1 px-3 py-1.5 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface text-ink font-sans tabular-nums text-xs focus:outline-none focus:border-primary"
                     placeholder="28568.46"
                   />
                   <button
@@ -1350,7 +1350,7 @@ export function UsageCards({
                         toast.info(`Auto-calibrated rate: 1 USD = ₹${calculatedRate.toFixed(2)} INR`, { title: "Rate Synced" });
                       }
                     }}
-                    className="px-2.5 py-1.5 rounded-md border border-hairline bg-canvas-soft hover:bg-surface text-ink text-[11px] font-semibold whitespace-nowrap cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-md border border-hairline bg-canvas-soft hover:bg-surface text-ink text-[11px] font-medium whitespace-nowrap cursor-pointer transition-colors"
                   >
                     Auto-Sync Rate
                   </button>
@@ -1369,21 +1369,21 @@ export function UsageCards({
                   step="0.01"
                   value={calibrationRateInput}
                   onChange={(e) => setCalibrationRateInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-hairline bg-canvas-soft text-ink font-mono text-xs focus:outline-hidden focus:border-primary"
+                  className="w-full px-3 py-1.5 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface text-ink font-sans tabular-nums text-xs focus:outline-none focus:border-primary"
                   placeholder="100.727"
                 />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   <button
                     type="button"
                     onClick={() => setCalibrationRateInput("100.727")}
-                    className="px-2 py-0.5 text-[10px] rounded bg-canvas-soft border border-hairline text-ink hover:border-primary cursor-pointer"
+                    className="px-2 py-0.5 text-[10px] rounded-xs bg-canvas-soft border border-hairline text-ink hover:border-primary cursor-pointer"
                   >
                     Google Invoiced (₹100.72 w/ 18% GST)
                   </button>
                   <button
                     type="button"
                     onClick={() => setCalibrationRateInput("88.00")}
-                    className="px-2 py-0.5 text-[10px] rounded bg-canvas-soft border border-hairline text-ink hover:border-primary cursor-pointer"
+                    className="px-2 py-0.5 text-[10px] rounded-xs bg-canvas-soft border border-hairline text-ink hover:border-primary cursor-pointer"
                   >
                     Forex Base (₹88.00)
                   </button>
@@ -1391,7 +1391,7 @@ export function UsageCards({
               </div>
             </div>
 
-            <div className="flex items-center justify-between border-t border-hairline pt-3">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 border-t border-hairline pt-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1407,16 +1407,16 @@ export function UsageCards({
                   setShowSyncModal(false);
                   toast.success("Reset to default ₹28,569.00 budget parameters", { title: "Reset Complete" });
                 }}
-                className="text-xs text-ink-muted hover:text-ink underline cursor-pointer"
+                className="text-xs text-ink-muted hover:text-ink underline cursor-pointer self-start sm:self-auto"
               >
                 Reset Defaults
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setShowSyncModal(false)}
-                  className="px-3 py-1.5 text-xs rounded-md border border-hairline text-ink hover:bg-canvas-soft cursor-pointer"
+                  className="flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-md border border-hairline bg-surface text-ink hover:bg-canvas-soft cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
@@ -1440,6 +1440,7 @@ export function UsageCards({
                     toast.success("GCP Trial Credit budget calibrated and synced!", { title: "Budget Synced" });
                   }}
                   size="sm"
+                  className="flex-1 sm:flex-initial"
                 >
                   <Save className="h-3.5 w-3.5 mr-1" />
                   Save & Apply

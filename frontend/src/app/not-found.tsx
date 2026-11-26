@@ -43,32 +43,27 @@ export default function NotFound() {
   }, []);
 
   return (
-    <main className="min-h-[85vh] flex flex-col items-center justify-center px-4 py-16 text-center select-none">
-      {/* Background radial ambient glow */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center -z-10">
-        <div className="w-[32rem] h-[32rem] rounded-full bg-gradient-to-tr from-primary/10 via-purple-500/5 to-transparent blur-3xl opacity-70" />
-      </div>
-
+    <main className="min-h-[85vh] flex flex-col items-center justify-center px-4 py-16 text-center select-none bg-canvas-soft">
       <div className="max-w-xl mx-auto flex flex-col items-center">
         {/* Subtle Academic Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 mb-6 shadow-sm">
+        <div className="notion-eyebrow inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface text-primary border border-hairline mb-6">
           <FileQuestion className="w-3.5 h-3.5" />
           <span>404 • PAGE NOT FOUND</span>
         </div>
 
         {/* Giant 404 Typography with Grace Mark Badge */}
         <div className="relative mb-3">
-          <h1 className="text-8xl sm:text-9xl font-black tracking-tight text-ink drop-shadow-sm font-mono">
+          <h1 className="text-7xl sm:text-9xl font-bold tracking-[-0.04em] text-ink font-sans tabular-nums">
             4<span className="text-primary">0</span>4
           </h1>
-          <span className="absolute -top-1 -right-6 sm:-right-8 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono tracking-wide bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shadow-sm rotate-6">
-            <Sparkles className="w-3 h-3" />
+          <span className="absolute -top-1 -right-4 sm:-right-8 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide bg-surface text-ink-secondary border border-hairline rotate-6">
+            <Sparkles className="w-3 h-3 text-primary" />
             +0 Grace Marks
           </span>
         </div>
 
         {/* Title */}
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight mb-3">
+        <h2 className="notion-heading-2 text-2xl sm:text-3xl font-bold text-ink mb-3">
           404: No Negative Marking Here
         </h2>
 

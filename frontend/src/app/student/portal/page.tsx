@@ -33,6 +33,7 @@ import {
 
 import { usePortalTabSwipe } from "@/hooks/usePortalTabSwipe";
 import { StudentProfileHeader } from "@/components/student/StudentProfileHeader";
+import { StudentSectionHeader } from "@/components/student/StudentSectionHeader";
 import { StudentNotificationBanner } from "@/components/student/StudentNotificationBanner";
 import { StudentAcademicCounters } from "@/components/student/StudentAcademicCounters";
 import { StudentMarksTrajectory } from "@/components/student/StudentMarksTrajectory";
@@ -559,7 +560,7 @@ export default function StudentPortalPage() {
   ).length;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-7 pt-5 sm:pt-8 pb-16 px-3 sm:px-6 cascade-group overflow-x-hidden relative">
+    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 pt-5 sm:pt-8 pb-20 px-4 sm:px-6 cascade-group overflow-x-hidden relative">
       {/* 1. Profile Header — Permanently Mounted (CLS = 0.00) */}
       <StudentProfileHeader
         user={user}
@@ -568,11 +569,11 @@ export default function StudentPortalPage() {
       />
 
       {/* 2. Portal Top Navigation Switcher */}
-      <div className="relative grid grid-cols-2 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-80 select-none">
+      <div className="relative grid grid-cols-2 p-1 rounded-lg bg-canvas-soft border border-hairline w-full sm:w-96 select-none">
         <span
           ref={tabIndicatorPillRef}
           aria-hidden="true"
-          className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-lg bg-surface shadow-xs border border-hairline/60 pointer-events-none will-change-transform"
+          className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-[7px] bg-surface border border-hairline pointer-events-none will-change-transform"
           style={{
             transform: activeTab === "dashboard" ? "translate3d(0%, 0, 0)" : "translate3d(100%, 0, 0)",
             transition: isTouchDragging ? "none" : "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)",
@@ -582,35 +583,35 @@ export default function StudentPortalPage() {
         <button
           type="button"
           onClick={() => handleTabSwitch("dashboard")}
-          className={`relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer ${
+          className={`relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-[7px] text-xs transition-colors duration-150 cursor-pointer ${
             activeTab === "dashboard"
-              ? "font-bold text-ink"
-              : "font-semibold text-ink-muted hover:text-ink"
+              ? "font-semibold text-ink"
+              : "font-medium text-ink-muted hover:text-ink"
           }`}
         >
           <Layers className={`h-3.5 w-3.5 transition-colors ${activeTab === "dashboard" ? "text-primary" : "text-ink-muted"}`} />
-          <span>Dashboard</span>
+          <span>Overview</span>
           {activeWindows.length > 0 && (
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
           )}
         </button>
 
         <button
           type="button"
           onClick={() => handleTabSwitch("exams")}
-          className={`relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer ${
+          className={`relative z-10 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-[7px] text-xs transition-colors duration-150 cursor-pointer ${
             activeTab === "exams"
-              ? "font-bold text-ink"
-              : "font-semibold text-ink-muted hover:text-ink"
+              ? "font-semibold text-ink"
+              : "font-medium text-ink-muted hover:text-ink"
           }`}
         >
           <BookOpen className={`h-3.5 w-3.5 transition-colors ${activeTab === "exams" ? "text-primary" : "text-ink-muted"}`} />
           <span>Past Exams</span>
           <span
-            className={`text-[10px] font-mono px-1.5 py-0.2 rounded border transition-colors ${
+            className={`text-[10.5px] font-mono tabular-nums px-1.5 py-0.2 rounded-xs border transition-colors ${
               activeTab === "exams"
-                ? "bg-canvas-soft border-hairline/60 text-ink font-semibold"
-                : "bg-surface/50 border-hairline/40 text-ink-muted"
+                ? "bg-canvas-soft border-hairline text-ink font-semibold"
+                : "bg-surface/60 border-hairline/50 text-ink-muted"
             }`}
           >
             {pastSubmissionsList.length}
@@ -636,9 +637,9 @@ export default function StudentPortalPage() {
             transition: isTouchDragging ? "none" : "transform 280ms cubic-bezier(0.2, 0.8, 0.25, 1)",
           }}
         >
-          {/* Pane 0: Dashboard */}
+          {/* Pane 0: Overview */}
           <div
-            className={`w-1/2 shrink-0 min-w-0 space-y-6 px-0.5 ${
+            className={`w-1/2 shrink-0 min-w-0 space-y-8 px-0.5 ${
               activeTab === "dashboard"
                 ? "block opacity-100"
                 : isTouchDragging || isTransitioning
@@ -649,21 +650,30 @@ export default function StudentPortalPage() {
             {/* Push Notification Banner */}
             <StudentNotificationBanner />
 
-            {/* Academic Counters */}
-            <StudentAcademicCounters
-              totalSubmissionsCount={totalSubmissionsCount}
-              publishedCount={publishedSubmissions.length}
-              avgPercentage={avgPercentage}
-              activeRevalsCount={activeRevalsCount}
-              isLoading={isColdLoading}
-            />
+            {/* Academic Snapshot */}
+            <section className="space-y-3">
+              <StudentSectionHeader
+                title="Academic Snapshot"
+                subtitle="Your overall submission record and published score summary."
+              />
+              <StudentAcademicCounters
+                totalSubmissionsCount={totalSubmissionsCount}
+                publishedCount={publishedSubmissions.length}
+                avgPercentage={avgPercentage}
+                activeRevalsCount={activeRevalsCount}
+                isLoading={isColdLoading}
+              />
+            </section>
 
-            {/* Trajectory Graph */}
-            <StudentMarksTrajectory submissions={localSubmissions} />
-
-            {/* Active Exam Submission Card */}
+            {/* Live Examination Window */}
             {shouldShowExamWindowCard && activeExam && (
-              <div className="space-y-3">
+              <section className="space-y-3">
+                <StudentSectionHeader
+                  title="Live Examination"
+                  subtitle="Active submission window and answer sheet upload."
+                  count={activeWindows.length > 1 ? activeWindows.length : undefined}
+                  countLabel={activeWindows.length === 1 ? "Window" : "Windows"}
+                />
                 <MultiWindowSelector
                   activeWindows={activeWindows}
                   selectedExamId={selectedExamId}
@@ -671,7 +681,6 @@ export default function StudentPortalPage() {
                   uploading={false}
                   hasStagedPages={false}
                 />
-
                 <ActiveExamSubmissionCard
                   activeExam={activeExam}
                   windowStatus={windowStatus}
@@ -679,31 +688,37 @@ export default function StudentPortalPage() {
                   user={user}
                   onUploadSuccess={handleUploadSuccess}
                 />
-              </div>
+              </section>
             )}
 
-            {/* Recent Past Submissions Preview */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
-                    {pastSubmissionsList.length > 0 && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
-                        {pastSubmissionsList.length} {pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
-                    Review evaluated answer sheets, question-by-question marks, and faculty revaluations.
-                  </p>
-                </div>
-              </div>
+            {/* Performance Trajectory */}
+            <section className="space-y-3">
+              <StudentSectionHeader
+                title="Performance Trajectory"
+                subtitle="Exam-by-exam score progression across evaluated subjects."
+              />
+              <StudentMarksTrajectory submissions={localSubmissions} />
+            </section>
+
+            {/* Recent Submissions Preview */}
+            <section className="space-y-3">
+              <StudentSectionHeader
+                title="Recent Submissions"
+                subtitle="Review graded answer scripts, step-marking summaries, and revaluations."
+                count={pastSubmissionsList.length}
+                countLabel={pastSubmissionsList.length === 1 ? "Paper" : "Papers"}
+                actionLabel={pastSubmissionsList.length > 0 ? "View All" : undefined}
+                onAction={
+                  pastSubmissionsList.length > 0
+                    ? () => handleTabSwitch("exams", true)
+                    : undefined
+                }
+              />
 
               {isColdLoading ? (
                 <PastExamsCardsSkeleton count={1} />
               ) : pastSubmissionsList.length === 0 ? (
-                <div className="rounded-xl border border-hairline bg-surface p-6 sm:p-8 text-center space-y-2">
+                <div className="notion-card p-6 sm:p-8 text-center space-y-2">
                   <FileText className="h-7 w-7 text-ink-faint mx-auto" />
                   <h3 className="text-sm font-semibold text-ink">No past exam submissions</h3>
                   <p className="text-xs text-ink-muted max-w-sm mx-auto">
@@ -711,9 +726,9 @@ export default function StudentPortalPage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    {pastSubmissionsList.slice(0, 1).map((sub, idx) => (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3">
+                    {pastSubmissionsList.slice(0, 2).map((sub, idx) => (
                       <PastExamCard
                         key={sub.id}
                         sub={sub}
@@ -729,31 +744,35 @@ export default function StudentPortalPage() {
                   </div>
 
                   {pastSubmissionsList.length > 0 && (
-                    <div className="pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleTabSwitch("exams", true)}
-                        className="w-full flex items-center justify-center gap-2 h-11 px-4 rounded-xl btn-glass-utility text-xs font-semibold text-ink hover:text-primary transition-all group shadow-2xs text-center cursor-pointer active:scale-[0.99]"
-                      >
-                        <BookOpen className="h-4 w-4 text-primary" />
-                        <span>
-                          View All {pastSubmissionsList.length}{" "}
-                          {pastSubmissionsList.length === 1 ? "Past Exam Submission" : "Past Exam Submissions"} →
-                        </span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTabSwitch("exams", true)}
+                      className="notion-btn-utility w-full justify-center py-2.5 text-xs"
+                    >
+                      <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span>
+                        Browse All {pastSubmissionsList.length}{" "}
+                        {pastSubmissionsList.length === 1 ? "Past Exam" : "Past Exams"} →
+                      </span>
+                    </button>
                   )}
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* Support Card */}
-            <StudentSupportCard onReportIssueClick={() => setReportModalOpen(true)} />
+            {/* Help & Support */}
+            <section className="space-y-3">
+              <StudentSectionHeader
+                title="Help & Support"
+                subtitle="User guides, scanning instructions, and issue reporting."
+              />
+              <StudentSupportCard onReportIssueClick={() => setReportModalOpen(true)} />
+            </section>
           </div>
 
           {/* Pane 1: Dedicated Past Exams */}
           <div
-            className={`w-1/2 shrink-0 min-w-0 space-y-4 px-0.5 ${
+            className={`w-1/2 shrink-0 min-w-0 space-y-5 px-0.5 ${
               activeTab === "exams"
                 ? "block opacity-100"
                 : isTouchDragging || isTransitioning
@@ -762,21 +781,12 @@ export default function StudentPortalPage() {
             }`}
           >
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-bold text-ink">Past Exam Submissions</h2>
-                  {pastExamsTotal > 0 && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-canvas-soft border border-hairline text-ink-muted shrink-0">
-                      {pastExamsTotal} {pastExamsTotal === 1 ? "Paper" : "Papers"}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
-                  Search by title or subject. Click any exam card to expand detailed scores, verified PDF viewer, and answer keys.
-                </p>
-              </div>
-            </div>
+            <StudentSectionHeader
+              title="Past Exam Submissions"
+              subtitle="Search by title or subject, inspect graded PDFs, and check official answer keys."
+              count={pastExamsTotal}
+              countLabel={pastExamsTotal === 1 ? "Paper" : "Papers"}
+            />
 
             {/* Toolbar */}
             <PastExamsToolbar
@@ -803,8 +813,8 @@ export default function StudentPortalPage() {
             {isPastExamsInitialLoading ? (
               <PastExamsCardsSkeleton count={3} />
             ) : paginatedPastExams.length === 0 ? (
-              <div className="rounded-xl border border-hairline bg-surface p-10 text-center space-y-3">
-                <FileText className="h-10 w-10 text-ink-faint mx-auto" />
+              <div className="notion-card p-10 text-center space-y-3">
+                <FileText className="h-9 w-9 text-ink-faint mx-auto" />
                 <div className="space-y-1">
                   <h3 className="text-sm font-semibold text-ink">
                     {pastExamsTotal === 0
@@ -825,7 +835,7 @@ export default function StudentPortalPage() {
                       setExamSubjectFilter("ALL");
                       setExamStatusFilter("ALL");
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                    className="notion-btn-utility mx-auto"
                   >
                     Reset all filters
                   </button>
@@ -855,7 +865,7 @@ export default function StudentPortalPage() {
                   className="py-4 flex flex-col items-center justify-center min-h-[50px]"
                 >
                   {isLoadingMorePastExams ? (
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-surface border border-hairline text-xs font-medium text-ink-muted shadow-2xs animate-in fade-in duration-200">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-surface border border-hairline text-xs font-medium text-ink-muted animate-in fade-in duration-200">
                       <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
                       <span>Loading next exams...</span>
                     </div>
@@ -863,19 +873,19 @@ export default function StudentPortalPage() {
                     <button
                       type="button"
                       onClick={() => fetchPastExamsPage(pastExamsPageRef.current + 1, false)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-surface hover:bg-canvas-soft border border-hairline text-xs font-semibold text-primary transition-all shadow-2xs cursor-pointer select-none active:scale-95"
+                      className="notion-btn-utility px-4 py-2 text-xs select-none"
                     >
                       <span>Load More Exams</span>
                       {pastExamsTotal > paginatedPastExams.length && (
-                        <span className="text-[10.5px] font-mono text-ink-muted">
+                        <span className="text-[11px] font-mono tabular-nums text-ink-muted">
                           ({pastExamsTotal - paginatedPastExams.length} remaining)
                         </span>
                       )}
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-3.5 w-3.5 text-ink-muted" />
                     </button>
                   ) : paginatedPastExams.length > 0 ? (
                     <span className="text-[11px] font-mono text-ink-faint select-none">
-                      • All {pastExamsTotal} past exams loaded •
+                      All {pastExamsTotal} past exams loaded
                     </span>
                   ) : null}
                 </div>
@@ -883,7 +893,13 @@ export default function StudentPortalPage() {
             )}
 
             {/* Support Card */}
-            <StudentSupportCard onReportIssueClick={() => setReportModalOpen(true)} />
+            <section className="space-y-3 pt-2">
+              <StudentSectionHeader
+                title="Help & Support"
+                subtitle="User guides, scanning instructions, and issue reporting."
+              />
+              <StudentSupportCard onReportIssueClick={() => setReportModalOpen(true)} />
+            </section>
           </div>
         </div>
       </div>

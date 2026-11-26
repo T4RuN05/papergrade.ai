@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { ExamRubric, RubricQuestion, RubricCriterion } from "@/lib/types";
-import { FeatureCard } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 import { RubricHeaderToolbar } from "./rubric/RubricHeaderToolbar";
 import { RubricSectionsCard } from "./rubric/RubricSectionsCard";
@@ -194,7 +193,7 @@ export function RubricEditor({
 
   return (
     <div className="space-y-6">
-      <FeatureCard className="p-6 space-y-6">
+      <div className="notion-card rounded-lg p-3.5 sm:p-6 space-y-6">
         {/* Header Toolbar */}
         <RubricHeaderToolbar
           examTitle={rubric.exam_title}
@@ -215,7 +214,7 @@ export function RubricEditor({
         />
 
         {/* Questions List */}
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
           {(rubric.questions || []).map((q, qIdx) => (
             <RubricQuestionCard
               key={getQuestionUiKey(q)}
@@ -234,14 +233,14 @@ export function RubricEditor({
             <button
               type="button"
               onClick={handleAddQuestion}
-              className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-hairline bg-canvas-soft/40 hover:bg-canvas-soft hover:border-primary p-4 text-xs font-semibold text-ink-secondary hover:text-primary transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-hairline bg-canvas-soft hover:border-primary p-4 text-xs font-medium text-ink-secondary hover:text-primary transition-colors cursor-pointer"
             >
-              <Plus className="h-4 w-4" />
-              Add Another Question to Rubric
+              <Plus className="h-4 w-4 shrink-0" />
+              <span>Add Another Question to Rubric</span>
             </button>
           )}
         </div>
-      </FeatureCard>
+      </div>
     </div>
   );
 }

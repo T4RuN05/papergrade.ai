@@ -113,7 +113,7 @@ export function Navbar() {
 
   return (
     <header
-      className="sticky top-0 z-50 w-full border-b border-hairline bg-surface shadow-xs transition-colors"
+      className="sticky top-0 z-50 w-full border-b border-hairline bg-surface transition-colors"
     >
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
         {/* Brand & Navigation Drawer Toggle */}
@@ -121,7 +121,7 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer"
+            className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer"
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileMenuOpen}
           >
@@ -162,7 +162,7 @@ export function Navbar() {
               <span className="text-sm font-bold tracking-tight text-ink whitespace-nowrap">
                 PaperGrade <span className="text-primary font-semibold">AI</span>
               </span>
-              <span className="hidden sm:inline-block ml-2 text-[10px] font-medium text-ink-muted px-1.5 py-0.5 rounded-sm bg-canvas-soft border border-hairline">
+              <span className="hidden sm:inline-block ml-2 text-[10px] font-medium text-ink-muted px-1.5 py-0.5 rounded-xs bg-canvas-soft border border-hairline">
                 Pilot
               </span>
             </div>
@@ -177,13 +177,13 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={openDrawer}
-                className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
                 title="Notifications"
                 aria-label="Open notifications"
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white shadow-xs ring-2 ring-surface animate-in zoom-in-50 leading-none">
+                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white ring-2 ring-surface animate-in zoom-in-50 leading-none">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -192,7 +192,7 @@ export function Navbar() {
               {/* User Avatar Placeholder (Navigates to Profile & Account Settings Page) */}
               <Link
                 href="/settings"
-                className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-canvas text-ink hover:ring-2 hover:ring-primary/40 transition-all shrink-0 cursor-pointer overflow-hidden shadow-2xs"
+                className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-surface text-ink hover:border-primary transition-colors shrink-0 cursor-pointer overflow-hidden"
                 title="Account & Settings"
                 aria-label="Open account settings"
               >
@@ -212,13 +212,13 @@ export function Navbar() {
           ) : !isMounted || hasToken ? (
             /* Subtle skeleton placeholder during initial mount or while verifying token: DO NOT flash Sign In */
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-canvas-soft border border-hairline animate-pulse shrink-0" />
+              <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline animate-shimmer shrink-0" />
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <Link
                 href="/auth/login?role=claim"
-                className="hidden sm:inline-flex items-center btn-glass-utility text-xs font-semibold text-ink px-3 h-8 rounded-md transition-all cursor-pointer active:scale-[0.98]"
+                className="hidden sm:inline-flex items-center btn-glass-utility text-xs font-medium text-ink px-3 h-8 rounded-md transition-colors cursor-pointer"
               >
                 Claim Student ID
               </Link>
@@ -232,7 +232,7 @@ export function Navbar() {
                     ? "/auth/login?role=staff"
                     : "/auth/login"
                 }
-                className="btn-glass-primary inline-flex items-center justify-center rounded-md px-3.5 h-8 text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                className="btn-glass-primary inline-flex items-center justify-center rounded-md px-3.5 h-8 text-xs font-medium transition-colors cursor-pointer"
               >
                 Sign In
               </Link>
@@ -252,7 +252,7 @@ export function Navbar() {
       {/* Ambient Backdrop - Clicking closes the menu (only mounted while open) */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 top-14 bg-black/30 backdrop-blur-xs z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
+          className="fixed inset-0 top-14 bg-black/30 z-50 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -260,7 +260,7 @@ export function Navbar() {
 
       {/* Navigation Drawer Panel (Works on mobile & desktop, zero redundant profile displays) */}
       <div
-        className={`absolute top-full left-0 right-0 md:right-auto md:w-80 w-full border-b md:border-r border-hairline bg-surface shadow-2xl z-[55] max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
+        className={`absolute top-full left-0 right-0 md:right-auto md:w-80 w-full border-b md:border-r border-hairline bg-surface shadow-notion-modal z-[55] max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
           mobileMenuOpen
             ? "opacity-100 translate-y-0 scale-y-100 pointer-events-auto"
             : "opacity-0 -translate-y-2 scale-y-98 pointer-events-none"
@@ -273,14 +273,14 @@ export function Navbar() {
                 <Link
                   href="/"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                  className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                     pathname === "/"
                       ? "bg-canvas-soft text-ink font-semibold"
                       : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Home className="h-4 w-4 text-ink-muted" />
+                    <Home className={`h-4 w-4 ${pathname === "/" ? "text-primary" : "text-ink-muted"}`} />
                     <span>Home</span>
                   </div>
                   {pathname === "/" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
@@ -296,14 +296,14 @@ export function Navbar() {
                     setMobileMenuOpen(false);
                   }
                 }}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                   isPortalTab
                     ? "bg-canvas-soft text-ink font-semibold"
                     : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Clock className="h-4 w-4 text-ink-muted" />
+                  <Clock className={`h-4 w-4 ${isPortalTab ? "text-primary" : "text-ink-muted"}`} />
                   <span>Dashboard</span>
                 </div>
                 {isPortalTab && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
@@ -320,14 +320,14 @@ export function Navbar() {
                         setMobileMenuOpen(false);
                       }
                     }}
-                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                       isPastExamsTab
                         ? "bg-canvas-soft text-ink font-semibold"
                         : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <BookOpen className="h-4 w-4 text-ink-muted" />
+                      <BookOpen className={`h-4 w-4 ${isPastExamsTab ? "text-primary" : "text-ink-muted"}`} />
                       <span>Past Exams & Submissions</span>
                     </div>
                     {isPastExamsTab && (
@@ -338,14 +338,14 @@ export function Navbar() {
                   <Link
                     href="/student/revaluation"
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                       isRevalTab
                         ? "bg-canvas-soft text-ink font-semibold"
                         : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <RotateCcw className="h-4 w-4 text-ink-muted" />
+                      <RotateCcw className={`h-4 w-4 ${isRevalTab ? "text-primary" : "text-ink-muted"}`} />
                       <span>Revaluations & Appeals</span>
                     </div>
                     {isRevalTab && (
@@ -358,14 +358,14 @@ export function Navbar() {
               <Link
                 href="/help"
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
                   pathname.startsWith("/help")
                     ? "bg-canvas-soft text-ink font-semibold"
                     : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <HelpCircle className="h-4 w-4 text-ink-muted" />
+                  <HelpCircle className={`h-4 w-4 ${pathname.startsWith("/help") ? "text-primary" : "text-ink-muted"}`} />
                   <span>User Manual & Guides</span>
                 </div>
                 {pathname.startsWith("/help") && (
@@ -377,7 +377,7 @@ export function Navbar() {
                 <Link
                   href="/overview"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20 mt-1"
+                  className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 transition-colors border border-primary/20 mt-1"
                 >
                   <div className="flex items-center gap-2.5">
                     <Layers className="h-4 w-4 text-primary" />
@@ -391,7 +391,7 @@ export function Navbar() {
             {/* Quick Actions & Utilities */}
             <div className="px-3 pb-3 pt-1 border-t border-hairline space-y-1">
               {/* Visual Theme Toggle */}
-              <div className="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary">
+              <div className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium text-ink-secondary">
                 <span className="flex items-center gap-2.5">
                   <span className="h-4 w-4 flex items-center justify-center text-ink-muted text-[13px]">◐</span>
                   <span>Visual Theme</span>
@@ -408,7 +408,7 @@ export function Navbar() {
                         setMobileMenuOpen(false);
                         setChangePasswordOpen(true);
                       }}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
                     >
                       <KeyRound className="h-4 w-4 text-ink-muted" />
                       <span>One-Time Password Setup</span>
@@ -419,12 +419,12 @@ export function Navbar() {
                     type="button"
                     onClick={handleLogout}
                     disabled={signingOut}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                    className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-[#c93b3b] dark:text-[#f28b82] hover:bg-red-50/70 dark:hover:bg-red-950/30 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                   >
                     {signingOut ? (
-                      <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <LogOut className="h-4 w-4 text-red-500" />
+                      <LogOut className="h-4 w-4" />
                     )}
                     <span>{signingOut ? "Signing Out..." : "Sign Out"}</span>
                   </button>
@@ -434,7 +434,7 @@ export function Navbar() {
                   <Link
                     href="/auth/login"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="w-full btn-glass-primary inline-flex items-center justify-center h-9 px-4 rounded-md text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                    className="w-full btn-glass-primary inline-flex items-center justify-center h-9 px-4 rounded-md text-xs font-medium transition-colors cursor-pointer"
                   >
                     <span>Sign In to Portal</span>
                     <ArrowRight className="h-3.5 w-3.5 ml-1.5" />

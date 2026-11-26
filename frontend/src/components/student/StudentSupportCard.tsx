@@ -12,34 +12,36 @@ export const StudentSupportCard = React.memo(function StudentSupportCard({
   onReportIssueClick,
 }: StudentSupportCardProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-surface border border-hairline relative overflow-hidden shadow-2xs">
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-ink-muted/30" />
-      <div className="flex items-start sm:items-center gap-3 pl-1">
-        <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline text-ink-muted flex items-center justify-center shrink-0">
+    <div className="notion-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-start sm:items-center gap-3 min-w-0">
+        <div className="h-9 w-9 rounded-md bg-canvas-soft border border-hairline text-ink-secondary flex items-center justify-center shrink-0">
           <LifeBuoy className="h-4 w-4" />
         </div>
-        <div>
-          <h3 className="text-xs font-bold text-ink">Need guidance or facing an issue?</h3>
-          <p className="text-[11px] text-ink-muted leading-relaxed mt-0.5">
-            Read the complete step-by-step user manual or file a technical bug report directly with our engineering desk.
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-ink tracking-[-0.005em]">
+            Need guidance or facing an issue?
+          </h3>
+          <p className="text-xs text-ink-muted leading-relaxed mt-0.5">
+            Read step-by-step instructions in the User Manual or report a problem directly.
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0 w-full sm:w-auto">
         <Link
           href="/help/student/taking-exams-and-scanning"
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline text-xs font-semibold text-ink hover:text-primary transition-colors shrink-0"
+          className="h-9 px-3.5 rounded-md text-xs notion-btn-utility inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
         >
-          <BookOpen className="h-3.5 w-3.5 text-primary" />
+          <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>User Manual</span>
         </Link>
         <button
           type="button"
           onClick={onReportIssueClick}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md btn-glass-utility text-xs font-semibold shrink-0 cursor-pointer"
+          className="h-9 px-3.5 rounded-md text-xs notion-btn-utility inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
         >
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-          <span>Report Technical Issue</span>
+          <AlertTriangle className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
+          <span>Report Issue</span>
         </button>
       </div>
     </div>

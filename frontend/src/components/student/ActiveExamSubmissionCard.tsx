@@ -461,45 +461,49 @@ export function ActiveExamSubmissionCard({
   };
 
   return (
-    <FeatureCard className="p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
-        <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <BadgePill
-              label={
-                windowStatus?.is_active
-                  ? windowStatus.is_in_grace
-                    ? "Grace Period (2m)"
-                    : "Submission Window Open"
-                  : "Window Closed"
-              }
-              color={
-                windowStatus?.is_active
-                  ? windowStatus.is_in_grace
-                    ? "orange"
-                    : "green"
-                  : "gray"
-              }
-            />
-            <span className="text-xs text-ink-muted">• {activeExam.subject}</span>
+    <FeatureCard className="p-4 sm:p-5 rounded-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-hairline">
+        <div className="space-y-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium bg-canvas-soft border border-hairline text-ink-secondary">
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  windowStatus?.is_active
+                    ? windowStatus.is_in_grace
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                    : "bg-ink-faint"
+                }`}
+              />
+              {windowStatus?.is_active
+                ? windowStatus.is_in_grace
+                  ? "Grace Period (2m)"
+                  : "Submission Window Open"
+                : "Window Closed"}
+            </span>
+            <span className="text-ink-faint">•</span>
+            <span className="text-ink-muted font-medium">{activeExam.subject}</span>
             {!windowStatus?.is_active && getRemainingCardTime() && (
-              <span className="text-[11px] text-ink-muted bg-canvas-soft border border-hairline px-2 py-0.5 rounded-full">
-                Notice disappears in {getRemainingCardTime()}
-              </span>
+              <>
+                <span className="text-ink-faint">•</span>
+                <span className="text-[11px] text-ink-muted">
+                  Notice disappears in {getRemainingCardTime()}
+                </span>
+              </>
             )}
           </div>
-          <h2 className="text-base font-bold text-ink">{activeExam.title}</h2>
+          <h3 className="notion-heading-3 text-ink truncate">{activeExam.title}</h3>
         </div>
 
         {/* Countdown Clock */}
         {windowStatus?.is_active && (
-          <div className="flex items-center gap-2 bg-canvas-soft border border-hairline px-3.5 py-2 rounded-md">
-            <Clock className={`h-4 w-4 ${countdown.isInGrace ? "text-amber-500" : "text-primary"} animate-pulse`} />
+          <div className="flex items-center gap-2.5 bg-canvas-soft border border-hairline px-3 py-2 rounded-md shrink-0 self-start sm:self-auto">
+            <Clock className={`h-4 w-4 shrink-0 ${countdown.isInGrace ? "text-amber-600" : "text-primary"}`} />
             <div>
-              <div className="text-[10px] uppercase font-semibold text-ink-muted leading-none">
-                {countdown.isInGrace ? "Grace Period Remaining" : "Time Remaining"}
+              <div className="text-[11px] font-medium text-ink-muted leading-none">
+                {countdown.isInGrace ? "Grace Period" : "Time Remaining"}
               </div>
-              <div className="text-base font-mono font-bold text-ink leading-tight">
+              <div className="text-sm font-mono tabular-nums font-semibold text-ink mt-0.5 leading-tight">
                 {countdown.formatted}
               </div>
             </div>
@@ -508,23 +512,24 @@ export function ActiveExamSubmissionCard({
       </div>
 
       {/* Submission Section */}
-      <div className="mt-5 space-y-4">
+      <div className="mt-4 space-y-4">
         {activeExamSubmission && !isReplacingUpload ? (
-          <div className="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-4 shadow-2xs">
+          <div className="rounded-lg border border-hairline bg-surface p-4 space-y-3.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-[#edf5f0] text-[#1e613b] dark:bg-[#13231a] dark:text-[#86d4a4] border border-[#c8e2d2] dark:border-[#1d3d2a] flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="h-5 w-5" />
+                <div className="h-9 w-9 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-ink">Answer Sheet Submitted</h3>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a]">
+                    <h4 className="text-sm font-semibold text-ink">Answer Sheet Submitted</h4>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Recorded
                     </span>
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5">
-                    Submitted on{" "}
+                    Submitted{" "}
                     {activeExamSubmission.created_at
                       ? new Date(activeExamSubmission.created_at).toLocaleDateString(undefined, {
                           month: "short",
@@ -533,13 +538,20 @@ export function ActiveExamSubmissionCard({
                           hour: "2-digit",
                           minute: "2-digit",
                         })
-                      : "Recently recorded"}
+                      : "recently"}
                   </p>
                 </div>
               </div>
 
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] self-start sm:self-auto">
-                <Clock className="h-3.5 w-3.5 text-[#7a4e18] dark:text-[#e5ad68]" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline self-start sm:self-auto">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    activeExamSubmission.status === "EVALUATED" ||
+                    activeExamSubmission.publication_status === "PUBLISHED"
+                      ? "bg-emerald-500"
+                      : "bg-amber-500"
+                  }`}
+                />
                 {activeExamSubmission.status === "EVALUATED" ||
                 activeExamSubmission.publication_status === "PUBLISHED"
                   ? "Evaluation Complete"
@@ -547,31 +559,32 @@ export function ActiveExamSubmissionCard({
               </span>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-              <div className="flex flex-wrap items-center gap-3 text-ink-muted">
-                <span className="whitespace-nowrap font-mono text-[11px] bg-surface/80 dark:bg-[#1f1f1f] px-2 py-0.5 rounded-md border border-hairline/60">
-                  Roll: <strong className="text-ink font-semibold">{activeExamSubmission.roll_number}</strong>
+            <div className="p-3 rounded-md bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2.5 text-ink-muted">
+                <span className="whitespace-nowrap font-mono text-[11px] text-ink-secondary">
+                  Roll <strong className="text-ink font-medium">{activeExamSubmission.roll_number}</strong>
                 </span>
                 {activeExamSubmission.page_count && (
                   <>
                     <span className="text-ink-faint">•</span>
-                    <span className="whitespace-nowrap">
-                      Pages: <strong className="text-ink font-semibold">{activeExamSubmission.page_count}</strong>
+                    <span className="whitespace-nowrap tabular-nums">
+                      <strong className="text-ink font-medium">{activeExamSubmission.page_count}</strong>{" "}
+                      {activeExamSubmission.page_count === 1 ? "page" : "pages"}
                     </span>
                   </>
                 )}
               </div>
               <span className="text-[11px] text-ink-muted">
-                Answer sheet recorded securely. Detailed marks unlock upon publication.
+                Detailed marks unlock upon publication.
               </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+            <div className="grid grid-cols-1 sm:flex sm:items-center sm:justify-between gap-2.5 pt-1">
               <Link
                 href={`/student/submissions/${activeExamSubmission.id}`}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary-hover shadow-xs active:scale-[0.98] transition-all text-center"
+                className="notion-btn-primary justify-center px-4 py-2 text-xs"
               >
-                <Eye className="h-4 w-4" />
+                <Eye className="h-3.5 w-3.5" />
                 <span>View Submitted Script →</span>
               </Link>
 
@@ -582,7 +595,7 @@ export function ActiveExamSubmissionCard({
                     setIsReplacingUpload(true);
                     handleClearAllPages();
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-surface border border-hairline hover:bg-canvas-soft text-ink hover:text-primary text-xs font-semibold transition-colors cursor-pointer text-center"
+                  className="notion-btn-utility justify-center px-3.5 py-2 text-xs"
                 >
                   <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
                   <span>Replace Answer Sheet</span>
@@ -826,26 +839,22 @@ export function ActiveExamSubmissionCard({
                           type="button"
                           disabled={uploading}
                           onClick={() => cameraInputRef.current?.click()}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline text-xs font-medium transition-colors ${
-                            uploading
-                              ? "opacity-40 cursor-not-allowed pointer-events-none text-ink-muted"
-                              : "hover:border-primary text-ink hover:text-primary cursor-pointer"
+                          className={`notion-btn-utility px-3 py-1.5 text-xs ${
+                            uploading ? "opacity-40 cursor-not-allowed pointer-events-none" : ""
                           }`}
                         >
-                          <Camera className="h-3.5 w-3.5" />
-                          <span>+ Scan Next Page (Camera)</span>
+                          <Camera className="h-3.5 w-3.5 text-ink-secondary" />
+                          <span>Scan Next Page</span>
                         </button>
                         <button
                           type="button"
                           disabled={uploading}
                           onClick={() => filePickerRef.current?.click()}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-canvas-soft border border-hairline text-xs font-medium transition-colors ${
-                            uploading
-                              ? "opacity-40 cursor-not-allowed pointer-events-none text-ink-muted"
-                              : "hover:border-primary text-ink hover:text-primary cursor-pointer"
+                          className={`notion-btn-utility px-3 py-1.5 text-xs ${
+                            uploading ? "opacity-40 cursor-not-allowed pointer-events-none" : ""
                           }`}
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-3.5 w-3.5 text-ink-secondary" />
                           <span>Add Photos</span>
                         </button>
                       </div>

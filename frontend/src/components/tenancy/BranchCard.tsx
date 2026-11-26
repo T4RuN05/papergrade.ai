@@ -2,7 +2,6 @@
 
 import React from "react";
 import { MapPin, Plus, ArrowRight } from "lucide-react";
-import { BadgePill, ButtonUtility } from "@/components/ui";
 import { BranchManagerRow } from "./BranchManagerRow";
 
 export interface BranchCardProps {
@@ -31,30 +30,32 @@ export const BranchCard: React.FC<BranchCardProps> = ({
   const branchManagers = managers.filter((m) => m.branch_id === branch.id);
 
   return (
-    <div className="rounded-lg border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4 flex flex-col justify-between">
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-bold text-ink flex items-center gap-1.5">
-              <MapPin className="h-4 w-4 text-primary shrink-0" />
-              {branch.name}
-            </h3>
-            <div className="text-xs text-ink-muted mt-0.5">
-              City: <span className="font-medium text-ink-secondary">{branch.city}</span> • Code:{" "}
-              <span className="font-mono font-semibold text-ink">{branch.code}</span>
+    <div className="rounded-lg border border-hairline bg-canvas-soft p-4 space-y-4 flex flex-col justify-between min-w-0">
+      <div className="space-y-3 min-w-0">
+        <div className="flex items-start justify-between gap-2 min-w-0">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-ink flex items-center gap-1.5 min-w-0">
+              <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="truncate">{branch.name}</span>
+            </h4>
+            <div className="text-xs text-ink-muted mt-0.5 truncate">
+              City: <span className="font-medium text-ink-secondary">{branch.city}</span>
             </div>
           </div>
-          <BadgePill label="Branch" color="teal" />
+          <span className="inline-flex items-center px-2 py-0.5 rounded-xs bg-surface border border-hairline font-mono text-[11px] font-medium text-ink-secondary shrink-0">
+            {branch.code}
+          </span>
         </div>
 
         {/* Assigned Branch Managers */}
-        <div className="pt-2 border-t border-hairline space-y-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted block">
-            Assigned Branch Managers ({branchManagers.length})
-          </span>
+        <div className="pt-2.5 border-t border-hairline space-y-2">
+          <div className="flex items-center justify-between text-xs text-ink-muted">
+            <span className="font-medium">Assigned Branch Managers</span>
+            <span className="tabular-nums font-medium">{branchManagers.length}</span>
+          </div>
 
           {branchManagers.length === 0 ? (
-            <div className="text-xs text-ink-muted italic bg-surface p-2 rounded-md border border-hairline">
+            <div className="text-xs text-ink-muted bg-surface p-2.5 rounded-md border border-hairline">
               No manager credentials assigned yet.
             </div>
           ) : (
@@ -72,24 +73,24 @@ export const BranchCard: React.FC<BranchCardProps> = ({
         </div>
       </div>
 
-      <div className="pt-3 border-t border-hairline flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-        <ButtonUtility
-          size="sm"
+      <div className="pt-3 border-t border-hairline grid grid-cols-2 gap-2">
+        <button
+          type="button"
           onClick={() => onAssignManager(branch.id)}
-          className="w-full sm:w-auto justify-center"
+          className="notion-btn-utility justify-center"
         >
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          Assign Manager
-        </ButtonUtility>
+          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Assign Manager</span>
+        </button>
 
-        <ButtonUtility
-          size="sm"
+        <button
+          type="button"
           onClick={() => onSelectBranch(branch.id)}
-          className="w-full sm:w-auto justify-center text-primary hover:text-primary-active font-semibold"
+          className="notion-btn-utility justify-center text-primary"
         >
-          <span>Switch to Branch &amp; View</span>
-          <ArrowRight className="h-3.5 w-3.5 ml-1" />
-        </ButtonUtility>
+          <span className="truncate">Open Branch</span>
+          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+        </button>
       </div>
     </div>
   );

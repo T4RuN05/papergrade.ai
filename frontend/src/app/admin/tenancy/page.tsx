@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { Plus, Building2, KeyRound, AlertTriangle } from "lucide-react";
+import { Plus, Building2, KeyRound, AlertTriangle, MapPin, ShieldCheck, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken } from "@/lib/api";
@@ -12,10 +12,7 @@ import {
   usePasswordResets,
 } from "@/lib/queries";
 import {
-  ButtonPrimary,
-  ButtonUtility,
-  FeatureCard,
-  BadgePill,
+  MetricValue,
   TenancySkeleton,
 } from "@/components/ui";
 import { useTenant } from "@/lib/TenantContext";
@@ -35,7 +32,7 @@ export default function TenancyManagementPage() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { setBranchId, refreshTenancy, isInstituteDirector, isBranchManager, isLoggingOut } = useTenant();
+  const { setBranchId, refreshTenancy, isMounted, isInstituteDirector, isBranchManager, isLoggingOut } = useTenant();
 
   // TanStack Query Data Layers
   const { data: institutes = [], isLoading: isLoadingInst } = useTenancyInstitutes();
@@ -310,10 +307,10 @@ export default function TenancyManagementPage() {
     }
   };
 
-  const hasToken = typeof window !== "undefined" && Boolean(getAuthToken());
+  const hasToken = isMounted && Boolean(getAuthToken());
   const isGlobalLoading = isLoadingInst || isLoadingBranches || isLoadingStaff;
 
-  if (isLoggingOut || !hasToken || isBranchManager) {
+  if (!isMounted || isLoggingOut || !hasToken || isBranchManager) {
     return (
       <div className="space-y-8 max-w-6xl mx-auto pb-16">
         <TenancySkeleton />
@@ -322,138 +319,256 @@ export default function TenancyManagementPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-16">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-hairline">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <BadgePill label="Root Admin Control Desk" color="purple" />
-            <span className="text-xs text-ink-muted">• Multi-Tenant Architecture</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink">
-            Coaching Institutes, Branches &amp; Managers
+    <div className="space-y-8 max-w-6xl mx-auto pb-16 cascade-group">
+      {/* Page Header */}
+      <header className="pb-4 border-b border-hairline flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div className="space-y-1.5 min-w-0">
+          <p className="notion-eyebrow text-ink-muted">Multi-Tenant Architecture</p>
+          <h1 className="notion-heading-2 text-2xl sm:text-[26px] text-ink">
+            Institutes, Branches &amp; Managers
           </h1>
-          <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
-            Create coaching chains, register physical branches, and provision scoped credentials for Branch Managers.
+          <p className="text-xs sm:text-sm text-ink-muted leading-relaxed max-w-2xl">
+            Create coaching chains, register physical branches, and provision scoped credentials for Directors and Branch Managers.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          <ButtonUtility
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0 w-full lg:w-auto">
+          <button
+            type="button"
             onClick={() => setIsStaffResetsModalOpen(true)}
-            size="sm"
-            className="relative"
+            className="notion-btn-utility justify-center"
           >
-            <KeyRound className="h-4 w-4 mr-1.5 text-amber-500" />
-            <span>Staff Password Resets</span>
+            <KeyRound className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
+            <span className="truncate">Staff Resets</span>
             {pendingStaffResets.length > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold animate-pulse">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-canvas-soft border border-hairline text-[11px] font-semibold text-primary tabular-nums">
                 {pendingStaffResets.length}
               </span>
             )}
-          </ButtonUtility>
+          </button>
 
-          <ButtonPrimary
+          <button
+            type="button"
             onClick={() => {
               setActionError(null);
               setIsInstModalOpen(true);
             }}
-            size="sm"
+            className="notion-btn-primary justify-center"
           >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Register Coaching Institute
-          </ButtonPrimary>
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">New Institute</span>
+          </button>
         </div>
-      </div>
+      </header>
 
       {/* Pending Staff Resets Banner */}
       {pendingStaffResets.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-            <span className="font-semibold">
-              {pendingStaffResets.length} Staff Password Reset Request{pendingStaffResets.length > 1 ? "s" : ""} Pending Real-Time Authorization
+        <div className="notion-card p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+            <span className="h-7 w-7 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+              <AlertTriangle className="h-3.5 w-3.5" />
             </span>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-ink">
+                {pendingStaffResets.length} Staff Password Reset Request{pendingStaffResets.length > 1 ? "s" : ""} Pending Authorization
+              </p>
+              <p className="text-xs text-ink-muted">
+                Approve or reject waiting staff reset requests in real time.
+              </p>
+            </div>
           </div>
-          <ButtonPrimary
-            size="sm"
+          <button
+            type="button"
             onClick={() => setIsStaffResetsModalOpen(true)}
-            className="self-start sm:self-auto"
+            className="notion-btn-primary justify-center w-full sm:w-auto shrink-0"
           >
             Review &amp; Authorize
-          </ButtonPrimary>
+          </button>
         </div>
       )}
 
-      {isGlobalLoading && institutes.length === 0 ? (
-        <TenancySkeleton />
-      ) : institutes.length === 0 ? (
-        <FeatureCard className="p-12 text-center space-y-4">
-          <div className="mx-auto h-12 w-12 rounded-full bg-[#edf5fd] flex items-center justify-center text-primary">
-            <Building2 className="h-6 w-6" />
+      {/* Tenancy Footprint Summary */}
+      <section className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-1">
+          <div className="min-w-0 space-y-0.5">
+            <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+              Tenancy Overview
+            </h2>
+            <p className="text-xs sm:text-[13px] text-ink-muted leading-relaxed">
+              Active coaching chains, physical centres, and scoped leadership seats.
+            </p>
           </div>
-          <h2 className="text-base font-bold text-ink">No Institutes Configured</h2>
-          <p className="text-xs text-ink-muted max-w-md mx-auto">
-            Get started by registering your first coaching chain (e.g. Allen Career Institute, Apex Institute, Resonance).
-          </p>
-          <div className="pt-2">
-            <ButtonPrimary onClick={() => setIsInstModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Register Coaching Institute
-            </ButtonPrimary>
-          </div>
-        </FeatureCard>
-      ) : (
-        <div className="space-y-6">
-          {institutes.map((inst: any) => (
-            <InstituteCard
-              key={inst.id}
-              institute={inst}
-              branches={branches}
-              directors={directors}
-              managers={managers}
-              onAddBranch={(instId) => {
-                setActionError(null);
-                setTargetInstId(instId);
-                setIsBranchModalOpen(true);
-              }}
-              onAppointDirector={(instId) => {
-                setActionError(null);
-                setTargetInstId(instId);
-                setIsDirectorModalOpen(true);
-              }}
-              onAddSubject={(instId) => {
-                setActionError(null);
-                setTargetInstId(instId);
-                setIsSubjectModalOpen(true);
-              }}
-              onDeleteInstitute={(institute) => {
-                setActionError(null);
-                setInstToDelete(institute);
-                setIsDeleteInstModalOpen(true);
-              }}
-              onEditManager={(manager) => {
-                setActionError(null);
-                setEditingMgr(manager);
-                setIsEditMgrModalOpen(true);
-              }}
-              onDeleteManager={(manager) => {
-                setMgrToDelete(manager);
-                setIsDeleteMgrModalOpen(true);
-              }}
-              onAssignManager={(branchId) => {
-                setActionError(null);
-                setTargetBranchId(branchId);
-                setIsManagerModalOpen(true);
-              }}
-              onSelectBranch={(branchId) => {
-                setBranchId(branchId);
-                router.push("/branch/batches");
-              }}
-            />
-          ))}
         </div>
-      )}
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 cascade-fast">
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[104px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Institutes</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Building2 className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={isLoadingInst}
+                value={institutes.length}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-10"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">Coaching organizations</div>
+          </div>
+
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[104px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Branches</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <MapPin className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={isLoadingBranches}
+                value={branches.length}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-10"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">Physical campuses</div>
+          </div>
+
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[104px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Directors</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <ShieldCheck className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={isLoadingStaff}
+                value={directors.length}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-10"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">Chain-wide executives</div>
+          </div>
+
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[104px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Branch Managers</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Users className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={isLoadingStaff}
+                value={managers.length}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-10"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">Scoped centre admins</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Institutes Directory */}
+      <section className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-1">
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+                Configured Institutes
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface border border-hairline text-ink-muted tabular-nums">
+                {institutes.length}
+              </span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-ink-muted leading-relaxed">
+              Manage curriculum subjects, appoint directors, and inspect branch manager assignments.
+            </p>
+          </div>
+        </div>
+
+        {isGlobalLoading && institutes.length === 0 ? (
+          <TenancySkeleton />
+        ) : institutes.length === 0 ? (
+          <div className="notion-card p-8 sm:p-12 text-center space-y-4">
+            <div className="mx-auto h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-primary">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="notion-heading-3 text-base text-ink">No Institutes Configured</h3>
+              <p className="text-xs text-ink-muted max-w-md mx-auto leading-relaxed">
+                Get started by registering your first coaching chain (e.g. Allen Career Institute, Apex Institute, Resonance).
+              </p>
+            </div>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setIsInstModalOpen(true)}
+                className="notion-btn-primary"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span>Register Coaching Institute</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {institutes.map((inst: any) => (
+              <InstituteCard
+                key={inst.id}
+                institute={inst}
+                branches={branches}
+                directors={directors}
+                managers={managers}
+                onAddBranch={(instId) => {
+                  setActionError(null);
+                  setTargetInstId(instId);
+                  setIsBranchModalOpen(true);
+                }}
+                onAppointDirector={(instId) => {
+                  setActionError(null);
+                  setTargetInstId(instId);
+                  setIsDirectorModalOpen(true);
+                }}
+                onAddSubject={(instId) => {
+                  setActionError(null);
+                  setTargetInstId(instId);
+                  setIsSubjectModalOpen(true);
+                }}
+                onDeleteInstitute={(institute) => {
+                  setActionError(null);
+                  setInstToDelete(institute);
+                  setIsDeleteInstModalOpen(true);
+                }}
+                onEditManager={(manager) => {
+                  setActionError(null);
+                  setEditingMgr(manager);
+                  setIsEditMgrModalOpen(true);
+                }}
+                onDeleteManager={(manager) => {
+                  setMgrToDelete(manager);
+                  setIsDeleteMgrModalOpen(true);
+                }}
+                onAssignManager={(branchId) => {
+                  setActionError(null);
+                  setTargetBranchId(branchId);
+                  setIsManagerModalOpen(true);
+                }}
+                onSelectBranch={(branchId) => {
+                  setBranchId(branchId);
+                  router.push("/branch/batches");
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Extracted Modular Modals */}
       <CreateInstituteModal

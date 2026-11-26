@@ -2,8 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { FileText, Eye, Upload, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
-import { FeatureCard, ButtonUtility, BadgePill, Skeleton } from "@/components/ui";
+import { FileText, Eye, Upload, Sparkles, CheckCircle2 } from "lucide-react";
+import { Skeleton } from "@/components/ui";
 
 interface ExamAcademicMaterialsRowProps {
   examId: string;
@@ -35,147 +35,154 @@ export function ExamAcademicMaterialsRow({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
       {/* 1. Question Paper */}
-      <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+      <div className="notion-card rounded-lg p-4 sm:p-5 flex flex-col justify-between space-y-3">
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
-              <FileText className="h-4 w-4 text-primary" />
-              Question Paper
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-ink flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary shrink-0" />
+              <span>Question Paper</span>
             </span>
             {isLoading ? (
-              <Skeleton className="h-5.5 w-16 rounded-full" />
+              <Skeleton className="h-5 w-16 rounded-full" />
             ) : (
-              <BadgePill
-                label={hasQp ? "Uploaded" : "Pending"}
-                color={hasQp ? "green" : "orange"}
-              />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                <span className={`w-1.5 h-1.5 rounded-full ${hasQp ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {hasQp ? "Uploaded" : "Pending"}
+              </span>
             )}
           </div>
-          <p className="text-[11px] text-ink-muted leading-relaxed">
+          <p className="text-xs text-ink-muted leading-relaxed">
             Master question sheet uploaded for student preview and teacher reference.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 pt-2 border-t border-hairline">
+        <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:flex sm:items-center gap-2 pt-3 border-t border-hairline">
           {isLoading ? (
-            <Skeleton className="h-8 flex-1 rounded-md" />
+            <Skeleton className="h-9 w-full rounded-md col-span-2" />
           ) : (
             <>
               {hasQp && (
-                <ButtonUtility size="sm" onClick={onViewQp} className="flex-1 justify-center text-xs">
-                  <Eye className="h-3.5 w-3.5 mr-1" />
-                  View PDF
-                </ButtonUtility>
+                <button
+                  type="button"
+                  onClick={onViewQp}
+                  className="notion-btn-utility flex-1 justify-center text-xs"
+                >
+                  <Eye className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                  <span>View PDF</span>
+                </button>
               )}
               {isRootAdmin && (
-                <ButtonUtility
-                  size="sm"
+                <button
+                  type="button"
                   onClick={onUploadQp}
-                  className={`${hasQp ? "" : "flex-1"} justify-center text-xs`}
+                  className={`notion-btn-utility justify-center text-xs ${hasQp ? "" : "flex-1"}`}
                 >
-                  <Upload className="h-3.5 w-3.5 mr-1" />
-                  {hasQp ? "Replace" : "Upload QP"}
-                </ButtonUtility>
+                  <Upload className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                  <span>{hasQp ? "Replace" : "Upload QP"}</span>
+                </button>
               )}
             </>
           )}
         </div>
-      </FeatureCard>
+      </div>
 
       {/* 2. Official Answer Key */}
-      <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+      <div className="notion-card rounded-lg p-4 sm:p-5 flex flex-col justify-between space-y-3">
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              Official Answer Key
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-ink flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>Official Answer Key</span>
             </span>
             {isLoading ? (
-              <Skeleton className="h-5.5 w-16 rounded-full" />
+              <Skeleton className="h-5 w-16 rounded-full" />
             ) : (
-              <BadgePill
-                label={hasAk ? "Uploaded" : "Pending"}
-                color={hasAk ? "green" : "orange"}
-              />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                <span className={`w-1.5 h-1.5 rounded-full ${hasAk ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {hasAk ? "Uploaded" : "Pending"}
+              </span>
             )}
           </div>
-          <p className="text-[11px] text-ink-muted leading-relaxed">
+          <p className="text-xs text-ink-muted leading-relaxed">
             Ground-truth model solutions used by AI grading agents to evaluate criteria.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 pt-2 border-t border-hairline">
+        <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:flex sm:items-center gap-2 pt-3 border-t border-hairline">
           {isLoading ? (
             <>
-              <Skeleton className="h-8 flex-1 rounded-md" />
-              <Skeleton className="h-8 flex-1 rounded-md" />
+              <Skeleton className="h-9 flex-1 rounded-md" />
+              <Skeleton className="h-9 flex-1 rounded-md" />
             </>
           ) : (
             <>
               {hasAk && (
-                <ButtonUtility size="sm" onClick={onViewAk} className="flex-1 justify-center text-xs">
-                  <Eye className="h-3.5 w-3.5 mr-1" />
-                  View PDF
-                </ButtonUtility>
+                <button
+                  type="button"
+                  onClick={onViewAk}
+                  className="notion-btn-utility flex-1 justify-center text-xs"
+                >
+                  <Eye className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                  <span>View PDF</span>
+                </button>
               )}
               {isRootAdmin && (
-                <ButtonUtility
-                  size="sm"
+                <button
+                  type="button"
                   onClick={onUploadAk}
-                  className={`${hasAk ? "" : "flex-1"} justify-center text-xs`}
+                  className={`notion-btn-utility justify-center text-xs ${hasAk ? "" : "flex-1"}`}
                 >
-                  <Upload className="h-3.5 w-3.5 mr-1" />
-                  {hasAk ? "Replace" : "Upload Key"}
-                </ButtonUtility>
+                  <Upload className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                  <span>{hasAk ? "Replace" : "Upload Key"}</span>
+                </button>
               )}
             </>
           )}
         </div>
-      </FeatureCard>
+      </div>
 
       {/* 3. Rubric Matrix */}
-      <FeatureCard className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+      <div className="notion-card rounded-lg p-4 sm:p-5 flex flex-col justify-between space-y-3">
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Grading Rubric
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-ink flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary shrink-0" />
+              <span>Grading Rubric</span>
             </span>
             {isLoading ? (
-              <Skeleton className="h-5.5 w-16 rounded-full" />
+              <Skeleton className="h-5 w-16 rounded-full" />
             ) : (
-              <BadgePill
-                label={isRubricApproved ? "Locked" : "Draft"}
-                color={isRubricApproved ? "green" : "orange"}
-              />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                <span className={`w-1.5 h-1.5 rounded-full ${isRubricApproved ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {isRubricApproved ? "Locked" : "Draft"}
+              </span>
             )}
           </div>
-          <p className="text-[11px] text-ink-muted leading-relaxed">
+          <div className="text-xs text-ink-muted leading-relaxed">
             {isLoading ? (
-              <Skeleton className="h-3 w-4/5 rounded" />
+              <Skeleton className="h-3.5 w-4/5 rounded mt-1" />
             ) : questionCount > 0 ? (
               `${questionCount} questions configured with step-by-step partial marks.`
             ) : (
               "No rubric criteria configured yet."
             )}
-          </p>
+          </div>
         </div>
 
-        <div className="pt-2 border-t border-hairline">
+        <div className="pt-3 border-t border-hairline">
           {isLoading ? (
-            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="h-9 w-full rounded-md" />
           ) : (
-            <ButtonUtility
-              size="sm"
+            <Link
               href={`/exams/${examId}/rubric`}
-              className="w-full justify-center text-xs"
+              className="notion-btn-utility w-full justify-center text-xs"
             >
-              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              {isRubricApproved ? "View Rubric Matrix" : "Configure Rubric →"}
-            </ButtonUtility>
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>{isRubricApproved ? "View Rubric Matrix" : "Configure Rubric →"}</span>
+            </Link>
           )}
         </div>
-      </FeatureCard>
+      </div>
     </div>
   );
 }

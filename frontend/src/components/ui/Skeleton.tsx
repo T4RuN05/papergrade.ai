@@ -96,10 +96,10 @@ export function RefetchProgressLine({ isFetching }: { isFetching?: boolean }) {
   if (!isFetching) return null;
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-0.5 bg-primary/20 overflow-hidden pointer-events-none z-50 animate-in fade-in duration-200"
+      className="fixed top-0 left-0 right-0 h-0.5 bg-primary/15 overflow-hidden pointer-events-none z-50 animate-in fade-in duration-200"
       aria-hidden="true"
     >
-      <div className="h-full bg-primary animate-pulse w-full" />
+      <div className="h-full bg-primary toast-bar-primary absolute inset-y-0" />
     </div>
   );
 }
@@ -549,12 +549,12 @@ export function StudentPortalSkeleton() {
       </div>
 
       {/* Portal Top Navigation Switcher Skeleton (Segmented Control) */}
-      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-canvas-soft/80 border border-hairline w-full sm:w-auto overflow-hidden">
-        <div className="flex-1 sm:flex-initial h-8 sm:w-32 rounded-lg bg-surface border border-hairline/60 flex items-center justify-center gap-1.5 px-3.5">
+      <div className="flex items-center gap-1.5 p-1 rounded-lg bg-canvas-soft border border-hairline w-full sm:w-auto overflow-hidden">
+        <div className="flex-1 sm:flex-initial h-8 sm:w-32 rounded-md bg-surface border border-hairline flex items-center justify-center gap-1.5 px-3.5">
           <Skeleton className="h-3.5 w-3.5 rounded" />
           <Skeleton className="h-3.5 w-16" />
         </div>
-        <div className="flex-1 sm:flex-initial h-8 sm:w-32 rounded-lg flex items-center justify-center gap-1.5 px-3.5">
+        <div className="flex-1 sm:flex-initial h-8 sm:w-32 rounded-md flex items-center justify-center gap-1.5 px-3.5">
           <Skeleton className="h-3.5 w-3.5 rounded" />
           <Skeleton className="h-3.5 w-16" />
         </div>
@@ -828,7 +828,7 @@ export function EvaluationViewerSkeleton({ isStudent = false }: { isStudent?: bo
           {/* Canvas Area with Clean Paper Sheet Skeleton */}
           <div className="flex-1 bg-canvas-soft p-4 sm:p-6 overflow-hidden flex items-start justify-center">
             {/* Clean White Paper Sheet */}
-            <div className="w-full max-w-[620px] h-[720px] bg-surface rounded-xl shadow-xs border border-hairline p-6 sm:p-8 relative space-y-5">
+            <div className="w-full max-w-[620px] h-[720px] bg-surface rounded-lg border border-hairline p-6 sm:p-8 relative space-y-5">
               {/* Top Header Placeholder */}
               <div className="flex items-start justify-between gap-4 pb-4 border-b border-hairline">
                 <div className="space-y-2 flex-1">
@@ -897,7 +897,7 @@ export function EvaluationViewerSkeleton({ isStudent = false }: { isStudent?: bo
           </div>
 
           {/* Card 2: Unattempted / Missing Questions */}
-          <div className="rounded-xl border border-rose-200/80 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 p-4 space-y-2.5">
+          <div className="rounded-lg border border-rose-200/80 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 p-4 space-y-2.5">
             <div className="flex items-center gap-1.5">
               <Skeleton className="h-3.5 w-3.5 rounded-full" />
               <Skeleton className="h-3.5 w-36 rounded" />

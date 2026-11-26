@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Loader2, Trash2 } from "lucide-react";
-import { ModalCard, ButtonUtility } from "@/components/ui";
+import { ModalCard } from "@/components/ui";
 
 export interface DeleteManagerModalProps {
   isOpen: boolean;
@@ -33,36 +33,37 @@ export const DeleteManagerModal: React.FC<DeleteManagerModalProps> = ({
           <strong className="text-ink">{manager.full_name || manager.email}</strong> (
           <span className="font-mono text-ink">{manager.email}</span>)?
         </p>
-        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 p-3 text-xs text-amber-800 dark:text-amber-300">
+        <div className="rounded-md bg-canvas-soft border border-hairline p-3 text-xs text-ink-secondary leading-relaxed">
           This action immediately revokes login access for this manager. Any batches and exams created by this manager remain safe under the branch.
         </div>
 
-        <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
-          <ButtonUtility
+        <div className="pt-3 grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 border-t border-hairline">
+          <button
             type="button"
             onClick={onClose}
             disabled={isDeleting}
+            className="notion-btn-utility justify-center disabled:opacity-50"
           >
             Cancel
-          </ButtonUtility>
-          <ButtonUtility
-            variant="danger-solid"
-            size="md"
+          </button>
+          <button
+            type="button"
             onClick={() => onConfirmDelete(manager.id)}
             disabled={isDeleting}
+            className="notion-btn-danger justify-center disabled:opacity-50"
           >
             {isDeleting ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Removing Manager...
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span>Removing...</span>
               </>
             ) : (
               <>
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                Remove Manager
+                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Remove Manager</span>
               </>
             )}
-          </ButtonUtility>
+          </button>
         </div>
       </div>
     </ModalCard>

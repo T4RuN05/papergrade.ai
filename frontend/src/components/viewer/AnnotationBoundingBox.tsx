@@ -201,14 +201,14 @@ export function AnnotationBoundingBox({
       {/* Revaluation Flag on Question */}
       {answer.revaluation && (
         <div
-          className={`absolute flex items-center gap-1 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-bold shadow-xs select-none ${
+          className={`absolute flex items-center gap-1 whitespace-nowrap rounded-xs px-2 py-0.5 text-[10px] font-semibold shadow-xs select-none ${
             isDimmed ? "z-0 opacity-25 grayscale pointer-events-none" : "z-30"
           } ${
             answer.revaluation.status === "SUBMITTED" || answer.revaluation.status === "UNDER_REVIEW"
-              ? "bg-amber-500 text-white animate-pulse border border-amber-600"
+              ? "bg-[#dd5b00] text-white border border-[#b84a00]"
               : answer.revaluation.decision === "MARKS_REVISED"
-              ? "bg-emerald-600 text-white border border-emerald-700"
-              : "bg-slate-600 text-white border border-slate-700"
+              ? "bg-[#1aae39] text-white border border-[#148a2d]"
+              : "bg-ink-secondary text-white border border-ink"
           }`}
           style={{
             bottom: isNearPageTop ? undefined : "100%",
@@ -221,17 +221,17 @@ export function AnnotationBoundingBox({
           {answer.revaluation.status === "SUBMITTED" || answer.revaluation.status === "UNDER_REVIEW" ? (
             <>
               <Flag className="h-3 w-3 fill-current" />
-              <span>REVALUATION APPEAL</span>
+              <span>Revaluation Appeal</span>
             </>
           ) : answer.revaluation.decision === "MARKS_REVISED" ? (
             <>
               <CheckCircle2 className="h-3 w-3" />
-              <span>MARKS REVISED</span>
+              <span>Marks Revised</span>
             </>
           ) : (
             <>
               <ShieldCheck className="h-3 w-3" />
-              <span>MARKS UPHELD</span>
+              <span>Marks Upheld</span>
             </>
           )}
         </div>

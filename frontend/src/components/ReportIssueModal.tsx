@@ -15,7 +15,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { ModalCard, ButtonPrimary, ButtonUtility, BadgePill, AppleSelect } from "./ui";
+import { ModalCard, ButtonPrimary, ButtonUtility, BadgePill, AppleSelect, Skeleton } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface ReportIssueModalProps {
@@ -38,17 +38,17 @@ const ISSUE_CATEGORIES = [
 
 function HistorySkeleton() {
   return (
-    <div className="space-y-3 animate-pulse">
+    <div className="space-y-3">
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="p-3.5 rounded-lg border border-hairline bg-surface space-y-2.5">
           <div className="flex items-start justify-between gap-2">
             <div className="space-y-1.5 flex-1">
-              <div className="h-3.5 w-44 bg-ink-muted/20 rounded" />
-              <div className="h-2.5 w-28 bg-ink-muted/10 rounded" />
+              <Skeleton className="h-3.5 w-44" rounded="xs" />
+              <Skeleton className="h-2.5 w-28" rounded="xs" />
             </div>
-            <div className="h-5 w-16 rounded-full bg-ink-muted/15" />
+            <Skeleton className="h-5 w-16" rounded="full" />
           </div>
-          <div className="h-14 rounded bg-canvas-soft/80 border border-hairline/60" />
+          <Skeleton className="h-14 w-full" rounded="md" />
         </div>
       ))}
     </div>
@@ -319,7 +319,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
         <div className="relative flex items-center p-1 rounded-lg bg-canvas-soft border border-hairline shrink-0 mb-3">
           {/* Animated Sliding Pill */}
           <div
-            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-md bg-surface shadow-2xs border border-hairline/80 transition-transform duration-250 ease-out pointer-events-none ${
+            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-md bg-surface border border-hairline transition-transform duration-250 ease-out pointer-events-none ${
               activeTab === "submit" ? "translate-x-0" : "translate-x-[calc(100%+0px)]"
             }`}
           />
@@ -327,26 +327,26 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
           <button
             type="button"
             onClick={() => handleTabSwitch("submit")}
-            className={`relative z-10 flex-1 py-1.5 px-3 rounded-md font-semibold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+            className={`relative z-10 flex-1 py-1.5 px-3 rounded-md font-medium transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5 ${
               activeTab === "submit"
-                ? "text-ink font-bold"
+                ? "text-ink font-semibold"
                 : "text-ink-secondary hover:text-ink"
             }`}
           >
-            <AlertTriangle className="h-3.5 w-3.5 text-primary" />
+            <AlertTriangle className={`h-3.5 w-3.5 ${activeTab === "submit" ? "text-primary" : "text-ink-muted"}`} />
             <span>Report an Issue</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabSwitch("history")}
-            className={`relative z-10 flex-1 py-1.5 px-3 rounded-md font-semibold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+            className={`relative z-10 flex-1 py-1.5 px-3 rounded-md font-medium transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5 ${
               activeTab === "history"
-                ? "text-ink font-bold"
+                ? "text-ink font-semibold"
                 : "text-ink-secondary hover:text-ink"
             }`}
           >
-            <Clock className="h-3.5 w-3.5 text-ink-muted" />
+            <Clock className={`h-3.5 w-3.5 ${activeTab === "history" ? "text-primary" : "text-ink-muted"}`} />
             <span>My Reports</span>
             {myReports.length > 0 && (
               <span className="ml-1 text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-primary/10 text-primary">
@@ -411,7 +411,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                       onChange={(e) => setSubject(e.target.value)}
                       placeholder="e.g. Blank page on Physics Q2 upload"
                       maxLength={120}
-                      className="w-full px-2.5 py-1.5 rounded-md border border-hairline bg-surface text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full px-2.5 py-1.5 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-primary"
                       required
                     />
                   </div>
@@ -441,7 +441,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                     placeholder="Explain what steps caused the problem, what you expected, and any error message you saw..."
                     maxLength={MAX_DESC_CHARS}
                     rows={4}
-                    className="w-full p-2.5 rounded-md border border-hairline bg-surface text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed resize-none"
+                    className="w-full p-2.5 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-primary leading-relaxed resize-none"
                     required
                   />
                 </div>
@@ -482,12 +482,12 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                           <button
                             type="button"
                             onClick={() => handleRemoveFile(idx)}
-                            className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+                            className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center transition-colors cursor-pointer"
                             title="Remove screenshot"
                           >
                             <X className="h-3 w-3" />
                           </button>
-                          <span className="absolute bottom-1 left-1 px-1 rounded text-[9px] font-mono bg-black/60 text-white">
+                          <span className="absolute bottom-1 left-1 px-1 rounded-xs text-[9px] font-mono bg-black/60 text-white">
                             {Math.round(selectedFiles[idx]?.size / 1024)} KB
                           </span>
                         </div>
@@ -509,7 +509,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                       />
                       <label
                         htmlFor="report-screenshot-input"
-                        className="flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-hairline bg-surface hover:bg-canvas-soft hover:border-primary/50 transition-all cursor-pointer text-ink-secondary hover:text-ink"
+                        className="flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-hairline bg-surface hover:bg-canvas-soft hover:border-primary/50 transition-colors cursor-pointer text-ink-secondary hover:text-ink"
                       >
                         <Upload className="h-4 w-4 text-primary" />
                         <span className="font-medium text-xs">
@@ -521,13 +521,13 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-hairline">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-hairline">
                   <ButtonUtility
                     size="md"
                     type="button"
                     onClick={onClose}
                     disabled={isSubmitting}
-                    className="h-10 px-5 min-w-[100px] text-xs sm:text-sm font-semibold justify-center rounded-lg"
+                    className="w-full sm:w-auto justify-center"
                   >
                     Cancel
                   </ButtonUtility>
@@ -537,7 +537,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                     isLoading={isSubmitting}
                     icon={<Send className="h-3.5 w-3.5" />}
                     disabled={!subject.trim() || !description.trim() || isOverLimit}
-                    className="h-10 px-5 text-xs sm:text-sm font-semibold justify-center rounded-lg"
+                    className="w-full sm:w-auto justify-center"
                   >
                     <span>{isSubmitting ? "Submitting..." : "Submit Technical Report"}</span>
                   </ButtonPrimary>
@@ -600,7 +600,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                             </div>
 
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${
                                 isResolved
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : isInProgress
@@ -609,7 +609,7 @@ export function ReportIssueModal({ isOpen, onClose, userRole }: ReportIssueModal
                               }`}
                             >
                               {isResolved && <CheckCircle2 className="h-2.5 w-2.5 mr-1" />}
-                              {isInProgress && <RotateCcw className="h-2.5 w-2.5 mr-1 animate-spin" />}
+                              {isInProgress && <Clock className="h-2.5 w-2.5 mr-1" />}
                               {rep.status?.replace("_", " ")}
                             </span>
                           </div>

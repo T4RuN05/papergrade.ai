@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle } from "lucide-react";
-import { ModalCard, FormInput, ButtonUtility, ButtonPrimary } from "@/components/ui";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { ModalCard, FormInput } from "@/components/ui";
 
 export interface CreateBranchModalProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
     <ModalCard isOpen={isOpen} onClose={onClose} title="Register Physical Branch / Centre">
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 p-2.5 text-xs text-red-600">
+          <div className="flex items-start gap-2 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-2.5 text-xs text-red-700 dark:text-red-300">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -66,13 +66,23 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
           onChange={(e) => setCity(e.target.value)}
         />
 
-        <div className="pt-3 flex items-center justify-end gap-2 border-t border-hairline">
-          <ButtonUtility type="button" onClick={onClose} disabled={isSubmitting}>
+        <div className="pt-3 grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 border-t border-hairline">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="notion-btn-utility justify-center disabled:opacity-50"
+          >
             Cancel
-          </ButtonUtility>
-          <ButtonPrimary type="submit" isLoading={isSubmitting}>
-            Register Branch
-          </ButtonPrimary>
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="notion-btn-primary justify-center disabled:opacity-50"
+          >
+            {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+            <span>Register Branch</span>
+          </button>
         </div>
       </form>
     </ModalCard>

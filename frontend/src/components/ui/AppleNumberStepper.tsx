@@ -183,7 +183,7 @@ export function AppleNumberStepper({
 
   return (
     <div
-      className={`relative inline-flex items-center rounded-lg border border-hairline bg-surface dark:bg-[#202020] shadow-2xs hover:border-hairline-hover transition-colors overflow-hidden group select-none ${
+      className={`relative inline-flex items-center rounded-md border border-hairline bg-surface transition-colors overflow-hidden group select-none ${
         disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
       } ${containerHeights} ${className}`}
     >
@@ -197,7 +197,7 @@ export function AppleNumberStepper({
         onTouchStart={() => startHold(-step)}
         onTouchEnd={stopHold}
         onTouchCancel={stopHold}
-        className={`${buttonPadding} h-full flex items-center justify-center text-ink-muted hover:text-ink hover:bg-canvas-soft dark:hover:bg-white/5 active:scale-90 transition-all border-r border-hairline disabled:opacity-25 disabled:pointer-events-none cursor-pointer`}
+        className={`${buttonPadding} h-full flex items-center justify-center text-ink-muted hover:text-ink hover:bg-canvas-soft active:scale-95 transition-colors border-r border-hairline disabled:opacity-25 disabled:pointer-events-none cursor-pointer`}
         title={`Decrease by ${step}`}
         aria-label="Decrease value"
       >
@@ -220,11 +220,11 @@ export function AppleNumberStepper({
             onChange={(e) => setInputValue(e.target.value)}
             onBlur={handleCommitManualInput}
             onKeyDown={handleKeyDown}
-            className="w-full h-full bg-transparent text-center font-mono font-bold text-ink focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0 m-0"
+            className="w-full h-full bg-transparent text-center font-sans tabular-nums font-semibold text-ink focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0 m-0"
             autoFocus
           />
         ) : (
-          <div className="flex items-center gap-1 font-mono font-bold text-ink select-none pointer-events-none">
+          <div className="flex items-center gap-1 font-sans tabular-nums font-semibold text-ink select-none pointer-events-none">
             {prefix && <span className="text-[11px] font-normal text-ink-muted">{prefix}</span>}
             <span
               key={animKey}
@@ -253,7 +253,7 @@ export function AppleNumberStepper({
         onTouchStart={() => startHold(step)}
         onTouchEnd={stopHold}
         onTouchCancel={stopHold}
-        className={`${buttonPadding} h-full flex items-center justify-center text-ink-muted hover:text-ink hover:bg-canvas-soft dark:hover:bg-white/5 active:scale-90 transition-all border-l border-hairline disabled:opacity-25 disabled:pointer-events-none cursor-pointer`}
+        className={`${buttonPadding} h-full flex items-center justify-center text-ink-muted hover:text-ink hover:bg-canvas-soft active:scale-95 transition-colors border-l border-hairline disabled:opacity-25 disabled:pointer-events-none cursor-pointer`}
         title={`Increase by ${step}`}
         aria-label="Increase value"
       >

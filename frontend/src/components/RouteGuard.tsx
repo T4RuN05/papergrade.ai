@@ -24,18 +24,18 @@ export function RouteGuard({ children }: RouteGuardProps) {
     setMounted(true);
   }, []);
 
-  // Synchronous user & token resolution from storage (0ms latency, zero-flicker protection)
+  // User & token resolution gated on mounted so SSR and initial hydration match cleanly
   const syncUser = useMemo(() => {
-    if (typeof window === "undefined") return null;
+    if (!mounted) return null;
     return currentUser || getStoredUser() || getStoredUserPayload();
-  }, [currentUser]);
+  }, [mounted, currentUser]);
 
-  // Re-evaluates on login/logout or when currentUser sync changes
+  // Re-evaluates on mount, login/logout, or when currentUser sync changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const hasToken = useMemo(() => {
-    if (typeof window === "undefined") return false;
+    if (!mounted) return false;
     return Boolean(getAuthToken());
-  }, [currentUser]);
+  }, [mounted, currentUser]);
 
   const role = syncUser?.role;
 
@@ -76,7 +76,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
   // Determine redirection target if user role and route mismatch
   const targetRedirect = useMemo(() => {
-    if (isLoggingOut) return null;
+    if (!mounted || isLoggingOut) return null;
     if (typeof window === "undefined") return null;
 
     const fullCurrentPath =
@@ -118,7 +118,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
     }
 
     return null;
-  }, [hasToken, role, isAdminRoute, isStudentRoute, isSettingsRoute, pathname, isLoggingOut]);
+  }, [mounted, hasToken, role, isAdminRoute, isStudentRoute, isSettingsRoute, pathname, isLoggingOut]);
 
   // Handle browser back/forward (popstate), mobile bfcache restoration (pageshow), and cross-tab logout (storage)
   useEffect(() => {
@@ -186,14 +186,14 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas-soft text-ink p-4">
-        <div className="max-w-md w-full p-8 rounded-2xl bg-surface border border-hairline shadow-lg text-center space-y-4 animate-in fade-in duration-200">
-          <div className="mx-auto h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+        <div className="max-w-md w-full p-8 rounded-lg bg-surface border border-hairline shadow-notion-card text-center space-y-4 animate-in fade-in duration-200">
+          <div className="mx-auto h-12 w-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
             {isStudentBounced ? (
-              <GraduationCap className="h-7 w-7 animate-pulse" />
+              <GraduationCap className="h-6 w-6" />
             ) : isStaffBounced ? (
-              <ShieldCheck className="h-7 w-7 animate-pulse" />
+              <ShieldCheck className="h-6 w-6" />
             ) : (
-              <Lock className="h-7 w-7 animate-pulse" />
+              <Lock className="h-6 w-6" />
             )}
           </div>
           <div className="space-y-1.5">
@@ -235,7 +235,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
           <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
             {children}
           </main>
-          <footer className="border-t border-hairline bg-surface/60 px-4 py-4 text-center text-xs text-ink-muted">
+          <footer className="border-t border-hairline bg-canvas-soft px-4 py-4 text-center text-xs text-ink-muted">
             <p className="max-w-xl mx-auto leading-relaxed">
               PaperGrade AI • High-Integrity Academic Evaluation
             </p>

@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { ShieldCheck } from "lucide-react";
-import { ModalCard, BadgePill, ButtonUtility, ButtonPrimary } from "@/components/ui";
+import { ShieldCheck, Loader2 } from "lucide-react";
+import { ModalCard } from "@/components/ui";
 
 export interface StaffPasswordResetsModalProps {
   isOpen: boolean;
@@ -29,16 +29,18 @@ export const StaffPasswordResetsModal: React.FC<StaffPasswordResetsModalProps> =
       className="max-w-2xl"
     >
       <div className="space-y-4">
-        <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
+        <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
           Staff members who request a password reset from the login screen remain in an active waiting state until approved here. Upon approval, their screen immediately unlocks to set their new password.
         </div>
 
         <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
           {resets.length === 0 ? (
-            <div className="py-12 text-center text-xs text-ink-muted space-y-1">
+            <div className="py-12 text-center text-xs text-ink-muted space-y-1.5">
               <ShieldCheck className="h-8 w-8 text-ink-muted mx-auto opacity-50" />
               <p className="font-semibold text-ink">No Staff Password Reset Requests</p>
-              <p className="text-[11px]">When an Institute Director or Branch Manager requests a reset, it appears here in real time.</p>
+              <p className="text-[11px]">
+                When an Institute Director or Branch Manager requests a reset, it appears here in real time.
+              </p>
             </div>
           ) : (
             resets.map((req) => {
@@ -47,19 +49,18 @@ export const StaffPasswordResetsModal: React.FC<StaffPasswordResetsModalProps> =
               const isRejected = req.status === "REJECTED";
               const isCompleted = req.status === "COMPLETED";
 
-              const roleBadgeColor =
-                req.user_role === "INSTITUTE_DIRECTOR"
-                  ? "indigo"
-                  : req.user_role === "BRANCH_MANAGER"
-                  ? "teal"
-                  : "purple";
-
-              const roleBadgeLabel =
+              const roleLabel =
                 req.user_role === "INSTITUTE_DIRECTOR"
                   ? "Director"
                   : req.user_role === "BRANCH_MANAGER"
-                  ? "Branch Mgr"
+                  ? "Branch Manager"
                   : req.user_role || "Staff";
+
+              const statusDotClass = isPending
+                ? "bg-amber-500"
+                : isApproved || isCompleted
+                ? "bg-emerald-500"
+                : "bg-ink-faint";
 
               return (
                 <div
@@ -68,17 +69,19 @@ export const StaffPasswordResetsModal: React.FC<StaffPasswordResetsModalProps> =
                 >
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-ink text-sm">
+                      <span className="font-semibold text-ink text-sm truncate">
                         {req.student_name || "Staff Member"}
                       </span>
-                      <BadgePill label={roleBadgeLabel} color={roleBadgeColor as any} />
-                      <BadgePill
-                        label={req.status}
-                        color={isPending ? "orange" : isApproved || isCompleted ? "green" : "gray"}
-                      />
+                      <span className="px-1.5 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-[11px] font-medium text-ink-secondary">
+                        {roleLabel}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-[11px] font-medium text-ink-secondary">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDotClass}`} />
+                        <span>{req.status}</span>
+                      </span>
                     </div>
-                    <div className="text-[11px] text-ink-muted flex items-center gap-2 flex-wrap">
-                      <span>{req.student_email || "No email"}</span>
+                    <div className="text-[11px] text-ink-muted flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+                      <span className="truncate">{req.student_email || "No email"}</span>
                       {req.branch_name && <span>• {req.branch_name}</span>}
                       <span>
                         •{" "}
@@ -92,27 +95,29 @@ export const StaffPasswordResetsModal: React.FC<StaffPasswordResetsModalProps> =
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="shrink-0 w-full sm:w-auto">
                     {isPending ? (
-                      <>
-                        <ButtonUtility
-                          size="sm"
+                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                        <button
+                          type="button"
                           disabled={actingResetId === req.id}
                           onClick={() => onReject(req.id, req.student_name || "Staff")}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs"
+                          className="notion-btn-danger justify-center disabled:opacity-50"
                         >
                           Reject
-                        </ButtonUtility>
-                        <ButtonPrimary
-                          size="sm"
+                        </button>
+                        <button
+                          type="button"
                           disabled={actingResetId === req.id}
-                          isLoading={actingResetId === req.id}
                           onClick={() => onApprove(req.id, req.student_name || "Staff")}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                          className="notion-btn-primary justify-center disabled:opacity-50"
                         >
-                          Approve Reset
-                        </ButtonPrimary>
-                      </>
+                          {actingResetId === req.id && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                          )}
+                          <span>Approve</span>
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-[11px] font-mono text-ink-muted">
                         {isApproved
@@ -132,9 +137,13 @@ export const StaffPasswordResetsModal: React.FC<StaffPasswordResetsModalProps> =
         </div>
 
         <div className="flex justify-end pt-2 border-t border-hairline">
-          <ButtonUtility type="button" onClick={onClose}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="notion-btn-utility"
+          >
             Close
-          </ButtonUtility>
+          </button>
         </div>
       </div>
     </ModalCard>

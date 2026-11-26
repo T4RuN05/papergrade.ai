@@ -141,11 +141,11 @@ export function PdfPageView({
       )}
 
       {renderError ? (
-        <div className="p-4 text-center space-y-1 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-md">
-          <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+        <div className="p-4 text-center space-y-1 bg-surface border border-hairline rounded-md">
+          <p className="text-xs font-semibold text-[#c93b3b]">
             Error rendering page {pageNumber}
           </p>
-          <p className="text-[10px] text-rose-600/80 dark:text-rose-400/70 font-mono">
+          <p className="text-[11px] text-ink-muted font-mono">
             {renderError}
           </p>
         </div>

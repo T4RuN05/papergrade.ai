@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { ModalCard, FormInput, ButtonPrimary, ButtonUtility } from "@/components/ui";
+import { Loader2 } from "lucide-react";
+import { ModalCard, FormInput } from "@/components/ui";
 
 interface BatchCreateModalProps {
   isOpen: boolean;
@@ -55,23 +56,23 @@ export function BatchCreateModal({
           onChange={(e) => setYear(e.target.value)}
           required
         />
-        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-          <ButtonUtility
+        <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-hairline">
+          <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="w-full sm:w-auto justify-center"
+            className="notion-btn-utility justify-center"
           >
             Cancel
-          </ButtonUtility>
-          <ButtonPrimary
+          </button>
+          <button
             type="submit"
-            isLoading={isSubmitting}
             disabled={isSubmitting || !name.trim()}
-            className="w-full sm:w-auto justify-center"
+            className="notion-btn-primary justify-center disabled:opacity-50"
           >
-            Create Batch
-          </ButtonPrimary>
+            {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+            <span>{isSubmitting ? "Creating..." : "Create Batch"}</span>
+          </button>
         </div>
       </form>
     </ModalCard>

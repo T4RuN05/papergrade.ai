@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  GraduationCap,
   Upload,
   Sparkles,
   FileText,
@@ -21,17 +20,9 @@ import {
   Clock,
   Users,
   Check,
-  Layers,
-  ChevronDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import {
-  ButtonPrimary,
-  ButtonUtility,
-  FeatureCard,
-  BadgePill,
-  AppleSelect,
-} from "@/components/ui";
+import { AppleSelect } from "@/components/ui";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import LogoLoader from "@/components/LogoLoader/LogoLoader";
 import { useTenant } from "@/lib/TenantContext";
@@ -282,7 +273,6 @@ export default function NewExamPage() {
       }
       if (extraNotes.trim()) formData.append("extra_notes", extraNotes.trim());
 
-      // Append all Question Paper files if present
       for (const file of qpFiles) {
         formData.append("question_paper", file);
       }
@@ -296,7 +286,6 @@ export default function NewExamPage() {
 
       const createdExam = await api.createExam(formData);
 
-      // Answer key upload is strictly Root Admin only — two visible stages
       if (hasAnswerKey) {
         const akFormData = new FormData();
         for (const file of akFiles) {
@@ -341,7 +330,7 @@ export default function NewExamPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.all() });
       try {
         router.push(targetUrl);
-      } catch (e) {
+      } catch {
         // Fallback
       }
       setTimeout(() => {
@@ -372,16 +361,16 @@ export default function NewExamPage() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      {/* Top Breadcrumbs */}
-      <div className="flex items-center justify-between pb-2 border-b border-hairline">
-        <ButtonUtility
+    <div className="max-w-3xl mx-auto space-y-6 pb-16">
+      {/* Top Breadcrumb Bar */}
+      <div className="flex items-center justify-between pb-3 border-b border-hairline">
+        <Link
           href="/exams"
-          className={`self-start ${isSubmitting ? "pointer-events-none opacity-50" : ""}`}
+          className={`notion-btn-utility self-start ${isSubmitting ? "pointer-events-none opacity-50" : ""}`}
         >
-          <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-          Back to Examinations
-        </ButtonUtility>
+          <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+          <span>Back to Examinations</span>
+        </Link>
       </div>
 
       <div className="relative">
@@ -389,27 +378,17 @@ export default function NewExamPage() {
         {isSubmitting && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
             {isSynthesizingRubric ? (
-              /* Root Admin with Question Paper & Answer Key: Agentic Rubric Synthesis */
-              <div className="relative w-full max-w-xl rounded-2xl bg-surface border border-hairline shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
-                {/* Bespoke Agentic Core */}
-                <div className="relative mb-4 flex items-center justify-center">
-                  <div className="absolute h-20 w-20 rounded-full bg-indigo-500/10 animate-ping opacity-30" />
-                  <div className="absolute h-16 w-16 rounded-full border border-indigo-400/25 animate-pulse" />
-                  <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-tr from-indigo-50 via-surface to-sky-50 border border-indigo-200/60 dark:bg-slate-900 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm">
-                    <Cpu className="h-7 w-7 animate-pulse" />
-                  </div>
+              <div className="notion-card rounded-lg relative w-full max-w-xl shadow-notion-modal flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
+                <div className="h-12 w-12 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-primary mb-4">
+                  <Cpu className="h-6 w-6" />
                 </div>
 
-                {/* Agentic Live Badge (No cartoon logos) */}
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold tracking-wide">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
-                  </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-canvas-soft border border-hairline text-ink-secondary text-xs font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                   Autonomous Rubric Agent Active
-                </div>
+                </span>
 
-                <h2 className="text-xl sm:text-2xl font-bold text-ink tracking-tight mt-3">
+                <h2 className="notion-heading-2 text-xl sm:text-2xl text-ink mt-3">
                   Synthesizing Structured Exam Rubric
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-ink-muted max-w-lg leading-relaxed">
@@ -418,45 +397,41 @@ export default function NewExamPage() {
 
                 {/* Document Summary Chips */}
                 <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
-                  <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5 text-primary" />
+                  <div className="rounded-md bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span>
                       Question Paper: <strong>{qpFiles.length} {qpFiles.length === 1 ? "file" : "files"}</strong>
                     </span>
                   </div>
-                  <div className="rounded-lg bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
-                    <FileCheck2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <div className="rounded-md bg-canvas-soft border border-hairline px-3 py-1.5 text-ink flex items-center gap-1.5">
+                    <FileCheck2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                     <span>
                       Answer Key: <strong>{akFiles.length} {akFiles.length === 1 ? "file" : "files"}</strong>
                     </span>
                   </div>
-                  <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 text-indigo-700 dark:text-indigo-300 font-mono font-medium flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 animate-spin" />
+                  <div className="rounded-md bg-canvas-soft border border-hairline px-3 py-1.5 text-ink-secondary font-mono tabular-nums font-medium flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span>{elapsedSeconds}s elapsed</span>
                   </div>
                 </div>
 
                 {/* Agentic Timeline Feed */}
-                <div className="w-full max-w-lg mt-5 bg-canvas-soft/80 border border-hairline rounded-xl p-4 text-left space-y-2.5">
+                <div className="w-full max-w-lg mt-5 bg-canvas-soft border border-hairline rounded-lg p-4 text-left space-y-2.5">
                   {AGENTIC_RUBRIC_STEPS.map((step, idx) => {
                     const isCompleted = idx < currentStep;
                     const isCurrent = idx === currentStep;
                     return (
                       <div
                         key={idx}
-                        className={`flex items-start gap-3 transition-all duration-300 ${
-                          isCompleted
-                            ? "opacity-90"
-                            : isCurrent
-                            ? "opacity-100"
-                            : "opacity-35"
+                        className={`flex items-start gap-3 transition-opacity duration-300 ${
+                          isCompleted ? "opacity-90" : isCurrent ? "opacity-100" : "opacity-40"
                         }`}
                       >
                         <div className="mt-0.5 shrink-0">
                           {isCompleted ? (
                             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                           ) : isCurrent ? (
-                            <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
+                            <Loader2 className="h-4 w-4 text-primary animate-spin" />
                           ) : (
                             <div className="h-4 w-4 rounded-full border border-hairline bg-surface flex items-center justify-center text-[10px] text-ink-muted font-mono">
                               {idx + 1}
@@ -464,11 +439,11 @@ export default function NewExamPage() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span
                               className={`text-xs ${
                                 isCurrent
-                                  ? "text-indigo-600 dark:text-indigo-400 font-bold"
+                                  ? "text-primary font-semibold"
                                   : isCompleted
                                   ? "text-ink font-semibold"
                                   : "text-ink-muted"
@@ -477,12 +452,14 @@ export default function NewExamPage() {
                               {step.title}
                             </span>
                             {isCurrent && (
-                              <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-ink-secondary bg-surface px-2 py-0.5 rounded-full border border-hairline shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                                 In Progress
                               </span>
                             )}
                             {isCompleted && (
-                              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-ink-secondary bg-surface px-2 py-0.5 rounded-full border border-hairline shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                 Completed
                               </span>
                             )}
@@ -496,37 +473,35 @@ export default function NewExamPage() {
                   })}
                 </div>
 
-                {/* Animated Gradient Progress Bar */}
+                {/* Progress Bar */}
                 <div className="w-full max-w-lg mt-4 space-y-1.5">
-                  <div className="h-2 w-full bg-canvas-soft border border-hairline rounded-full overflow-hidden relative">
+                  <div className="h-1.5 w-full bg-canvas-soft border border-hairline rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-indigo-500 via-primary to-indigo-600 rounded-full transition-all duration-300 ease-out"
+                      className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-ink-muted px-1 font-mono">
+                  <div className="flex items-center justify-between text-[11px] text-ink-muted px-0.5 font-mono">
                     <span>Synthesizing rubric criteria...</span>
                     <span>Autonomous Pipeline</span>
                   </div>
                 </div>
 
-                {/* Security footnote */}
                 <div className="flex items-center gap-1.5 text-xs text-ink-muted mt-4">
                   <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
                   <span>Draft rubric will be opened in the interactive editor for review and approval.</span>
                 </div>
               </div>
             ) : (
-              /* Fast, Clean Minimalist Loader for Branch Manager & No-Rubric Creation */
-              <div className="relative w-full max-w-md rounded-2xl bg-surface border border-hairline shadow-2xl flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
+              <div className="notion-card rounded-lg relative w-full max-w-md shadow-notion-modal flex flex-col items-center justify-center p-6 sm:p-8 text-center my-auto">
                 <LogoLoader size={44} duration={1.3} label="Creating Examination" className="mb-3" />
 
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-hairline text-ink-muted text-[11px] font-medium mb-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-canvas-soft border border-hairline text-ink-muted text-[11px] font-medium mb-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                   Academic Operations
                 </div>
 
-                <h2 className="text-lg sm:text-xl font-bold text-ink tracking-tight">
+                <h2 className="notion-heading-3 text-lg sm:text-xl text-ink">
                   Creating Examination...
                 </h2>
                 <p className="mt-1 text-xs text-ink-muted max-w-sm leading-relaxed">
@@ -538,16 +513,17 @@ export default function NewExamPage() {
         )}
 
         {/* Main Card */}
-        <FeatureCard className="p-3.5 sm:p-6 md:p-8 space-y-5 sm:space-y-6">
-          <div className="pb-5 border-b border-hairline">
-            <div className="flex items-center gap-2 mb-1.5">
-              <BadgePill label="Academic Desk" color="purple" />
-              <span className="text-xs text-ink-muted">• Examination Workspace</span>
+        <div className="notion-card rounded-lg p-4 sm:p-6 md:p-8 space-y-6">
+          <div className="pb-5 border-b border-hairline space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+              <span className="notion-eyebrow text-ink-secondary">Academic Desk</span>
+              <span className="text-ink-faint">•</span>
+              <span>Examination Workspace</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-ink tracking-tight">
+            <h1 className="notion-heading-2 text-xl sm:text-2xl text-ink">
               Create Examination
             </h1>
-            <p className="mt-1 text-xs sm:text-sm text-ink-muted leading-relaxed">
+            <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
               {isBranchManager || isInstituteDirector
                 ? "Set up an examination ledger. Question Paper can be attached now or uploaded prior to evaluation."
                 : "Set up an examination ledger. Question Paper and Official Answer Key can be uploaded now or attached later prior to AI grading."}
@@ -573,7 +549,7 @@ export default function NewExamPage() {
                   placeholder="e.g. Physics Mid-Term Class XI"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+                  className="w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface px-3 py-2 text-xs sm:text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
                 />
               </div>
 
@@ -591,7 +567,7 @@ export default function NewExamPage() {
                         setCustomSubjectText("");
                         setSubject("");
                       }}
-                      className="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                      className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5 cursor-pointer"
                     >
                       <Plus className="h-3 w-3" />
                       Add Custom
@@ -606,7 +582,7 @@ export default function NewExamPage() {
                           setSubject(availableSubjects[0]);
                         }
                       }}
-                      className="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                      className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5 cursor-pointer"
                     >
                       Choose from list
                     </button>
@@ -646,7 +622,7 @@ export default function NewExamPage() {
                         setCustomSubjectText(e.target.value);
                         setSubject(e.target.value);
                       }}
-                      className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+                      className="w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface px-3 py-2 text-xs sm:text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
                     />
                     <p className="text-[11px] text-ink-muted">
                       Custom subject will be attached to this exam.
@@ -657,25 +633,25 @@ export default function NewExamPage() {
             </div>
 
             {/* Examination Scope & Batch Targeting */}
-            <div className="rounded-xl border border-hairline bg-canvas-soft/60 p-3 sm:p-5 space-y-4">
+            <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 sm:p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-hairline">
                 <div className="flex items-start sm:items-center gap-2.5">
-                  <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 mt-0.5 sm:mt-0">
-                    <Users className="h-4 w-4 shrink-0" />
+                  <div className="h-7 w-7 rounded-md bg-surface border border-hairline flex items-center justify-center text-ink-secondary shrink-0 mt-0.5 sm:mt-0">
+                    <Users className="h-3.5 w-3.5 shrink-0" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold text-ink uppercase tracking-wider">
-                      Student Access & Batch Scope
+                    <h3 className="notion-section-title text-sm text-ink">
+                      Student Access &amp; Batch Scope
                     </h3>
-                    <p className="text-[11px] text-ink-muted">
+                    <p className="text-xs text-ink-muted">
                       Define which cohorts can view this exam and submit answer sheets.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
-                  <span className="text-[11px] font-medium text-ink-muted">Target:</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface border border-hairline text-ink shrink-0">
+                  <span className="text-xs text-ink-muted">Target:</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface border border-hairline text-ink tabular-nums shrink-0">
                     {batchScopeMode === "ALL"
                       ? "Whole Branch"
                       : `${selectedBatchIds.length} of ${batches.length} Batches`}
@@ -684,38 +660,37 @@ export default function NewExamPage() {
               </div>
 
               {/* Mode Switcher Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                {/* Option 1: Whole Branch */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setBatchScopeMode("ALL")}
-                  className={`p-3 sm:p-3.5 rounded-lg border text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                  className={`p-3.5 rounded-lg border text-left transition-colors relative flex flex-col justify-between cursor-pointer ${
                     batchScopeMode === "ALL"
-                      ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20"
-                      : "bg-surface border-hairline hover:border-ink/20 hover:bg-canvas-soft"
+                      ? "bg-surface border-primary ring-1 ring-primary/20"
+                      : "bg-surface border-hairline hover:border-ink/25"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className={`h-5 w-5 rounded-full shrink-0 flex items-center justify-center border transition-colors ${
+                        className={`h-4 w-4 rounded-full shrink-0 flex items-center justify-center border transition-colors ${
                           batchScopeMode === "ALL"
                             ? "border-primary bg-primary text-white"
                             : "border-hairline bg-surface"
                         }`}
                       >
-                        {batchScopeMode === "ALL" && <Check className="h-3 w-3 stroke-[3]" />}
+                        {batchScopeMode === "ALL" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                       </div>
-                      <span className="text-xs font-bold text-ink">
+                      <span className="text-xs font-semibold text-ink">
                         Whole Branch (All Batches)
                       </span>
                     </div>
-                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider bg-surface border border-hairline text-ink-muted shrink-0">
+                    <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-canvas-soft border border-hairline text-ink-muted shrink-0">
                       Default
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted mt-2 pl-7 leading-relaxed">
+                  <p className="text-[11px] text-ink-muted mt-2 pl-6 leading-relaxed">
                     Active for all cohorts in{" "}
                     <strong className="text-ink-secondary">
                       {selectedBranch?.name || "this branch"}
@@ -724,43 +699,42 @@ export default function NewExamPage() {
                   </p>
                 </button>
 
-                {/* Option 2: Specific Batches */}
                 <button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setBatchScopeMode("SPECIFIC")}
-                  className={`p-3 sm:p-3.5 rounded-lg border text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                  className={`p-3.5 rounded-lg border text-left transition-colors relative flex flex-col justify-between cursor-pointer ${
                     batchScopeMode === "SPECIFIC"
-                      ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20"
-                      : "bg-surface border-hairline hover:border-ink/20 hover:bg-canvas-soft"
+                      ? "bg-surface border-primary ring-1 ring-primary/20"
+                      : "bg-surface border-hairline hover:border-ink/25"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className={`h-5 w-5 rounded-full shrink-0 flex items-center justify-center border transition-colors ${
+                        className={`h-4 w-4 rounded-full shrink-0 flex items-center justify-center border transition-colors ${
                           batchScopeMode === "SPECIFIC"
                             ? "border-primary bg-primary text-white"
                             : "border-hairline bg-surface"
                         }`}
                       >
-                        {batchScopeMode === "SPECIFIC" && <Check className="h-3 w-3 stroke-[3]" />}
+                        {batchScopeMode === "SPECIFIC" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
                       </div>
-                      <span className="text-xs font-bold text-ink">
+                      <span className="text-xs font-semibold text-ink">
                         Select Batches (Single / Multiple)
                       </span>
                     </div>
                     <span
-                      className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider shrink-0 ${
+                      className={`px-2 py-0.5 text-[11px] font-medium rounded-full shrink-0 tabular-nums ${
                         batchScopeMode === "SPECIFIC" && selectedBatchIds.length > 0
                           ? "bg-primary text-white"
-                          : "bg-surface border border-hairline text-ink-muted"
+                          : "bg-canvas-soft border border-hairline text-ink-muted"
                       }`}
                     >
                       {selectedBatchIds.length} Selected
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted mt-2 pl-7 leading-relaxed">
+                  <p className="text-[11px] text-ink-muted mt-2 pl-6 leading-relaxed">
                     Limit this examination to single or multiple designated batches. Only enrolled
                     students in selected batches can view and submit.
                   </p>
@@ -776,7 +750,7 @@ export default function NewExamPage() {
                         Choose Active Batches:
                       </span>
                       {selectedBatchIds.length === 0 && (
-                        <span className="text-[11px] text-amber-600 font-medium">
+                        <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
                           (Select at least one batch)
                         </span>
                       )}
@@ -787,7 +761,7 @@ export default function NewExamPage() {
                           type="button"
                           onClick={handleSelectAllBatches}
                           disabled={isSubmitting}
-                          className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
+                          className="text-xs font-medium text-primary hover:underline cursor-pointer"
                         >
                           Select All ({batches.length})
                         </button>
@@ -796,7 +770,7 @@ export default function NewExamPage() {
                           type="button"
                           onClick={handleClearBatches}
                           disabled={isSubmitting}
-                          className="text-[11px] font-medium text-ink-muted hover:text-red-600 hover:underline cursor-pointer"
+                          className="text-xs font-medium text-ink-muted hover:text-red-600 hover:underline cursor-pointer"
                         >
                           Clear
                         </button>
@@ -814,25 +788,25 @@ export default function NewExamPage() {
                       <p className="text-xs font-semibold text-ink">No batches found</p>
                       <p className="text-[11px] text-ink-muted">
                         No batches have been created in this branch yet. You can create batches in
-                        Branch Management &gt; Batches, or keep Whole Branch scope.
+                        Batches &amp; Roster, or keep Whole Branch scope.
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 rounded-lg border border-hairline/60 bg-surface/50">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1.5 rounded-lg border border-hairline bg-surface">
                       {batches.map((batch) => {
                         const isSelected = selectedBatchIds.includes(batch.id);
                         return (
                           <div
                             key={batch.id}
                             onClick={() => handleToggleBatch(batch.id)}
-                            className={`p-2.5 rounded-lg border transition-all cursor-pointer select-none flex items-start gap-2.5 ${
+                            className={`p-2.5 rounded-md border transition-colors cursor-pointer select-none flex items-start gap-2.5 ${
                               isSelected
-                                ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/20"
-                                : "bg-surface border-hairline hover:border-ink/20 hover:bg-canvas-soft"
+                                ? "bg-canvas-soft border-primary ring-1 ring-primary/20"
+                                : "bg-surface border-hairline hover:bg-canvas-soft"
                             }`}
                           >
                             <div
-                              className={`mt-0.5 h-4 w-4 rounded shrink-0 flex items-center justify-center border transition-colors ${
+                              className={`mt-0.5 h-4 w-4 rounded-xs shrink-0 flex items-center justify-center border transition-colors ${
                                 isSelected
                                   ? "bg-primary border-primary text-white"
                                   : "border-hairline bg-surface"
@@ -846,7 +820,7 @@ export default function NewExamPage() {
                               </div>
                               <div className="flex items-center gap-1.5 mt-1 text-[10px] text-ink-muted">
                                 {batch.code && (
-                                  <span className="font-mono bg-canvas-soft px-1.5 py-0.2 rounded border border-hairline text-ink-secondary">
+                                  <span className="font-mono bg-canvas-soft px-1.5 py-0.2 rounded-xs border border-hairline text-ink-secondary">
                                     {batch.code}
                                   </span>
                                 )}
@@ -894,35 +868,35 @@ export default function NewExamPage() {
                 }}
                 onDragLeave={() => setIsQpDragging(false)}
                 onDrop={handleQpDrop}
-                className={`rounded-lg border-2 border-dashed p-3.5 sm:p-5 flex flex-col justify-between transition-colors ${
+                className={`rounded-lg border border-dashed p-4 sm:p-5 flex flex-col justify-between transition-colors ${
                   isSubmitting
                     ? "border-hairline bg-canvas-soft opacity-60 cursor-not-allowed pointer-events-none"
                     : isQpDragging
-                    ? "border-primary bg-[#edf5fd]"
+                    ? "border-primary bg-primary/5"
                     : qpFiles.length > 0
                     ? "border-hairline bg-surface"
-                    : "border-hairline bg-canvas-soft/50 hover:bg-canvas-soft hover:border-primary"
+                    : "border-hairline bg-canvas-soft hover:border-primary"
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-5 w-5 text-primary shrink-0" />
-                      <span className="text-xs font-bold text-ink">
-                        Question Paper <span className="text-[11px] font-normal text-ink-muted">(Optional)</span>
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-xs font-semibold text-ink">
+                        Question Paper <span className="font-normal text-ink-muted">(Optional)</span>
                       </span>
                     </div>
                     {qpFiles.length > 0 && (
-                      <span className="shrink-0">
-                        <BadgePill label={`${qpFiles.length} ${qpFiles.length === 1 ? "file" : "files"}`} color="sky" />
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-secondary shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        {qpFiles.length} {qpFiles.length === 1 ? "file" : "files"}
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-ink-muted mb-3">
+                  <p className="text-xs text-ink-muted mb-3">
                     Upload PDF or photos now, or attach later before AI rubric extraction.
                   </p>
 
-                  {/* Selected File List */}
                   {qpFiles.length > 0 ? (
                     <div className="space-y-1.5 max-h-48 overflow-y-auto mb-3 pr-1">
                       {qpFiles.map((f, idx) => {
@@ -930,7 +904,7 @@ export default function NewExamPage() {
                         return (
                           <div
                             key={`${f.name}-${idx}`}
-                            className="flex items-center justify-between gap-2 bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5 text-[11px]"
+                            className="flex items-center justify-between gap-2 bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5 text-xs"
                           >
                             <div className="flex items-center gap-2 truncate">
                               <span className="h-4 w-4 rounded-full bg-surface border border-hairline text-ink-muted flex items-center justify-center text-[10px] font-mono shrink-0">
@@ -939,12 +913,12 @@ export default function NewExamPage() {
                               {isPdf ? (
                                 <FileCheck2 className="h-3.5 w-3.5 text-primary shrink-0" />
                               ) : (
-                                <ImageIcon className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                                <ImageIcon className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
                               )}
                               <span className="truncate text-ink font-medium">
                                 {f.name}
                               </span>
-                              <span className="text-[10px] text-ink-muted shrink-0">
+                              <span className="text-[11px] text-ink-muted shrink-0">
                                 ({formatFileSize(f.size)})
                               </span>
                             </div>
@@ -952,7 +926,7 @@ export default function NewExamPage() {
                               type="button"
                               disabled={isSubmitting}
                               onClick={() => handleRemoveQpFile(idx)}
-                              className="text-ink-muted hover:text-red-600 p-0.5 shrink-0 transition-colors"
+                              className="text-ink-muted hover:text-red-600 p-0.5 shrink-0 transition-colors cursor-pointer"
                               title="Remove file"
                             >
                               <X className="h-3.5 w-3.5" />
@@ -966,44 +940,44 @@ export default function NewExamPage() {
                       onClick={() => {
                         if (!isSubmitting) qpInputRef.current?.click();
                       }}
-                      className="border border-dashed border-hairline rounded-md p-3.5 sm:p-4 text-center my-2 cursor-pointer hover:bg-canvas-soft transition-colors"
+                      className="border border-dashed border-hairline rounded-md p-4 text-center my-2 cursor-pointer bg-surface hover:bg-canvas-soft transition-colors"
                     >
-                      <Upload className="h-6 w-6 text-ink-muted mx-auto mb-1.5 shrink-0" />
+                      <Upload className="h-5 w-5 text-ink-muted mx-auto mb-1.5 shrink-0" />
                       <span className="text-xs text-ink font-medium block">
                         Click to browse or drop Question Paper
                       </span>
-                      <span className="text-[10px] text-ink-muted">
+                      <span className="text-[11px] text-ink-muted">
                         PDF, JPG, PNG
                       </span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-hairline">
-                  <ButtonUtility
+                <div className="flex items-center gap-2 mt-2 pt-3 border-t border-hairline">
+                  <button
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => {
                       if (!isSubmitting) qpInputRef.current?.click();
                     }}
-                    className="flex-1 py-1.5 text-xs"
+                    className="notion-btn-utility flex-1 justify-center text-xs"
                   >
-                    <Plus className="h-3.5 w-3.5 mr-1 text-primary shrink-0" />
-                    {qpFiles.length === 0 ? "Select File(s)" : "Add More"}
-                  </ButtonUtility>
+                    <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>{qpFiles.length === 0 ? "Select File(s)" : "Add More"}</span>
+                  </button>
                   {qpFiles.length > 0 && (
-                    <ButtonUtility
+                    <button
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => {
                         if (!isSubmitting) setQpFiles([]);
                       }}
-                      className="py-1.5 text-xs text-red-600 hover:bg-red-50"
+                      className="notion-btn-danger justify-center text-xs"
                       title="Clear all question paper files"
                     >
-                      <Trash2 className="h-3 w-3 mr-1 shrink-0" />
-                      Clear
-                    </ButtonUtility>
+                      <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>Clear</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1017,35 +991,35 @@ export default function NewExamPage() {
                   }}
                   onDragLeave={() => setIsAkDragging(false)}
                   onDrop={handleAkDrop}
-                  className={`rounded-lg border-2 border-dashed p-3.5 sm:p-5 flex flex-col justify-between transition-colors ${
+                  className={`rounded-lg border border-dashed p-4 sm:p-5 flex flex-col justify-between transition-colors ${
                     isSubmitting
                       ? "border-hairline bg-canvas-soft opacity-60 cursor-not-allowed pointer-events-none"
                       : isAkDragging
-                      ? "border-[#1aae39] bg-[#eaf7ed]"
+                      ? "border-primary bg-primary/5"
                       : akFiles.length > 0
                       ? "border-hairline bg-surface"
-                      : "border-hairline bg-canvas-soft/50 hover:bg-canvas-soft hover:border-primary"
+                      : "border-hairline bg-canvas-soft hover:border-primary"
                   }`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <Sparkles className="h-5 w-5 text-[#1aae39] shrink-0" />
-                        <span className="text-xs font-bold text-ink">
-                          Official Answer Key <span className="text-[11px] font-normal text-ink-muted">(Optional)</span>
+                        <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span className="text-xs font-semibold text-ink">
+                          Official Answer Key <span className="font-normal text-ink-muted">(Optional)</span>
                         </span>
                       </div>
                       {akFiles.length > 0 && (
-                        <span className="shrink-0">
-                          <BadgePill label={`${akFiles.length} ${akFiles.length === 1 ? "file" : "files"}`} color="green" />
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-secondary shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          {akFiles.length} {akFiles.length === 1 ? "file" : "files"}
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-ink-muted mb-3">
+                    <p className="text-xs text-ink-muted mb-3">
                       Root Admin can upload now to generate rubric draft, or attach later prior to evaluation.
                     </p>
 
-                    {/* Selected File List */}
                     {akFiles.length > 0 ? (
                       <div className="space-y-1.5 max-h-48 overflow-y-auto mb-3 pr-1">
                         {akFiles.map((f, idx) => {
@@ -1053,21 +1027,21 @@ export default function NewExamPage() {
                           return (
                             <div
                               key={`${f.name}-${idx}`}
-                              className="flex items-center justify-between gap-2 bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5 text-[11px]"
+                              className="flex items-center justify-between gap-2 bg-canvas-soft border border-hairline rounded-md px-2.5 py-1.5 text-xs"
                             >
                               <div className="flex items-center gap-2 truncate">
                                 <span className="h-4 w-4 rounded-full bg-surface border border-hairline text-ink-muted flex items-center justify-center text-[10px] font-mono shrink-0">
                                   {idx + 1}
                                 </span>
                                 {isPdf ? (
-                                  <FileCheck2 className="h-3.5 w-3.5 text-[#1aae39] shrink-0" />
+                                  <FileCheck2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                                 ) : (
-                                  <ImageIcon className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                                  <ImageIcon className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
                                 )}
                                 <span className="truncate text-ink font-medium">
                                   {f.name}
                                 </span>
-                                <span className="text-[10px] text-ink-muted shrink-0">
+                                <span className="text-[11px] text-ink-muted shrink-0">
                                   ({formatFileSize(f.size)})
                                 </span>
                               </div>
@@ -1075,7 +1049,7 @@ export default function NewExamPage() {
                                 type="button"
                                 disabled={isSubmitting}
                                 onClick={() => handleRemoveAkFile(idx)}
-                                className="text-ink-muted hover:text-red-600 p-0.5 shrink-0 transition-colors"
+                                className="text-ink-muted hover:text-red-600 p-0.5 shrink-0 transition-colors cursor-pointer"
                                 title="Remove file"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -1089,44 +1063,44 @@ export default function NewExamPage() {
                         onClick={() => {
                           if (!isSubmitting) akInputRef.current?.click();
                         }}
-                        className="border border-dashed border-hairline rounded-md p-3.5 sm:p-4 text-center my-2 cursor-pointer hover:bg-canvas-soft transition-colors"
+                        className="border border-dashed border-hairline rounded-md p-4 text-center my-2 cursor-pointer bg-surface hover:bg-canvas-soft transition-colors"
                       >
-                        <Upload className="h-6 w-6 text-ink-muted mx-auto mb-1.5 shrink-0" />
+                        <Upload className="h-5 w-5 text-ink-muted mx-auto mb-1.5 shrink-0" />
                         <span className="text-xs text-ink font-medium block">
                           Click to browse or drop Answer Key
                         </span>
-                        <span className="text-[10px] text-ink-muted">
+                        <span className="text-[11px] text-ink-muted">
                           PDF, JPG, PNG
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-hairline">
-                    <ButtonUtility
+                  <div className="flex items-center gap-2 mt-2 pt-3 border-t border-hairline">
+                    <button
                       type="button"
                       disabled={isSubmitting}
                       onClick={() => {
                         if (!isSubmitting) akInputRef.current?.click();
                       }}
-                      className="flex-1 py-1.5 text-xs"
+                      className="notion-btn-utility flex-1 justify-center text-xs"
                     >
-                      <Plus className="h-3.5 w-3.5 mr-1 text-[#1aae39] shrink-0" />
-                      {akFiles.length === 0 ? "Select File(s)" : "Add More"}
-                    </ButtonUtility>
+                      <Plus className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <span>{akFiles.length === 0 ? "Select File(s)" : "Add More"}</span>
+                    </button>
                     {akFiles.length > 0 && (
-                      <ButtonUtility
+                      <button
                         type="button"
                         disabled={isSubmitting}
                         onClick={() => {
                           if (!isSubmitting) setAkFiles([]);
                         }}
-                        className="py-1.5 text-xs text-red-600 hover:bg-red-50"
+                        className="notion-btn-danger justify-center text-xs"
                         title="Clear all answer key files"
                       >
-                        <Trash2 className="h-3 w-3 mr-1 shrink-0" />
-                        Clear
-                      </ButtonUtility>
+                        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                        <span>Clear</span>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1148,7 +1122,7 @@ export default function NewExamPage() {
             {/* Extra Notes */}
             <div>
               <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
-                Teacher's Special Grading Instructions (Optional)
+                Teacher&apos;s Special Grading Instructions (Optional)
               </label>
               <textarea
                 rows={3}
@@ -1156,30 +1130,38 @@ export default function NewExamPage() {
                 placeholder="e.g. Deduct 1 mark if SI units are omitted in numericals. Accept energy conservation alternatives..."
                 value={extraNotes}
                 onChange={(e) => setExtraNotes(e.target.value)}
-                className="w-full rounded-md border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
+                className="w-full rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface p-3 text-xs sm:text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none transition-colors"
               />
             </div>
 
-            <ButtonPrimary
+            <button
               type="submit"
-              isLoading={isSubmitting}
-              icon={isSynthesizingRubric ? <Cpu className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              className="w-full py-3 text-sm font-semibold"
+              disabled={isSubmitting}
+              className="notion-btn-primary w-full justify-center py-2.5 text-sm font-medium disabled:opacity-50"
             >
               {isSubmitting ? (
-                <span>
-                  {isSynthesizingRubric
-                    ? `Synthesizing Rubric with Agent (${elapsedSeconds}s)...`
-                    : "Creating Examination..."}
-                </span>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  <span>
+                    {isSynthesizingRubric
+                      ? `Synthesizing Rubric with Agent (${elapsedSeconds}s)...`
+                      : "Creating Examination..."}
+                  </span>
+                </>
               ) : isSynthesizingRubric ? (
-                <span>Create Exam & Synthesize Rubric</span>
+                <>
+                  <Cpu className="h-4 w-4 shrink-0" />
+                  <span>Create Exam &amp; Synthesize Rubric</span>
+                </>
               ) : (
-                <span>Create Exam</span>
+                <>
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span>Create Exam</span>
+                </>
               )}
-            </ButtonPrimary>
+            </button>
           </form>
-        </FeatureCard>
+        </div>
       </div>
     </div>
   );

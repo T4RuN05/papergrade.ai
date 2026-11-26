@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { UsageCards } from "@/components/UsageCards";
-import { ButtonPrimary, FeatureCard, BadgePill, AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
+import { AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -101,94 +101,114 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12 cascade-group">
-      {/* Header & High-Level Navigation Segmented Control */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <BadgePill label="Telemetry & Observability" color="purple" />
-            <span className="text-xs text-ink-muted hidden sm:inline">• Gemini Multimodal Engine</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
-            Telemetry & Quotas
+    <div className="space-y-8 max-w-6xl mx-auto pb-12 cascade-group">
+      {/* Page Header & Segmented View Switcher */}
+      <header className="pb-4 border-b border-hairline flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div className="space-y-1.5 min-w-0">
+          <p className="notion-eyebrow text-ink-muted">Gemini Multimodal Engine</p>
+          <h1 className="notion-heading-2 text-2xl sm:text-[26px] text-ink">
+            Telemetry &amp; Quotas
           </h1>
-          <p className="text-xs text-ink-muted mt-0.5">
-            API consumption, latency percentiles, dynamic pacing feasibility, and accuracy benchmarks.
+          <p className="text-xs sm:text-sm text-ink-muted leading-relaxed max-w-2xl">
+            API consumption, latency percentiles, dynamic pacing feasibility, and empirical accuracy benchmarks.
           </p>
         </div>
 
-        {/* Top-Level Navigation Segmented Control */}
-        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft border border-hairline rounded-xl w-full sm:w-auto overflow-x-auto shrink-0">
+        {/* Symmetrical Segmented Control */}
+        <div className="grid grid-cols-3 sm:inline-flex items-center gap-1 p-1 bg-surface border border-hairline rounded-md w-full lg:w-auto shrink-0">
           <button
             type="button"
             onClick={() => setActiveMainTab("telemetry")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
               activeMainTab === "telemetry"
-                ? "bg-surface text-ink shadow-2xs border border-hairline"
+                ? "bg-canvas-soft text-ink border border-hairline"
                 : "text-ink-muted hover:text-ink"
             }`}
           >
-            <Activity className="h-3.5 w-3.5 text-primary" />
+            <Activity className="h-3.5 w-3.5 text-primary shrink-0" />
             <span>Telemetry</span>
           </button>
+
           <button
             type="button"
             onClick={() => setActiveMainTab("logs")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
               activeMainTab === "logs"
-                ? "bg-surface text-ink shadow-2xs border border-hairline"
+                ? "bg-canvas-soft text-ink border border-hairline"
                 : "text-ink-muted hover:text-ink"
             }`}
           >
-            <Layers className="h-3.5 w-3.5 text-primary" />
-            <span>Request Ledger</span>
+            <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>Ledger</span>
             {metrics && (
-              <span className="rounded-full bg-primary/10 text-primary dark:text-sky-400 px-1.5 py-0.2 text-[10px] font-mono">
+              <span className="hidden xs:inline-flex rounded-full bg-surface border border-hairline px-1.5 py-0.5 text-[10px] font-mono text-ink-secondary tabular-nums">
                 {metrics.recent_events.length}
               </span>
             )}
           </button>
+
           <button
             type="button"
             onClick={() => setActiveMainTab("benchmarks")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
               activeMainTab === "benchmarks"
-                ? "bg-surface text-ink shadow-2xs border border-hairline"
+                ? "bg-canvas-soft text-ink border border-hairline"
                 : "text-ink-muted hover:text-ink"
             }`}
           >
-            <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+            <ClipboardCheck className="h-3.5 w-3.5 text-primary shrink-0" />
             <span>Benchmarks</span>
             {benchmarks && (
-              <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.2 text-[10px] font-mono">
+              <span className="hidden xs:inline-flex rounded-full bg-surface border border-hairline px-1.5 py-0.5 text-[10px] font-mono text-ink-secondary tabular-nums">
                 {benchmarks.sample_size}
               </span>
             )}
           </button>
         </div>
-      </div>
+      </header>
 
       {isMetricsLoading && !metrics ? (
         <AnalyticsSkeleton />
       ) : metricsError || !metrics ? (
-        <div className="max-w-xl mx-auto py-16 px-4">
-          <FeatureCard className="p-8 text-center space-y-4 border-amber-200 bg-[#fffdfa] dark:bg-card">
-            <div className="mx-auto h-12 w-12 rounded-full bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center text-amber-600">
-              <Activity className="h-6 w-6" />
+        <div className="max-w-xl mx-auto py-12 px-4">
+          <div className="notion-card p-6 sm:p-8 text-center space-y-4">
+            <div className="mx-auto h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary">
+              <Activity className="h-5 w-5" />
             </div>
-            <h2 className="text-base font-bold text-ink">Telemetry Unavailable</h2>
-            <p className="text-xs text-ink-muted">
-              {(metricsError as any)?.message || "Unable to load telemetry metrics from the server."}
-            </p>
-            <div className="pt-2">
-              <ButtonPrimary onClick={() => refetchMetrics()}>Retry Telemetry Fetch</ButtonPrimary>
+            <div className="space-y-1">
+              <h2 className="notion-heading-3 text-base text-ink">Telemetry Unavailable</h2>
+              <p className="text-xs text-ink-muted leading-relaxed">
+                {(metricsError as any)?.message || "Unable to load telemetry metrics from the server."}
+              </p>
             </div>
-          </FeatureCard>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => refetchMetrics()}
+                className="notion-btn-primary"
+              >
+                Retry Telemetry Fetch
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <>
           {/* Main Telemetry & Request Ledger Component (Kept mounted to preserve state & prevent CLS) */}
-          <div className={activeMainTab === "benchmarks" ? "hidden" : "block"}>
+          <div className={activeMainTab === "benchmarks" ? "hidden" : "space-y-4"}>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pb-1">
+              <div className="min-w-0 space-y-0.5">
+                <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+                  {activeMainTab === "logs" ? "Request Execution Ledger" : "Quota, Latency & Cost Projections"}
+                </h2>
+                <p className="text-xs sm:text-[13px] text-ink-muted leading-relaxed">
+                  {activeMainTab === "logs"
+                    ? "Chronological log of recent Gemini inference requests, token counts, and statuses."
+                    : "Monitor AI Studio key pool throughput, GCP Vertex usage, and dynamic batch pacing."}
+                </p>
+              </div>
+            </div>
+
             <UsageCards
               metrics={metrics}
               activeView={activeMainTab === "logs" ? "logs" : "telemetry"}
@@ -200,193 +220,217 @@ export default function AnalyticsPage() {
 
           {/* Repeatable Accuracy & Teacher Ground-Truth Benchmark Section */}
           {activeMainTab === "benchmarks" && (
-            <FeatureCard className="p-4 sm:p-6 space-y-6">
-              <div className="pb-3 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-bold text-ink flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Repeatable Accuracy & Teacher Ground-Truth Benchmark
-                  </h2>
-                  <p className="mt-0.5 text-xs text-ink-muted">
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-1">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+                      Accuracy &amp; Ground-Truth Benchmarks
+                    </h2>
+                    {benchmarks && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface border border-hairline text-ink-muted tabular-nums">
+                        {benchmarks.sample_size} papers
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs sm:text-[13px] text-ink-muted leading-relaxed">
                     Empirically verify Gemini evaluation against human teacher marks without synthetic composites.
                   </p>
                 </div>
 
                 {exams.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-ink-muted">Active Exam:</span>
+                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                    <span className="text-xs font-medium text-ink-muted shrink-0">Exam:</span>
                     <AppleSelect
                       size="sm"
                       value={selectedExamId}
                       onChange={(val) => handleExamChange(val)}
                       options={exams.map((e) => ({ value: e.id, label: e.title }))}
-                      className="max-w-[240px]"
+                      className="flex-1 sm:w-[240px]"
                     />
                   </div>
                 )}
               </div>
 
-              {/* Benchmark Scorecards */}
-              {benchmarks && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Evaluated</span>
-                    <span className="font-mono text-base sm:text-lg font-bold text-ink mt-1 block">
-                      {benchmarks.sample_size} papers
-                    </span>
+              <div className="notion-card p-4 sm:p-6 space-y-6">
+                {/* Benchmark Scorecards (2x3 on mobile, 3x2 on sm, 6-col on lg) */}
+                {benchmarks && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                      <span className="text-xs font-medium text-ink-muted block truncate">Evaluated</span>
+                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                        {benchmarks.sample_size}
+                      </span>
+                      <span className="text-[11px] text-ink-muted block truncate">Verified papers</span>
+                    </div>
+
+                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                      <span className="text-xs font-medium text-ink-muted block truncate">Transcription</span>
+                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                        {benchmarks.transcription_accuracy_pct}%
+                      </span>
+                      <span className="text-[11px] text-ink-muted block truncate">OCR acceptance</span>
+                    </div>
+
+                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                      <span className="text-xs font-medium text-ink-muted block truncate">Question Map</span>
+                      <span className="font-mono text-lg font-bold text-primary tabular-nums block">
+                        {benchmarks.question_mapping_accuracy_pct}%
+                      </span>
+                      <span className="text-[11px] text-ink-muted block truncate">Item matching</span>
+                    </div>
+
+                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                      <span className="text-xs font-medium text-ink-muted block truncate">Boxes Accepted</span>
+                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                        {benchmarks.localization_acceptance_pct}%
+                      </span>
+                      <span className="text-[11px] text-ink-muted block truncate">Region overlap</span>
+                    </div>
+
+                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                      <span className="text-xs font-medium text-ink-muted block truncate">Mark Agreement</span>
+                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                        {benchmarks.exact_score_agreement_pct}%
+                      </span>
+                      <span className="text-[11px] text-ink-muted block truncate">Exact key match</span>
+                    </div>
+
+                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                      <span className="text-xs font-medium text-ink-muted block truncate">Intervention</span>
+                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                        {benchmarks.manual_intervention_rate_pct}%
+                      </span>
+                      <span className="text-[11px] text-ink-muted block truncate">Manual edits</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Record Benchmark Form */}
+                <form
+                  onSubmit={handleRecordBenchmark}
+                  className="rounded-lg border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                    <h3 className="notion-section-title text-sm text-ink">
+                      Record Teacher Verification for a Paper
+                    </h3>
                   </div>
 
-                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Transcription</span>
-                    <span className="font-mono text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
-                      {benchmarks.transcription_accuracy_pct}%
-                    </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
+                        Submission ID
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Paste submission ID (e.g. sub_...)"
+                        value={benchSubId}
+                        onChange={(e) => setBenchSubId(e.target.value)}
+                        className="w-full h-9 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface px-3 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-ink-secondary block mb-1.5">
+                        Teacher Reference Total Marks
+                      </label>
+                      <AppleNumberStepper
+                        value={benchMarks}
+                        onChange={(val) => setBenchMarks(val)}
+                        min={0}
+                        max={500}
+                        step={0.5}
+                        allowDecimal
+                        suffix="marks"
+                        className="w-full"
+                      />
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Question Map</span>
-                    <span className="font-mono text-base sm:text-lg font-bold text-primary dark:text-sky-400 mt-1 block">
-                      {benchmarks.question_mapping_accuracy_pct}%
-                    </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 text-xs text-ink-secondary pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={benchTranscription}
+                        onChange={(e) => setBenchTranscription(e.target.checked)}
+                        className="rounded-xs border-hairline text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span>Transcription Accepted As-is</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={benchMapping}
+                        onChange={(e) => setBenchMapping(e.target.checked)}
+                        className="rounded-xs border-hairline text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span>Question Mapping Correct</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={benchBox}
+                        onChange={(e) => setBenchBox(e.target.checked)}
+                        className="rounded-xs border-hairline text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span>Bounding Boxes Accepted</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={benchMarksMatch}
+                        onChange={(e) => setBenchMarksMatch(e.target.checked)}
+                        className="rounded-xs border-hairline text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span>Marks Matched Teacher Key</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={benchExplanation}
+                        onChange={(e) => setBenchExplanation(e.target.checked)}
+                        className="rounded-xs border-hairline text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span>Explanation Was Sufficient</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={benchIntervention}
+                        onChange={(e) => setBenchIntervention(e.target.checked)}
+                        className="rounded-xs border-hairline text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span>Manual Intervention Required</span>
+                    </label>
                   </div>
 
-                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Boxes Accepted</span>
-                    <span className="font-mono text-base sm:text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 block">
-                      {benchmarks.localization_acceptance_pct}%
-                    </span>
-                  </div>
-
-                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Mark Agreement</span>
-                    <span className="font-mono text-base sm:text-lg font-bold text-purple-600 dark:text-purple-400 mt-1 block">
-                      {benchmarks.exact_score_agreement_pct}%
-                    </span>
-                  </div>
-
-                  <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-center">
-                    <span className="text-[10px] text-ink-muted uppercase tracking-wider block">Intervention</span>
-                    <span className="font-mono text-base sm:text-lg font-bold text-pink-600 dark:text-pink-400 mt-1 block">
-                      {benchmarks.manual_intervention_rate_pct}%
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Record Benchmark Form */}
-              <form onSubmit={handleRecordBenchmark} className="rounded-xl border border-hairline bg-canvas-soft p-4 sm:p-5 space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
-                  Record Teacher Verification for a Paper
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Submission ID</label>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
                     <input
                       type="text"
-                      required
-                      placeholder="Paste submission ID (e.g. sub_...)"
-                      value={benchSubId}
-                      onChange={(e) => setBenchSubId(e.target.value)}
-                      className="w-full h-8.5 sm:h-9 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-1.5 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
+                      placeholder="Notes on model reasoning or bounding box alignment..."
+                      value={benchNotes}
+                      onChange={(e) => setBenchNotes(e.target.value)}
+                      className="flex-1 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface px-3 py-2 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-primary"
                     />
+                    <button
+                      type="submit"
+                      disabled={isSubmittingBench}
+                      className="notion-btn-primary justify-center w-full sm:w-auto disabled:opacity-50"
+                    >
+                      {isSubmittingBench ? "Saving..." : "Record Evaluation"}
+                    </button>
                   </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-ink-secondary block mb-1.5">Teacher Reference Total Marks</label>
-                    <AppleNumberStepper
-                      value={benchMarks}
-                      onChange={(val) => setBenchMarks(val)}
-                      min={0}
-                      max={500}
-                      step={0.5}
-                      allowDecimal
-                      suffix="marks"
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 text-xs text-ink-secondary">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={benchTranscription}
-                      onChange={(e) => setBenchTranscription(e.target.checked)}
-                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span>Transcription Accepted As-is</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={benchMapping}
-                      onChange={(e) => setBenchMapping(e.target.checked)}
-                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span>Question Mapping Correct</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={benchBox}
-                      onChange={(e) => setBenchBox(e.target.checked)}
-                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span>Bounding Boxes Accepted</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={benchMarksMatch}
-                      onChange={(e) => setBenchMarksMatch(e.target.checked)}
-                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span>Marks Matched Teacher Key</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={benchExplanation}
-                      onChange={(e) => setBenchExplanation(e.target.checked)}
-                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span>Explanation Was Sufficient</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={benchIntervention}
-                      onChange={(e) => setBenchIntervention(e.target.checked)}
-                      className="rounded border-hairline text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <span>Manual Intervention Required</span>
-                  </label>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <input
-                    type="text"
-                    placeholder="Notes on model reasoning or bounding box alignment..."
-                    value={benchNotes}
-                    onChange={(e) => setBenchNotes(e.target.value)}
-                    className="flex-1 rounded-lg border border-hairline bg-surface dark:bg-[#202020] px-3 py-2 text-xs text-ink focus:outline-none focus:border-primary shadow-2xs"
-                  />
-                  <ButtonPrimary
-                    type="submit"
-                    disabled={isSubmittingBench}
-                    size="sm"
-                  >
-                    {isSubmittingBench ? "Saving..." : "Record Evaluation"}
-                  </ButtonPrimary>
-                </div>
-              </form>
-            </FeatureCard>
+                </form>
+              </div>
+            </section>
           )}
         </>
       )}
