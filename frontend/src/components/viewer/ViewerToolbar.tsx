@@ -50,44 +50,47 @@ export function ViewerToolbar({
   onSpawnDraftBox,
 }: ViewerToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs select-none w-full max-w-full">
+    <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 border-b border-hairline bg-surface px-2.5 sm:px-3 py-2 text-xs select-none w-full max-w-full">
       {/* Left: Page Navigation Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
         <button
           type="button"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage <= 1}
-          className="inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
+          className="notion-btn-utility min-h-0 h-7 w-7 p-0 disabled:opacity-35"
           title="Previous Page"
+          aria-label="Previous Page"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </button>
-        <span className="text-xs font-semibold text-ink px-1.5">
-          Page <span className="text-primary font-bold font-mono">{currentPage}</span> of{" "}
-          <span className="text-ink font-mono">{totalPages}</span>
+        <span className="text-xs font-medium text-ink px-1 whitespace-nowrap tabular-nums">
+          <span className="hidden xs:inline">Page </span>
+          <span className="text-primary font-semibold font-mono">{currentPage}</span>
+          <span className="text-ink-muted">/{totalPages}</span>
         </span>
         <button
           type="button"
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage >= totalPages}
-          className="inline-flex rounded-md p-1 sm:p-1.5 text-ink-muted btn-glass-utility disabled:opacity-35 transition-all cursor-pointer"
+          className="notion-btn-utility min-h-0 h-7 w-7 p-0 disabled:opacity-35"
           title="Next Page"
+          aria-label="Next Page"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </button>
 
         {/* Quick page pills */}
         {totalPages > 1 && (
-          <div className="hidden sm:flex items-center gap-1 ml-1.5">
+          <div className="hidden sm:flex items-center gap-1 ml-1">
             {Array.from({ length: totalPages }).map((_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => onPageChange(i + 1)}
-                className={`h-6 w-6 rounded-md text-[11px] font-semibold transition-all cursor-pointer font-mono ${
+                className={`min-h-0 h-6 w-6 p-0 rounded-md text-[11px] font-mono ${
                   currentPage === i + 1
-                    ? "btn-glass-primary font-bold"
-                    : "btn-glass-utility text-ink-secondary"
+                    ? "notion-btn-primary font-semibold"
+                    : "notion-btn-utility text-ink-secondary"
                 }`}
               >
                 {i + 1}
@@ -108,7 +111,7 @@ export function ViewerToolbar({
 
       {/* Editing Mode or Instruction Notice */}
       {editingRegionId ? (
-        <div className="w-full sm:w-auto flex items-center justify-between gap-2 px-2.5 py-1.5 min-h-[32px] rounded-md bg-primary/10 border border-primary/30 text-[11px] text-primary font-medium shadow-2xs animate-in fade-in overflow-hidden">
+        <div className="w-full sm:w-auto flex items-center justify-between gap-2 px-2.5 py-1 min-h-[28px] rounded-md bg-canvas-soft border border-primary/40 text-xs text-primary font-medium overflow-hidden">
           <div className="flex items-center gap-1.5 min-w-0 truncate">
             <Sliders className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span className="truncate">
@@ -119,7 +122,7 @@ export function ViewerToolbar({
           <button
             type="button"
             onClick={onExitEditMode}
-            className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface border border-primary/30 text-ink text-[11px] font-semibold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer shadow-2xs"
+            className="notion-btn-utility min-h-0 h-6 px-2 text-[11px] shrink-0"
             title="Exit edit mode"
           >
             <X className="h-3 w-3 text-ink-muted" />
@@ -127,12 +130,12 @@ export function ViewerToolbar({
           </button>
         </div>
       ) : readOnly ? (
-        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-hairline text-[11px] text-ink-secondary shadow-2xs">
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-secondary">
           <Eye className="h-3 w-3 text-primary inline shrink-0" />
           <span>Click any question box to inspect marks &amp; review</span>
         </div>
       ) : (
-        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface border border-hairline text-[11px] text-ink-secondary shadow-2xs">
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-secondary">
           <span>Click box to inspect • Click <Edit3 className="h-2.5 w-2.5 inline text-primary mx-0.5" /> to adjust box</span>
         </div>
       )}
@@ -140,26 +143,37 @@ export function ViewerToolbar({
       {/* Status Legend */}
       <div className="hidden lg:flex items-center gap-3.5 text-[11px] text-ink-secondary">
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-600"></span> Full
+          <span className="h-2 w-2 rounded-full bg-[#1aae39]"></span> Full
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-500"></span> Partial
+          <span className="h-2 w-2 rounded-full bg-[#dd5b00]"></span> Partial
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[#872323]"></span> Incorrect
+          <span className="h-2 w-2 rounded-full bg-[#c93b3b]"></span> Incorrect
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[#553578]"></span> Review
+          <span className="h-2 w-2 rounded-full bg-[#8b5cf6]"></span> Review
         </span>
       </div>
 
       {/* Right: Annotations toggle & Zoom controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 shrink-0">
+        {zoomScale > 1.05 && (
+          <button
+            type="button"
+            onClick={onResetZoom}
+            className="sm:hidden notion-btn-utility min-h-0 h-7 px-2 text-[11px] font-mono text-primary"
+            title="Reset Zoom"
+          >
+            <RotateCcw className="h-3 w-3" />
+            <span>{Math.round(zoomScale * 100)}%</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleAnnotations}
-          className={`btn-glass-utility flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-            showAnnotations ? "text-primary" : "text-ink-muted opacity-80"
+          className={`notion-btn-utility min-h-0 h-7 px-2.5 ${
+            showAnnotations ? "text-primary" : "text-ink-muted"
           }`}
           title={showAnnotations ? "Hide bounding boxes & annotations" : "Show bounding boxes & annotations"}
         >
@@ -174,22 +188,22 @@ export function ViewerToolbar({
         </button>
 
         {/* Zoom Controls */}
-        <div className="hidden sm:flex items-center gap-0.5 bg-surface rounded-md p-0.5 border border-hairline shadow-2xs">
+        <div className="hidden sm:flex items-center gap-0.5 bg-canvas-soft rounded-md p-0.5 border border-hairline">
           <button
             onClick={onZoomOut}
             disabled={zoomScale <= 1.0}
-            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
+            className="rounded-sm p-1 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
             title="Zoom Out"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
-          <span className="px-1.5 font-mono text-[11px] font-semibold text-ink min-w-[2.75rem] text-center select-none">
+          <span className="px-1.5 font-mono text-[11px] font-semibold text-ink min-w-[2.75rem] text-center select-none tabular-nums">
             {Math.round(zoomScale * 100)}%
           </span>
           <button
             onClick={onZoomIn}
             disabled={zoomScale >= 3.5}
-            className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
+            className="rounded-sm p-1 text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer"
             title="Zoom In"
           >
             <ZoomIn className="h-3.5 w-3.5" />
@@ -197,7 +211,7 @@ export function ViewerToolbar({
           {zoomScale !== 1.0 && (
             <button
               onClick={onResetZoom}
-              className="rounded p-1 text-ink-muted hover:bg-canvas-soft hover:text-ink transition-colors cursor-pointer"
+              className="rounded-sm p-1 text-ink-muted hover:bg-surface hover:text-ink transition-colors cursor-pointer"
               title="Reset Zoom"
             >
               <RotateCcw className="h-3 w-3 sm:h-3.5 sm:w-3.5" />

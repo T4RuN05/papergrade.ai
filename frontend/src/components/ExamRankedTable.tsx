@@ -12,13 +12,10 @@ import {
   Target,
   Sparkles,
   FileSpreadsheet,
-  CheckCircle2,
   BarChart3,
   X,
-  Clock,
   Lock,
 } from "lucide-react";
-import { BadgePill } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 import { PodiumBooths } from "./student/PodiumBooths";
 import { PodiumCelebrationOverlay } from "./student/PodiumCelebrationOverlay";
@@ -529,74 +526,82 @@ export function ExamRankedTable({
           )
         ) : (
         <div
-          className={`grid gap-2 sm:gap-3.5 transition-opacity duration-200 ${
+          className={`grid gap-3 transition-opacity duration-200 ${
             isFetching ? "opacity-75" : "opacity-100"
           } grid-cols-2 sm:grid-cols-4`}
         >
           {/* Top Score */}
-          <div className="p-2.5 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-0.5 sm:space-y-1 min-w-0">
-            <div className="flex items-center justify-between text-ink-muted text-[10px] sm:text-[11px] font-medium">
-              <span className="truncate">Top Score</span>
-              <Trophy className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-amber-600 shrink-0" />
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px] min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Top Score</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Trophy className="h-3.5 w-3.5" />
+              </span>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-sm sm:text-xl font-bold font-mono text-ink">
+            <div className="flex items-baseline gap-1 mt-1.5">
+              <span className="notion-heading-3 text-xl sm:text-[22px] font-mono text-ink tabular-nums">
                 {stats.topper?.effectiveScore.toFixed(1)}
               </span>
-              <span className="text-[10px] sm:text-xs text-ink-muted font-mono">
+              <span className="text-xs text-ink-muted font-mono">
                 / {stats.topper?.effectiveMaxMarks}m
               </span>
             </div>
-            <div className="text-[9.5px] sm:text-[10.5px] text-ink-muted truncate">
+            <div className="text-xs text-ink-muted truncate mt-1">
               {stats.topper?.student_name}
             </div>
           </div>
 
           {/* Class Mean */}
-          <div className="p-2.5 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-0.5 sm:space-y-1 min-w-0">
-            <div className="flex items-center justify-between text-ink-muted text-[10px] sm:text-[11px] font-medium">
-              <span className="truncate">Class Mean</span>
-              <TrendingUp className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-primary shrink-0" />
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px] min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Class Mean</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-primary shrink-0">
+                <TrendingUp className="h-3.5 w-3.5" />
+              </span>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-sm sm:text-xl font-bold font-mono text-ink">
+            <div className="flex items-baseline gap-1 mt-1.5">
+              <span className="notion-heading-3 text-xl sm:text-[22px] font-mono text-ink tabular-nums">
                 {stats.average}
               </span>
-              <span className="text-[10px] sm:text-xs text-ink-muted font-mono">/ {maxMarks}m</span>
+              <span className="text-xs text-ink-muted font-mono">/ {maxMarks}m</span>
             </div>
-            <div className="text-[9.5px] sm:text-[10.5px] text-ink-muted truncate">
+            <div className="text-xs text-ink-muted truncate mt-1">
               {((stats.average / (maxMarks || 25)) * 100).toFixed(0)}% avg
             </div>
           </div>
 
           {/* Median */}
-          <div className="p-3 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-1">
-            <div className="flex items-center justify-between text-ink-muted text-[11px] font-medium">
-              <span>Median Score</span>
-              <Target className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px] min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Median Score</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Target className="h-3.5 w-3.5" />
+              </span>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-bold font-mono text-ink">
+            <div className="flex items-baseline gap-1 mt-1.5">
+              <span className="notion-heading-3 text-xl sm:text-[22px] font-mono text-ink tabular-nums">
                 {stats.median}
               </span>
               <span className="text-xs text-ink-muted font-mono">/ {maxMarks}m</span>
             </div>
-            <div className="text-[10.5px] text-ink-muted">50th percentile</div>
+            <div className="text-xs text-ink-muted truncate mt-1">50th percentile</div>
           </div>
 
           {/* Distinction Count */}
-          <div className="p-3 sm:p-3.5 rounded-xl bg-surface border border-hairline shadow-2xs space-y-1">
-            <div className="flex items-center justify-between text-ink-muted text-[11px] font-medium">
-              <span>Distinctions (≥75%)</span>
-              <Sparkles className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+          <div className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px] min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">Distinctions (≥75%)</span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Sparkles className="h-3.5 w-3.5" />
+              </span>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-bold font-mono text-ink">
+            <div className="flex items-baseline gap-1 mt-1.5">
+              <span className="notion-heading-3 text-xl sm:text-[22px] font-mono text-ink tabular-nums">
                 {stats.distinctionCount}
               </span>
-              <span className="text-xs text-ink-muted">of {stats.total} students</span>
+              <span className="text-xs text-ink-muted">of {stats.total}</span>
             </div>
-            <div className="text-[10.5px] text-ink-muted">
+            <div className="text-xs text-ink-muted truncate mt-1">
               {((stats.distinctionCount / stats.total) * 100).toFixed(0)}% distinction rate
             </div>
           </div>
@@ -609,7 +614,7 @@ export function ExamRankedTable({
       <div className={isStudentView ? "animate-podium-list-reveal space-y-3.5 w-full" : "space-y-3.5 w-full"}>
       {/* SEARCH, BRACKET FILTERS, & TOOLBAR */}
       {!hideToolbar && (
-        <div className={`p-2.5 sm:p-3 rounded-2xl bg-surface border border-hairline shadow-2xs ${!isStudentView ? "space-y-2" : ""}`}>
+        <div className={`notion-card p-3 ${!isStudentView ? "space-y-2.5" : ""}`}>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
             {/* Search Input */}
             <div className="relative flex-1">
@@ -619,13 +624,13 @@ export function ExamRankedTable({
                 value={effectiveSearchTerm}
                 onChange={(e) => setInternalSearchTerm(e.target.value)}
                 placeholder={isStudentView ? "Search student name..." : "Search student by name or roll number..."}
-                className="w-full pl-8 pr-7 py-1.5 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface text-xs text-ink placeholder:text-ink-muted rounded-xl border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+                className="w-full pl-8 pr-7 py-1.5 bg-canvas-soft focus:bg-surface text-xs text-ink placeholder:text-ink-faint rounded-xs border border-hairline focus:outline-none focus:border-primary transition-colors"
               />
               {effectiveSearchTerm && (
                 <button
                   type="button"
                   onClick={() => setInternalSearchTerm("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded transition-colors cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-xs transition-colors cursor-pointer"
                   title="Clear search"
                 >
                   <X className="h-3 w-3" />
@@ -638,10 +643,10 @@ export function ExamRankedTable({
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink transition-colors cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
+                className="notion-btn-utility w-full sm:w-auto shrink-0"
                 title="Download complete ranked list as CSV"
               >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <FileSpreadsheet className="h-3.5 w-3.5 text-[#1aae39] shrink-0" />
                 <span>Export CSV</span>
               </button>
             )}
@@ -650,16 +655,16 @@ export function ExamRankedTable({
           {/* Quick Filter Pills (Faculty only - removed from student PWA) */}
           {!isStudentView && (
             <div className="flex items-center gap-1.5 text-xs overflow-x-auto no-scrollbar py-0.5 shrink-0 select-none" data-no-swipe="true">
-              <span className="text-[10px] sm:text-[11px] font-bold text-ink-muted uppercase tracking-wider mr-0.5 shrink-0">
+              <span className="text-xs font-medium text-ink-muted mr-0.5 shrink-0">
                 Filter:
               </span>
               <button
                 type="button"
                 onClick={() => setInternalBracketFilter("ALL")}
-                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                   effectiveBracketFilter === "ALL"
-                    ? "bg-primary text-white font-semibold shadow-2xs"
-                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                    ? "bg-primary text-white font-semibold"
+                    : "bg-canvas-soft text-ink-secondary hover:text-ink border border-hairline font-medium"
                 }`}
               >
                 All Ranked ({rankedAll.length})
@@ -667,10 +672,10 @@ export function ExamRankedTable({
               <button
                 type="button"
                 onClick={() => setInternalBracketFilter("TOP10")}
-                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                   effectiveBracketFilter === "TOP10"
-                    ? "bg-primary text-white font-semibold shadow-2xs"
-                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                    ? "bg-primary text-white font-semibold"
+                    : "bg-canvas-soft text-ink-secondary hover:text-ink border border-hairline font-medium"
                 }`}
               >
                 Top 10
@@ -678,10 +683,10 @@ export function ExamRankedTable({
               <button
                 type="button"
                 onClick={() => setInternalBracketFilter("DISTINCTION")}
-                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                   effectiveBracketFilter === "DISTINCTION"
-                    ? "bg-emerald-600 text-white font-semibold shadow-2xs"
-                    : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/70 font-medium"
+                    ? "bg-primary text-white font-semibold"
+                    : "bg-canvas-soft text-ink-secondary hover:text-ink border border-hairline font-medium"
                 }`}
               >
                 Distinction (≥75%)
@@ -694,7 +699,7 @@ export function ExamRankedTable({
                     setInternalSearchTerm("");
                     setInternalBracketFilter("ALL");
                   }}
-                  className="text-[10.5px] sm:text-[11px] font-semibold text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
+                  className="text-xs font-medium text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
                 >
                   Reset
                 </button>
@@ -706,13 +711,13 @@ export function ExamRankedTable({
 
       {/* RANKED TABLE VIEW */}
       {isFetching && (
-        <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full">
-          <div className="h-full bg-primary animate-pulse w-full" />
+        <div className="h-0.5 w-full bg-hairline overflow-hidden rounded-full">
+          <div className="h-full bg-primary w-2/5" />
         </div>
       )}
       <div className={`transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
         {filteredRanked.length === 0 ? (
-        <div className="rounded-xl border border-hairline bg-surface p-6 sm:p-8 text-center space-y-2 shadow-2xs w-full">
+        <div className="notion-card p-6 sm:p-8 text-center space-y-2 w-full">
           <BarChart3 className="h-8 w-8 text-ink-faint mx-auto" />
           <h4 className="text-xs sm:text-sm font-semibold text-ink">
             {rankedAll.length === 0
@@ -749,8 +754,8 @@ export function ExamRankedTable({
             }}
           >
             <table className="w-full text-left text-xs border-collapse table-fixed">
-              <thead className="sticky top-0 z-10 bg-canvas-soft border-b border-hairline shadow-2xs">
-                <tr className="text-ink-muted font-medium text-[10.5px] sm:text-[11px] uppercase tracking-wider">
+              <thead className="sticky top-0 z-10 bg-canvas-soft border-b border-hairline">
+                <tr className="text-ink-muted notion-eyebrow">
                   <th className="py-2.5 px-2.5 sm:px-3 text-center w-14 sm:w-16">Rank</th>
                   <th className="py-2.5 px-2.5 sm:px-3">Student</th>
                   <th className="py-2.5 px-2.5 sm:px-3 text-right w-20 sm:w-24">Score (/{maxMarks}m)</th>
@@ -797,7 +802,7 @@ export function ExamRankedTable({
                             {item.student_name}
                           </span>
                           {isYou && (
-                            <span className="px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-primary text-white tracking-wide uppercase shrink-0">
+                            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-semibold bg-primary text-white shrink-0">
                               You
                             </span>
                           )}
@@ -819,17 +824,104 @@ export function ExamRankedTable({
         </div>
       ) : (
         /* =========================================================================
-           FACULTY / ROSTER VIEW: Comprehensive 7 columns with inspection links
+           FACULTY / ROSTER VIEW: Mobile Card Stack (< 640px) + Desktop Table (>= 640px)
            ========================================================================= */
-        <div className={`overflow-x-auto ${hideToolbar ? "rounded-none border-0 shadow-none" : "rounded-xl border border-hairline shadow-2xs"} bg-surface sleek-scrollbar w-full`}>
+        <div className={`${hideToolbar ? "rounded-none border-0 shadow-none bg-surface" : "notion-card overflow-hidden"} w-full`}>
+          {/* Mobile Card List (< 640px) */}
+          <div className="sm:hidden divide-y divide-hairline">
+            {filteredRanked.map((item) => {
+              const isYou = item.isCurrentStudent;
+              const sUpper = (item.status || "").toUpperCase();
+              const isEvaluating = ["QUEUED", "PROCESSING", "EVALUATING"].includes(sUpper);
+              const dotClass =
+                sUpper === "NEEDS_REVIEW"
+                  ? "bg-[#8b5cf6]"
+                  : isEvaluating
+                  ? "bg-[#dd5b00]"
+                  : sUpper === "UPLOADED" || sUpper === "PENDING"
+                  ? "bg-primary"
+                  : "bg-[#1aae39]";
+              const statusLabel =
+                sUpper === "NEEDS_REVIEW"
+                  ? "Needs Review"
+                  : isEvaluating
+                  ? "Evaluating"
+                  : sUpper === "UPLOADED" || sUpper === "PENDING"
+                  ? "Uploaded"
+                  : "Finalized";
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-3.5 space-y-2 ${isYou ? "bg-primary/[0.04] border-l-2 border-l-primary" : "bg-surface"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {renderRankBadge(item.rank)}
+                      <div className="min-w-0">
+                        <div className="font-semibold text-sm text-ink truncate flex items-center gap-1.5">
+                          <span className="truncate">{item.student_name}</span>
+                          {Boolean(item.is_manual_override) && (
+                            <span className="px-1.5 py-0.2 rounded-xs text-[10px] font-medium bg-canvas-soft text-ink-secondary border border-hairline shrink-0">
+                              Overridden
+                            </span>
+                          )}
+                        </div>
+                        {item.roll_number && (
+                          <div className="text-xs font-mono text-ink-muted">
+                            Roll: {item.roll_number}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="font-mono font-bold text-sm text-ink tabular-nums">
+                        {item.effectiveScore.toFixed(1)}
+                        <span className="text-ink-muted font-normal text-xs">/{item.effectiveMaxMarks}m</span>
+                      </div>
+                      <div className="font-mono text-xs text-primary font-semibold tabular-nums">
+                        {item.effectivePercentage.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-hairline">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary">
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotClass}`} />
+                      <span>{statusLabel}</span>
+                    </span>
+
+                    {isEvaluating ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted opacity-50">
+                        <Lock className="h-3 w-3" />
+                        <span>Evaluating...</span>
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/grading/${item.id}`}
+                        className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
+                      >
+                        <span>Inspect Sheet</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table (>= 640px) */}
+          <div className="hidden sm:block overflow-x-auto sleek-scrollbar w-full">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium text-[11px] uppercase tracking-wider">
+              <tr className="bg-canvas-soft border-b border-hairline text-ink-muted notion-eyebrow">
                 <th className="py-3 px-4 text-center w-20">Rank</th>
                 <th className="py-3 px-4">Student</th>
                 <th className="py-3 px-4 text-right">Score</th>
                 <th className="py-3 px-4 text-center">Percentage</th>
-                <th className="py-3 px-4 text-center hidden sm:table-cell">Percentile</th>
+                <th className="py-3 px-4 text-center hidden md:table-cell">Percentile</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
@@ -837,10 +929,6 @@ export function ExamRankedTable({
             <tbody className="divide-y divide-hairline">
               {filteredRanked.map((item) => {
                 const isTop3 = item.rank <= 3;
-                const pct = item.effectivePercentage;
-                const scoreColor =
-                  pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
-
                 const isYou = item.isCurrentStudent;
 
                 return (
@@ -848,7 +936,7 @@ export function ExamRankedTable({
                     key={item.id}
                     className={`transition-colors ${
                       isYou
-                        ? "bg-primary/5 hover:bg-primary/10 border-l-4 border-l-primary font-medium"
+                        ? "bg-primary/[0.04] hover:bg-primary/[0.08] border-l-4 border-l-primary font-medium"
                         : isTop3
                         ? "bg-surface hover:bg-canvas-soft/70"
                         : "hover:bg-canvas-soft/50"
@@ -866,19 +954,19 @@ export function ExamRankedTable({
                           <div className="font-semibold text-ink flex items-center gap-1.5">
                             <span>{item.student_name}</span>
                             {isYou && (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary text-white tracking-wide uppercase">
+                              <span className="px-1.5 py-0.2 rounded-xs text-[10px] font-semibold bg-primary text-white">
                                 You
                               </span>
                             )}
                             {Boolean(item.is_manual_override) && (
-                              <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="px-1.5 py-0.2 rounded-xs text-[10px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
                                 Overridden
                               </span>
                             )}
                           </div>
                           {item.roll_number && (
                             <div className="text-[11px] font-mono text-ink-muted">
-                              Roll: <strong className="text-ink font-semibold">{item.roll_number}</strong>
+                              Roll: <strong className="text-ink font-medium">{item.roll_number}</strong>
                             </div>
                           )}
                         </div>
@@ -886,7 +974,7 @@ export function ExamRankedTable({
                     </td>
 
                     {/* Score */}
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <td className="py-3 px-4 text-right whitespace-nowrap tabular-nums">
                       <span className="font-mono font-bold text-ink text-sm">
                         {item.effectiveScore.toFixed(1)}
                       </span>
@@ -896,14 +984,14 @@ export function ExamRankedTable({
                     </td>
 
                     {/* Percentage */}
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <span className="font-mono font-bold text-ink text-xs">
+                    <td className="py-3 px-4 text-center whitespace-nowrap tabular-nums">
+                      <span className="font-mono font-semibold text-ink text-xs">
                         {item.effectivePercentage.toFixed(1)}%
                       </span>
                     </td>
 
                     {/* Percentile */}
-                    <td className="py-3 px-4 text-center whitespace-nowrap font-mono text-xs text-ink-secondary hidden sm:table-cell">
+                    <td className="py-3 px-4 text-center whitespace-nowrap font-mono text-xs text-ink-secondary hidden md:table-cell tabular-nums">
                       {item.percentile}th %ile
                     </td>
 
@@ -913,29 +1001,31 @@ export function ExamRankedTable({
                         const sUpper = (item.status || "").toUpperCase();
                         if (sUpper === "NEEDS_REVIEW") {
                           return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800/40">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xs text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6]" />
                               Needs Review
                             </span>
                           );
                         }
                         if (["QUEUED", "PROCESSING", "EVALUATING"].includes(sUpper)) {
                           return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40">
-                              <Clock className="h-3 w-3 animate-spin text-amber-600" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xs text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#dd5b00]" />
                               Evaluating
                             </span>
                           );
                         }
                         if (sUpper === "UPLOADED" || sUpper === "PENDING") {
                           return (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-800/40">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xs text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                               Uploaded
                             </span>
                           );
                         }
                         return (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xs text-[11px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#1aae39]" />
                             Finalized
                           </span>
                         );
@@ -946,7 +1036,7 @@ export function ExamRankedTable({
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       {["QUEUED", "PROCESSING", "EVALUATING"].includes((item.status || "").toUpperCase()) ? (
                         <span
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-ink-muted opacity-40 cursor-not-allowed select-none"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted opacity-45 cursor-not-allowed select-none"
                           title="Evaluation in progress. Paper inspection will unlock once evaluation completes."
                         >
                           <Lock className="h-3 w-3" />
@@ -955,7 +1045,7 @@ export function ExamRankedTable({
                       ) : (
                         <Link
                           href={`/grading/${item.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover hover:underline"
+                          className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                         >
                           <span>Inspect Sheet</span>
                           <ArrowRight className="h-3 w-3" />
@@ -967,6 +1057,7 @@ export function ExamRankedTable({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       </div>

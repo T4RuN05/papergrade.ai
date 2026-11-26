@@ -88,7 +88,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   // Solid (non-blurred) surface on touch/small screens — see the Mobile GPU
   // Rasterization Guard in globals.css for why backdrop blur is banned there.
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-hairline bg-surface lg:bg-surface/90 lg:backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-hairline bg-surface">
       <div className="flex h-14 items-center justify-between px-3 sm:px-6 gap-2">
         {/* Left: Mobile hamburger & Unified Canonical Breadcrumbs */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -143,13 +143,13 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           <button
             type="button"
             onClick={openDrawer}
-            className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors shrink-0 cursor-pointer"
             title="Open Notifications Sidebar"
             aria-label="Open Notifications"
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white shadow-xs ring-2 ring-surface animate-in zoom-in-50 leading-none">
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white ring-2 ring-surface animate-in zoom-in-50 leading-none">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -159,7 +159,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
           {mounted && currentUser && (
             <Link
               href="/settings"
-              className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-canvas text-ink hover:ring-2 hover:ring-primary/40 transition-all shrink-0 cursor-pointer overflow-hidden shadow-2xs"
+              className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-hairline bg-canvas-soft hover:bg-surface text-ink hover:border-primary transition-colors shrink-0 cursor-pointer overflow-hidden"
               title="Account & Settings"
               aria-label="Open account settings"
             >

@@ -4,10 +4,8 @@ import React, { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  Layers,
   ArrowLeft,
   CheckCircle2,
-  Clock,
   Download,
   ExternalLink,
   GraduationCap,
@@ -21,7 +19,6 @@ import {
   FileText,
   Lock,
   RefreshCw,
-  Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
@@ -29,10 +26,6 @@ import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useBatchDetail, useExamDetail } from "@/lib/queries";
 import {
-  ButtonUtility,
-  FeatureCard,
-  BadgePill,
-  BatchDetailSkeleton,
   AppleSelect,
   MetricValue,
   TableSkeletonRows,
@@ -125,31 +118,74 @@ export default function SingleBatchPage() {
   if (!isBatchLoading && !batch) {
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
-        <FeatureCard className="p-8 text-center space-y-4">
-          <div className="mx-auto h-12 w-12 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
-            <AlertCircle className="h-6 w-6" />
+        <div className="notion-card rounded-lg p-8 text-center space-y-4">
+          <div className="mx-auto h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-red-600 dark:text-[#f28b82]">
+            <AlertCircle className="h-5 w-5" />
           </div>
-          <h2 className="text-base font-bold text-ink">Batch Not Found</h2>
+          <h2 className="notion-heading-3 text-base text-ink">Batch Not Found</h2>
           <p className="text-xs text-ink-muted">
-            The batch ID <code className="font-mono bg-canvas-soft px-1.5 py-0.5 rounded">{batchId}</code> could not be located in the academic registry.
+            The batch ID <code className="font-mono bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded-xs">{batchId}</code> could not be located in the academic registry.
           </p>
           <div className="pt-2">
-            <ButtonUtility href="/branch/batches">
-              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-              Return to Batches & Roster
-            </ButtonUtility>
+            <Link href="/branch/batches" className="notion-btn-utility">
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+              <span>Return to Batches &amp; Roster</span>
+            </Link>
           </div>
-        </FeatureCard>
+        </div>
       </div>
     );
   }
 
+  const renderStatusBadge = (sub: any) => {
+    const s = (sub.status || "UPLOADED").toUpperCase();
+    const dot =
+      s === "COMPLETED" || s === "GRADED"
+        ? "bg-emerald-500"
+        : s === "PROCESSING"
+        ? "bg-primary"
+        : s === "QUEUED"
+        ? "bg-amber-500"
+        : s === "FAILED"
+        ? "bg-rose-500"
+        : s === "NEEDS_REVIEW"
+        ? "bg-amber-500"
+        : "bg-ink-faint";
+
+    const label =
+      s === "COMPLETED" || s === "GRADED"
+        ? "Completed"
+        : s === "PROCESSING"
+        ? "Processing"
+        : s === "QUEUED"
+        ? "Queued"
+        : s === "FAILED"
+        ? "Failed"
+        : s === "NEEDS_REVIEW"
+        ? "Needs Review"
+        : s.charAt(0) + s.slice(1).toLowerCase();
+
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-secondary bg-canvas-soft px-2.5 py-0.5 rounded-full border border-hairline whitespace-nowrap"
+        title={s === "FAILED" ? sub.error_message || "Evaluation failed." : undefined}
+      >
+        {s === "PROCESSING" ? (
+          <RefreshCw className="h-3 w-3 animate-spin text-primary shrink-0" />
+        ) : (
+          <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />
+        )}
+        {label}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* Main Header Card */}
-      <FeatureCard className="p-6 sm:p-8 space-y-6 border-hairline bg-surface">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-hairline">
-          <div className="space-y-2 max-w-2xl">
+      <div className="notion-card rounded-lg p-4 sm:p-6 md:p-8 space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-5 border-b border-hairline">
+          <div className="space-y-2 max-w-2xl min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               {isBatchLoading && !batch ? (
                 <>
@@ -158,49 +194,53 @@ export default function SingleBatchPage() {
                 </>
               ) : (
                 <>
-                  <BadgePill
-                    label={batch?.status === "COMPLETED" ? "Evaluation Completed" : batch?.status || "Active"}
-                    color={batch?.status === "COMPLETED" ? "green" : "orange"}
-                  />
-                  <BadgePill label={`AY ${batch?.academic_year || "2026"}`} color="gray" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary">
+                    <span className={`w-1.5 h-1.5 rounded-full ${batch?.status === "COMPLETED" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                    {batch?.status === "COMPLETED" ? "Evaluation Completed" : batch?.status || "Active"}
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-muted tabular-nums">
+                    AY {batch?.academic_year || "2026"}
+                  </span>
                 </>
               )}
             </div>
             {isBatchLoading && !batch ? (
               <Skeleton className="h-8 w-64 rounded-md my-0.5" />
             ) : (
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+              <h1 className="notion-heading-2 text-2xl sm:text-[28px] text-ink break-words">
                 {batch?.name}
               </h1>
             )}
             <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
               Enrolled evaluation batch for{" "}
-              <span className="font-semibold text-ink">
+              <span className="font-medium text-ink">
                 {selectedInstitute?.name || "Coaching Institute"}
               </span>
               {selectedBranch?.name ? ` (${selectedBranch.name})` : ""}. Total registered scripts:{" "}
               {isBatchLoading && !batch ? (
-                <span className="font-mono font-bold text-ink">...</span>
+                <span className="font-mono font-semibold text-ink">...</span>
               ) : (
-                <span className="font-mono font-bold text-ink">{batch?.total_submissions || 0} submissions</span>
+                <span className="font-mono tabular-nums font-semibold text-ink">
+                  {batch?.total_submissions || 0} submissions
+                </span>
               )}.
             </p>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 sm:self-start lg:self-center">
+          {/* Balanced Action Buttons */}
+          <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:flex sm:flex-wrap sm:items-center gap-2 w-full lg:w-auto shrink-0">
             {batch?.exam_id && (
-              <ButtonUtility href={`/exams/${batch.exam_id}`}>
-                <GraduationCap className="h-3.5 w-3.5 mr-1.5 text-primary" />
-                Exam Details
-              </ButtonUtility>
+              <Link href={`/exams/${batch.exam_id}`} className="notion-btn-utility justify-center">
+                <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>Exam Details</span>
+              </Link>
             )}
 
             {batch?.exam_id && (
-              <ButtonUtility href={`/marks?exam_id=${batch.exam_id}`}>
-                <FileCheck2 className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
-                Marks Ledger
-              </ButtonUtility>
+              <Link href={`/marks?exam_id=${batch.exam_id}`} className="notion-btn-utility justify-center">
+                <FileCheck2 className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
+                <span>Marks Ledger</span>
+              </Link>
             )}
 
             {stats.completed > 0 && batch && (
@@ -208,10 +248,10 @@ export default function SingleBatchPage() {
                 href={api.getBatchZipUrl(batch.id, `${(batch.name || "Batch").replace(/\s+/g, "_")}_Graded_PDFs.zip`)}
                 download={`${(batch.name || "Batch").replace(/\s+/g, "_")}_Graded_PDFs.zip`}
                 onClick={() => toast.info("Preparing and downloading batch graded PDFs archive...", { title: "ZIP Archive Export" })}
-                className="inline-flex items-center justify-center font-medium rounded-full bg-primary hover:bg-primary-active text-white text-xs px-4 py-2 transition-all shadow-sm"
+                className="notion-btn-primary justify-center"
               >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Download Graded PDFs (ZIP)
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                <span>Download Graded PDFs (ZIP)</span>
               </a>
             )}
           </div>
@@ -221,12 +261,12 @@ export default function SingleBatchPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs bg-canvas-soft rounded-lg p-4 border border-hairline">
           <div className="flex items-start gap-2.5">
             <Building2 className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
-            <div>
+            <div className="min-w-0">
               <span className="text-ink-muted block text-[11px]">Academic Institution</span>
-              <span className="font-semibold text-ink">
+              <span className="font-semibold text-ink block truncate">
                 {selectedInstitute?.name || "Coaching Institute"}
               </span>
-              <span className="text-ink-secondary block text-[11px]">
+              <span className="text-ink-secondary block text-[11px] truncate">
                 {selectedBranch ? `${selectedBranch.name}${selectedBranch.city ? ` (${selectedBranch.city})` : ""}` : "Assigned Branch"}
               </span>
             </div>
@@ -234,140 +274,153 @@ export default function SingleBatchPage() {
 
           <div className="flex items-start gap-2.5">
             <GraduationCap className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
-            <div>
+            <div className="min-w-0">
               <span className="text-ink-muted block text-[11px]">Linked Examination</span>
               {exam ? (
                 <Link
                   href={`/exams/${exam.id}`}
                   className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
                 >
-                  {exam.title} ({exam.subject})
-                  <ExternalLink className="h-3 w-3" />
+                  <span className="truncate">{exam.title} ({exam.subject})</span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
               ) : (
                 <span className="text-ink-secondary font-medium">Official Curriculum Exam</span>
               )}
-              <span className="text-ink-muted block text-[11px]">Max Marks: {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}</span>
+              <span className="text-ink-muted block text-[11px] tabular-nums">
+                Max Marks: {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "N/A"}
+              </span>
             </div>
           </div>
 
           <div className="flex items-start gap-2.5">
             <FileText className="h-4 w-4 text-ink-muted mt-0.5 shrink-0" />
-            <div>
+            <div className="min-w-0">
               <span className="text-ink-muted block text-[11px]">Evaluated Papers Storage</span>
-              <span className="font-semibold text-emerald-600 block">Cloudinary & Supabase Verified</span>
+              <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">
+                Cloudflare R2 &amp; Supabase Verified
+              </span>
               <span className="text-ink-muted text-[11px]">Zero-Egress Academic Vault</span>
             </div>
           </div>
         </div>
 
         {/* Performance Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
-              <span>Evaluated Papers</span>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 sm:p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-2">
+              <span className="font-medium truncate">Evaluated Papers</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
             </div>
             <div className="flex items-baseline gap-1.5">
               <MetricValue
                 isLoading={isBatchLoading}
                 value={stats.completed}
-                className="text-2xl font-bold font-mono text-ink"
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
                 width="w-10"
               />
-              <span className="text-xs text-ink-muted">/ {stats.total} total</span>
+              <span className="text-xs text-ink-muted tabular-nums">/ {stats.total} total</span>
             </div>
-            <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full mt-2.5 overflow-hidden">
+            <div className="w-full bg-surface border border-hairline h-1.5 rounded-full mt-2.5 overflow-hidden">
               <div
-                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                className="bg-primary h-full rounded-full transition-all duration-500"
                 style={{ width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%` }}
               />
             </div>
           </div>
 
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
-              <span>Batch Mean Score</span>
-              <Award className="h-4 w-4 text-primary" />
+          <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 sm:p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-2">
+              <span className="font-medium truncate">Batch Mean Score</span>
+              <Award className="h-4 w-4 text-primary shrink-0" />
             </div>
             <div className="flex items-baseline gap-1.5">
               <MetricValue
                 isLoading={isBatchLoading}
                 value={stats.avgMarks.toFixed(1)}
-                className="text-2xl font-bold font-mono text-ink"
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
                 width="w-12"
               />
-              <span className="text-xs text-ink-muted">/ {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</span>
+              <span className="text-xs text-ink-muted tabular-nums">
+                / {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}
+              </span>
             </div>
-            <div className="text-[11px] text-ink-secondary font-medium mt-1">
-              Batch Average: <span className="font-semibold text-primary">{stats.avgPct.toFixed(1)}%</span>
+            <div className="text-xs text-ink-muted mt-1.5 tabular-nums">
+              Average: <span className="font-semibold text-ink">{stats.avgPct.toFixed(1)}%</span>
             </div>
           </div>
 
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
-              <span>Top Score</span>
-              <Sparkles className="h-4 w-4 text-amber-500" />
+          <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 sm:p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-2">
+              <span className="font-medium truncate">Top Score</span>
+              <Sparkles className="h-4 w-4 text-ink-secondary shrink-0" />
             </div>
             <div className="flex items-baseline gap-1.5">
               <MetricValue
                 isLoading={isBatchLoading}
                 value={stats.maxScore.toFixed(1)}
-                className="text-2xl font-bold font-mono text-emerald-600"
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
                 width="w-12"
               />
-              <span className="text-xs text-ink-muted">/ {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}</span>
+              <span className="text-xs text-ink-muted tabular-nums">
+                / {exam?.total_marks && exam.total_marks > 0 ? exam.total_marks : "—"}
+              </span>
             </div>
-            <div className="text-[11px] text-ink-muted mt-1">
-              Lowest Score: <span className="font-mono font-medium text-ink">{stats.minScore.toFixed(1)}</span>
+            <div className="text-xs text-ink-muted mt-1.5 tabular-nums">
+              Lowest: <span className="font-mono font-medium text-ink">{stats.minScore.toFixed(1)}</span>
             </div>
           </div>
 
-          <div className="rounded-lg border border-hairline bg-surface p-4 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
-              <span>Pass Rate (≥40%)</span>
-              <GraduationCap className="h-4 w-4 text-purple-600" />
+          <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 sm:p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-2">
+              <span className="font-medium truncate">Pass Rate (≥40%)</span>
+              <GraduationCap className="h-4 w-4 text-ink-secondary shrink-0" />
             </div>
             <div className="flex items-baseline gap-1.5">
               <MetricValue
                 isLoading={isBatchLoading}
                 value={`${stats.passRate.toFixed(1)}%`}
-                className="text-2xl font-bold font-mono text-ink"
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
                 width="w-14"
               />
             </div>
-            <div className="w-full bg-[#f1f1ef] h-1.5 rounded-full mt-2.5 overflow-hidden">
+            <div className="w-full bg-surface border border-hairline h-1.5 rounded-full mt-2.5 overflow-hidden">
               <div
-                className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                className="bg-primary h-full rounded-full transition-all duration-500"
                 style={{ width: `${stats.passRate}%` }}
               />
             </div>
           </div>
         </div>
-      </FeatureCard>
+      </div>
 
       {/* Student Answer Sheets Table */}
-      <FeatureCard className="p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-hairline">
-          <div>
-            <h2 className="text-base font-bold text-ink">
-              Student Answer Sheets in this Batch
-            </h2>
-            <p className="text-xs text-ink-muted mt-0.5">
-              Showing {filteredSubmissions.length} of {submissions.length} total student submissions.
+      <div className="notion-card rounded-lg p-4 sm:p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-hairline">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+                Student Answer Sheets
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-canvas-soft border border-hairline text-ink-muted tabular-nums">
+                {filteredSubmissions.length} of {submissions.length}
+              </span>
+            </div>
+            <p className="text-xs text-ink-muted">
+              Inspect submitted scripts and per-question grading breakdown.
             </p>
           </div>
 
           {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative">
-              <Search className="h-3.5 w-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-52">
+              <Search className="h-3.5 w-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search student or roll #..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs rounded-md border border-hairline bg-surface focus:outline-none focus:border-primary text-ink placeholder:text-ink-faint w-48 transition-all"
+                className="pl-8 pr-3 py-1.5 h-9 text-xs rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface focus:outline-none focus:border-primary text-ink placeholder:text-ink-faint w-full transition-colors"
               />
             </div>
 
@@ -375,6 +428,7 @@ export default function SingleBatchPage() {
               size="sm"
               value={scoreFilter}
               onChange={(val: any) => setScoreFilter(val)}
+              className="w-full sm:w-auto"
               options={[
                 { value: "ALL", label: "All Scores" },
                 { value: "TOP", label: "Distinction (≥75%)" },
@@ -385,8 +439,87 @@ export default function SingleBatchPage() {
           </div>
         </div>
 
-        {/* Table View */}
-        <div className="overflow-x-auto rounded-lg border border-hairline">
+        {/* Mobile Card View (< sm) */}
+        <div className="sm:hidden divide-y divide-hairline rounded-lg border border-hairline overflow-hidden bg-surface">
+          {isBatchLoading && submissions.length === 0 ? (
+            [1, 2, 3, 4].map((i) => (
+              <div key={i} className="p-3.5 space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-44" />
+              </div>
+            ))
+          ) : filteredSubmissions.length === 0 ? (
+            <div className="py-10 px-4 text-center space-y-2">
+              <p className="text-xs font-semibold text-ink">No student submissions found matching current criteria.</p>
+              <p className="text-xs text-ink-muted">Try clearing the search query or adjusting filters.</p>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setScoreFilter("ALL");
+                  }}
+                  className="notion-btn-utility text-xs"
+                >
+                  Reset Search
+                </button>
+              </div>
+            </div>
+          ) : (
+            filteredSubmissions.map((sub) => {
+              const pct = sub.percentage || 0;
+              const isQueuedOrEvaluating = ["QUEUED", "PROCESSING", "EVALUATING"].includes(
+                (sub.status || "").toUpperCase()
+              );
+
+              return (
+                <div key={sub.id} className="p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-ink truncate">
+                        {sub.student_name}
+                      </div>
+                      <div className="text-[11px] font-mono text-ink-muted mt-0.5">
+                        {sub.roll_number} • {sub.page_count || 1} {sub.page_count === 1 ? "pg" : "pgs"}
+                      </div>
+                    </div>
+                    {renderStatusBadge(sub)}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <div className="text-xs font-mono tabular-nums text-ink">
+                      <span className="font-semibold">
+                        {sub.total_awarded_marks != null ? sub.total_awarded_marks.toFixed(1) : "—"}
+                      </span>
+                      <span className="text-ink-muted">
+                        {exam?.total_marks && exam.total_marks > 0 ? ` / ${exam.total_marks}` : ""}
+                      </span>
+                      <span className="text-ink-muted ml-1.5">({pct.toFixed(1)}%)</span>
+                    </div>
+
+                    {isQueuedOrEvaluating ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-ink-muted px-2.5 py-1 rounded-md bg-canvas-soft border border-hairline">
+                        <Lock className="h-3 w-3 shrink-0" />
+                        <span>Evaluating...</span>
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/grading/${sub.id}`}
+                        className="notion-btn-utility min-h-[30px] h-7 px-2.5 text-xs text-primary"
+                      >
+                        <span>Inspect</span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table View (sm+) */}
+        <div className="hidden sm:block overflow-x-auto rounded-lg border border-hairline">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-canvas-soft border-b border-hairline text-ink-muted font-medium">
@@ -417,19 +550,24 @@ export default function SingleBatchPage() {
                 <tr>
                   <td colSpan={7} className="py-12 text-center space-y-2">
                     <p className="text-xs font-semibold text-ink">No student submissions found matching current criteria.</p>
-                    <p className="text-[11px] text-ink-muted">Try clearing the search query or adjusting filters.</p>
+                    <p className="text-xs text-ink-muted">Try clearing the search query or adjusting filters.</p>
                     <div className="pt-2">
-                      <ButtonUtility onClick={() => { setSearchTerm(""); setScoreFilter("ALL"); }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm("");
+                          setScoreFilter("ALL");
+                        }}
+                        className="notion-btn-utility"
+                      >
                         Reset Search
-                      </ButtonUtility>
+                      </button>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredSubmissions.map((sub) => {
                   const pct = sub.percentage || 0;
-                  const scoreBadgeColor =
-                    pct >= 75 ? "green" : pct >= 60 ? "teal" : pct >= 40 ? "sky" : "orange";
 
                   return (
                     <tr
@@ -443,90 +581,40 @@ export default function SingleBatchPage() {
                         <span className="font-medium text-ink block">{sub.student_name}</span>
                         <span className="text-[10px] text-ink-faint font-mono">{sub.id.slice(0, 8)}...</span>
                       </td>
-                      <td className="py-3 px-4 text-center font-mono text-ink-secondary">
+                      <td className="py-3 px-4 text-center font-mono tabular-nums text-ink-secondary">
                         {sub.page_count || 1}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <span className="font-mono font-bold text-ink">
+                      <td className="py-3 px-4 text-right font-mono tabular-nums">
+                        <span className="font-semibold text-ink">
                           {sub.total_awarded_marks != null ? sub.total_awarded_marks.toFixed(1) : "—"}
                         </span>
-                        <span className="text-ink-muted font-mono text-[11px]">{exam?.total_marks && exam.total_marks > 0 ? ` / ${exam.total_marks}` : ""}</span>
+                        <span className="text-ink-muted text-[11px]">
+                          {exam?.total_marks && exam.total_marks > 0 ? ` / ${exam.total_marks}` : ""}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-mono tabular-nums">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-xs font-medium text-ink">
+                          {pct.toFixed(1)}%
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <BadgePill
-                          label={`${pct.toFixed(1)}%`}
-                          color={scoreBadgeColor}
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {(() => {
-                          const s = (sub.status || "UPLOADED").toUpperCase();
-                          if (s === "COMPLETED" || s === "GRADED") {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                COMPLETED
-                              </span>
-                            );
-                          }
-                          if (s === "PROCESSING") {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                                <RefreshCw className="h-3 w-3 animate-spin text-blue-600" />
-                                PROCESSING
-                              </span>
-                            );
-                          }
-                          if (s === "QUEUED") {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                <Clock className="h-3 w-3 text-amber-600" />
-                                QUEUED
-                              </span>
-                            );
-                          }
-                          if (s === "FAILED") {
-                            return (
-                              <span
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200"
-                                title={(sub as any).error_message || "Evaluation failed."}
-                              >
-                                <AlertCircle className="h-3 w-3 text-red-600" />
-                                FAILED
-                              </span>
-                            );
-                          }
-                          if (s === "NEEDS_REVIEW") {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                                <Eye className="h-3 w-3 text-purple-600" />
-                                NEEDS REVIEW
-                              </span>
-                            );
-                          }
-                          return (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
-                              <FileText className="h-3 w-3 text-slate-500" />
-                              {s}
-                            </span>
-                          );
-                        })()}
+                        {renderStatusBadge(sub)}
                       </td>
                       <td className="py-3 px-4 text-right">
                         {["QUEUED", "PROCESSING", "EVALUATING"].includes(
                           (sub.status || "").toUpperCase()
                         ) ? (
                           <span
-                            className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs px-2.5 py-1 rounded-md opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
+                            className="inline-flex items-center gap-1.5 font-medium text-ink-muted text-xs px-2.5 py-1 rounded-md opacity-55 bg-canvas-soft border border-hairline cursor-not-allowed select-none"
                             title="AI evaluation is currently processing this paper. Sheet inspection will unlock once completed."
                           >
-                            <Lock className="h-3 w-3 text-ink-muted/70" />
+                            <Lock className="h-3 w-3 shrink-0" />
                             <span>Evaluating...</span>
                           </span>
                         ) : (
                           <Link
                             href={`/grading/${sub.id}`}
-                            className="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-active transition-colors text-xs px-2.5 py-1 rounded-md hover:bg-canvas-soft"
+                            className="inline-flex items-center gap-1 font-medium text-primary hover:text-primary-active transition-colors text-xs px-2.5 py-1 rounded-md hover:bg-canvas-soft"
                           >
                             <span>Inspect Sheet</span>
                             <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -540,7 +628,7 @@ export default function SingleBatchPage() {
             </tbody>
           </table>
         </div>
-      </FeatureCard>
+      </div>
     </div>
   );
 }

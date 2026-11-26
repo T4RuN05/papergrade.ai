@@ -80,12 +80,12 @@ export function StudentQuestionBreakdownModal({
     >
       <div className="space-y-4 text-xs">
         {/* Modal Subheader */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-canvas-soft border border-hairline">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase font-bold tracking-wider text-ink-muted">
-              Roll: {submission.roll_number}
+            <div className="text-[11px] font-medium text-ink-muted font-mono">
+              Roll {submission.roll_number}
             </div>
-            <div className="text-sm font-bold text-ink leading-snug mt-0.5">
+            <div className="text-sm font-semibold text-ink leading-snug mt-0.5 tabular-nums">
               Total Awarded:{" "}
               {submission.total_awarded_marks !== null && submission.total_awarded_marks !== undefined
                 ? `${Number(submission.total_awarded_marks).toFixed(1)} / ${
@@ -95,7 +95,7 @@ export function StudentQuestionBreakdownModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0 w-full sm:w-auto">
             {isExamPublished && onOpenRankings && (
               <button
                 type="button"
@@ -103,10 +103,10 @@ export function StudentQuestionBreakdownModal({
                   onClose();
                   onOpenRankings(submission);
                 }}
-                className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-300 dark:border-amber-700/50 transition-all shrink-0 shadow-2xs whitespace-nowrap cursor-pointer"
+                className="notion-btn-utility justify-center px-3 py-1.5 text-xs whitespace-nowrap"
                 title="View Official Class Standings"
               >
-                <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <Trophy className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
                 <span>Class Standings</span>
               </button>
             )}
@@ -116,9 +116,9 @@ export function StudentQuestionBreakdownModal({
                 href={api.getAnnotatedPdfUrl(submission.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="self-start sm:self-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 transition-all shrink-0 shadow-2xs whitespace-nowrap"
+                className="notion-btn-utility justify-center px-3 py-1.5 text-xs whitespace-nowrap"
               >
-                <Download className="h-3.5 w-3.5 shrink-0" />
+                <Download className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span>Annotated PDF</span>
               </a>
             )}

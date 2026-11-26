@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Layers, Award, Sparkles, RotateCcw } from "lucide-react";
+import { Layers, Award, TrendingUp, RotateCcw } from "lucide-react";
 import { MetricValue } from "@/components/ui";
 
 export interface StudentAcademicCountersProps {
@@ -19,71 +19,70 @@ export const StudentAcademicCounters = React.memo(function StudentAcademicCounte
   activeRevalsCount,
   isLoading = false,
 }: StudentAcademicCountersProps) {
+  const items = [
+    {
+      label: "Submitted",
+      value: totalSubmissionsCount,
+      caption: "Answer sheets",
+      width: "w-8",
+      icon: Layers,
+    },
+    {
+      label: "Published",
+      value: publishedCount,
+      caption: "Official scores",
+      width: "w-8",
+      icon: Award,
+    },
+    {
+      label: "Average",
+      value: avgPercentage !== null ? `${avgPercentage}%` : "—",
+      caption: "Across published",
+      width: "w-14",
+      icon: TrendingUp,
+    },
+    {
+      label: "Under Review",
+      value: activeRevalsCount,
+      caption: "Open appeals",
+      width: "w-8",
+      icon: RotateCcw,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 cascade-fast">
-      <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
-        <div className="flex items-center justify-between text-ink-muted">
-          <span className="text-[10px] sm:text-[11px] font-medium">Submitted</span>
-          <Layers className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <div className="text-lg sm:text-xl font-bold text-ink mt-1">
-          <MetricValue
-            value={totalSubmissionsCount}
-            isLoading={isLoading}
-            width="w-8"
-            className="text-lg sm:text-xl font-bold text-ink"
-          />
-        </div>
-        <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">Verified sheets</div>
-      </div>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 cascade-fast">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.label}
+            className="notion-card p-3.5 sm:p-4 flex flex-col justify-between min-h-[104px]"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">
+                {item.label}
+              </span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+            </div>
 
-      <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
-        <div className="flex items-center justify-between text-ink-muted">
-          <span className="text-[10px] sm:text-[11px] font-medium">Published</span>
-          <Award className="h-3.5 w-3.5 text-[#1aae39]" />
-        </div>
-        <div className="text-lg sm:text-xl font-bold text-ink mt-1">
-          <MetricValue
-            value={publishedCount}
-            isLoading={isLoading}
-            width="w-8"
-            className="text-lg sm:text-xl font-bold text-ink"
-          />
-        </div>
-        <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">Official scores</div>
-      </div>
+            <div className="mt-2">
+              <MetricValue
+                value={item.value}
+                isLoading={isLoading}
+                width={item.width}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+              />
+            </div>
 
-      <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
-        <div className="flex items-center justify-between text-ink-muted">
-          <span className="text-[10px] sm:text-[11px] font-medium">Average</span>
-          <Sparkles className="h-3.5 w-3.5 text-[#793caf]" />
-        </div>
-        <div className="text-lg sm:text-xl font-bold text-ink mt-1">
-          <MetricValue
-            value={avgPercentage !== null ? `${avgPercentage}%` : "—"}
-            isLoading={isLoading}
-            width="w-12"
-            className="text-lg sm:text-xl font-bold text-ink"
-          />
-        </div>
-        <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">All exams</div>
-      </div>
-
-      <div className="rounded-lg border border-hairline bg-surface p-2.5 sm:p-3.5 shadow-2xs">
-        <div className="flex items-center justify-between text-ink-muted">
-          <span className="text-[10px] sm:text-[11px] font-medium">Under Review</span>
-          <RotateCcw className="h-3.5 w-3.5 text-[#ea580c]" />
-        </div>
-        <div className="text-lg sm:text-xl font-bold text-ink mt-1">
-          <MetricValue
-            value={activeRevalsCount}
-            isLoading={isLoading}
-            width="w-8"
-            className="text-lg sm:text-xl font-bold text-ink"
-          />
-        </div>
-        <div className="text-[9.5px] sm:text-[10px] text-ink-muted mt-0.5 truncate">Active revals</div>
-      </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">
+              {item.caption}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 });

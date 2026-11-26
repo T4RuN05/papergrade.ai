@@ -2,9 +2,8 @@
 
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, ArrowLeft, ArrowRight } from "lucide-react";
+import { Bell, ArrowLeft } from "lucide-react";
 import { useNotifications } from "@/lib/NotificationContext";
-import { ButtonPrimary, FeatureCard } from "@/components/ui";
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -16,29 +15,47 @@ export default function NotificationsPage() {
   }, [openDrawer]);
 
   return (
-    <div className="max-w-xl mx-auto py-12 px-4 text-center space-y-6">
-      <FeatureCard className="p-8 space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Bell className="h-7 w-7" />
+    <div className="max-w-lg mx-auto py-10 sm:py-16 px-4">
+      <div className="notion-card p-6 sm:p-8 text-center space-y-5">
+        <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-canvas-soft border border-hairline text-ink-secondary">
+          <Bell className="h-5 w-5 text-ink" />
+          {unreadCount > 0 && (
+            <span
+              className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-surface"
+              aria-hidden="true"
+            />
+          )}
         </div>
 
-        <h1 className="text-lg font-bold text-ink">Notifications Moved to Sidebar</h1>
-        <p className="text-xs text-ink-muted leading-relaxed max-w-sm mx-auto">
-          Notifications are now integrated directly into your workspace as a fast slide-over sidebar on the right, so you never lose your place while grading or managing batches.
-        </p>
+        <div className="space-y-1.5">
+          <p className="notion-eyebrow text-ink-muted">Notifications</p>
+          <h1 className="notion-heading-3 text-ink">Notifications Moved to Sidebar</h1>
+          <p className="text-[13px] text-ink-muted leading-relaxed max-w-sm mx-auto">
+            Notifications are integrated into your workspace as a slide-over sidebar on the right, so you never lose your place while grading or managing batches.
+          </p>
+        </div>
 
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <ButtonPrimary size="sm" onClick={() => openDrawer()}>
-            Open Notification Sidebar {unreadCount > 0 ? `(${unreadCount} unread)` : ""}
-          </ButtonPrimary>
+        <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink px-3 py-1.5 rounded-md hover:bg-canvas-soft border border-hairline transition-colors"
+            type="button"
+            onClick={() => openDrawer()}
+            className="notion-btn-primary w-full justify-center text-xs"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Return to previous page
+            <Bell className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              Open Sidebar{unreadCount > 0 ? ` (${unreadCount})` : ""}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="notion-btn-utility w-full justify-center text-xs"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+            <span>Return Back</span>
           </button>
         </div>
-      </FeatureCard>
+      </div>
     </div>
   );
 }

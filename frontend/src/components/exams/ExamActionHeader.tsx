@@ -4,8 +4,6 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  CheckCircle2,
-  Download,
   Trash2,
   MoreHorizontal,
   FileSpreadsheet,
@@ -13,9 +11,8 @@ import {
   Lock,
   Play,
   RefreshCw,
-  Check,
 } from "lucide-react";
-import { BadgePill, ButtonPrimary, ButtonUtility, Skeleton } from "@/components/ui";
+import { Skeleton } from "@/components/ui";
 
 interface ExamActionHeaderProps {
   title?: string;
@@ -83,15 +80,23 @@ export function ExamActionHeader({
     };
   }, [moreMenuOpen]);
 
+  const statusPill = isPublished
+    ? { label: "Published", dot: "bg-emerald-500" }
+    : isRubricApproved
+    ? { label: "Rubric Approved", dot: "bg-emerald-500" }
+    : hasRubric
+    ? { label: "Draft Rubric", dot: "bg-amber-500" }
+    : { label: "No Rubric", dot: "bg-ink-faint" };
+
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+    <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-hairline">
+      <div className="space-y-1.5 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
           <Link
             href="/exams"
-            className="text-xs text-ink-muted hover:text-ink flex items-center gap-1 font-medium mr-1 transition-colors"
+            className="text-xs text-ink-muted hover:text-ink inline-flex items-center gap-1 font-medium transition-colors"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
             <span>Exams</span>
           </Link>
           <span className="text-ink-faint">•</span>
@@ -103,9 +108,13 @@ export function ExamActionHeader({
             </>
           ) : (
             <>
-              {subject && <BadgePill label={subject} color="purple" />}
+              {subject && (
+                <span className="px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-xs font-medium text-ink-secondary">
+                  {subject}
+                </span>
+              )}
               {totalMarks !== undefined && (
-                <span className="text-xs font-mono font-bold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md">
+                <span className="text-xs font-mono tabular-nums font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-xs">
                   {totalMarks} Marks
                 </span>
               )}
@@ -114,15 +123,10 @@ export function ExamActionHeader({
                   {branchName}
                 </span>
               )}
-              {isPublished ? (
-                <BadgePill label="Published" color="purple" />
-              ) : isRubricApproved ? (
-                <BadgePill label="Rubric Approved" color="green" />
-              ) : hasRubric ? (
-                <BadgePill label="Draft Rubric" color="orange" />
-              ) : (
-                <BadgePill label="No Rubric" color="gray" />
-              )}
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">
+                <span className={`w-1.5 h-1.5 rounded-full ${statusPill.dot} shrink-0`} />
+                {statusPill.label}
+              </span>
             </>
           )}
         </div>
@@ -130,23 +134,23 @@ export function ExamActionHeader({
         {isLoading && !title ? (
           <Skeleton className="h-7 sm:h-8 w-64 sm:w-96 rounded-md my-0.5" />
         ) : (
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
+          <h1 className="notion-heading-2 text-2xl sm:text-[26px] text-ink break-words">
             {title}
           </h1>
         )}
       </div>
 
-      <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+      <div className="flex items-center gap-2 self-start sm:self-end flex-wrap w-full sm:w-auto">
         {isLoading && !title ? (
           <>
-            <Skeleton className="h-8 w-24 rounded-md" />
-            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-9 w-28 rounded-md" />
+            <Skeleton className="h-9 w-9 rounded-md" />
           </>
         ) : (
           <>
             {/* 1. Evaluating Status Pill */}
             {isEvaluating ? (
-              <div className="inline-flex items-center gap-2 h-8 px-3 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-2xs select-none">
+              <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md text-xs font-medium bg-surface text-ink border border-hairline select-none tabular-nums">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
                 <span>Evaluating ({evaluatedCount || 0}/{totalSubmissions || 0})</span>
               </div>
@@ -154,73 +158,67 @@ export function ExamActionHeader({
               <>
                 {/* 2. Start / Retry Evaluation Primary Action */}
                 {unprocessedCount !== undefined && unprocessedCount > 0 && onStartEvaluation && (
-                  <ButtonPrimary
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={onStartEvaluation}
                     disabled={!canStartEvaluation || isStartingEval}
-                    isLoading={isStartingEval}
-                    icon={<Play className="h-3.5 w-3.5" />}
                     title={evaluationDisabledReason}
-                    className="text-xs shadow-xs"
+                    className="notion-btn-primary flex-1 sm:flex-initial justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isStartingEval
-                      ? "Starting Evaluation..."
-                      : hasFailedPapers
+                    <Play className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {isStartingEval
+                        ? "Starting Evaluation..."
+                        : hasFailedPapers
                         ? `Retry Evaluation (${unprocessedCount})`
                         : `Start Evaluation (${unprocessedCount})`}
-                  </ButtonPrimary>
+                    </span>
+                  </button>
                 )}
 
                 {/* 3. Publication Status Action */}
                 {isPublished ? (
-                  <span className="h-8 px-2.5 rounded-md border border-hairline/80 bg-surface text-ink-muted text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs select-none">
+                  <span className="h-9 px-3 rounded-md border border-hairline bg-surface text-ink-muted text-xs font-medium inline-flex items-center gap-1.5 select-none">
                     <Lock className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                     <span>Finalized</span>
                   </span>
                 ) : onTogglePublish && (unprocessedCount === 0 || (evaluatedCount !== undefined && evaluatedCount > 0)) ? (
-                  unprocessedCount === 0 ? (
-                    <ButtonPrimary
-                      size="sm"
-                      onClick={onTogglePublish}
-                      isLoading={isPublishing}
-                      icon={<Globe className="h-3.5 w-3.5" />}
-                      disabled={isPublishing || (totalSubmissions !== undefined && totalSubmissions === 0)}
-                      title={totalSubmissions === 0 ? "Submissions must be ingested before publishing results" : undefined}
-                      className="text-xs"
-                    >
-                      {isPublishing ? "Publishing..." : "Publish Results"}
-                    </ButtonPrimary>
-                  ) : (
-                    <ButtonUtility
-                      size="sm"
-                      onClick={onTogglePublish}
-                      isLoading={isPublishing}
-                      icon={<Globe className="h-3.5 w-3.5" />}
-                      disabled={isPublishing}
-                      className="text-xs"
-                      title="Publish currently graded results"
-                    >
-                      {isPublishing ? "Publishing..." : "Publish Results"}
-                    </ButtonUtility>
-                  )
+                  <button
+                    type="button"
+                    onClick={onTogglePublish}
+                    disabled={isPublishing || (unprocessedCount === 0 && totalSubmissions !== undefined && totalSubmissions === 0)}
+                    title={
+                      unprocessedCount === 0 && totalSubmissions === 0
+                        ? "Submissions must be ingested before publishing results"
+                        : unprocessedCount !== 0
+                        ? "Publish currently graded results"
+                        : undefined
+                    }
+                    className={`${
+                      unprocessedCount === 0 ? "notion-btn-primary" : "notion-btn-utility"
+                    } flex-1 sm:flex-initial justify-center disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <Globe className="h-3.5 w-3.5 shrink-0" />
+                    <span>{isPublishing ? "Publishing..." : "Publish Results"}</span>
+                  </button>
                 ) : null}
               </>
             )}
 
             {/* More Actions Dropdown Menu */}
-            <div className="relative" ref={moreMenuRef}>
-              <ButtonUtility
-                size="sm"
+            <div className="relative ml-auto sm:ml-0" ref={moreMenuRef}>
+              <button
+                type="button"
                 onClick={() => setMoreMenuOpen((prev) => !prev)}
-                className="p-2"
+                className="notion-btn-utility px-2.5"
                 title="More Actions"
                 aria-label="More Actions"
               >
                 <MoreHorizontal className="h-4 w-4" />
-              </ButtonUtility>
+              </button>
 
               {moreMenuOpen && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-48 max-w-[calc(100vw-2rem)] rounded-lg bg-surface border border-hairline shadow-lg py-1 z-30 text-xs text-ink animate-in fade-in zoom-in-95">
+                <div className="absolute right-0 top-full mt-1.5 w-52 max-w-[calc(100vw-2rem)] rounded-lg bg-surface border border-hairline shadow-notion-modal py-1 z-30 text-xs text-ink animate-in fade-in zoom-in-95">
                   {onExportCsv && (
                     <button
                       type="button"
@@ -230,7 +228,7 @@ export function ExamActionHeader({
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-canvas-soft transition-colors cursor-pointer"
                     >
-                      <FileSpreadsheet className="h-3.5 w-3.5 text-primary" />
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-primary shrink-0" />
                       <span>Export Standings CSV</span>
                     </button>
                   )}
@@ -242,9 +240,9 @@ export function ExamActionHeader({
                         setMoreMenuOpen(false);
                         onDeleteExam();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer border-t border-hairline mt-1"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-600 dark:text-[#f28b82] hover:bg-red-50/70 dark:hover:bg-[#2a1313] transition-colors cursor-pointer border-t border-hairline mt-1"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5 shrink-0" />
                       <span>Delete Examination</span>
                     </button>
                   )}
@@ -254,6 +252,6 @@ export function ExamActionHeader({
           </>
         )}
       </div>
-    </div>
+    </header>
   );
 }

@@ -5,20 +5,13 @@ import Link from "next/link";
 import {
   RotateCcw,
   CheckCircle2,
-  Clock,
   User,
   Users,
   FileText,
-  AlertCircle,
   RefreshCw,
   Eye,
-  Flag,
   Check,
-  Sliders,
   Download,
-  Award,
-  ChevronRight,
-  Edit3,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,10 +26,6 @@ const AdminRevaluationModal = dynamic(
   { ssr: false }
 );
 import {
-  ButtonPrimary,
-  ButtonUtility,
-  FeatureCard,
-  BadgePill,
   MetricValue,
   RefetchProgressLine,
   Skeleton,
@@ -414,38 +403,41 @@ export default function RevaluationDeskPage() {
       <RefetchProgressLine isFetching={isFetchingRequests || isFetchingSubmission} />
 
       {/* 1. Header & Branch Info — Permanently Mounted (CLS = 0.00) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
-        <div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <BadgePill label="Academic Operations" color="purple" />
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 pb-4 border-b border-hairline">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="notion-eyebrow text-ink-muted">Academic Operations</span>
             {selectedBranch && (
-              <span className="text-xs font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md whitespace-nowrap truncate max-w-[220px] sm:max-w-none">
-                {selectedBranch.name} • {selectedBranch.city}
-              </span>
+              <>
+                <span className="text-ink-faint text-xs">•</span>
+                <span className="text-xs font-medium text-ink-secondary bg-surface border border-hairline px-2 py-0.5 rounded-xs whitespace-nowrap truncate max-w-[200px] sm:max-w-none">
+                  {selectedBranch.name} • {selectedBranch.city}
+                </span>
+              </>
             )}
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
-              <Clock className="h-3 w-3 shrink-0" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-secondary bg-surface border border-hairline px-2 py-0.5 rounded-xs whitespace-nowrap shrink-0">
+              <span className="h-2 w-2 rounded-full bg-[#dd5b00] shrink-0" />
               <MetricValue
                 value={pendingRequestsCount}
                 isLoading={isInitialDeskLoading}
                 width="w-4"
-                className="text-[11px] font-bold text-orange-700"
+                className="text-xs font-semibold text-ink tabular-nums"
               />
               <span>Pending {pendingRequestsCount === 1 ? "Appeal" : "Appeals"}</span>
             </span>
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink mt-1.5">
-            Revaluation Desk (Interactive PDF Viewer)
+          <h1 className="notion-heading-2 text-2xl sm:text-[26px] text-ink mt-1.5">
+            Revaluation Desk
           </h1>
-          <p className="text-xs sm:text-sm text-ink-muted mt-0.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-ink-muted mt-1 leading-relaxed">
             Human-verified grievance review. Click flagged bounding boxes on the paper to inspect handwriting, adjust coordinates, and revise marks.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <ButtonUtility
-            size="sm"
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <button
+            type="button"
             onClick={() => {
               refetchRequests();
               if (activeSubId) {
@@ -454,48 +446,53 @@ export default function RevaluationDeskPage() {
                 });
               }
             }}
-            className="w-full sm:w-auto justify-center"
+            className="notion-btn-utility w-full sm:w-auto"
           >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isFetchingRequests ? "animate-spin" : ""}`} />
-            Refresh Queue
-          </ButtonUtility>
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetchingRequests ? "animate-spin" : ""}`} />
+            <span>Refresh Queue</span>
+          </button>
         </div>
       </div>
 
       {/* 2. Student Paper Queue Carousel — Permanently Mounted (CLS = 0.00) */}
       {(isInitialDeskLoading || studentGroups.length > 0) && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-ink-muted">
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Users className="h-3.5 w-3.5 text-primary" />
-              <span>Student Papers with Appeals ({studentGroups.length})</span>
-              <span className="text-[11px] font-normal text-ink-faint">
+              <Users className="h-4 w-4 text-primary shrink-0" />
+              <h2 className="notion-section-title text-sm sm:text-base text-ink">
+                Student Papers with Appeals
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface border border-hairline text-ink-muted tabular-nums">
+                {studentGroups.length}
+              </span>
+              <span className="text-xs text-ink-muted hidden sm:inline">
                 • {requests.length} total request{requests.length === 1 ? "" : "s"}
               </span>
             </div>
-            <span className="text-[11px] text-primary font-normal">Select a student paper to review</span>
+            <span className="text-xs text-primary font-medium">Select a paper to review</span>
           </div>
 
-          <div className="flex items-center gap-3 overflow-x-auto pb-2 pt-1 scrollbar-none">
+          <div className="flex items-stretch gap-3 overflow-x-auto pb-2 pt-1 sleek-scrollbar">
             {isInitialDeskLoading ? (
               [1, 2, 3].map((idx) => (
                 <div
                   key={idx}
-                  className="flex-shrink-0 flex flex-col gap-2 p-3 sm:p-3.5 rounded-xl border border-hairline bg-surface min-w-[270px] sm:min-w-[310px] max-w-[340px]"
+                  className="notion-card flex-shrink-0 flex flex-col gap-2.5 p-3.5 min-w-[270px] sm:min-w-[300px] max-w-[330px]"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Skeleton className="h-9 w-9 rounded-lg" />
+                      <Skeleton className="h-9 w-9 rounded-md" />
                       <div className="space-y-1.5">
-                        <Skeleton className="h-3.5 w-24 rounded" />
-                        <Skeleton className="h-3 w-32 rounded" />
+                        <Skeleton className="h-3.5 w-24 rounded-xs" />
+                        <Skeleton className="h-3 w-32 rounded-xs" />
                       </div>
                     </div>
-                    <Skeleton className="h-4 w-12 rounded" />
+                    <Skeleton className="h-4 w-12 rounded-xs" />
                   </div>
-                  <div className="pt-2 border-t border-hairline/70 flex justify-between">
-                    <Skeleton className="h-3 w-20 rounded" />
-                    <Skeleton className="h-3 w-16 rounded" />
+                  <div className="pt-2 border-t border-hairline flex justify-between">
+                    <Skeleton className="h-3 w-20 rounded-xs" />
+                    <Skeleton className="h-3 w-16 rounded-xs" />
                   </div>
                 </div>
               ))
@@ -513,73 +510,67 @@ export default function RevaluationDeskPage() {
                       );
                       setSelectedReqId((pending || group.requests[0])?.id || null);
                     }}
-                    className={`flex-shrink-0 flex flex-col gap-2 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer min-w-[270px] sm:min-w-[310px] max-w-[340px] ${
+                    className={`notion-card flex-shrink-0 flex flex-col gap-2.5 p-3.5 text-left transition-colors cursor-pointer min-w-[270px] sm:min-w-[300px] max-w-[330px] ${
                       isSelected
-                        ? "bg-surface border-primary shadow-xs ring-2 ring-primary/25"
-                        : "bg-surface border-hairline hover:border-slate-400 hover:shadow-2xs"
+                        ? "border-primary ring-1 ring-primary/30"
+                        : "hover:border-[#cccccc] dark:hover:border-[#444444]"
                     }`}
                   >
                     {/* Top row: Student Name, Roll Number, and Score */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div
-                          className={`flex h-9 w-9 items-center justify-center rounded-lg border shrink-0 ${
-                            group.hasPending
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-canvas-soft text-ink border-hairline"
-                          }`}
-                        >
+                        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
                           <User className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-bold text-ink truncate max-w-[130px]">
+                            <span className="text-xs font-semibold text-ink truncate max-w-[130px]">
                               {group.student_name}
                             </span>
-                            <span className="font-mono text-[10px] font-semibold bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded text-ink shrink-0">
+                            <span className="font-mono text-[11px] font-medium bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded-xs text-ink-secondary shrink-0">
                               {group.roll_number}
                             </span>
                           </div>
-                          <div className="text-[11px] text-ink-muted truncate max-w-[170px] mt-0.5">
+                          <div className="text-xs text-ink-muted truncate max-w-[170px] mt-0.5">
                             {group.exam_title}
                           </div>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="text-[11px] font-mono font-bold text-ink block">
+                        <span className="text-xs font-mono font-semibold text-ink block tabular-nums">
                           {group.total_awarded_marks} / {group.max_marks}m
                         </span>
-                        <span className="text-[9px] text-ink-faint uppercase font-medium">Score</span>
+                        <span className="text-[11px] text-ink-muted">Score</span>
                       </div>
                     </div>
 
                     {/* Middle: Appeals Breakdown & Requests inside this Student Card */}
-                    <div className="pt-2 border-t border-hairline/70 flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between gap-1 text-[10px]">
-                        <span className="font-semibold text-ink-secondary flex items-center gap-1">
+                    <div className="pt-2 border-t border-hairline flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-1 text-xs">
+                        <span className="font-medium text-ink-secondary flex items-center gap-1">
                           <FileText className="h-3 w-3 text-ink-muted" />
                           <span>
                             {group.requests.length}{" "}
-                            {group.requests.length === 1 ? "Appeal Request" : "Appeals Filed"}
+                            {group.requests.length === 1 ? "Appeal" : "Appeals"}
                           </span>
                         </span>
 
                         {group.hasPending ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
-                            <Clock className="h-2.5 w-2.5 shrink-0" />
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-secondary bg-canvas-soft px-2 py-0.5 rounded-xs border border-hairline">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#dd5b00] shrink-0" />
                             <span>{group.pendingCount} Pending</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-secondary bg-canvas-soft px-2 py-0.5 rounded-xs border border-hairline">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#1aae39] shrink-0" />
                             <span>Resolved</span>
                           </span>
                         )}
                       </div>
 
                       {/* Chips for individual requests filed by this student */}
-                      <div className="flex flex-wrap gap-1 items-center">
+                      <div className="flex flex-wrap gap-1.5 items-center">
                         {group.requests.map((r, idx) => {
                           const rPending = r.status === "SUBMITTED" || r.status === "UNDER_REVIEW";
                           const rQids = parseQuestionIds(r.question_ids_json);
@@ -594,12 +585,10 @@ export default function RevaluationDeskPage() {
                                 setSelectedSubmissionId(group.submission_id);
                                 handleSelectRequestInGroup(r);
                               }}
-                              className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                              className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-xs border transition-colors cursor-pointer ${
                                 isThisReqActive
-                                  ? "bg-primary text-white border-primary font-bold shadow-2xs"
-                                  : rPending
-                                  ? "bg-amber-50 text-amber-900 border-amber-300 font-medium hover:bg-amber-100"
-                                  : "bg-canvas-soft text-ink-muted border-hairline hover:bg-white"
+                                  ? "bg-primary text-white border-primary font-semibold"
+                                  : "bg-canvas-soft text-ink-secondary border-hairline hover:bg-surface font-medium"
                               }`}
                               title={r.student_reason ? `Reason: "${r.student_reason}"` : undefined}
                             >
@@ -610,13 +599,13 @@ export default function RevaluationDeskPage() {
                               {rPending ? (
                                 <span
                                   className={`inline-block h-1.5 w-1.5 rounded-full ${
-                                    isThisReqActive ? "bg-white" : "bg-amber-500 animate-pulse"
+                                    isThisReqActive ? "bg-white" : "bg-[#dd5b00]"
                                   }`}
                                 />
                               ) : (
                                 <Check
                                   className={`h-2.5 w-2.5 ${
-                                    isThisReqActive ? "text-white" : "text-emerald-600"
+                                    isThisReqActive ? "text-white" : "text-[#1aae39]"
                                   }`}
                                 />
                               )}
@@ -635,48 +624,52 @@ export default function RevaluationDeskPage() {
 
       {/* 3. Empty State or Workspace — Permanently Mounted (CLS = 0.00) */}
       {!isInitialDeskLoading && studentGroups.length === 0 ? (
-        <FeatureCard className="p-16 text-center text-xs text-ink-muted space-y-3">
-          <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
-          <h2 className="text-base font-bold text-ink">Zero Open Grievances</h2>
-          <p className="max-w-md mx-auto text-ink-muted">
+        <div className="notion-card p-10 sm:p-16 text-center text-xs text-ink-muted space-y-3">
+          <div className="mx-auto h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-[#1aae39]">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <h2 className="notion-section-title text-base text-ink">Zero Open Grievances</h2>
+          <p className="max-w-md mx-auto text-xs sm:text-sm text-ink-muted leading-relaxed">
             No students in {selectedBranch?.name || "this branch"} currently have open revaluation requests. When a student challenges a score via the student portal, their answer sheet will appear here for PDF-first human review.
           </p>
-        </FeatureCard>
+        </div>
       ) : (
         <div className="space-y-4 cascade-group">
           {/* Active Paper Banner with Multi-Request Tabs */}
-          <FeatureCard className="p-4 bg-surface border-hairline space-y-3">
+          <div className="notion-card p-4 sm:p-5 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-md bg-canvas-soft text-primary border border-hairline flex items-center justify-center shrink-0">
                   <RotateCcw className="h-5 w-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     {isSubmissionContentLoading || !submission ? (
                       <>
-                        <Skeleton className="h-4 w-36 rounded" />
-                        <Skeleton className="h-4 w-24 rounded" />
-                        <Skeleton className="h-4 w-28 rounded" />
+                        <Skeleton className="h-4 w-36 rounded-xs" />
+                        <Skeleton className="h-4 w-24 rounded-xs" />
+                        <Skeleton className="h-4 w-28 rounded-xs" />
                       </>
                     ) : (
                       <>
-                        <h2 className="text-sm font-bold text-ink">{submission.exam_title || "Examination"}</h2>
-                        <span className="font-mono text-xs font-semibold bg-canvas-soft border border-hairline px-2 py-0.5 rounded text-ink">
+                        <h2 className="notion-section-title text-sm sm:text-base text-ink">
+                          {submission.exam_title || "Examination"}
+                        </h2>
+                        <span className="font-mono text-xs font-medium bg-canvas-soft border border-hairline px-2 py-0.5 rounded-xs text-ink-secondary">
                           Roll: {submission.roll_number}
                         </span>
                         <span className="text-xs text-ink-muted">• {submission.student_name}</span>
-                        <span className="text-xs font-mono font-semibold text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded">
-                          Total Score: {submission.total_awarded_marks} / {submission.max_marks}
+                        <span className="text-xs font-mono font-semibold text-primary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-xs tabular-nums">
+                          Score: {submission.total_awarded_marks} / {submission.max_marks}
                         </span>
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-ink-muted mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <p className="text-xs text-ink-muted mt-1 flex flex-wrap items-center gap-1.5">
                     <span>Flagged questions display</span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                      <Flag className="h-3 w-3 text-amber-700 fill-amber-700 shrink-0" />
-                      <span>REVALUATION APPEAL</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink bg-canvas-soft border border-hairline px-2 py-0.5 rounded-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#dd5b00] shrink-0" />
+                      <span>Revaluation Appeal</span>
                     </span>
                     <span>on the canvas. Click any question box to inspect, adjust boundaries, or resolve appeal.</span>
                   </p>
@@ -684,13 +677,13 @@ export default function RevaluationDeskPage() {
               </div>
 
               {/* Quick Actions */}
-              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                 {submission && (
                   <a
                     href={api.getAnnotatedPdfUrl(submission.id)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface text-ink hover:bg-canvas-soft px-3 py-1.5 text-xs font-semibold transition-colors shadow-2xs"
+                    className="notion-btn-utility w-full sm:w-auto"
                   >
                     <Download className="h-3.5 w-3.5 text-ink-muted" />
                     <span>Annotated PDF</span>
@@ -701,9 +694,9 @@ export default function RevaluationDeskPage() {
 
             {/* Multi-Request Switcher Bar when selectedGroup has multiple requests */}
             {selectedGroup && selectedGroup.requests.length > 0 && (
-              <div className="pt-2 border-t border-hairline flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <div className="pt-3 border-t border-hairline flex flex-col md:flex-row md:items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-ink-secondary shrink-0">
+                  <span className="text-xs font-medium text-ink-muted shrink-0">
                     Student Appeals ({selectedGroup.requests.length}):
                   </span>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -717,10 +710,10 @@ export default function RevaluationDeskPage() {
                           key={r.id}
                           type="button"
                           onClick={() => handleSelectRequestInGroup(r)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer border ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer border ${
                             isAct
-                              ? "bg-primary text-white border-primary shadow-2xs"
-                              : "bg-surface text-ink border-hairline hover:bg-canvas-soft"
+                              ? "bg-primary text-white border-primary font-semibold"
+                              : "bg-surface text-ink-secondary border-hairline hover:bg-canvas-soft"
                           }`}
                         >
                           <span>
@@ -728,20 +721,28 @@ export default function RevaluationDeskPage() {
                           </span>
                           {isPen ? (
                             <span
-                              className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                                isAct ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
+                              className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.2 rounded-xs ${
+                                isAct
+                                  ? "bg-white/20 text-white"
+                                  : "bg-canvas-soft text-ink-secondary border border-hairline"
                               }`}
                             >
-                              <Clock className="h-2.5 w-2.5" />
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  isAct ? "bg-white" : "bg-[#dd5b00]"
+                                }`}
+                              />
                               Pending
                             </span>
                           ) : (
                             <span
-                              className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                                isAct ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+                              className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.2 rounded-xs ${
+                                isAct
+                                  ? "bg-white/20 text-white"
+                                  : "bg-canvas-soft text-ink-secondary border border-hairline"
                               }`}
                             >
-                              <Check className="h-2.5 w-2.5" />
+                              <Check className={`h-2.5 w-2.5 ${isAct ? "text-white" : "text-[#1aae39]"}`} />
                               Resolved
                             </span>
                           )}
@@ -753,19 +754,19 @@ export default function RevaluationDeskPage() {
 
                 {/* Active Request Student Justification preview */}
                 {selectedReq?.student_reason && (
-                  <div className="text-xs text-amber-950 bg-amber-50/80 border border-amber-200/80 px-2.5 py-1 rounded-md flex items-center gap-1.5 max-w-full md:max-w-md truncate">
-                    <span className="font-bold shrink-0">Reason:</span>
+                  <div className="text-xs text-ink-secondary bg-canvas-soft border border-hairline px-2.5 py-1.5 rounded-xs flex items-center gap-1.5 max-w-full md:max-w-md truncate">
+                    <span className="font-semibold text-ink shrink-0">Reason:</span>
                     <span className="italic truncate">&ldquo;{selectedReq.student_reason}&rdquo;</span>
                   </div>
                 )}
               </div>
             )}
-          </FeatureCard>
+          </div>
 
           {/* Interactive Workspace: PDF Viewer (3 cols) + Flagged Questions Sidebar (1 col) */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
             {/* Left: DocumentViewer with Revaluation Flags & Interactive Drag Handles (3 cols) */}
-            <div className="lg:col-span-3 h-[380px] sm:h-[540px] md:h-[700px] lg:h-[840px] rounded-lg overflow-hidden border border-hairline bg-surface shadow-xs relative w-full max-w-full">
+            <div className="lg:col-span-3 h-[480px] sm:h-[580px] md:h-[700px] lg:h-[840px] notion-card overflow-hidden relative w-full max-w-full">
               {isSubmissionContentLoading || !submission ? (
                 <EvaluationViewerSkeleton />
               ) : (
@@ -791,26 +792,26 @@ export default function RevaluationDeskPage() {
 
             {/* Right: Question Navigator with Revaluation Focus (1 col) */}
             <div className="space-y-4">
-              <FeatureCard className="p-4 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-hairline">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink-secondary">
+              <div className="notion-card p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2.5 border-b border-hairline">
+                  <h3 className="notion-section-title text-sm text-ink">
                     Questions Overview ({answers.length})
                   </h3>
-                  <span className="text-[10px] text-primary font-medium">Click to review</span>
+                  <span className="text-xs text-primary font-medium">Click to review</span>
                 </div>
 
-                <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[580px] overflow-y-auto sleek-scrollbar pr-0.5">
                   {isSubmissionContentLoading || !submission ? (
                     [1, 2, 3, 4, 5].map((i) => (
                       <div
                         key={i}
-                        className="p-3 rounded-lg border border-hairline bg-surface space-y-2"
+                        className="p-3 rounded-md border border-hairline bg-surface space-y-2"
                       >
                         <div className="flex items-center justify-between">
-                          <Skeleton className="h-3.5 w-16 rounded" />
-                          <Skeleton className="h-3.5 w-12 rounded" />
+                          <Skeleton className="h-3.5 w-16 rounded-xs" />
+                          <Skeleton className="h-3.5 w-12 rounded-xs" />
                         </div>
-                        <Skeleton className="h-3 w-full rounded" />
+                        <Skeleton className="h-3 w-full rounded-xs" />
                       </div>
                     ))
                   ) : (
@@ -844,38 +845,36 @@ export default function RevaluationDeskPage() {
                         <div
                           key={ans.id}
                           onClick={() => handleSelectAnswer(ans, false)}
-                          className={`p-3 rounded-lg border text-left transition-all cursor-pointer space-y-2 ${
-                            isFlagged
-                              ? "bg-amber-50/40 border-amber-300 ring-1 ring-amber-300/40"
-                              : isAnsResolved
-                              ? "bg-emerald-50/20 border-emerald-200"
-                              : isSelected
-                              ? "bg-surface border-primary shadow-xs ring-1 ring-primary/20"
+                          className={`p-3 rounded-md border text-left transition-colors cursor-pointer space-y-2 ${
+                            isSelected
+                              ? "bg-primary/[0.04] border-primary"
+                              : isFlagged
+                              ? "bg-canvas-soft border-hairline border-l-2 border-l-[#dd5b00]"
                               : "bg-surface border-hairline hover:bg-canvas-soft"
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-ink flex-wrap">
-                              <span>{ans.question_id}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 font-semibold text-xs text-ink flex-wrap">
+                              <span className="font-mono">{ans.question_id}</span>
                               {matchedReqIdx && (
-                                <span className="text-[10px] font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded">
+                                <span className="text-[11px] font-medium text-ink-secondary bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded-xs">
                                   Appeal #{matchedReqIdx}
                                 </span>
                               )}
                               {isAnsResolved ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                  <Check className="h-3 w-3 shrink-0" />
-                                  <span>RESOLVED</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-secondary bg-canvas-soft px-2 py-0.5 rounded-xs border border-hairline">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#1aae39] shrink-0" />
+                                  <span>Resolved</span>
                                 </span>
                               ) : isFlagged ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                                  <Flag className="h-2.5 w-2.5 shrink-0 fill-amber-700" />
-                                  <span>APPEAL</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink bg-surface px-2 py-0.5 rounded-xs border border-hairline">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#dd5b00] shrink-0" />
+                                  <span>Appeal</span>
                                 </span>
                               ) : null}
                             </div>
 
-                            <span className="font-mono text-xs font-bold text-ink">
+                            <span className="font-mono text-xs font-semibold text-ink tabular-nums shrink-0">
                               {ansScore.toFixed(1)} / {ansMax}m
                             </span>
                           </div>
@@ -883,13 +882,13 @@ export default function RevaluationDeskPage() {
                           {/* Student Grievance Snippet specific to this question's request */}
                           {isFlagged &&
                             (matchedReq?.student_reason || selectedReq?.student_reason) && (
-                              <div className="text-[11px] text-amber-950 italic bg-white/80 p-2 rounded border border-amber-200 line-clamp-2">
+                              <div className="text-xs text-ink-secondary italic bg-surface p-2 rounded-xs border border-hairline line-clamp-2">
                                 &ldquo;{matchedReq?.student_reason || selectedReq?.student_reason}&rdquo;
                               </div>
                             )}
 
                           {/* Action buttons inside card */}
-                          <div className="flex items-center justify-between pt-1 border-t border-hairline/60 text-[11px]">
+                          <div className="flex items-center justify-between pt-1.5 border-t border-hairline text-xs">
                             <span className="text-ink-muted">Page {ans.page_number || 1}</span>
 
                             <button
@@ -898,10 +897,10 @@ export default function RevaluationDeskPage() {
                                 e.stopPropagation();
                                 handleSelectAnswer(ans, true);
                               }}
-                              className="inline-flex items-center gap-1 text-primary hover:underline font-semibold text-xs cursor-pointer"
+                              className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs cursor-pointer"
                             >
                               <Eye className="h-3 w-3" />
-                              Open Modal & Review →
+                              <span>Open &amp; Review</span>
                             </button>
                           </div>
                         </div>
@@ -909,7 +908,7 @@ export default function RevaluationDeskPage() {
                     })
                   )}
                 </div>
-              </FeatureCard>
+              </div>
             </div>
           </div>
         </div>

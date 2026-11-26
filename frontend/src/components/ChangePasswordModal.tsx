@@ -97,7 +97,7 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess, userEmail }: C
     >
       {success ? (
         <div className="py-6 text-center space-y-3">
-          <div className="h-12 w-12 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto animate-bounce">
+          <div className="h-12 w-12 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <div className="space-y-1">

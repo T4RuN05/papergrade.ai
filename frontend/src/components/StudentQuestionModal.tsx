@@ -11,11 +11,11 @@ import {
   ChevronUp,
   Sliders,
   Cpu,
-  CheckSquare,
+  Clock,
 } from "lucide-react";
 import { GradedAnswer } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill, ButtonPrimary, ButtonUtility, ModalCard, StickerColor, MathText } from "./ui";
+import { BadgePill, ModalCard, StickerColor, MathText } from "./ui";
 import { ClippedAnswerCrop } from "./ClippedAnswerCrop";
 import { useToast } from "@/lib/ToastContext";
 
@@ -159,12 +159,12 @@ export function StudentQuestionModal({
     >
       <div className="space-y-3 text-xs">
         {/* Compact Score & Status Summary Bar */}
-        <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg bg-canvas-soft border border-hairline">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-canvas-soft border border-hairline">
           <div>
-            <span className="text-[10px] uppercase font-semibold text-ink-muted block leading-none">
+            <span className="notion-eyebrow text-ink-muted block leading-none">
               Awarded Marks
             </span>
-            <div className="text-base sm:text-xl font-black text-ink font-mono mt-0.5 leading-tight">
+            <div className="text-base sm:text-xl font-bold text-ink font-mono mt-1 leading-tight tabular-nums">
               {Number(answer.awarded_marks || 0).toFixed(1)}{" "}
               <span className="text-xs font-normal text-ink-muted">/ {answer.max_marks} marks</span>
             </div>
@@ -174,12 +174,12 @@ export function StudentQuestionModal({
             <BadgePill
               label={`${scorePct}% Score`}
               color={scoreBadgeColor}
-              className="text-[10.5px] sm:text-xs px-2 py-0.5 sm:py-1 font-bold"
+              className="text-xs px-2.5 py-0.5 font-semibold"
             />
             {answer.is_manual_override && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[9.5px] font-semibold">
-                <CheckCircle2 className="h-3 w-3" />
-                Override
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-surface text-ink-secondary border border-hairline px-2 py-0.5 text-[11px] font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#1aae39]" />
+                <span>Override</span>
               </span>
             )}
           </div>
@@ -187,17 +187,17 @@ export function StudentQuestionModal({
 
         {/* Active Revaluation Status Banner */}
         {hasActiveReval && (
-          <div className="p-3 rounded-lg bg-surface border border-hairline border-l-4 border-l-amber-500 space-y-1.5 shadow-2xs">
-            <div className="flex items-center justify-between font-bold text-[11px] text-ink">
+          <div className="p-3 rounded-lg bg-surface border border-hairline border-l-2 border-l-[#dd5b00] space-y-1.5">
+            <div className="flex items-center justify-between font-semibold text-xs text-ink">
               <span className="flex items-center gap-1.5">
-                <RotateCcw className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400" />
+                <Clock className="h-3.5 w-3.5 text-[#dd5b00]" />
                 <span>Revaluation In Progress</span>
               </span>
-              <span className="text-[9.5px] uppercase font-mono font-semibold bg-canvas-soft border border-hairline text-ink-muted px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-muted px-2 py-0.5 rounded-xs">
                 Under Review
               </span>
             </div>
-            <p className="text-[10.5px] text-ink-muted leading-relaxed italic bg-canvas-soft p-2 rounded border border-hairline">
+            <p className="text-xs text-ink-secondary leading-relaxed italic bg-canvas-soft p-2.5 rounded-xs border border-hairline">
               &ldquo;{reval.student_reason}&rdquo;
             </p>
           </div>
@@ -206,25 +206,25 @@ export function StudentQuestionModal({
         {/* Resolved Revaluation Status Banner */}
         {isRevalResolved && (
           <div
-            className={`p-3 rounded-lg bg-surface border border-hairline border-l-4 space-y-1.5 shadow-2xs ${
-              reval.decision === "MARKS_REVISED" ? "border-l-emerald-500" : "border-l-ink-muted/50"
+            className={`p-3 rounded-lg bg-surface border border-hairline border-l-2 space-y-1.5 ${
+              reval.decision === "MARKS_REVISED" ? "border-l-[#1aae39]" : "border-l-ink-muted"
             }`}
           >
-            <div className="flex items-center justify-between font-bold text-[11px] text-ink">
+            <div className="flex items-center justify-between font-semibold text-xs text-ink">
               <span className="flex items-center gap-1.5">
                 {reval.decision === "MARKS_REVISED" ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#1aae39]" />
                 ) : (
                   <ShieldCheck className="h-3.5 w-3.5 text-ink-muted" />
                 )}
                 <span>Decision: {reval.decision === "MARKS_REVISED" ? "Marks Revised" : "Marks Upheld"}</span>
               </span>
-              <span className="text-[9.5px] uppercase font-mono font-semibold bg-canvas-soft border border-hairline text-ink-muted px-1.5 py-0.5 rounded">
+              <span className="text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-muted px-2 py-0.5 rounded-xs">
                 Finalized
               </span>
             </div>
             {reval.reviewer_notes && (
-              <p className="text-[10.5px] text-ink-muted leading-relaxed italic bg-canvas-soft p-2 rounded border border-hairline">
+              <p className="text-xs text-ink-secondary leading-relaxed italic bg-canvas-soft p-2.5 rounded-xs border border-hairline">
                 <span className="font-semibold text-ink not-italic">Examiner Remarks: </span>&ldquo;{reval.reviewer_notes}&rdquo;
               </p>
             )}
@@ -232,30 +232,30 @@ export function StudentQuestionModal({
         )}
 
         {/* Student Handwriting Crop Preview (Compact & Expandable with Multi-Page/Part Support) */}
-        <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2 sm:p-2.5 shadow-2xs">
+        <div className="space-y-1.5 rounded-lg border border-hairline bg-surface p-2.5">
           <div className="flex items-center justify-between text-ink-muted">
-            <span className="font-semibold flex items-center gap-1 text-[10.5px]">
-              <ImageIcon className="h-3 w-3 text-primary" />
-              Detected Student Handwriting:
+            <span className="font-semibold flex items-center gap-1.5 text-xs text-ink">
+              <ImageIcon className="h-3.5 w-3.5 text-primary" />
+              <span>Detected Student Handwriting</span>
             </span>
             <div className="flex items-center gap-2">
               {allRegions.length > 1 && (
-                <span className="text-[10px] text-ink-muted font-mono font-medium hidden sm:inline">
+                <span className="text-[11px] text-ink-muted font-mono font-medium hidden sm:inline">
                   Part {selectedRegionIndex + 1}/{allRegions.length} • Page {activePage}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => setShowFullCrop((prev) => !prev)}
-                className="text-[10px] text-primary hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
+                className="text-xs text-primary hover:underline flex items-center gap-0.5 cursor-pointer font-medium"
               >
                 {showFullCrop ? (
                   <>
-                    <ChevronUp className="h-3 w-3" /> Collapse
+                    <ChevronUp className="h-3.5 w-3.5" /> Collapse
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="h-3 w-3" /> Expand
+                    <ChevronDown className="h-3.5 w-3.5" /> Expand
                   </>
                 )}
               </button>
@@ -264,7 +264,7 @@ export function StudentQuestionModal({
 
           {/* Multi-Page / Multi-Part Region Selector Tabs (Mobile & Touch Responsive) */}
           {allRegions.length > 1 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-0.5 -mx-0.5 px-0.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-0.5">
               {allRegions.map((reg, rIdx) => {
                 const isSelected = selectedRegionIndex === rIdx;
                 return (
@@ -272,10 +272,8 @@ export function StudentQuestionModal({
                     key={reg.id || rIdx}
                     type="button"
                     onClick={() => setSelectedRegionIndex(rIdx)}
-                    className={`px-2.5 py-1 rounded-md text-[10.5px] font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                      isSelected
-                        ? "btn-glass-primary font-bold shadow-2xs"
-                        : "btn-glass-utility hover:text-ink text-ink-secondary"
+                    className={`min-h-0 h-7 px-2.5 rounded-md text-xs font-medium whitespace-nowrap shrink-0 cursor-pointer ${
+                      isSelected ? "notion-btn-primary" : "notion-btn-utility text-ink-secondary"
                     }`}
                   >
                     Part {rIdx + 1} (Page {reg.page_number || 1})
@@ -384,12 +382,12 @@ export function StudentQuestionModal({
           <div className="grid grid-cols-1 gap-2 pt-0.5">
             {/* Student's Transcribed Text */}
             {answer.extracted_text && (
-              <div className="p-3 rounded-lg bg-surface border border-hairline space-y-1.5 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-ink uppercase tracking-wider">
-                  <Cpu className="h-3 w-3 text-primary shrink-0" />
+              <div className="p-3 rounded-lg bg-surface border border-hairline space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                  <Cpu className="h-3.5 w-3.5 text-primary shrink-0" />
                   <span>Transcribed Student Answer (AI Vision)</span>
                 </div>
-                <div className="text-[10.5px] text-ink leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
+                <div className="text-xs text-ink leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded-xs border border-hairline max-h-28 overflow-y-auto">
                   <MathText text={answer.extracted_text} />
                 </div>
               </div>
@@ -397,12 +395,12 @@ export function StudentQuestionModal({
 
             {/* Official Model Solution if available */}
             {answer.official_answer && (
-              <div className="p-3 rounded-lg bg-surface border border-hairline border-l-4 border-l-emerald-500/80 space-y-1.5 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-ink uppercase tracking-wider">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="p-3 rounded-lg bg-surface border border-hairline border-l-2 border-l-[#1aae39] space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#1aae39] shrink-0" />
                   <span>Official Model Solution</span>
                 </div>
-                <div className="text-[10.5px] text-ink font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded border border-hairline max-h-28 overflow-y-auto">
+                <div className="text-xs text-ink font-mono leading-relaxed whitespace-pre-wrap bg-canvas-soft p-2.5 rounded-xs border border-hairline max-h-28 overflow-y-auto">
                   <MathText text={answer.official_answer} />
                 </div>
               </div>
@@ -414,68 +412,67 @@ export function StudentQuestionModal({
         {!hasActiveReval && !isRevalResolved && (
           <div className="pt-2 border-t border-hairline space-y-2">
             {!showAppealForm ? (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-surface border border-hairline">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-lg bg-surface border border-hairline">
                 <div className="space-y-0.5">
-                  <div className="font-semibold text-ink text-[11px]">Challenging this question?</div>
-                  <div className="text-[10px] text-ink-muted">
+                  <div className="font-semibold text-ink text-xs">Challenging this question?</div>
+                  <div className="text-[11px] text-ink-muted">
                     Request manual review by senior faculty examiner.
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowAppealForm(true)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  className="notion-btn-utility text-primary w-full sm:w-auto"
                 >
-                  <RotateCcw className="h-3 w-3 text-primary" />
+                  <RotateCcw className="h-3.5 w-3.5" />
                   <span>Request Revaluation</span>
                 </button>
               </div>
             ) : (
               <form
                 onSubmit={handleAppealSubmit}
-                className="space-y-2.5 p-2.5 sm:p-3 rounded-lg border border-primary/20 bg-primary/5"
+                className="space-y-2.5 p-3 rounded-lg border border-hairline bg-canvas-soft"
               >
-                <div className="flex items-start gap-1.5 text-primary font-semibold text-xs">
+                <div className="flex items-start gap-2 text-primary font-semibold text-xs">
                   <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
                   <div>
                     <span>Submit Appeal for Question {answer.question_id}</span>
-                    <p className="text-[9.5px] font-normal text-ink-muted">
+                    <p className="text-[11px] font-normal text-ink-muted">
                       Evaluated manually by senior examiners. Strictly zero AI adjustments.
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-ink text-[10.5px]">Academic Grievance:</label>
+                  <label className="font-semibold text-ink text-xs">Academic Grievance</label>
                   <textarea
                     required
                     rows={2}
-                    className="w-full rounded-md border border-[#dddddd] bg-surface p-2 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
+                    className="w-full rounded-xs border border-hairline bg-surface p-2.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
                     placeholder="State reason (e.g. Step 2 calculation was marked incorrect despite matching formula)..."
                     value={revalReason}
                     onChange={(e) => setRevalReason(e.target.value)}
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-0.5">
-                  <ButtonUtility
+                <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 pt-1">
+                  <button
                     type="button"
-                    size="sm"
                     onClick={() => {
                       setShowAppealForm(false);
                       setRevalReason("");
                     }}
+                    className="notion-btn-utility w-full sm:w-auto"
                   >
                     Cancel
-                  </ButtonUtility>
-                  <ButtonPrimary
+                  </button>
+                  <button
                     type="submit"
-                    size="sm"
-                    isLoading={isSubmitting}
-                    disabled={!revalReason.trim()}
+                    disabled={isSubmitting || !revalReason.trim()}
+                    className="notion-btn-primary w-full sm:w-auto disabled:opacity-50"
                   >
-                    Submit Appeal
-                  </ButtonPrimary>
+                    {isSubmitting ? "Submitting..." : "Submit Appeal"}
+                  </button>
                 </div>
               </form>
             )}

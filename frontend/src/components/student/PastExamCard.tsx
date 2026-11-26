@@ -136,10 +136,10 @@ export const PastExamCard = React.memo(function PastExamCard({
 
   return (
     <FeatureCard
-      style={{ animationDelay: `${(idx % PAST_EXAMS_BATCH_SIZE) * 50}ms` }}
-      className={`animate-cascade transition-[border-color,box-shadow,background-color] duration-200 border p-4 sm:p-5 ${
+      style={{ animationDelay: `${(idx % PAST_EXAMS_BATCH_SIZE) * 40}ms` }}
+      className={`animate-cascade transition-colors duration-200 rounded-lg border p-4 sm:p-5 ${
         isExpanded
-          ? "shadow-sm border-primary/30 ring-1 ring-primary/20"
+          ? "border-primary/40 ring-1 ring-primary/15"
           : "hover:border-hairline-strong hover:bg-canvas-soft/30 cursor-pointer"
       }`}
     >
@@ -150,99 +150,87 @@ export const PastExamCard = React.memo(function PastExamCard({
       >
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm sm:text-base font-bold text-ink hover:text-primary transition-colors leading-snug">
+            <span className="text-sm sm:text-[15px] font-semibold text-ink tracking-[-0.008em] leading-snug">
               {sub.exam_title || "Academic Examination"}
             </span>
-            {(sub.exam_subject || sub.subject) && (
-              <span className="text-[10.5px] font-medium px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-muted shrink-0">
-                {sub.exam_subject || sub.subject}
-              </span>
-            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-ink-muted mt-0.5">
-            <span className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-              <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+            {(sub.exam_subject || sub.subject) && (
+              <>
+                <span className="font-medium text-ink-secondary">{sub.exam_subject || sub.subject}</span>
+                <span className="text-ink-faint">•</span>
+              </>
+            )}
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <Calendar className="h-3 w-3 text-ink-faint shrink-0" />
               <span>
-                {isAbsent ? "Examination missed" : "Submitted on"}{" "}
+                {isAbsent ? "Missed" : "Submitted"}{" "}
                 {sub.created_at
                   ? new Date(sub.created_at).toLocaleDateString(undefined, {
                       year: "numeric",
                       month: "short",
                       day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
                     })
                   : "Recorded"}
               </span>
             </span>
-            <span className="text-ink-faint hidden xs:inline">•</span>
-            <span className="inline-flex items-center font-mono whitespace-nowrap bg-canvas-soft/70 dark:bg-[#1a1a1a] border border-hairline/60 px-1.5 py-0.5 rounded-md text-[10.5px] text-ink-secondary shrink-0">
-              Roll: <strong className="text-ink ml-1 font-semibold">{sub.roll_number}</strong>
+            <span className="text-ink-faint">•</span>
+            <span className="font-mono text-[11px] text-ink-secondary whitespace-nowrap">
+              {sub.roll_number}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center pt-0.5 sm:pt-0">
-          {isAbsent ? (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#fbf0f0] text-[#872323] border border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-              <AlertCircle className="h-3 w-3 text-[#872323] dark:text-[#e87878]" />
-              Absent
-            </span>
-          ) : isPublished ? (
-            <>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                <CheckCircle2 className="h-3 w-3 text-[#1e613b] dark:text-[#86d4a4]" />
-                Results Published
+        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-0.5 sm:pt-0">
+          {/* Primary Status Indicator (Single calm dot badge) */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {isAbsent ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                Absent
               </span>
-              {sub.is_document_purged ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#f1f0ee] text-[#4d4a46] border border-[#dedcd8] dark:bg-[#1e1e1e] dark:text-[#a8a6a2] dark:border-[#2f2f2f] whitespace-nowrap">
-                  <AlertCircle className="h-3 w-3 text-slate-500 dark:text-slate-400" />
-                  PDF Archived
-                </span>
-              ) : (
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                  title="Graded PDFs are deleted 15 days post-evaluation to optimize system storage."
-                >
-                  <Clock className="h-3 w-3 text-[#7a4e18] dark:text-[#e5ad68]" />
-                  {sub.days_remaining !== undefined && sub.days_remaining !== null
-                    ? `${sub.days_remaining}d until purge`
-                    : "15d retention"}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] whitespace-nowrap shadow-2xs">
-              <Clock className="h-3 w-3 text-[#7a4e18] dark:text-[#e5ad68]" />
-              Grading in Progress
-            </span>
-          )}
+            ) : isPublished ? (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap"
+                title={
+                  sub.is_document_purged
+                    ? "PDF purged per retention policy; marks archived"
+                    : `${sub.days_remaining ?? 15} days until PDF archival`
+                }
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                {hasOpenReval
+                  ? "In Revaluation"
+                  : isRevalResolved && reval.decision === "MARKS_REVISED"
+                  ? "Marks Revised"
+                  : sub.is_document_purged
+                  ? "Archived"
+                  : "Published"}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                Grading
+              </span>
+            )}
 
-          {hasOpenReval && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] whitespace-nowrap">
-              <RotateCcw className="h-3 w-3 animate-spin" />
-              In Review
-            </span>
-          )}
-
-          {isRevalResolved && reval.decision === "MARKS_REVISED" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] whitespace-nowrap">
-              <Sparkles className="h-3 w-3 text-[#1e613b] dark:text-[#86d4a4]" />
-              Marks Revised
-            </span>
-          )}
-
-          {isAbsent ? (
-            <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-xs font-bold text-rose-700 dark:text-rose-300 whitespace-nowrap shrink-0">
-              0.0 / {sub.max_marks || sub.exam_total_marks || 25}m
-            </span>
-          ) : isPublished && sub.total_awarded_marks !== null ? (
-            <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-bold text-ink whitespace-nowrap shrink-0">
-              {Number(sub.total_awarded_marks).toFixed(1)} / {sub.max_marks || sub.exam_total_marks || 25}m
-              {sub.percentage !== null && ` (${Number(sub.percentage).toFixed(0)}%)`}
-            </span>
-          ) : null}
+            {/* Tabular Score Pill */}
+            {isAbsent ? (
+              <span className="px-2.5 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-mono tabular-nums font-semibold text-ink-muted whitespace-nowrap">
+                0.0 / {sub.max_marks || sub.exam_total_marks || 25}m
+              </span>
+            ) : isPublished && sub.total_awarded_marks !== null ? (
+              <span className="px-2.5 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-mono tabular-nums font-semibold text-ink whitespace-nowrap">
+                {Number(sub.total_awarded_marks).toFixed(1)} / {sub.max_marks || sub.exam_total_marks || 25}m
+                {sub.percentage !== null && (
+                  <span className="text-ink-muted font-normal ml-1">
+                    ({Number(sub.percentage).toFixed(0)}%)
+                  </span>
+                )}
+              </span>
+            ) : null}
+          </div>
 
           <button
             type="button"
@@ -250,7 +238,7 @@ export const PastExamCard = React.memo(function PastExamCard({
               e.stopPropagation();
               onToggle(sub.id);
             }}
-            className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors ml-1 cursor-pointer"
+            className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
             aria-label={isExpanded ? "Collapse exam card" : "Expand exam card"}
           >
             <ChevronDown
@@ -347,40 +335,40 @@ export const PastExamCard = React.memo(function PastExamCard({
               </div>
             ) : null}
 
-            {/* Actions Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-                {isAbsent ? (
-                  <button
-                    type="button"
-                    disabled
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/70 bg-canvas-soft border border-hairline px-4 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
-                  >
-                    <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                    <span>No Script Uploaded</span>
-                  </button>
-                ) : (
-                  <Link
-                    href={`/student/submissions/${sub.id}`}
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md btn-glass-primary transition-all cursor-pointer text-center shrink-0 whitespace-nowrap px-4"
-                  >
-                    <Eye className="h-3.5 w-3.5 shrink-0" />
-                    <span>
-                      {isPublished
-                        ? sub.is_document_purged
-                          ? "View Archived Question Marks →"
-                          : "Inspect in PDF Viewer →"
-                        : "View Submitted Script →"}
-                    </span>
-                  </Link>
-                )}
+            {/* Actions Row — Symmetrical Notion Action Grid */}
+            <div className="pt-1 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+              {isAbsent ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full sm:w-auto notion-btn-utility opacity-60 cursor-not-allowed text-ink-muted"
+                >
+                  <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                  <span>No Script Uploaded</span>
+                </button>
+              ) : (
+                <Link
+                  href={`/student/submissions/${sub.id}`}
+                  className="w-full sm:w-auto notion-btn-primary"
+                >
+                  <Eye className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {isPublished
+                      ? sub.is_document_purged
+                        ? "View Archived Marks →"
+                        : "Inspect in PDF Viewer →"
+                      : "View Submitted Script →"}
+                  </span>
+                </Link>
+              )}
 
+              <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1 sm:flex sm:flex-wrap sm:items-center gap-2 w-full sm:w-auto sm:flex-1">
                 {/* Secondary: View Breakdown */}
                 {isPublished ? (
                   <button
                     type="button"
                     onClick={() => onOpenBreakdown(sub)}
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold btn-glass-utility px-3.5 rounded-md transition-all cursor-pointer text-center whitespace-nowrap shrink-0"
+                    className="notion-btn-utility"
                   >
                     <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span>View Summary</span>
@@ -390,7 +378,7 @@ export const PastExamCard = React.memo(function PastExamCard({
                     type="button"
                     disabled
                     title="Detailed breakdown will be accessible once marks are officially published by faculty."
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                    className="notion-btn-utility opacity-55 cursor-not-allowed text-ink-muted"
                   >
                     <FileText className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                     <span>Summary Pending</span>
@@ -402,10 +390,10 @@ export const PastExamCard = React.memo(function PastExamCard({
                   <button
                     type="button"
                     onClick={() => onOpenRankings(sub)}
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold btn-glass-utility px-3.5 rounded-md transition-all cursor-pointer text-center whitespace-nowrap shrink-0"
+                    className="notion-btn-utility"
                     title="View Official Class Standings & Rankings"
                   >
-                    <Trophy className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <Trophy className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
                     <span>Class Standings</span>
                   </button>
                 )}
@@ -415,7 +403,7 @@ export const PastExamCard = React.memo(function PastExamCard({
                   <button
                     type="button"
                     onClick={() => onOpenArtifacts(sub)}
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 shadow-2xs"
+                    className="notion-btn-utility"
                     title="View Question Paper & Official Answer Key"
                   >
                     <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -430,7 +418,7 @@ export const PastExamCard = React.memo(function PastExamCard({
                       type="button"
                       disabled
                       title="Graded PDF was permanently purged after 15 days to preserve storage. Question marks remain archived."
-                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted bg-canvas-soft border border-hairline px-3.5 rounded-md opacity-60 cursor-not-allowed text-center whitespace-nowrap shrink-0"
+                      className="notion-btn-utility opacity-55 cursor-not-allowed text-ink-muted"
                     >
                       <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                       <span>PDF Expired</span>
@@ -443,10 +431,10 @@ export const PastExamCard = React.memo(function PastExamCard({
                       onClick={() =>
                         toast.info("Opening evaluated answer sheet...", { title: "Graded Paper" })
                       }
-                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20 px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs"
+                      className="notion-btn-utility"
                       title={`Download before expiration (${sub.days_remaining ?? 15} days remaining)`}
                     >
-                      <Download className="h-3.5 w-3.5 shrink-0" />
+                      <Download className="h-3.5 w-3.5 text-primary shrink-0" />
                       <span>Download PDF</span>
                     </a>
                   )
@@ -455,7 +443,7 @@ export const PastExamCard = React.memo(function PastExamCard({
                     type="button"
                     disabled
                     title="Evaluated PDF download will be enabled once faculty officially publishes results."
-                    className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-muted/80 bg-canvas-soft border border-hairline/70 px-3.5 rounded-md cursor-not-allowed select-none text-center whitespace-nowrap shrink-0"
+                    className="notion-btn-utility opacity-55 cursor-not-allowed text-ink-muted"
                   >
                     <Download className="h-3.5 w-3.5 text-ink-faint shrink-0" />
                     <span>PDF Pending</span>
@@ -469,23 +457,24 @@ export const PastExamCard = React.memo(function PastExamCard({
                       href={driveArchive.drive_web_view_link}
                       target="_blank"
                       rel="noreferrer"
-                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs"
+                      className="notion-btn-utility"
                       title="Open backed up script in personal Google Drive"
                     >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                       <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
                       <span>In Drive</span>
-                      <ExternalLink className="h-3 w-3 opacity-60" />
+                      <ExternalLink className="h-3 w-3 text-ink-muted shrink-0" />
                     </a>
                   ) : (
                     <button
                       type="button"
                       onClick={handleManualSync}
                       disabled={syncing}
-                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-surface border border-hairline hover:bg-canvas-soft px-3.5 rounded-md transition-colors text-center whitespace-nowrap shrink-0 shadow-2xs cursor-pointer disabled:opacity-50"
+                      className="notion-btn-utility disabled:opacity-50"
                       title="Backup graded paper to personal Google Drive"
                     >
                       {syncing ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-ink-muted" />
                       ) : (
                         <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
                       )}
@@ -493,42 +482,39 @@ export const PastExamCard = React.memo(function PastExamCard({
                     </button>
                   )
                 )}
-              </div>
 
-              {/* Revaluation Appeal Status Pill */}
-              {isPublished && (hasOpenReval || isRevalResolved) && (
-                <div className="w-full sm:w-auto">
-                  {hasOpenReval ? (
+                {/* Revaluation Appeal Status / Action */}
+                {isPublished && (hasOpenReval || isRevalResolved) && (
+                  hasOpenReval ? (
                     <Link
                       href="/student/revaluation"
-                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17] text-center whitespace-nowrap shadow-2xs hover:opacity-90 transition-opacity"
+                      className="notion-btn-utility"
                     >
-                      <RotateCcw className="h-3.5 w-3.5 animate-spin" />
-                      <span>Revaluation Appeal Active →</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                      <span>Reval Active →</span>
                     </Link>
                   ) : (
                     <Link
                       href="/student/revaluation"
-                      className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 rounded-md text-xs font-semibold bg-[#edf5f0] text-[#1e613b] border border-[#c8e2d2] dark:bg-[#13231a] dark:text-[#86d4a4] dark:border-[#1d3d2a] text-center whitespace-nowrap shadow-2xs hover:opacity-90 transition-opacity"
+                      className="notion-btn-utility"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>Revaluation Completed →</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span>Reval Done →</span>
                     </Link>
-                  )}
-                </div>
-              )}
+                  )
+                )}
 
-              {/* Request Revaluation Button */}
-              {isPublished && !hasOpenReval && !isRevalResolved && (
-                <button
-                  type="button"
-                  onClick={() => onOpenReval(sub)}
-                  className="h-9 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline px-3.5 rounded-md transition-colors cursor-pointer text-center whitespace-nowrap shrink-0 shadow-2xs"
-                >
-                  <RotateCcw className="h-3.5 w-3.5 text-ink-muted" />
-                  <span>Request Revaluation</span>
-                </button>
-              )}
+                {isPublished && !hasOpenReval && !isRevalResolved && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenReval(sub)}
+                    className="notion-btn-utility"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                    <span>Revaluation</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

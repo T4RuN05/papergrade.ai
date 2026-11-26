@@ -665,7 +665,7 @@ export function ArtifactViewerModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[120] flex items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs ${
+      className={`fixed inset-0 z-[120] flex items-center justify-center p-0 sm:p-4 bg-black/70 ${
         isExiting ? "animate-modal-backdrop-out" : "animate-modal-backdrop-in"
       }`}
       role="dialog"
@@ -675,7 +675,7 @@ export function ArtifactViewerModal({
       <div className="fixed inset-0" onClick={handleRequestClose} aria-hidden="true" />
 
       {/* Main Container */}
-      <div className={`relative w-full max-w-5xl h-full sm:h-[90vh] max-h-[100dvh] sm:max-h-[90vh] flex flex-col bg-surface rounded-none sm:rounded-2xl shadow-notion-modal border-0 sm:border sm:border-hairline z-10 overflow-hidden ${
+      <div className={`relative w-full max-w-5xl h-full sm:h-[90vh] max-h-[100dvh] sm:max-h-[90vh] flex flex-col bg-surface rounded-none sm:rounded-lg shadow-notion-modal border-0 sm:border sm:border-hairline z-10 overflow-hidden ${
         isExiting ? "animate-modal-content-out" : "animate-modal-content-in"
       }`}>
         {/* Top Header Bar */}
@@ -687,14 +687,14 @@ export function ArtifactViewerModal({
                 {examTitle || "Examination Paper"}
               </h3>
               {examSubject && (
-                <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded bg-canvas-soft border border-hairline text-ink-muted shrink-0">
+                <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-muted shrink-0">
                   {examSubject}
                 </span>
               )}
             </div>
 
             {/* Artifact Tabs (Desktop sm+ inline in center/header) */}
-            <div className="hidden sm:inline-flex items-center p-0.5 bg-canvas-soft rounded-lg border border-hairline shrink-0">
+            <div className="hidden sm:inline-flex items-center p-0.5 bg-canvas-soft rounded-md border border-hairline shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -702,13 +702,13 @@ export function ArtifactViewerModal({
                     setActiveArtifact("question-paper");
                   }
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium transition-colors cursor-pointer ${
                   activeArtifact === "question-paper"
-                    ? "bg-surface text-ink shadow-2xs font-bold"
-                    : "text-ink-muted hover:text-ink"
+                    ? "bg-surface text-ink font-semibold border border-hairline"
+                    : "text-ink-muted hover:text-ink border border-transparent"
                 }`}
               >
-                <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <BookOpen className={`h-3.5 w-3.5 shrink-0 ${activeArtifact === "question-paper" ? "text-primary" : "text-ink-muted"}`} />
                 <span>Question Paper</span>
               </button>
 
@@ -719,13 +719,13 @@ export function ArtifactViewerModal({
                     setActiveArtifact("answer-key");
                   }
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium transition-colors cursor-pointer ${
                   activeArtifact === "answer-key"
-                    ? "bg-surface text-ink shadow-2xs font-bold"
-                    : "text-ink-muted hover:text-ink"
+                    ? "bg-surface text-ink font-semibold border border-hairline"
+                    : "text-ink-muted hover:text-ink border border-transparent"
                 }`}
               >
-                <Key className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <Key className={`h-3.5 w-3.5 shrink-0 ${activeArtifact === "answer-key" ? "text-primary" : "text-ink-muted"}`} />
                 <span>Answer Key</span>
               </button>
             </div>
@@ -735,7 +735,7 @@ export function ArtifactViewerModal({
               <button
                 type="button"
                 onClick={handleRequestClose}
-                className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+                className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
                 title="Close viewer (Esc)"
                 aria-label="Close viewer"
               >
@@ -746,7 +746,7 @@ export function ArtifactViewerModal({
 
           {/* Artifact Tabs (Mobile view: rendered on their own row beneath the title, never shifting the close button) */}
           <div className="sm:hidden mt-2 pt-2 border-t border-hairline/60">
-            <div className="inline-flex items-center p-0.5 bg-canvas-soft rounded-lg border border-hairline w-full">
+            <div className="inline-flex items-center p-0.5 bg-canvas-soft rounded-md border border-hairline w-full">
               <button
                 type="button"
                 onClick={() => {
@@ -754,13 +754,13 @@ export function ArtifactViewerModal({
                     setActiveArtifact("question-paper");
                   }
                 }}
-                className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-medium transition-colors cursor-pointer ${
                   activeArtifact === "question-paper"
-                    ? "bg-surface text-ink shadow-2xs font-bold"
-                    : "text-ink-muted hover:text-ink"
+                    ? "bg-surface text-ink font-semibold border border-hairline"
+                    : "text-ink-muted hover:text-ink border border-transparent"
                 }`}
               >
-                <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <BookOpen className={`h-3.5 w-3.5 shrink-0 ${activeArtifact === "question-paper" ? "text-primary" : "text-ink-muted"}`} />
                 <span>Question Paper</span>
               </button>
 
@@ -771,13 +771,13 @@ export function ArtifactViewerModal({
                     setActiveArtifact("answer-key");
                   }
                 }}
-                className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-medium transition-colors cursor-pointer ${
                   activeArtifact === "answer-key"
-                    ? "bg-surface text-ink shadow-2xs font-bold"
-                    : "text-ink-muted hover:text-ink"
+                    ? "bg-surface text-ink font-semibold border border-hairline"
+                    : "text-ink-muted hover:text-ink border border-transparent"
                 }`}
               >
-                <Key className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <Key className={`h-3.5 w-3.5 shrink-0 ${activeArtifact === "answer-key" ? "text-primary" : "text-ink-muted"}`} />
                 <span>Answer Key</span>
               </button>
             </div>
@@ -785,7 +785,7 @@ export function ArtifactViewerModal({
         </div>
 
         {/* Toolbar: Page Navigation, Zoom, Direct Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-2 border-b border-hairline bg-surface-raised shrink-0 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-2 border-b border-hairline bg-canvas-soft shrink-0 text-xs">
           {/* Left: Page Navigation */}
           <div className="flex items-center gap-1.5">
             <button
@@ -891,13 +891,13 @@ export function ArtifactViewerModal({
           {loadingMeta ? (
             <div className="flex flex-col items-center justify-center m-auto py-16 gap-3">
               <LogoLoader size={42} duration={1.3} label="Loading examination document" />
-              <p className="text-xs font-medium text-ink-secondary animate-pulse">
+              <p className="text-xs font-medium text-ink-secondary">
                 Loading {activeArtifact === "question-paper" ? "question paper" : "answer key"}...
               </p>
             </div>
           ) : isPurged ? (
-            <div className="flex flex-col items-center justify-center m-auto py-16 gap-3 max-w-sm text-center">
-              <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+            <div className="flex flex-col items-center justify-center m-auto py-16 gap-3 max-w-sm text-center px-4">
+              <div className="h-12 w-12 rounded-lg bg-surface border border-hairline flex items-center justify-center text-ink-muted">
                 <FileText className="h-6 w-6" />
               </div>
               <h4 className="text-sm font-bold text-ink">Document Unavailable</h4>
@@ -906,8 +906,8 @@ export function ArtifactViewerModal({
               </p>
             </div>
           ) : !hasDoc ? (
-            <div className="flex flex-col items-center justify-center m-auto py-16 gap-3 max-w-sm text-center">
-              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+            <div className="flex flex-col items-center justify-center m-auto py-16 gap-3 max-w-sm text-center px-4">
+              <div className="h-12 w-12 rounded-lg bg-surface border border-hairline flex items-center justify-center text-ink-secondary">
                 <HelpCircle className="h-6 w-6" />
               </div>
               <h4 className="text-sm font-bold text-ink">
@@ -969,7 +969,7 @@ export function ArtifactViewerModal({
                       >
                         <div
                           ref={p === page ? activeSheetRef : undefined}
-                          className="relative bg-white rounded-lg sm:rounded-xl shadow-lg border border-hairline overflow-hidden flex items-center justify-center"
+                          className="relative bg-white rounded-lg shadow-notion-card border border-hairline overflow-hidden flex items-center justify-center"
                           style={{
                             ...sheetDimStyle,
                             transform: p === page && zoom > 1.05 ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` : "none",
@@ -1004,7 +1004,7 @@ export function ArtifactViewerModal({
                               }}
                             />
                           ) : (
-                            <div className="w-full h-full bg-surface-raised flex items-center justify-center">
+                            <div className="w-full h-full bg-canvas-soft flex items-center justify-center">
                               <span className="text-xs text-ink-muted">Page {p}</span>
                             </div>
                           )}

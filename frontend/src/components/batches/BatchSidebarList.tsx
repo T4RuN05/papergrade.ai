@@ -29,40 +29,43 @@ export function BatchSidebarList({
   onRefresh,
 }: BatchSidebarListProps) {
   return (
-    <div className="space-y-2.5 sm:space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted flex items-center gap-1.5">
-          <span>Batches</span>
-          <span className="font-mono bg-canvas-soft border border-hairline px-1.5 py-0.2 rounded text-[10px] text-ink">
+    <div className="space-y-3 min-w-0 w-full">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-ink-secondary">
+            Batches
+          </h3>
+          <span className="font-mono tabular-nums bg-surface border border-hairline px-2 py-0.5 rounded-full text-[11px] font-medium text-ink-muted">
             {batches.length}
           </span>
-        </h2>
+        </div>
         <button
+          type="button"
           onClick={onRefresh}
-          className="p-1 rounded text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
+          className="notion-btn-utility min-h-[28px] h-7 px-2 text-xs"
           title="Refresh Batches"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw className="h-3.5 w-3.5 text-ink-muted shrink-0" />
         </button>
       </div>
 
       {/* Batches Container: horizontal scroll on mobile (< md), vertical stack on desktop (md+) */}
-      <div className="flex md:flex-col gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none -mx-1 px-1">
+      <div className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
         {loadingBatches ? (
           [1, 2, 3].map((i) => (
             <div
               key={i}
-              className="min-w-[170px] md:min-w-0 md:w-full shrink-0 md:shrink p-3 rounded-lg bg-surface border border-hairline space-y-2"
+              className="notion-card rounded-lg min-w-[180px] md:min-w-0 md:w-full shrink-0 md:shrink p-3 space-y-2"
             >
               <Skeleton className="h-4 w-28 sm:w-32" />
               <Skeleton className="h-3 w-36 sm:w-40" />
             </div>
           ))
         ) : batches.length === 0 ? (
-          <div className="w-full p-6 rounded-lg bg-surface border border-hairline text-center text-xs text-ink-muted space-y-2">
+          <div className="notion-card rounded-lg w-full p-6 text-center text-xs text-ink-muted space-y-2">
             <Users className="h-6 w-6 text-ink-faint mx-auto" />
             <p className="font-semibold text-ink">No batches in this branch.</p>
-            <p className="text-[11px]">
+            <p className="text-xs">
               Click &quot;Create Batch&quot; above to initialize a new student batch.
             </p>
           </div>
@@ -72,29 +75,29 @@ export function BatchSidebarList({
             return (
               <div
                 key={b.id}
-                className={`group flex items-center justify-between p-3 sm:p-3.5 rounded-lg border transition-all cursor-pointer min-w-[180px] xs:min-w-[200px] md:min-w-0 md:w-full shrink-0 md:shrink ${
+                className={`group flex items-center justify-between p-3 sm:p-3.5 rounded-lg border transition-colors cursor-pointer min-w-[196px] md:min-w-0 md:w-full shrink-0 md:shrink ${
                   isSelected
-                    ? "bg-surface border-primary shadow-xs ring-1 ring-primary/20"
-                    : "bg-surface border-hairline hover:border-[#d0d0d0]"
+                    ? "bg-surface border-primary ring-1 ring-primary/20 shadow-notion-card"
+                    : "bg-surface border-hairline hover:bg-canvas-soft/60"
                 }`}
                 onClick={() => onSelectBatch(b)}
               >
                 <div className="min-w-0 flex-1 pr-2">
-                  <div className="text-xs font-bold text-ink truncate flex items-center gap-1.5">
-                    <span>{b.name}</span>
+                  <div className="text-xs font-semibold text-ink truncate flex items-center gap-1.5">
                     {isSelected && (
-                      <span className="md:hidden h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                     )}
+                    <span className="truncate">{b.name}</span>
                   </div>
                   <div className="text-[11px] text-ink-muted mt-0.5 truncate">
                     Academic Year:{" "}
-                    <span className="font-medium text-ink-secondary">
+                    <span className="font-medium text-ink-secondary tabular-nums">
                       {b.academic_year || "2026"}
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-canvas-soft border border-hairline text-ink-muted">
+                  <span className="text-[11px] font-mono tabular-nums px-2 py-0.5 rounded-full bg-canvas-soft border border-hairline text-ink-muted">
                     {b.total_submissions || 0}
                   </span>
                   <button
@@ -103,10 +106,10 @@ export function BatchSidebarList({
                       e.stopPropagation();
                       onDeleteBatch(b.id, b.name);
                     }}
-                    className="p-1 rounded text-ink-faint hover:text-red-600 hover:bg-red-50 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                    className="p-1.5 rounded-md text-ink-muted hover:text-red-600 dark:hover:text-[#f28b82] hover:bg-red-50/70 dark:hover:bg-[#2a1313] md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-pointer"
                     title="Delete Batch"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5 shrink-0" />
                   </button>
                 </div>
               </div>

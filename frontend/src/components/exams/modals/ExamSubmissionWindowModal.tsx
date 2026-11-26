@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Play } from "lucide-react";
-import { ModalCard, FormInput, ButtonPrimary, ButtonUtility, AppleSelect } from "@/components/ui";
+import { Play, Loader2 } from "lucide-react";
+import { ModalCard, FormInput, AppleSelect } from "@/components/ui";
 
 export interface ExamSubmissionWindowModalProps {
   isOpen: boolean;
@@ -27,7 +27,6 @@ export function ExamSubmissionWindowModal({
   );
   const [scope, setScope] = useState("ALL_STUDENTS");
 
-  // Reset/sync form values when modal opens or prior window state changes
   useEffect(() => {
     if (isOpen) {
       setReason(
@@ -76,7 +75,7 @@ export function ExamSubmissionWindowModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-ink mb-1">Duration</label>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1.5">Duration</label>
             <AppleSelect
               value={duration}
               onChange={(val) => setDuration(val)}
@@ -96,7 +95,7 @@ export function ExamSubmissionWindowModal({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-ink mb-1">Target Scope</label>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1.5">Target Scope</label>
             <AppleSelect
               value={scope}
               onChange={(val) => setScope(val)}
@@ -110,22 +109,33 @@ export function ExamSubmissionWindowModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-hairline">
-          <ButtonUtility type="button" onClick={onClose} disabled={isStarting}>
-            Cancel
-          </ButtonUtility>
-          <ButtonPrimary
-            type="submit"
-            isLoading={isStarting}
-            icon={<Play className="h-3.5 w-3.5" />}
-            disabled={isStarting || !reason.trim()}
+        <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-hairline">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isStarting}
+            className="notion-btn-utility justify-center"
           >
-            {isStarting
-              ? "Opening Window..."
-              : hasPriorWindow
-              ? "Confirm Reopening"
-              : "Open Window"}
-          </ButtonPrimary>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isStarting || !reason.trim()}
+            className="notion-btn-primary justify-center disabled:opacity-50"
+          >
+            {isStarting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+            ) : (
+              <Play className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>
+              {isStarting
+                ? "Opening..."
+                : hasPriorWindow
+                ? "Confirm Reopening"
+                : "Open Window"}
+            </span>
+          </button>
         </div>
       </form>
     </ModalCard>

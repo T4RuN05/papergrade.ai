@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, FileText } from "lucide-react";
-import { ModalCard, ButtonPrimary, ButtonUtility } from "@/components/ui";
+import { Upload, FileText, Loader2 } from "lucide-react";
+import { ModalCard } from "@/components/ui";
 
 interface ExamUploadQpModalProps {
   isOpen: boolean;
@@ -43,7 +43,7 @@ export function ExamUploadQpModal({
           Upload the master PDF or scanned pages of the question paper. This allows students to view the paper alongside their evaluated answers.
         </p>
 
-        <div className="border-2 border-dashed border-hairline rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer bg-canvas-soft">
+        <div className="border border-dashed border-hairline rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer bg-canvas-soft">
           <input
             type="file"
             accept=".pdf,image/*"
@@ -53,7 +53,7 @@ export function ExamUploadQpModal({
             disabled={isUploading}
           />
           <label htmlFor="qp-upload-input" className="cursor-pointer space-y-2 block">
-            <FileText className="h-8 w-8 text-primary mx-auto" />
+            <FileText className="h-7 w-7 text-primary mx-auto" />
             <div className="text-xs font-semibold text-ink">
               {selectedFile ? selectedFile.name : "Click to select Question Paper (PDF or Image)"}
             </div>
@@ -61,24 +61,27 @@ export function ExamUploadQpModal({
           </label>
         </div>
 
-        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-          <ButtonUtility
+        <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-hairline">
+          <button
             type="button"
             onClick={handleClose}
             disabled={isUploading}
-            className="w-full sm:w-auto justify-center"
+            className="notion-btn-utility justify-center"
           >
             Cancel
-          </ButtonUtility>
-          <ButtonPrimary
+          </button>
+          <button
             type="submit"
             disabled={!selectedFile || isUploading}
-            isLoading={isUploading}
-            icon={<Upload className="h-4 w-4" />}
-            className="w-full sm:w-auto justify-center"
+            className="notion-btn-primary justify-center disabled:opacity-50"
           >
-            {isUploading ? "Uploading..." : "Upload Paper"}
-          </ButtonPrimary>
+            {isUploading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+            ) : (
+              <Upload className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>{isUploading ? "Uploading..." : "Upload Paper"}</span>
+          </button>
         </div>
       </form>
     </ModalCard>

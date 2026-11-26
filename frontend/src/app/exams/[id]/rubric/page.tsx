@@ -5,12 +5,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Upload, CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { ArrowLeft, Upload, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
-import { ButtonPrimary, ButtonUtility, FeatureCard, BadgePill, StatusWell, RubricSkeleton } from "@/components/ui";
+import { RubricSkeleton } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useExamDetail } from "@/lib/queries";
@@ -71,21 +71,21 @@ export default function ExamRubricPage() {
   if (!isLoading && !exam) {
     return (
       <div className="max-w-xl mx-auto py-12">
-        <FeatureCard className="p-8 text-center space-y-4">
-          <div className="mx-auto h-10 w-10 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 flex items-center justify-center text-red-600 dark:text-red-400">
+        <div className="notion-card rounded-lg p-8 text-center space-y-4">
+          <div className="mx-auto h-10 w-10 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-red-600 dark:text-[#f28b82]">
             <AlertCircle className="h-5 w-5" />
           </div>
-          <h2 className="text-base font-bold text-ink">Examination Not Found</h2>
+          <h2 className="notion-heading-3 text-base text-ink">Examination Not Found</h2>
           <p className="text-xs text-ink-muted">
             The requested examination could not be located in the academic registry.
           </p>
           <div className="pt-2">
-            <ButtonUtility href="/exams">
-              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-              Return to Examinations
-            </ButtonUtility>
+            <Link href="/exams" className="notion-btn-utility">
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+              <span>Return to Examinations</span>
+            </Link>
           </div>
-        </FeatureCard>
+        </div>
       </div>
     );
   }
@@ -146,31 +146,41 @@ export default function ExamRubricPage() {
   const showNoKeyBanner = !exam?.answer_key_path && !hasQuestions;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
-      {showNoKeyBanner && (
-        <StatusWell
-          variant="amber"
-          icon={<AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
-          title="Answer Key not yet uploaded"
-          description={
-            currentUser?.role === "ROOT_ADMIN"
-              ? "You can edit criteria manually below, or upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI."
-              : "A Root Admin must upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI. You can review or manually edit criteria below."
-          }
-          badge={
-            <ButtonUtility href={`/exams/${examId}`} size="sm" className="shrink-0 self-start sm:self-auto">
-              {currentUser?.role === "ROOT_ADMIN" ? "Upload Key on Exam Page →" : "View Exam Page →"}
-            </ButtonUtility>
-          }
-        />
-      )}
+    <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto pb-12">
+      {/* Top Navigation & Optional Next Step */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-hairline">
+        <Link href={`/exams/${examId}`} className="notion-btn-utility self-start">
+          <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+          <span>Back to Exam</span>
+        </Link>
 
-      {isApproved && (
-        <div className="flex items-center justify-end pb-2 border-b border-hairline">
-          <ButtonPrimary href={`/branch/batches`} className="self-start sm:self-auto">
-            <Upload className="h-4 w-4 mr-2" />
-            Proceed to Batches & Submissions →
-          </ButtonPrimary>
+        {isApproved && (
+          <Link href="/branch/batches" className="notion-btn-primary w-full sm:w-auto justify-center">
+            <Upload className="h-3.5 w-3.5 shrink-0" />
+            <span>Proceed to Batches &amp; Submissions →</span>
+          </Link>
+        )}
+      </div>
+
+      {showNoKeyBanner && (
+        <div className="notion-card rounded-lg p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center shrink-0">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-ink">Answer Key not yet uploaded</div>
+              <p className="text-xs text-ink-muted mt-0.5 leading-relaxed">
+                {currentUser?.role === "ROOT_ADMIN"
+                  ? "You can edit criteria manually below, or upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI."
+                  : "A Root Admin must upload the Official Answer Key on the exam page to draft questions via Gemini Vision AI. You can review or manually edit criteria below."}
+              </p>
+            </div>
+          </div>
+
+          <Link href={`/exams/${examId}`} className="notion-btn-utility w-full sm:w-auto justify-center shrink-0">
+            {currentUser?.role === "ROOT_ADMIN" ? "Upload Key on Exam Page →" : "View Exam Page →"}
+          </Link>
         </div>
       )}
 

@@ -41,7 +41,7 @@ export const NotificationDrawerHeader: React.FC<NotificationDrawerHeaderProps> =
               <h2 className="text-sm font-bold tracking-tight text-ink">Notifications</h2>
               {isRealtimeActive && (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />
                   Live
                 </span>
               )}
@@ -81,7 +81,7 @@ export const NotificationDrawerHeader: React.FC<NotificationDrawerHeaderProps> =
             onClick={() => onTabChange("unread")}
             className={`px-3 py-1 rounded-xs font-medium transition-colors cursor-pointer ${
               activeTab === "unread"
-                ? "bg-primary text-white shadow-xs"
+                ? "bg-primary text-white"
                 : "text-ink-secondary hover:text-ink"
             }`}
           >
@@ -92,7 +92,7 @@ export const NotificationDrawerHeader: React.FC<NotificationDrawerHeaderProps> =
             onClick={() => onTabChange("all")}
             className={`px-3 py-1 rounded-xs font-medium transition-colors cursor-pointer ${
               activeTab === "all"
-                ? "bg-primary text-white shadow-xs"
+                ? "bg-primary text-white"
                 : "text-ink-secondary hover:text-ink"
             }`}
           >

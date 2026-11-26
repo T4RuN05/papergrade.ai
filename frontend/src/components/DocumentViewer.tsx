@@ -874,7 +874,7 @@ export function DocumentViewer({
       <div
         ref={viewportRef}
         onMouseDown={handleMouseDown}
-        className={`relative flex-1 w-full overflow-hidden bg-[#f6f6f4] select-none overscroll-contain ${
+        className={`relative flex-1 w-full overflow-hidden bg-canvas-soft select-none overscroll-contain ${
           zoomScale > 1.05 ? "touch-none cursor-grab active:cursor-grabbing" : "touch-pan-y"
         }`}
         style={{
@@ -906,7 +906,7 @@ export function DocumentViewer({
                 {isAdjacent ? (
                   <div
                     ref={isCurrent ? activeSheetRef : undefined}
-                    className="relative bg-white shadow-xl rounded-lg sm:rounded-xl overflow-hidden flex items-center justify-center select-none"
+                    className="relative bg-white shadow-notion-card border border-hairline rounded-lg overflow-hidden flex items-center justify-center select-none"
                     style={{
                       ...sheetDimStyle,
                       transform:
@@ -920,11 +920,11 @@ export function DocumentViewer({
                   >
                     {/* Error / Purged Fallback Screen */}
                     {failedPages.has(p) ? (
-                      <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-sm">
-                        <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 mx-auto">
-                          <Archive className="h-6 w-6" />
+                      <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full space-y-3 bg-surface rounded-lg">
+                        <div className="h-11 w-11 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-center text-ink-muted mx-auto">
+                          <Archive className="h-5 w-5" />
                         </div>
-                        <h3 className="text-sm font-bold text-ink">
+                        <h3 className="notion-section-title text-sm text-ink">
                           {isDocumentPurged ? "Page Image Unavailable" : "Page Loading Error"}
                         </h3>
                         <p className="text-xs text-ink-muted max-w-sm mx-auto leading-relaxed">
@@ -945,7 +945,7 @@ export function DocumentViewer({
                               setImageRetryNonce((n) => n + 1);
                               setIsPageImageLoading(true);
                             }}
-                            className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-white hover:bg-primary-hover transition-colors"
+                            className="notion-btn-primary"
                           >
                             Retry Loading
                           </button>
@@ -955,13 +955,13 @@ export function DocumentViewer({
                       <>
                         {/* Paper Fetching Loading Screen with Animated Brand Logo */}
                         {isCurrent && isPageImageLoading && !loadedPagesRef.current.has(`${submissionId}_p_${p}`) && (
-                          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-surface rounded-sm border border-hairline/60 shadow-2xs">
+                          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-surface rounded-lg border border-hairline">
                             <LogoLoader size={42} duration={1.3} label="Rendering Examination Sheet" />
                             <div className="space-y-1 max-w-xs">
-                              <h3 className="text-xs sm:text-sm font-bold text-ink">
+                              <h3 className="notion-section-title text-xs sm:text-sm text-ink">
                                 Fetching Examination Sheet...
                               </h3>
-                              <p className="text-[11px] text-ink-muted leading-relaxed">
+                              <p className="text-xs text-ink-muted leading-relaxed">
                                 Rendering Page {currentPage} of {totalPages}.
                               </p>
                             </div>
@@ -1070,7 +1070,7 @@ export function DocumentViewer({
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="bg-white/70 rounded-lg sm:rounded-xl border border-hairline/60"
+                    className="bg-surface/70 rounded-lg border border-hairline"
                     style={{
                       ...sheetDimStyle,
                     }}

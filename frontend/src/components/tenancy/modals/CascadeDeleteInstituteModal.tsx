@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { AlertCircle, Trash2, Loader2 } from "lucide-react";
-import { ModalCard, BadgePill, ButtonUtility } from "@/components/ui";
+import { ModalCard } from "@/components/ui";
 
 export interface CascadeDeleteInstituteModalProps {
   isOpen: boolean;
@@ -47,41 +47,42 @@ export const CascadeDeleteInstituteModal: React.FC<CascadeDeleteInstituteModalPr
       disableClose={isDeleting}
     >
       <div className="space-y-4">
-        <div className="flex items-center justify-between pb-1 border-b border-hairline">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-hairline">
           <span className="text-xs text-ink-muted">
-            Permanent cascade deletion for code: <strong className="font-mono text-ink">{institute.code}</strong>
+            Cascade deletion for code: <strong className="font-mono text-ink">{institute.code}</strong>
           </span>
-          <BadgePill label="High Risk Operation" color="pink" className="bg-red-50 text-red-700 border-red-200" />
+          <span className="notion-eyebrow text-red-600 dark:text-red-400">
+            High Risk Operation
+          </span>
         </div>
 
-        {/* Warning Banner */}
-        <div className="rounded-lg border border-red-200/80 bg-red-50/50 dark:bg-[#221014]/80 dark:border-[#3f1922] p-4 space-y-2.5 relative overflow-hidden">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600 dark:bg-red-400" />
-          <div className="flex items-start gap-2.5 pl-1">
-            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+        {/* Warning Box (Flat Notion surface without left stripe or wash) */}
+        <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-canvas-soft p-4 space-y-2.5">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-red-900 dark:text-red-200 uppercase tracking-wider">
+              <h4 className="text-xs font-semibold text-ink">
                 Permanent Irreversible Action
               </h4>
-              <p className="text-xs text-red-800 dark:text-red-300 leading-relaxed">
-                Deleting <strong>{institute.name}</strong> will trigger a complete cascade wipe. Everything associated with this coaching institute will be permanently eradicated:
+              <p className="text-xs text-ink-secondary leading-relaxed">
+                Deleting <strong>{institute.name}</strong> triggers a complete cascade wipe. Everything associated with this coaching institute will be permanently eradicated:
               </p>
             </div>
           </div>
 
-          <ul className="text-xs text-red-800 dark:text-red-300/90 list-disc list-inside space-y-1 pl-7">
+          <ul className="text-xs text-ink-secondary list-disc list-inside space-y-1 pl-6">
             <li>All campus branches and physical centres</li>
             <li>All academic batches and student rosters</li>
             <li>All student and branch manager user accounts</li>
             <li>All examinations, question papers, and official rubrics</li>
             <li>All answer sheet submissions and AI evaluation scores</li>
             <li>All revaluations, audits, and telemetry logs</li>
-            <li>All Cloudinary files (raw PDFs, annotated PDFs, renders)</li>
+            <li>All Cloudflare R2 files (raw PDFs, annotated PDFs, renders)</li>
           </ul>
         </div>
 
         {error && (
-          <div className="p-3 bg-[#fdf2f2] dark:bg-[#261212] border border-[#f8b4b4] dark:border-[#491f1f] rounded-md text-xs text-critical flex items-center gap-2">
+          <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-md text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -90,11 +91,11 @@ export const CascadeDeleteInstituteModal: React.FC<CascadeDeleteInstituteModalPr
         {/* Confirmation Input */}
         <div className="space-y-2 pt-1">
           <label className="text-xs font-semibold text-ink block">
-            To confirm deletion, please type the institute code{" "}
-            <span className="font-mono px-1.5 py-0.5 rounded bg-surface border border-hairline font-bold text-critical">
+            Type the institute code{" "}
+            <span className="font-mono px-1.5 py-0.5 rounded-xs bg-canvas-soft border border-hairline font-semibold text-red-600 dark:text-red-400">
               {institute.code}
             </span>{" "}
-            below:
+            to confirm:
           </label>
           <input
             type="text"
@@ -102,39 +103,40 @@ export const CascadeDeleteInstituteModal: React.FC<CascadeDeleteInstituteModalPr
             onChange={(e) => setDeleteConfirmCode(e.target.value)}
             placeholder={`Type "${institute.code}" to confirm`}
             disabled={isDeleting}
-            className="w-full text-xs font-mono px-3 py-2 rounded-md border border-hairline bg-surface focus:outline-none focus:ring-1 focus:ring-critical focus:border-critical"
+            className="w-full text-xs font-mono px-3 py-2 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface text-ink focus:outline-none focus:border-red-500"
             autoFocus
           />
         </div>
 
         {/* Modal Actions */}
-        <div className="flex justify-end gap-2 pt-3 border-t border-hairline">
-          <ButtonUtility
+        <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 pt-3 border-t border-hairline">
+          <button
             type="button"
             onClick={onClose}
             disabled={isDeleting}
+            className="notion-btn-utility justify-center disabled:opacity-50"
           >
             Cancel
-          </ButtonUtility>
+          </button>
 
-          <ButtonUtility
-            variant="danger-solid"
-            size="md"
+          <button
+            type="button"
             onClick={handleConfirm}
             disabled={isDeleting || !isConfirmed}
+            className="notion-btn-danger justify-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isDeleting ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Wiping Institute &amp; Cloud Storage...
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span>Wiping...</span>
               </>
             ) : (
               <>
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                Cascade Delete Institute
+                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Cascade Delete</span>
               </>
             )}
-          </ButtonUtility>
+          </button>
         </div>
       </div>
     </ModalCard>

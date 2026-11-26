@@ -228,7 +228,7 @@ export function AppleSelect({
         aria-label={ariaLabel || selectedOption?.label || placeholder}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={`w-full flex items-center justify-between gap-2 border border-hairline bg-surface dark:bg-[#202020] hover:bg-canvas-soft dark:hover:bg-[#282828] text-ink font-semibold transition-all shadow-2xs select-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${sizeStyles} ${buttonClassName}`}
+        className={`w-full flex items-center justify-between gap-2 border border-hairline bg-surface hover:bg-canvas-soft text-ink font-medium transition-colors select-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${sizeStyles} ${buttonClassName}`}
       >
         <span className="flex items-center gap-1.5 truncate">
           {icon && <span className="shrink-0 text-ink-muted">{icon}</span>}
@@ -271,7 +271,7 @@ export function AppleSelect({
                 maxHeight: `${menuCoords.maxHeight}px`,
                 zIndex: computedZIndex,
               }}
-              className={`bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-1 overflow-hidden flex flex-col ${
+              className={`bg-surface rounded-lg border border-hairline shadow-notion-modal p-1 overflow-hidden flex flex-col ${
                 isExiting ? "animate-apple-out" : "animate-apple-in"
               } ${menuClassName}`}
             >

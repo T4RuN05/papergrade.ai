@@ -10,6 +10,7 @@ import {
   Search,
   BookOpen,
   ChevronDown,
+  ChevronLeft,
   X,
   Menu,
 } from "lucide-react";
@@ -21,13 +22,17 @@ const iconMap = {
   Building2,
 };
 
-export function HelpSidebar() {
+export interface HelpSidebarProps {
+  currentGuideCode?: string;
+  currentRoleBadge?: string;
+}
+
+export function HelpSidebar({ currentGuideCode, currentRoleBadge }: HelpSidebarProps = {}) {
   const pathname = usePathname();
   const [searchFilter, setSearchFilter] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsedTracks, setCollapsedTracks] = useState<Record<string, boolean>>({});
 
-  // Lock body scroll while mobile drawer is open to prevent background scrolling
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = "hidden";
@@ -39,7 +44,6 @@ export function HelpSidebar() {
     };
   }, [mobileOpen]);
 
-  // Handle Escape key to close mobile menu
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && mobileOpen) {
@@ -50,12 +54,10 @@ export function HelpSidebar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mobileOpen]);
 
-  // Auto-close mobile drawer on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  // Ensure active track is expanded when viewing a guide
   useEffect(() => {
     const activeTrack = HELP_ROLE_TRACKS.find((track) =>
       track.articles.some((a) => pathname === `/help/${track.id}/${a.slug}`)
@@ -84,44 +86,132 @@ export function HelpSidebar() {
     return { ...track, articles: matchingArticles };
   });
 
+  const renderTrackList = (onNavigate?: () => void) => (
+    <div className="space-y-4 flex-1">
+      {filteredTracks.map((track) => {
+        const Icon = iconMap[track.iconName];
+        const isCollapsed = searchFilter.trim() ? false : Boolean(collapsedTracks[track.id]);
+
+        return (
+          <div key={track.id} className="space-y-1">
+            <button
+              type="button"
+              onClick={() => toggleTrack(track.id)}
+              className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-sm hover:bg-canvas-soft text-left transition-colors cursor-pointer"
+              aria-expanded={!isCollapsed}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Icon className="h-4 w-4 text-ink-muted shrink-0" />
+                <span className="text-xs font-semibold text-ink truncate">{track.badge}</span>
+              </div>
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
+                  isCollapsed ? "-rotate-90 text-ink-faint" : "rotate-0 text-ink-muted"
+                }`}
+              />
+            </button>
+
+            <div
+              className={`grid transition-all duration-200 ease-in-out ${
+                isCollapsed
+                  ? "grid-rows-[0fr] opacity-0 pointer-events-none"
+                  : "grid-rows-[1fr] opacity-100"
+              }`}
+            >
+              <div className="overflow-hidden space-y-0.5 pl-1">
+                {track.articles.length === 0 ? (
+                  <p className="text-xs text-ink-muted px-2.5 py-1.5">No matching guides.</p>
+                ) : (
+                  track.articles.map((article) => {
+                    const href = `/help/${track.id}/${article.slug}`;
+                    const isActive = pathname === href;
+
+                    return (
+                      <Link
+                        key={article.id}
+                        href={href}
+                        onClick={onNavigate}
+                        className={`flex items-start gap-2 px-2.5 py-1.5 rounded-sm text-xs leading-snug transition-colors ${
+                          isActive
+                            ? "bg-primary/[0.09] text-primary font-semibold"
+                            : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                        }`}
+                      >
+                        <span
+                          className={`font-mono text-[11px] shrink-0 tabular-nums mt-px ${
+                            isActive ? "text-primary" : "text-ink-faint"
+                          }`}
+                        >
+                          {article.guideCode}
+                        </span>
+                        <span className="line-clamp-2 min-w-0">{article.title}</span>
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <>
-      {/* Mobile Sticky Bar */}
-      <div className="md:hidden sticky top-14 z-20 flex items-center justify-between px-4 py-2.5 bg-surface/90 backdrop-blur-md border-b border-hairline">
-        <Link href="/help" className="flex items-center gap-2 text-xs font-bold text-ink">
-          <BookOpen className="h-4 w-4 text-primary" />
-          <span>PaperGrade User Manual</span>
-        </Link>
+      {/* Mobile Compact Sticky Chapter Bar */}
+      <div className="md:hidden sticky top-14 z-30 flex items-center justify-between gap-2 px-4 h-11 bg-surface/95 backdrop-blur-sm border-b border-hairline">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            href="/help"
+            className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-ink transition-colors shrink-0"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span>Manual</span>
+          </Link>
+          {currentGuideCode && (
+            <>
+              <span className="text-ink-faint text-xs">/</span>
+              <span className="inline-flex items-center gap-1.5 min-w-0">
+                <span className="font-mono text-[11px] font-semibold text-primary px-1.5 py-0.5 rounded-xs bg-canvas-soft border border-hairline shrink-0">
+                  {currentGuideCode}
+                </span>
+                {currentRoleBadge && (
+                  <span className="text-xs text-ink-muted truncate">{currentRoleBadge}</span>
+                )}
+              </span>
+            </>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink transition-colors cursor-pointer"
-          aria-label="Open Guides Menu"
+          className="notion-btn-utility min-h-[28px] h-7 px-2.5 text-xs shrink-0"
+          aria-label="Open chapters menu"
         >
           <Menu className="h-3.5 w-3.5 text-ink-muted" />
-          <span>Guides Menu</span>
+          <span>Chapters</span>
         </button>
       </div>
 
-      {/* Mobile Drawer with Smooth Opening & Closing Animation */}
+      {/* Mobile Drawer */}
       <div
         className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-in-out ${
           mobileOpen ? "visible pointer-events-auto" : "invisible pointer-events-none"
         }`}
         aria-hidden={!mobileOpen}
       >
-        {/* Scrim Backdrop with smooth fade in/out */}
         <div
-          className={`fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-300 ease-in-out ${
+          className={`fixed inset-0 bg-black/45 backdrop-blur-sm transition-opacity duration-300 ${
             mobileOpen ? "opacity-100" : "opacity-0"
           }`}
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
 
-        {/* Sliding Drawer Panel */}
         <div
-          className={`fixed inset-y-0 left-0 w-4/5 max-w-xs h-full h-[100dvh] bg-surface border-r border-hairline shadow-2xl flex flex-col p-4 transition-transform duration-300 ease-in-out transform select-none ${
+          className={`fixed inset-y-0 left-0 w-[85vw] max-w-xs h-[100dvh] bg-surface border-r border-hairline shadow-notion-modal flex flex-col p-4 transition-transform duration-300 ease-out transform select-none ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -129,192 +219,83 @@ export function HelpSidebar() {
             <Link
               href="/help"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 text-xs font-bold text-ink"
+              className="flex items-center gap-2 text-xs font-semibold text-ink hover:text-primary transition-colors"
             >
-              <BookOpen className="h-4 w-4 text-primary" />
-              <span>User Manual</span>
+              <BookOpen className="h-4 w-4 text-primary shrink-0" />
+              <span>Help Center Home</span>
             </Link>
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
               className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft transition-colors cursor-pointer"
-              aria-label="Close Guides Menu"
+              aria-label="Close chapters menu"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Search inside mobile drawer */}
           <div className="relative my-3 shrink-0">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink-muted" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
             <input
               type="text"
-              placeholder="Search guides..."
+              placeholder="Filter chapters..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-canvas-soft border border-hairline rounded-md pl-8 pr-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:outline-hidden focus:border-primary/50"
+              className="w-full bg-canvas-soft border border-hairline rounded-xs pl-8 pr-7 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-primary"
             />
+            {searchFilter && (
+              <button
+                type="button"
+                onClick={() => setSearchFilter("")}
+                aria-label="Clear filter"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Scrollable list of tracks */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            {filteredTracks.map((track) => {
-              const Icon = iconMap[track.iconName];
-              const isCollapsed = Boolean(collapsedTracks[track.id]);
-
-              return (
-                <div key={track.id} className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleTrack(track.id)}
-                    className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-canvas-soft text-left transition-colors cursor-pointer"
-                    aria-expanded={!isCollapsed}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-xs font-bold text-ink">{track.label}</span>
-                    </div>
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform duration-200 transform ${
-                        isCollapsed ? "-rotate-90 text-ink-faint" : "rotate-0 text-ink-muted"
-                      }`}
-                    />
-                  </button>
-
-                  <div
-                    className={`grid transition-all duration-200 ease-in-out ${
-                      isCollapsed ? "grid-rows-[0fr] opacity-0 pointer-events-none" : "grid-rows-[1fr] opacity-100"
-                    }`}
-                  >
-                    <div className="overflow-hidden pl-4 space-y-0.5 pt-0.5">
-                      {track.articles.map((article) => {
-                        const href = `/help/${track.id}/${article.slug}`;
-                        const isActive = pathname === href;
-                        return (
-                          <Link
-                            key={article.id}
-                            href={href}
-                            onClick={() => setMobileOpen(false)}
-                            className={`block px-2.5 py-1.5 rounded-md text-xs transition-colors ${
-                              isActive
-                                ? "bg-primary text-white font-semibold shadow-2xs"
-                                : "text-ink-muted hover:text-ink hover:bg-canvas-soft"
-                            }`}
-                          >
-                            <span
-                              className={`font-mono text-[10px] mr-1.5 ${
-                                isActive ? "text-white/80" : "text-ink-faint"
-                              }`}
-                            >
-                              {article.guideCode}
-                            </span>
-                            <span className="line-clamp-1">{article.title}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex-1 overflow-y-auto sleek-scrollbar pr-1">
+            {renderTrackList(() => setMobileOpen(false))}
           </div>
         </div>
       </div>
 
-      {/* Desktop Persistent Left Sidebar */}
-      <aside className="hidden md:flex flex-col w-72 shrink-0 border-r border-hairline bg-surface/50 h-[calc(100vh-3.5rem)] sticky top-14 overflow-y-auto p-4 select-none">
-        {/* Help Center Header Link */}
-        <div className="pb-3 border-b border-hairline mb-3">
+      {/* Desktop Sticky Left Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 xl:w-[272px] shrink-0 border-r border-hairline bg-surface h-[calc(100vh-3.5rem)] sticky top-14 overflow-y-auto sleek-scrollbar p-4 select-none">
+        <div className="pb-3 border-b border-hairline mb-3 space-y-1">
           <Link
             href="/help"
-            className="flex items-center gap-2 text-xs font-bold text-ink hover:text-primary transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-ink hover:text-primary transition-colors"
           >
-            <BookOpen className="h-4 w-4 text-primary" />
-            <span>PaperGrade User Manual</span>
+            <ChevronLeft className="h-3.5 w-3.5 text-ink-muted" />
+            <span>Help Center</span>
           </Link>
-          <p className="text-[11px] text-ink-muted mt-0.5">
-            Role-tailored platform instructions
-          </p>
+          <p className="text-xs text-ink-muted pl-5">User Manual & Guides</p>
         </div>
 
-        {/* Search input */}
         <div className="relative mb-4">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink-muted" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
           <input
             type="text"
-            placeholder="Search guides (e.g. camera, reset)..."
+            placeholder="Filter chapters..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            className="w-full bg-canvas-soft border border-hairline rounded-md pl-8 pr-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:outline-hidden focus:border-primary/50"
+            className="w-full bg-canvas-soft border border-hairline rounded-xs pl-8 pr-7 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:border-primary transition-colors"
           />
+          {searchFilter && (
+            <button
+              type="button"
+              onClick={() => setSearchFilter("")}
+              aria-label="Clear filter"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Track Groups */}
-        <div className="space-y-4 flex-1">
-          {filteredTracks.map((track) => {
-            const Icon = iconMap[track.iconName];
-            const isCollapsed = Boolean(collapsedTracks[track.id]);
-
-            return (
-              <div key={track.id} className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => toggleTrack(track.id)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-canvas-soft text-left transition-colors cursor-pointer group"
-                  aria-expanded={!isCollapsed}
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-primary shrink-0 transition-transform duration-200 group-hover:scale-105" />
-                    <span className="text-xs font-bold text-ink">{track.label}</span>
-                  </div>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 transition-transform duration-200 transform ${
-                      isCollapsed ? "-rotate-90 text-ink-faint" : "rotate-0 text-ink-muted"
-                    }`}
-                  />
-                </button>
-
-                <div
-                  className={`grid transition-all duration-200 ease-in-out ${
-                    isCollapsed ? "grid-rows-[0fr] opacity-0 pointer-events-none" : "grid-rows-[1fr] opacity-100"
-                  }`}
-                >
-                  <div className="overflow-hidden space-y-0.5 pt-0.5">
-                    {track.articles.length === 0 ? (
-                      <p className="text-[11px] text-ink-muted px-3 py-1">No guides match search.</p>
-                    ) : (
-                      track.articles.map((article) => {
-                        const href = `/help/${track.id}/${article.slug}`;
-                        const isActive = pathname === href;
-
-                        return (
-                          <Link
-                            key={article.id}
-                            href={href}
-                            className={`flex items-start gap-1.5 px-3 py-1.5 rounded-md text-xs leading-relaxed transition-colors ${
-                              isActive
-                                ? "bg-primary text-white font-semibold shadow-2xs"
-                                : "text-ink-muted hover:text-ink hover:bg-canvas-soft"
-                            }`}
-                          >
-                            <span
-                              className={`font-mono text-[10px] shrink-0 mt-0.5 ${
-                                isActive ? "text-white/80" : "text-ink-faint"
-                              }`}
-                            >
-                              {article.guideCode}
-                            </span>
-                            <span className="line-clamp-2">{article.title}</span>
-                          </Link>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {renderTrackList()}
       </aside>
     </>
   );

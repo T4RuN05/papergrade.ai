@@ -216,7 +216,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
               ACADEMIC OPERATIONS
             </div>
             <div className="space-y-0.5">
-              <div className="flex items-center justify-between rounded-md px-2.5 py-2 bg-canvas-soft/80 border border-hairline/80 shadow-xs">
+              <div className="flex items-center justify-between rounded-md px-2.5 py-2 bg-canvas-soft border border-hairline">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Skeleton className="h-4 w-4 shrink-0 bg-primary/20" rounded="xs" />
                   <Skeleton className="h-3 w-28" rounded="xs" />
@@ -278,7 +278,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
 
         {/* Bottom User Profile Section */}
         <div className="p-3 border-t border-hairline bg-canvas-soft/50 shrink-0">
-          <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline shadow-xs">
+          <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-surface border border-hairline">
             <div className="flex items-center gap-2 min-w-0">
               <Skeleton className="h-7 w-7 rounded-full shrink-0" />
               <div className="flex flex-col min-w-0 space-y-1">
@@ -376,10 +376,10 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
                       key={item.href}
                       href={item.href}
                       onClick={() => onCloseMobile?.()}
-                      className={`group flex items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium transition-all ${
+                      className={`group flex items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium transition-colors ${
                         isActive
-                          ? "bg-canvas-soft text-ink font-semibold shadow-xs border border-hairline/80"
-                          : "text-ink-secondary hover:text-ink hover:bg-canvas-soft/70"
+                          ? "bg-canvas-soft text-ink font-semibold border border-hairline"
+                          : "text-ink-secondary hover:text-ink hover:bg-canvas-soft/70 border border-transparent"
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -413,13 +413,13 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           <button
             type="button"
             onClick={() => setReportModalOpen(true)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer shadow-2xs"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer"
           >
             <span className="flex items-center gap-2">
               <AlertTriangle className="h-3.5 w-3.5 text-primary shrink-0" />
               <span>Report Technical Issue</span>
             </span>
-            <span className="text-[10px] text-primary font-bold">Help</span>
+            <span className="text-[10px] text-primary font-semibold">Help</span>
           </button>
         )}
 
@@ -428,7 +428,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           <button
             type="button"
             onClick={() => setChangePasswordOpen(true)}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer shadow-2xs"
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium text-ink-secondary hover:text-ink hover:bg-surface border border-hairline transition-colors cursor-pointer"
           >
             <KeyRound className="h-3.5 w-3.5 text-ink-muted shrink-0" />
             <span>One-Time Password Setup</span>
@@ -455,7 +455,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
           type="button"
           onClick={handleLogout}
           disabled={signingOut}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100/80 dark:hover:bg-red-900/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md notion-btn-danger text-xs font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
         >
           {signingOut ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -486,13 +486,13 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
             layer never lingers over the page. */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ease-in-out opacity-100"
+            className="fixed inset-0 bg-black/40 transition-opacity duration-300 ease-in-out opacity-100"
             onClick={onCloseMobile}
             aria-hidden="true"
           />
         )}
         <div
-          className={`fixed inset-y-0 left-0 w-64 max-w-[80vw] h-full h-[100dvh] bg-surface shadow-2xl transition-transform duration-300 ease-in-out transform ${
+          className={`fixed inset-y-0 left-0 w-64 max-w-[80vw] h-full h-[100dvh] bg-surface shadow-notion-modal border-r border-hairline transition-transform duration-300 ease-in-out transform ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

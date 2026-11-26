@@ -119,7 +119,7 @@ export function NavigationProgressBar() {
       aria-hidden="true"
     >
       <div
-        className="h-[2.5px] bg-gradient-to-r from-primary via-indigo-500 to-sky-400 shadow-[0_0_10px_rgba(79,70,229,0.8)] transition-all duration-200 ease-out"
+        className="h-[2px] bg-primary transition-all duration-200 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>

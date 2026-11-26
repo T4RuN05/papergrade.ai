@@ -16,9 +16,10 @@ import {
   ArrowLeft,
   Lock,
   GraduationCap,
+  Loader2,
 } from "lucide-react";
 import { api, getAuthToken, getStoredUser, setAuthToken, setStoredUser } from "@/lib/api";
-import { ButtonPrimary, FormInput, FeatureCard } from "@/components/ui";
+import { FormInput, Skeleton } from "@/components/ui";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { startNavigationProgress } from "@/components/NavigationProgressBar";
@@ -956,8 +957,8 @@ function LoginForm() {
     return (
       <form onSubmit={handleLoginSubmit} className="space-y-4">
         {error && isActivePane && (
-          <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+          <div className="flex items-start gap-2.5 rounded-md bg-canvas-soft border border-red-300/70 dark:border-red-500/30 p-3 text-xs text-red-700 dark:text-red-400">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
             <span className="leading-relaxed font-medium">{error}</span>
           </div>
         )}
@@ -976,8 +977,8 @@ function LoginForm() {
           }
         />
 
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
             <label className="text-xs font-semibold text-ink-secondary">Password</label>
             <button
               type="button"
@@ -986,7 +987,7 @@ function LoginForm() {
                 setForgotError(null);
                 setViewMode("FORGOT_REQUEST");
               }}
-              className="text-xs font-medium text-primary hover:underline cursor-pointer"
+              className="text-xs font-medium text-primary hover:text-primary-active hover:underline cursor-pointer"
             >
               Forgot password?
             </button>
@@ -1001,21 +1002,22 @@ function LoginForm() {
           />
         </div>
 
-        <ButtonPrimary
+        <button
           id={isActivePane ? "btn-login-submit" : undefined}
           type="submit"
-          className="w-full"
-          isLoading={loading}
+          disabled={loading}
+          className="notion-btn-primary w-full h-10 text-xs sm:text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {paneRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In to Console"}
-        </ButtonPrimary>
+          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+          <span>{paneRole === "STUDENT" ? "Sign In to Student Portal" : "Sign In to Console"}</span>
+        </button>
 
         <div className="relative my-3">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-hairline" />
           </div>
-          <div className="relative flex justify-center text-[10px] uppercase">
-            <span className="bg-surface px-2 text-ink-muted font-medium">Or</span>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-surface px-2.5 text-ink-faint">or</span>
           </div>
         </div>
 
@@ -1032,20 +1034,20 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-[75vh] items-center justify-center py-8">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="flex min-h-[75vh] items-center justify-center py-6 sm:py-10 px-4">
+      <div className="w-full max-w-[390px] space-y-5">
         <div className="text-center space-y-2">
-          <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden shadow-xs">
+          <div className="relative inline-flex h-11 w-11 items-center justify-center rounded-lg border border-hairline bg-surface overflow-hidden">
             <Image
               src="/logo-icon.png"
               alt="PaperGrade AI"
-              width={48}
-              height={48}
-              className="h-12 w-12 object-contain"
+              width={44}
+              height={44}
+              className="h-10 w-10 object-contain"
               priority
             />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-ink">
+          <h1 className="notion-heading-2 text-[22px] sm:text-[26px] text-ink">
             {viewMode === "LOGIN"
               ? loginRole === "STUDENT"
                 ? "Student Portal Sign-In"
@@ -1060,7 +1062,7 @@ function LoginForm() {
               ? "Administrator Authorization"
               : "Set New Password"}
           </h1>
-          <p className="text-xs text-ink-muted">
+          <p className="text-[13px] text-ink-muted leading-relaxed">
             {viewMode === "LOGIN"
               ? loginRole === "STUDENT"
                 ? "Enter your student Roll Number and password to access your dashboard."
@@ -1077,7 +1079,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <FeatureCard className="p-6">
+        <div className="notion-card p-5 sm:p-6">
           {/* VIEW: LOGIN OR CLAIM FORM */}
           {viewMode === "LOGIN" && (
             <div
@@ -1087,12 +1089,12 @@ function LoginForm() {
               onTouchEnd={handleAuthTouchEnd}
               onTouchCancel={handleAuthTouchEnd}
             >
-              {/* Role Toggle Tabs with Sliding Pill: Student | Faculty / Staff | Claim ID */}
-              <div className="relative grid grid-cols-3 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs font-semibold">
+              {/* Role Toggle Tabs with Sliding Pill: Student | Faculty / Staff | Claim Account */}
+              <div className="relative grid grid-cols-3 p-1 rounded-lg bg-canvas-soft border border-hairline text-xs select-none">
                 <span
                   ref={authPillRef}
                   aria-hidden="true"
-                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] rounded-md bg-surface shadow-2xs border border-hairline/50 pointer-events-none will-change-transform"
+                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-8px)/3)] rounded-[7px] bg-surface border border-hairline pointer-events-none will-change-transform"
                   style={{
                     transform: `translate3d(${activeRoleIndex * 100}%, 0, 0)`,
                     transition: isAuthTouchDragging
@@ -1105,13 +1107,13 @@ function LoginForm() {
                   type="button"
                   id="tab-role-student"
                   onClick={() => switchLoginRole("STUDENT")}
-                  className={`relative z-10 py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                  className={`relative z-10 py-1.5 px-1.5 sm:px-2 rounded-[7px] transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 text-center min-w-0 ${
                     loginRole === "STUDENT"
-                      ? "text-ink font-bold"
-                      : "text-ink-muted hover:text-ink"
+                      ? "text-ink font-semibold"
+                      : "text-ink-muted font-medium hover:text-ink"
                   }`}
                 >
-                  <Smartphone className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "STUDENT" ? "text-primary" : ""}`} />
+                  <Smartphone className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "STUDENT" ? "text-primary" : "text-ink-muted"}`} />
                   <span className="truncate">Student</span>
                 </button>
 
@@ -1119,28 +1121,28 @@ function LoginForm() {
                   type="button"
                   id="tab-role-staff"
                   onClick={() => switchLoginRole("STAFF")}
-                  className={`relative z-10 py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                  className={`relative z-10 py-1.5 px-1.5 sm:px-2 rounded-[7px] transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 text-center min-w-0 ${
                     loginRole === "STAFF"
-                      ? "text-ink font-bold"
-                      : "text-ink-muted hover:text-ink"
+                      ? "text-ink font-semibold"
+                      : "text-ink-muted font-medium hover:text-ink"
                   }`}
                 >
-                  <Lock className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "STAFF" ? "text-primary" : ""}`} />
-                  <span className="truncate">Faculty / Staff</span>
+                  <Lock className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "STAFF" ? "text-primary" : "text-ink-muted"}`} />
+                  <span className="truncate">Faculty</span>
                 </button>
 
                 <button
                   type="button"
                   id="tab-role-claim"
                   onClick={() => switchLoginRole("CLAIM")}
-                  className={`relative z-10 py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                  className={`relative z-10 py-1.5 px-1.5 sm:px-2 rounded-[7px] transition-colors duration-150 cursor-pointer flex items-center justify-center gap-1 sm:gap-1.5 text-center min-w-0 ${
                     loginRole === "CLAIM"
-                      ? "text-ink font-bold"
-                      : "text-ink-muted hover:text-ink"
+                      ? "text-ink font-semibold"
+                      : "text-ink-muted font-medium hover:text-ink"
                   }`}
                 >
-                  <GraduationCap className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "CLAIM" ? "text-primary" : ""}`} />
-                  <span className="truncate">Claim Account</span>
+                  <GraduationCap className={`h-3.5 w-3.5 shrink-0 transition-colors ${loginRole === "CLAIM" ? "text-primary" : "text-ink-muted"}`} />
+                  <span className="truncate">Claim ID</span>
                 </button>
               </div>
 
@@ -1203,9 +1205,9 @@ function LoginForm() {
                   >
                     <div>
                       {claimSuccess ? (
-                        <div className="text-center py-4 space-y-3">
-                          <CheckCircle2 className="h-8 w-8 text-accent-green mx-auto animate-bounce" />
-                          <h2 className="text-sm font-bold text-ink">Account Claimed Successfully!</h2>
+                        <div className="text-center py-5 space-y-2.5">
+                          <CheckCircle2 className="h-7 w-7 text-accent-green mx-auto" />
+                          <h2 className="text-sm font-semibold text-ink">Account Claimed Successfully</h2>
                           <p className="text-xs text-ink-muted">
                             Your account has been initialized. Redirecting to student portal...
                           </p>
@@ -1213,13 +1215,13 @@ function LoginForm() {
                       ) : (
                         <form onSubmit={handleClaimSubmit} className="space-y-4">
                           {claimError && (
-                            <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                              <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                            <div className="flex items-start gap-2.5 rounded-md bg-canvas-soft border border-red-300/70 dark:border-red-500/30 p-3 text-xs text-red-700 dark:text-red-400">
+                              <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
                               <span className="leading-relaxed font-medium">{claimError}</span>
                             </div>
                           )}
 
-                          <div className="p-2.5 rounded-md bg-canvas-soft border border-hairline text-[11px] text-ink-muted leading-relaxed">
+                          <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
                             First time here? Enter your assigned institute roll number to create your password and activate your student account.
                           </div>
 
@@ -1255,15 +1257,19 @@ function LoginForm() {
                             placeholder="Repeat password"
                           />
 
-                          <ButtonPrimary
+                          <button
                             id="btn-claim-submit"
                             type="submit"
-                            className="w-full"
-                            isLoading={claimLoading}
-                            icon={<GraduationCap className="h-4 w-4" />}
+                            disabled={claimLoading}
+                            className="notion-btn-primary w-full h-10 text-xs sm:text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {claimLoading ? "Claiming Account..." : "Claim Account & Sign In"}
-                          </ButtonPrimary>
+                            {claimLoading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                            ) : (
+                              <GraduationCap className="h-4 w-4 shrink-0" />
+                            )}
+                            <span>{claimLoading ? "Claiming Account..." : "Claim Account & Sign In"}</span>
+                          </button>
                         </form>
                       )}
                     </div>
@@ -1277,13 +1283,13 @@ function LoginForm() {
           {viewMode === "FORGOT_REQUEST" && (
             <form onSubmit={handleRequestReset} className="space-y-4">
               {forgotError && (
-                <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                <div className="flex items-start gap-2.5 rounded-md bg-canvas-soft border border-red-300/70 dark:border-red-500/30 p-3 text-xs text-red-700 dark:text-red-400">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
                   <span className="leading-relaxed font-medium">{forgotError}</span>
                 </div>
               )}
 
-              <div className="p-3 rounded-lg bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
+              <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs text-ink-muted leading-relaxed">
                 {loginRole === "STAFF"
                   ? "Enter your registered Staff Email. We will dispatch a 6-digit verification code to your email, or escalate to the Root Administrator if unavailable."
                   : "Enter your Roll Number, Student ID, or email. If an email is linked, a 6-digit OTP code will be sent; otherwise a reset request will be sent to your Branch Manager for approval."}
@@ -1302,22 +1308,26 @@ function LoginForm() {
                 }
               />
 
-              <ButtonPrimary
+              <button
                 id="btn-request-reset"
                 type="submit"
-                className="w-full"
-                isLoading={forgotLoading}
-                icon={<KeyRound className="h-4 w-4" />}
+                disabled={forgotLoading}
+                className="notion-btn-primary w-full h-10 text-xs sm:text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {forgotLoading ? "Sending Request..." : "Continue Password Reset"}
-              </ButtonPrimary>
+                {forgotLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <KeyRound className="h-3.5 w-3.5 shrink-0" />
+                )}
+                <span>{forgotLoading ? "Sending Request..." : "Continue Password Reset"}</span>
+              </button>
 
               <button
                 type="button"
                 onClick={() => setViewMode("LOGIN")}
-                className="w-full flex items-center justify-center gap-1.5 text-xs text-ink-muted hover:text-ink pt-1 cursor-pointer"
+                className="notion-btn-utility w-full justify-center text-xs"
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
+                <ArrowLeft className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                 <span>Back to Sign In</span>
               </button>
             </form>
@@ -1327,13 +1337,13 @@ function LoginForm() {
           {viewMode === "VERIFY_OTP" && (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               {forgotError && (
-                <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                <div className="flex items-start gap-2.5 rounded-md bg-canvas-soft border border-red-300/70 dark:border-red-500/30 p-3 text-xs text-red-700 dark:text-red-400">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
                   <span className="leading-relaxed font-medium">{forgotError}</span>
                 </div>
               )}
 
-              <div className="p-3 rounded-lg bg-surface-muted/60 border border-hairline text-xs space-y-1">
+              <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-xs space-y-1">
                 <div className="font-semibold text-ink">Verification Code Sent</div>
                 <p className="text-ink-muted leading-relaxed">
                   We sent a 6-digit code to <strong className="text-ink font-mono">{emailHint || "your registered email"}</strong>. It is valid for 10 minutes.
@@ -1341,7 +1351,7 @@ function LoginForm() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-ink mb-1.5 text-center">
+                <label className="block text-xs font-semibold text-ink-secondary mb-1.5 text-center">
                   6-Digit Verification Code
                 </label>
                 <input
@@ -1353,21 +1363,21 @@ function LoginForm() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="000000"
-                  className="w-full text-center text-2xl font-bold tracking-[0.4em] font-mono py-2.5 px-3 rounded-md border border-hairline bg-surface text-ink focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  className="w-full text-center text-2xl font-bold tracking-[0.4em] font-mono py-2.5 px-3 rounded-xs border border-[#dddddd] dark:border-[#333333] bg-surface dark:bg-[#1a1a1a] text-ink focus:outline-none focus:border-primary focus:shadow-notion-card transition-all"
                   autoFocus
                 />
               </div>
 
-              <ButtonPrimary
+              <button
                 type="submit"
-                isLoading={forgotLoading}
-                className="w-full py-2.5 text-xs font-bold"
                 disabled={otpCode.length !== 6 || forgotLoading}
+                className="notion-btn-primary w-full h-10 text-xs sm:text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Verify Code & Set Password
-              </ButtonPrimary>
+                {forgotLoading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                <span>Verify Code &amp; Set Password</span>
+              </button>
 
-              <div className="flex items-center justify-between text-xs text-ink-muted pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted pt-1">
                 <button
                   type="button"
                   disabled={otpCooldown > 0 || forgotLoading}
@@ -1382,7 +1392,7 @@ function LoginForm() {
                     type="button"
                     disabled={forgotLoading}
                     onClick={handleEscalateToAdmin}
-                    className="text-amber-700 hover:text-amber-900 underline cursor-pointer transition-colors"
+                    className="text-ink-secondary hover:text-ink underline cursor-pointer transition-colors"
                     title="If you do not have access to your email, request manual approval"
                   >
                     Request Manager Approval
@@ -1394,9 +1404,9 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setViewMode("LOGIN")}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs text-ink-muted hover:text-ink cursor-pointer"
+                  className="notion-btn-utility w-full justify-center text-xs"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <ArrowLeft className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                   <span>Cancel and back to sign in</span>
                 </button>
               </div>
@@ -1405,41 +1415,39 @@ function LoginForm() {
 
           {/* VIEW: AWAITING APPROVAL (LOADING STATE) */}
           {viewMode === "AWAITING_APPROVAL" && (
-            <div className="text-center py-3 space-y-4">
-              <div className="relative inline-flex items-center justify-center">
-                <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 animate-pulse">
-                  <Clock className="h-8 w-8 animate-spin" />
-                </div>
+            <div className="text-center py-2 space-y-4">
+              <div className="inline-flex h-12 w-12 rounded-lg bg-canvas-soft border border-hairline items-center justify-center text-ink-secondary mx-auto">
+                <Clock className="h-5 w-5 text-primary animate-spin" />
               </div>
 
               <div className="space-y-1">
-                <h3 className="text-sm sm:text-base font-bold text-ink">
+                <h3 className="notion-section-title text-sm sm:text-base text-ink">
                   {loginRole === "STAFF"
                     ? "Awaiting Root Administrator Authorization"
                     : "Awaiting Branch Manager Approval"}
                 </h3>
                 <p className="text-xs text-ink-muted">
-                  {studentInfo?.name ? `${studentInfo.name} • ` : ""}
+                  {studentInfo?.name ? `${studentInfo.name} · ` : ""}
                   {studentInfo?.roll || forgotIdentifier}
                 </p>
               </div>
 
               {/* Strict Non-Refresh Warning Banner */}
-              <div className="p-3.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-amber-900 text-xs text-left space-y-1.5">
-                <div className="font-bold flex items-center gap-1.5 text-amber-800">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+              <div className="p-3.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary text-xs text-left space-y-1.5">
+                <div className="font-semibold flex items-center gap-2 text-ink">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
                   <span>Do Not Refresh or Leave</span>
                 </div>
-                <p className="leading-relaxed">
-                  Your request has been routed to {loginRole === "STAFF" ? "the Root Administrator" : "your Branch Manager"}. <strong>Please do not refresh this page or go back</strong> while awaiting authorization.
+                <p className="leading-relaxed text-ink-muted">
+                  Your request has been routed to {loginRole === "STAFF" ? "the Root Administrator" : "your Branch Manager"}. <strong className="font-semibold text-ink">Please do not refresh this page or go back</strong> while awaiting authorization.
                 </p>
-                <p className="text-[11px] text-amber-700">
+                <p className="text-[11px] text-ink-faint">
                   Once authorized, this form will instantly update and unlock your new password form.
                 </p>
               </div>
 
               <div className="flex items-center justify-center gap-2 pt-1">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-green shrink-0" />
                 <span className="text-xs text-ink-muted font-mono">
                   Listening for live approval...
                 </span>
@@ -1452,7 +1460,7 @@ function LoginForm() {
                     setActiveRequestId(null);
                     setViewMode("LOGIN");
                   }}
-                  className="text-xs text-ink-muted hover:text-ink underline cursor-pointer"
+                  className="notion-btn-utility w-full justify-center text-xs"
                 >
                   Cancel and return to sign in
                 </button>
@@ -1464,17 +1472,17 @@ function LoginForm() {
           {viewMode === "RESET_PASSWORD" && (
             <form onSubmit={handleCompleteReset} className="space-y-4">
               {forgotError && (
-                <div className="flex items-start gap-2.5 rounded-md bg-red-50/90 border border-red-200/90 p-3 text-xs text-red-700 animate-in fade-in duration-150">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                <div className="flex items-start gap-2.5 rounded-md bg-canvas-soft border border-red-300/70 dark:border-red-500/30 p-3 text-xs text-red-700 dark:text-red-400">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
                   <span className="leading-relaxed font-medium">{forgotError}</span>
                 </div>
               )}
 
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div className="p-3 rounded-md bg-canvas-soft border border-hairline text-ink-secondary text-xs flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-accent-green shrink-0" />
                 <span>
                   Approval confirmed! Set a new password for{" "}
-                  <strong>{studentInfo?.name || studentInfo?.roll || "your account"}</strong>.
+                  <strong className="font-semibold text-ink">{studentInfo?.name || studentInfo?.roll || "your account"}</strong>.
                 </span>
               </div>
 
@@ -1498,15 +1506,19 @@ function LoginForm() {
                 placeholder="Re-enter new password"
               />
 
-              <ButtonPrimary
+              <button
                 id="btn-save-new-password"
                 type="submit"
-                className="w-full"
-                isLoading={forgotLoading}
-                icon={<Lock className="h-4 w-4" />}
+                disabled={forgotLoading}
+                className="notion-btn-primary w-full h-10 text-xs sm:text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {forgotLoading ? "Saving Password..." : "Save New Password & Sign In"}
-              </ButtonPrimary>
+                {forgotLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                )}
+                <span>{forgotLoading ? "Saving Password..." : "Save New Password & Sign In"}</span>
+              </button>
             </form>
           )}
 
@@ -1516,9 +1528,9 @@ function LoginForm() {
                 type="button"
                 onClick={handleInstallClick}
                 id="btn-install-pwa"
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors cursor-pointer"
+                className="notion-btn-utility w-full justify-center text-xs"
               >
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span>Install Student App on this Device</span>
               </button>
             </div>
@@ -1526,19 +1538,16 @@ function LoginForm() {
 
           {/* Contextual Footer Navigation */}
           {viewMode === "LOGIN" && (
-            <div className="mt-3.5 pt-3 border-t border-hairline text-center text-xs text-ink-muted">
+            <div className="mt-4 pt-3.5 border-t border-hairline text-center text-xs text-ink-muted">
               {loginRole === "STUDENT" ? (
                 <>
                   Are you a student with a new admission ID?{" "}
                   <button
                     type="button"
-                    onClick={() => {
-                      setLoginRole("CLAIM");
-                      setError(null);
-                    }}
-                    className="font-semibold text-primary hover:underline cursor-pointer"
+                    onClick={() => switchLoginRole("CLAIM")}
+                    className="font-medium text-primary hover:text-primary-active hover:underline cursor-pointer"
                   >
-                    Claim Account →
+                    Claim Account &rarr;
                   </button>
                 </>
               ) : loginRole === "STAFF" ? (
@@ -1546,13 +1555,10 @@ function LoginForm() {
                   Are you a student accessing results?{" "}
                   <button
                     type="button"
-                    onClick={() => {
-                      setLoginRole("STUDENT");
-                      setError(null);
-                    }}
-                    className="font-semibold text-primary hover:underline cursor-pointer"
+                    onClick={() => switchLoginRole("STUDENT")}
+                    className="font-medium text-primary hover:text-primary-active hover:underline cursor-pointer"
                   >
-                    Student Portal Sign-In →
+                    Student Portal Sign-In &rarr;
                   </button>
                 </>
               ) : (
@@ -1560,19 +1566,16 @@ function LoginForm() {
                   Already claimed your account?{" "}
                   <button
                     type="button"
-                    onClick={() => {
-                      setLoginRole("STUDENT");
-                      setClaimError(null);
-                    }}
-                    className="font-semibold text-primary hover:underline cursor-pointer"
+                    onClick={() => switchLoginRole("STUDENT")}
+                    className="font-medium text-primary hover:text-primary-active hover:underline cursor-pointer"
                   >
-                    Sign In with Roll Number →
+                    Sign In with Roll Number &rarr;
                   </button>
                 </>
               )}
             </div>
           )}
-        </FeatureCard>
+        </div>
       </div>
     </div>
   );
@@ -1580,14 +1583,15 @@ function LoginForm() {
 
 function LoginLoadingFallback() {
   return (
-    <div className="flex min-h-[75vh] items-center justify-center py-8">
-      <div className="w-full max-w-sm p-6 rounded-xl border border-hairline bg-surface shadow-xs space-y-4">
-        <div className="h-12 w-12 bg-canvas-soft rounded-xl animate-pulse mx-auto" />
-        <div className="h-5 w-40 bg-canvas-soft rounded animate-pulse mx-auto" />
-        <div className="h-3 w-56 bg-canvas-soft rounded animate-pulse mx-auto" />
-        <div className="h-9 bg-canvas-soft rounded-lg animate-pulse" />
-        <div className="h-10 bg-canvas-soft rounded-lg animate-pulse" />
-        <div className="h-10 bg-canvas-soft rounded-lg animate-pulse" />
+    <div className="flex min-h-[75vh] items-center justify-center py-6 sm:py-10 px-4">
+      <div className="w-full max-w-[390px] notion-card p-5 sm:p-6 space-y-4">
+        <Skeleton className="h-11 w-11 rounded-lg mx-auto" />
+        <Skeleton className="h-6 w-44 rounded-md mx-auto" />
+        <Skeleton className="h-4 w-60 rounded-xs mx-auto" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-10 w-full rounded-xs" />
+        <Skeleton className="h-10 w-full rounded-xs" />
+        <Skeleton className="h-10 w-full rounded-md" />
       </div>
     </div>
   );

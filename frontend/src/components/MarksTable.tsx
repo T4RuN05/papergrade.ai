@@ -4,10 +4,6 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   Search,
-  Filter,
-  CheckCircle2,
-  AlertTriangle,
-  Flag,
   ExternalLink,
   ArrowUpDown,
   FileSpreadsheet,
@@ -15,7 +11,7 @@ import {
 } from "lucide-react";
 import { Submission, ExamRubric } from "@/lib/types";
 import { api } from "@/lib/api";
-import { BadgePill, AppleSelect } from "./ui";
+import { AppleSelect } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
 interface MarksTableProps {
@@ -71,24 +67,57 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
     }
   };
 
+  const renderStatusPill = (sub: Submission, hasReview: boolean) => {
+    const statusUpper = (sub.status || "").toUpperCase();
+    const isAbsent = statusUpper === "ABSENT" || Boolean((sub as any).is_absent);
+    const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
+    const isUploaded = statusUpper === "UPLOADED" || statusUpper === "PENDING";
+
+    let dot = "bg-ink-muted";
+    let label = sub.status || "Pending";
+    if (isAbsent) {
+      dot = "bg-[#c93b3b]";
+      label = "Absent";
+    } else if (isProcessing) {
+      dot = "bg-[#dd5b00]";
+      label = "Evaluating";
+    } else if (isUploaded) {
+      dot = "bg-primary";
+      label = "Uploaded";
+    } else if (hasReview) {
+      dot = "bg-[#8b5cf6]";
+      label = "Review";
+    } else if (statusUpper === "COMPLETED" || statusUpper === "GRADED") {
+      dot = "bg-[#1aae39]";
+      label = "Completed";
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dot}`} />
+        <span>{label}</span>
+      </span>
+    );
+  };
+
   return (
-    <div className="rounded-lg border border-hairline bg-surface shadow-2xs overflow-hidden">
+    <div className="notion-card overflow-hidden">
       {/* Header Controls */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 border-b border-hairline bg-canvas-soft">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
           {/* Search */}
           <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-ink-muted" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
             <input
               type="text"
               placeholder="Search student or roll no..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-md border border-hairline bg-surface pl-9 pr-3 py-1.5 text-xs text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none shadow-2xs"
+              className="w-full rounded-xs border border-hairline bg-surface pl-9 pr-3 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none"
             />
           </div>
 
-          {/* Filter (Custom Apple-Grade Dropdown) */}
+          {/* Filter Dropdown */}
           <AppleSelect
             size="sm"
             value={filterStatus}
@@ -108,23 +137,126 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
           href={api.getMarksCsvUrl(examId, "Examination_Marks_Summary.csv")}
           download="Examination_Marks_Summary.csv"
           onClick={() => toast.info("Exporting class marks matrix CSV...", { title: "CSV Export" })}
-          className="btn-glass-utility inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-ink transition-all self-stretch sm:self-auto cursor-pointer"
+          className="notion-btn-utility w-full sm:w-auto"
         >
-          <FileSpreadsheet className="h-3.5 w-3.5 text-[#1e613b] dark:text-[#86d4a4]" />
+          <FileSpreadsheet className="h-3.5 w-3.5 text-[#1aae39]" />
           <span>Export Marks (CSV)</span>
         </a>
       </div>
 
-      {/* Spreadsheet Matrix Table */}
+      {/* Refetch progress hairline */}
       {isFetching && (
-        <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full mb-2">
-          <div className="h-full bg-primary animate-pulse w-full" />
+        <div className="h-0.5 w-full bg-hairline overflow-hidden">
+          <div className="h-full bg-primary w-2/5 transition-transform" />
         </div>
       )}
-      <div className={`overflow-x-auto sleek-scrollbar transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+
+      {/* Mobile Card List (< 640px) */}
+      <div className={`sm:hidden divide-y divide-hairline transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+        {filtered.length === 0 ? (
+          <div className="px-4 py-10 text-center text-xs text-ink-muted">
+            No student submissions found matching current criteria.
+          </div>
+        ) : (
+          filtered.map((sub) => {
+            const answerMap = new Map((sub.answers || []).map((a) => [a.question_id, a]));
+            const hasReview =
+              sub.status === "NEEDS_REVIEW" ||
+              (sub.answers || []).some((a) => a.needs_review);
+            const statusUpper = (sub.status || "").toUpperCase();
+            const isAbsent = statusUpper === "ABSENT" || Boolean((sub as any).is_absent);
+            const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
+
+            return (
+              <div key={sub.id} className="p-3.5 space-y-2.5 bg-surface">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-sm text-ink truncate">
+                        {sub.student_name}
+                      </span>
+                      {Boolean(sub.is_manual_override) && (
+                        <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
+                          Edited
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs font-mono text-ink-muted mt-0.5">
+                      Roll: {sub.roll_number}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono font-bold text-sm text-ink tabular-nums">
+                      {sub.total_awarded_marks}
+                      <span className="text-ink-muted font-normal text-xs">/{sub.max_marks}</span>
+                    </div>
+                    <div className="font-mono text-xs font-semibold text-primary tabular-nums">
+                      {sub.percentage}%
+                    </div>
+                  </div>
+                </div>
+
+                {questions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {questions.map((qid) => {
+                      const ans = answerMap.get(qid);
+                      return (
+                        <span
+                          key={qid}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-[11px] font-mono tabular-nums"
+                        >
+                          <span className="text-ink-muted">{qid}:</span>
+                          <span
+                            className={`font-semibold ${
+                              !ans
+                                ? "text-ink-faint"
+                                : ans.needs_review
+                                ? "text-[#8b5cf6]"
+                                : ans.awarded_marks >= ans.max_marks
+                                ? "text-[#1aae39]"
+                                : ans.awarded_marks > 0
+                                ? "text-[#dd5b00]"
+                                : "text-[#c93b3b]"
+                            }`}
+                          >
+                            {ans ? ans.awarded_marks : "—"}
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-hairline">
+                  {renderStatusPill(sub, hasReview)}
+                  {isAbsent ? (
+                    <span className="text-xs font-medium text-[#c93b3b]">No Submission</span>
+                  ) : isProcessing ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted opacity-60">
+                      <Lock className="h-3 w-3" />
+                      <span>Evaluating</span>
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/grading/${sub.id}`}
+                      className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
+                    >
+                      <span>Inspect Paper</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Spreadsheet Matrix Table (>= 640px) */}
+      <div className={`hidden sm:block overflow-x-auto sleek-scrollbar transition-opacity duration-200 ${isFetching ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="border-b border-hairline bg-canvas-soft text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
+            <tr className="border-b border-hairline bg-canvas-soft notion-eyebrow text-ink-muted">
               <th
                 onClick={() => handleSort("roll_number")}
                 className="cursor-pointer px-4 py-3 hover:text-ink transition-colors whitespace-nowrap"
@@ -192,13 +324,13 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                     key={sub.id}
                     className="hover:bg-canvas-soft/60 transition-colors"
                   >
-                    <td className="px-4 py-3 font-mono font-bold text-ink whitespace-nowrap">
+                    <td className="px-4 py-3 font-mono font-semibold text-ink whitespace-nowrap">
                       {sub.roll_number}
                     </td>
                     <td className="px-4 py-3 font-medium text-ink whitespace-nowrap">
                       {sub.student_name}
                       {Boolean(sub.is_manual_override) && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#faf4ec] text-[#7a4e18] border border-[#e8dac5] dark:bg-[#241a10] dark:text-[#e5ad68] dark:border-[#422c17]">
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium bg-canvas-soft text-ink-secondary border border-hairline">
                           Edited
                         </span>
                       )}
@@ -217,22 +349,22 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                       return (
                         <td
                           key={qid}
-                          className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap"
+                          className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap tabular-nums"
                         >
                           {ans.needs_review ? (
-                            <span className="inline-flex px-1.5 py-0.5 rounded font-bold text-[#553578] dark:text-[#bf9fe3] bg-[#f4f0f8] dark:bg-[#1f162a] border border-[#dcd0ea] dark:border-[#38264e]">
+                            <span className="inline-flex px-1.5 py-0.5 rounded-xs font-semibold text-[#8b5cf6] bg-canvas-soft border border-hairline">
                               {ans.awarded_marks}
                             </span>
                           ) : ans.awarded_marks >= ans.max_marks ? (
-                            <span className="font-bold text-[#1e613b] dark:text-[#86d4a4]">
+                            <span className="font-semibold text-[#1aae39]">
                               {ans.awarded_marks}
                             </span>
                           ) : ans.awarded_marks > 0 ? (
-                            <span className="font-semibold text-[#7a4e18] dark:text-[#e5ad68]">
+                            <span className="font-medium text-[#dd5b00]">
                               {ans.awarded_marks}
                             </span>
                           ) : (
-                            <span className="text-[#872323] dark:text-[#e87878] font-medium">
+                            <span className="text-[#c93b3b] font-medium">
                               {ans.awarded_marks}
                             </span>
                           )}
@@ -240,27 +372,15 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                       );
                     })}
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-ink whitespace-nowrap">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-ink whitespace-nowrap tabular-nums">
                       {sub.total_awarded_marks}{" "}
                       <span className="text-ink-muted font-normal text-[11px]">/ {sub.max_marks}</span>
                     </td>
-                    <td className="px-3 py-3 text-right font-mono font-bold text-primary whitespace-nowrap">
+                    <td className="px-3 py-3 text-right font-mono font-semibold text-primary whitespace-nowrap tabular-nums">
                       {sub.percentage}%
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {(() => {
-                        const statusUpper = (sub.status || "").toUpperCase();
-                        const isAbsent = statusUpper === "ABSENT" || Boolean((sub as any).is_absent);
-                        const isProcessing = ["QUEUED", "PROCESSING", "EVALUATING"].includes(statusUpper);
-                        const isUploaded = statusUpper === "UPLOADED" || statusUpper === "PENDING";
-
-                        if (isAbsent) return <BadgePill label="Absent" color="red" />;
-                        if (isProcessing) return <BadgePill label="Evaluating" color="orange" />;
-                        if (isUploaded) return <BadgePill label="Uploaded" color="sky" />;
-                        if (hasReview) return <BadgePill label="Review" color="purple" />;
-                        if (statusUpper === "COMPLETED" || statusUpper === "GRADED") return <BadgePill label="Completed" color="green" />;
-                        return <BadgePill label={sub.status} color="gray" />;
-                      })()}
+                      {renderStatusPill(sub, hasReview)}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {(() => {
@@ -270,7 +390,7 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
 
                         if (isAbsent) {
                           return (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-[#872323] bg-[#fbf0f0] border border-[#ecd0d0] dark:bg-[#261212] dark:text-[#e87878] dark:border-[#491f1f]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-xs text-[11px] font-medium text-[#c93b3b] bg-canvas-soft border border-hairline">
                               No Submission
                             </span>
                           );
@@ -279,10 +399,10 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                         if (isProcessing) {
                           return (
                             <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-ink-muted opacity-45 bg-canvas-soft/40 border border-hairline/60 cursor-not-allowed select-none"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-ink-muted opacity-50 bg-canvas-soft border border-hairline cursor-not-allowed select-none"
                               title="Evaluation in progress. Paper inspection will unlock automatically once completed."
                             >
-                              <Lock className="h-3 w-3 text-ink-muted/70" />
+                              <Lock className="h-3 w-3 text-ink-muted" />
                               <span>Inspect Paper</span>
                             </span>
                           );
@@ -291,7 +411,7 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                         return (
                           <Link
                             href={`/grading/${sub.id}`}
-                            className="btn-glass-utility inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-primary transition-all"
+                            className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                           >
                             <span>Inspect Paper</span>
                             <ExternalLink className="h-3 w-3" />

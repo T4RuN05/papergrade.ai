@@ -125,14 +125,14 @@ export function NotificationDrawer() {
     >
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-xs transition-opacity duration-300 ease-in-out"
+          className="fixed inset-0 bg-black/30 transition-opacity duration-300 ease-in-out"
           onClick={closeDrawer}
           aria-hidden="true"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 right-0 w-full max-w-md h-full h-[100dvh] bg-surface shadow-2xl border-l border-hairline flex flex-col transition-transform duration-300 ease-in-out transform ${
+        className={`fixed inset-y-0 right-0 w-full max-w-md h-full h-[100dvh] bg-surface shadow-notion-modal border-l border-hairline flex flex-col transition-transform duration-300 ease-in-out transform ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

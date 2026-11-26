@@ -28,7 +28,7 @@ export function FloatingBoxActionBar({
 }: FloatingBoxActionBarProps) {
   return (
     <div
-      className="absolute flex items-center gap-1.5 bg-surface border border-hairline shadow-lg px-2.5 py-1 rounded-md text-xs z-50 animate-in fade-in zoom-in-95 pointer-events-auto select-none whitespace-nowrap"
+      className="absolute flex items-center gap-1.5 bg-surface border border-hairline shadow-notion-modal px-2.5 py-1.5 rounded-lg text-xs z-50 pointer-events-auto select-none whitespace-nowrap"
       style={{
         [isNearBottom ? "bottom" : "top"]: "100%",
         left: "50%",
@@ -42,32 +42,32 @@ export function FloatingBoxActionBar({
     >
       {isModified ? (
         <>
-          <span className="text-[10px] text-ink-muted font-medium">Box adjusted</span>
+          <span className="text-[11px] text-ink-muted font-medium">Box adjusted</span>
           <button
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="btn-glass-primary flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all disabled:opacity-50 cursor-pointer"
+            className="notion-btn-primary min-h-0 h-6 px-2.5 text-[11px] disabled:opacity-50"
           >
             {saving ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
               <Check className="h-3 w-3" />
             )}
-            Save Box
+            <span>Save Box</span>
           </button>
           <button
             type="button"
             onClick={onRevert}
-            className="btn-glass-utility flex items-center gap-1 px-2 py-0.5 rounded text-ink-secondary text-[11px] cursor-pointer"
+            className="notion-btn-utility min-h-0 h-6 px-2 text-[11px] text-ink-secondary"
             title="Revert to original AI position"
           >
             <RotateCcw className="h-3 w-3" />
-            Revert
+            <span>Revert</span>
           </button>
         </>
       ) : (
-        <span className="text-[10px] text-ink-muted font-medium">
+        <span className="text-[11px] text-ink-muted font-medium">
           Drag handles to resize or body to move
         </span>
       )}
@@ -76,22 +76,22 @@ export function FloatingBoxActionBar({
         <button
           type="button"
           onClick={onDelete}
-          className="btn-glass-utility flex items-center gap-1 px-2 py-0.5 rounded text-rose-600 hover:text-rose-700 transition-colors text-[11px] font-medium cursor-pointer ml-1"
+          className="notion-btn-danger min-h-0 h-6 px-2 text-[11px] ml-0.5"
           title="Delete this bounding box region"
         >
           <Trash2 className="h-3 w-3" />
-          Delete
+          <span>Delete</span>
         </button>
       )}
 
       <button
         type="button"
         onClick={onExit}
-        className="btn-glass-utility flex items-center gap-1 px-2 py-0.5 rounded text-ink-muted hover:text-ink transition-colors text-[11px] font-medium cursor-pointer ml-1"
+        className="notion-btn-utility min-h-0 h-6 px-2 text-[11px] text-ink-muted ml-0.5"
         title="Exit edit mode"
       >
         <X className="h-3 w-3" />
-        Exit
+        <span>Exit</span>
       </button>
     </div>
   );

@@ -181,71 +181,65 @@ export const StudentProfileHeader = React.memo(function StudentProfileHeader({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-3 border-b border-hairline">
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
+    <header className="pb-4 border-b border-hairline flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="space-y-1.5 min-w-0">
+        <p className="notion-eyebrow">Student Workspace</p>
+        {isLoading && !user ? (
+          <Skeleton className="h-7 w-48 rounded-md" />
+        ) : (
+          <h1 className="notion-heading-2 text-ink truncate">
+            Welcome, {user?.full_name || "Student"}
+          </h1>
+        )}
+        <div className="text-xs text-ink-muted flex flex-wrap items-center gap-x-2.5 gap-y-1">
           {isLoading && !user ? (
-            <Skeleton className="h-7 w-48 rounded-md" />
+            <Skeleton className="h-4 w-32 rounded-xs" />
           ) : (
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
-              Welcome, {user?.full_name || "Student"}
-            </h1>
-          )}
-        </div>
-        <div className="text-xs text-ink-muted mt-1 leading-normal flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          {isLoading && !user ? (
-            <Skeleton className="h-4 w-32 rounded" />
-          ) : (
-            <>
-              <span className="whitespace-nowrap">
-                Roll No: <strong className="text-ink font-medium font-mono">{rollNumber}</strong>
-              </span>
-              <span className="text-ink-faint hidden xs:inline">•</span>
-            </>
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <span className="text-ink-faint">Roll No</span>
+              <span className="font-mono font-medium text-ink">{rollNumber}</span>
+            </span>
           )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        {/* Google Drive Status / Connect Pill */}
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0 w-full sm:w-auto">
         {byosState.isConnected ? (
           <div
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-2xs select-none"
+            className="notion-btn-utility justify-center px-3 py-1.5 text-xs select-none"
             title={`Connected to Google Drive (${byosState.googleEmail || "Active"})`}
           >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
             <GoogleDriveIcon className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate max-w-[130px] sm:max-w-none">
-              Gdrive Linked
-            </span>
+            <span className="truncate">Drive Linked</span>
           </div>
         ) : (
           <button
             type="button"
             onClick={handleConnectDrive}
             disabled={byosState.loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold btn-glass-utility transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            className="notion-btn-utility justify-center px-3 py-1.5 text-xs disabled:opacity-50"
             title="Link your Google Drive for automatic result paper archiving"
           >
             {byosState.loading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-ink-muted" />
             ) : (
               <GoogleDriveIcon className="w-3.5 h-3.5 shrink-0" />
             )}
-            <span>{byosState.loading ? "Linking..." : "Link Gdrive"}</span>
+            <span>{byosState.loading ? "Linking..." : "Link Drive"}</span>
           </button>
         )}
 
-        {/* Report Issue Button */}
         <button
           type="button"
           onClick={onReportIssueClick}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold btn-glass-utility transition-all cursor-pointer shadow-2xs"
+          className="notion-btn-utility justify-center px-3 py-1.5 text-xs"
           title="Report a technical issue with the portal"
         >
-          <AlertTriangle className="h-3.5 w-3.5 text-primary" />
+          <AlertTriangle className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>Report Issue</span>
         </button>
       </div>
-    </div>
+    </header>
   );
 });

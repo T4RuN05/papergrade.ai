@@ -99,11 +99,11 @@ export const TenancySwitchDropdown: React.FC<TenancySwitchDropdownProps> = ({ cl
       <button
         type="button"
         onClick={toggleDropdown}
-        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-md bg-canvas-soft hover:bg-surface border border-hairline hover:border-hairline/80 text-xs shadow-2xs transition-all cursor-pointer max-w-[170px] xs:max-w-[210px] sm:max-w-[280px]"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-md bg-canvas-soft hover:bg-surface border border-hairline text-xs transition-colors cursor-pointer max-w-[170px] xs:max-w-[210px] sm:max-w-[280px]"
         title="Click to switch active branch context"
       >
         <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-        <span className="font-bold text-ink truncate text-xs">
+        <span className="font-semibold text-ink truncate text-xs">
           {mounted
             ? selectedBranch?.name || selectedInstitute?.name || ((isBranchManager || isInstituteDirector) && branches[0]?.name) || "Select Branch"
             : "PaperGrade"}
@@ -115,22 +115,22 @@ export const TenancySwitchDropdown: React.FC<TenancySwitchDropdownProps> = ({ cl
         />
       </button>
 
-      {/* Styled Apple-grade Floating Popover Dropdown Menu */}
+      {/* Notion Floating Popover Dropdown Menu */}
       {dropdownOpen && mounted && (
         <div
-          className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface dark:bg-[#1c1c1e] rounded-lg border border-hairline shadow-notion-modal p-2 z-[55] ${
+          className={`fixed sm:absolute top-14 left-3 right-3 sm:top-full sm:mt-1.5 sm:left-auto sm:right-0 sm:translate-x-0 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-surface rounded-lg border border-hairline shadow-notion-modal p-2 z-[55] ${
             isExiting ? "animate-apple-out" : "animate-apple-in"
           }`}
         >
-          <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-muted flex items-center justify-between border-b border-hairline/60 pb-1.5 mb-1.5">
+          <div className="px-2.5 py-1.5 text-xs font-medium text-ink-muted flex items-center justify-between border-b border-hairline mb-1.5">
             <span>Operational Branch</span>
-            {isRootAdmin && <span className="text-[10px] text-primary font-semibold lowercase">root admin</span>}
-            {isInstituteDirector && <span className="text-[10px] text-purple-400 font-semibold lowercase">director</span>}
+            {isRootAdmin && <span className="text-[11px] text-primary font-medium">Root Admin</span>}
+            {isInstituteDirector && <span className="text-[11px] text-primary font-medium">Director</span>}
           </div>
 
           {isRootAdmin && institutes.length > 1 && (
             <div className="mb-2 px-1">
-              <label className="text-[10px] font-semibold text-ink-muted block mb-1">Coaching Institute:</label>
+              <label className="text-[11px] font-medium text-ink-muted block mb-1">Coaching Institute</label>
               <AppleSelect
                 size="sm"
                 value={selectedInstitute?.id || ""}
@@ -155,15 +155,15 @@ export const TenancySwitchDropdown: React.FC<TenancySwitchDropdownProps> = ({ cl
                       handleBranchChange(b.id);
                       closeDropdown();
                     }}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition-colors cursor-pointer text-left select-none ${
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-sm text-xs transition-colors cursor-pointer text-left select-none ${
                       isSelected
-                        ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
-                        : "text-ink hover:bg-canvas-soft dark:hover:bg-white/5 font-medium"
+                        ? "bg-primary/10 text-primary font-semibold"
+                        : "text-ink hover:bg-canvas-soft font-medium"
                     }`}
                   >
                     <div className="min-w-0 pr-2">
                       <p className="truncate font-semibold">{b.name}</p>
-                      {b.city && <p className="text-[10px] text-ink-muted truncate">{b.city}</p>}
+                      {b.city && <p className="text-[11px] text-ink-muted truncate">{b.city}</p>}
                     </div>
                     {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                   </button>

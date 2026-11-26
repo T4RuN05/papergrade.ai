@@ -31,11 +31,7 @@ import {
   exportRosterCSV,
   computeRankedSubmissions,
 } from "@/components/ExamRankedTable";
-import {
-  BadgePill,
-  ButtonPrimary,
-  useConfirm,
-} from "@/components/ui";
+import { useConfirm } from "@/components/ui";
 
 // Extracted Microcomponents
 import { ExamActionHeader } from "@/components/exams/ExamActionHeader";
@@ -464,8 +460,18 @@ export default function ExamDetailPage() {
 
   if (!isExamLoading && !exam) {
     return (
-      <div className="max-w-xl mx-auto py-12 text-center text-xs text-ink-muted">
-        Exam not found.
+      <div className="max-w-xl mx-auto py-12">
+        <div className="notion-card rounded-lg p-8 text-center space-y-3">
+          <p className="text-sm font-semibold text-ink">Exam not found</p>
+          <p className="text-xs text-ink-muted">
+            The requested examination could not be located in the registry.
+          </p>
+          <div className="pt-2">
+            <Link href="/exams" className="notion-btn-utility">
+              Return to Examinations
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -504,7 +510,7 @@ export default function ExamDetailPage() {
     : 0;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-16">
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 cascade-group">
       {/* 1. Header Toolbar */}
       <ExamActionHeader
         title={exam?.title}
@@ -531,7 +537,7 @@ export default function ExamDetailPage() {
         onDeleteExam={() => setDeleteExamModalOpen(true)}
       />
 
-      {/* 2. Submission Window Control Bar with Zero-Drift Countdown Hook */}
+      {/* 2. Submission Window Control Bar */}
       <SubmissionWindowControlBar
         windowStatus={windowStatus}
         isLoading={isExamLoading}
@@ -548,114 +554,152 @@ export default function ExamDetailPage() {
         onCloseWindow={handleCloseWindow}
       />
 
-      {/* 3. Academic Materials & Rubric Row */}
-      <ExamAcademicMaterialsRow
-        examId={examId}
-        hasQp={hasQp}
-        hasAk={hasAk}
-        isRubricApproved={isRubricApproved}
-        questionCount={questionCount}
-        isRootAdmin={isRootAdmin}
-        isLoading={isExamLoading}
-        onViewQp={() => handleViewArtifact("QUESTION_PAPER")}
-        onViewAk={() => handleViewArtifact("ANSWER_KEY")}
-        onUploadQp={() => setUploadQpOpen(true)}
-        onUploadAk={() => setUploadAkOpen(true)}
-      />
+      {/* 3. Academic Materials & Rubric */}
+      <section className="space-y-3">
+        <div className="space-y-0.5">
+          <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+            Academic Materials &amp; Rubric
+          </h2>
+          <p className="text-xs sm:text-[13px] text-ink-muted">
+            Source question paper, official answer key, and structured grading rubric.
+          </p>
+        </div>
+
+        <ExamAcademicMaterialsRow
+          examId={examId}
+          hasQp={hasQp}
+          hasAk={hasAk}
+          isRubricApproved={isRubricApproved}
+          questionCount={questionCount}
+          isRootAdmin={isRootAdmin}
+          isLoading={isExamLoading}
+          onViewQp={() => handleViewArtifact("QUESTION_PAPER")}
+          onViewAk={() => handleViewArtifact("ANSWER_KEY")}
+          onUploadQp={() => setUploadQpOpen(true)}
+          onUploadAk={() => setUploadAkOpen(true)}
+        />
+      </section>
 
       {/* 4. Analytics Metrics */}
-      <ExamAnalyticsMetrics
-        totalSubmissions={stats.total}
-        evaluatedCount={stats.completed}
-        averagePercentage={stats.avgPct}
-        needsReviewCount={stats.needsReview}
-        isLoading={isSubsLoading && submissions.length === 0}
-      />
+      <section className="space-y-3">
+        <div className="space-y-0.5">
+          <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+            Evaluation Summary
+          </h2>
+          <p className="text-xs sm:text-[13px] text-ink-muted">
+            Submission progress, grading completion, and class average.
+          </p>
+        </div>
+
+        <ExamAnalyticsMetrics
+          totalSubmissions={stats.total}
+          evaluatedCount={stats.completed}
+          averagePercentage={stats.avgPct}
+          needsReviewCount={stats.needsReview}
+          isLoading={isSubsLoading && submissions.length === 0}
+        />
+      </section>
 
       {/* AI Evaluation In-Progress Banner */}
       {isEvalActive && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 dark:bg-primary/10 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
+        <div className="notion-card rounded-lg border-primary/30 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <RefreshCw className="h-5 w-5 text-primary animate-spin shrink-0" />
+            <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center shrink-0">
+              <RefreshCw className="h-4 w-4 text-primary animate-spin" />
+            </div>
             <div>
-              <p className="font-bold text-ink">AI Grading in Progress</p>
-              <p className="text-[11px] text-ink-muted mt-0.5">
-                Processing queued student answer scripts via Gemini Vision AI. Results will update automatically.
+              <p className="font-semibold text-ink">AI Grading in Progress</p>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Processing queued student answer scripts via Gemini Vision AI. Results update automatically.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="font-mono font-bold text-ink text-sm bg-surface px-3 py-1.5 rounded-md border border-hairline shadow-2xs">
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            <span className="font-mono tabular-nums font-semibold text-ink text-xs sm:text-sm bg-canvas-soft px-3 py-1.5 rounded-md border border-hairline">
               {evalStatus?.summary?.finished ?? stats.completed} / {evalStatus?.summary?.total ?? stats.total} Evaluated
             </span>
           </div>
         </div>
       )}
 
-      {/* When all prerequisites are ready, show a ready banner */}
+      {/* Ready to Evaluate Banner */}
       {canStartEvaluation && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50/80 dark:bg-emerald-950/20 dark:border-emerald-800/40 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+        <div className="notion-card rounded-lg p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center shrink-0">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </div>
             <div>
-              <p className="font-bold text-emerald-900 dark:text-emerald-200">All Evaluation Prerequisites Satisfied</p>
-              <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5">
+              <p className="font-semibold text-ink">All Evaluation Prerequisites Satisfied</p>
+              <p className="text-xs text-ink-muted mt-0.5">
                 Submission window closed, answer key uploaded, and rubric locked. Ready to evaluate {unprocessedCount} student {unprocessedCount === 1 ? "paper" : "papers"} in FIFO order.
               </p>
             </div>
           </div>
-          <ButtonPrimary
-            size="sm"
+          <button
+            type="button"
             onClick={handleStartEvaluation}
-            isLoading={isStartingEval}
-            icon={<Play className="h-3.5 w-3.5" />}
-            className="bg-primary hover:bg-primary-active shrink-0 shadow-xs"
+            disabled={isStartingEval}
+            className="notion-btn-primary w-full sm:w-auto justify-center shrink-0"
           >
-            {isStartingEval
-              ? "Starting Evaluation..."
-              : `Start Evaluation (${unprocessedCount})`}
-          </ButtonPrimary>
+            <Play className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {isStartingEval
+                ? "Starting Evaluation..."
+                : `Start Evaluation (${unprocessedCount})`}
+            </span>
+          </button>
         </div>
       )}
 
       {/* Evaluation Invariant Checklist Banner when requirements are pending */}
       {!isPublished && !isEvalActive && !canStartEvaluation && (
-        <div className="rounded-lg border border-hairline bg-surface p-4 text-xs space-y-3 shadow-2xs relative overflow-hidden">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500/80 dark:bg-amber-400/70" />
-          <div className="flex items-center justify-between pl-1">
-            <span className="font-bold text-ink flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              Evaluation Queue Prerequisites Checklist {unprocessedCount > 0 ? `(${unprocessedCount} papers stored)` : "(Awaiting Submissions & Key)"}
+        <div className="notion-card rounded-lg p-4 sm:p-5 text-xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+            <span className="font-semibold text-sm text-ink flex items-center gap-2">
+              <Clock className="h-4 w-4 text-ink-secondary shrink-0" />
+              <span>
+                Evaluation Prerequisites Checklist{" "}
+                <span className="font-normal text-ink-muted">
+                  {unprocessedCount > 0 ? `(${unprocessedCount} papers stored)` : "(Awaiting Submissions & Key)"}
+                </span>
+              </span>
             </span>
-            <span className="text-[11px] font-mono text-ink-muted">Evaluation Invariants</span>
+            <span className="text-xs text-ink-muted">Evaluation Invariants</span>
           </div>
-          <p className="text-[11px] text-ink-muted leading-relaxed pl-1">
+          <p className="text-xs text-ink-muted leading-relaxed">
             Per examination guidelines, automated evaluation cannot begin while students are still uploading or until the official answer key and locked rubric are verified.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px] pl-1">
-            <div className="p-2.5 rounded-lg border border-hairline bg-canvas-soft flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${!isWindowOpen ? "text-[#1e613b] dark:text-[#86d4a4]" : "text-[#7a4e18] dark:text-[#e5ad68]"}`} />
-                <span className="font-medium text-ink">1. Submission Window</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            <div className="p-3 rounded-md border border-hairline bg-canvas-soft flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${!isWindowOpen ? "text-emerald-600" : "text-amber-600"}`} />
+                <span className="font-medium text-ink truncate">1. Submission Window</span>
               </div>
-              <BadgePill label={!isWindowOpen ? "Closed" : "Active"} color={!isWindowOpen ? "green" : "orange"} />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-secondary shrink-0">
+                <span className={`w-1.5 h-1.5 rounded-full ${!isWindowOpen ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {!isWindowOpen ? "Closed" : "Active"}
+              </span>
             </div>
 
-            <div className="p-2.5 rounded-lg border border-hairline bg-canvas-soft flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${hasAk ? "text-[#1e613b] dark:text-[#86d4a4]" : "text-[#7a4e18] dark:text-[#e5ad68]"}`} />
-                <span className="font-medium text-ink">2. Official Answer Key</span>
+            <div className="p-3 rounded-md border border-hairline bg-canvas-soft flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${hasAk ? "text-emerald-600" : "text-amber-600"}`} />
+                <span className="font-medium text-ink truncate">2. Answer Key</span>
               </div>
               {hasAk ? (
-                <div className="flex items-center gap-1.5">
-                  <BadgePill label="Uploaded" color="green" />
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-secondary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Uploaded
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleViewArtifact("ANSWER_KEY")}
-                    className="text-[10px] text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium cursor-pointer"
                     title="View Answer Key in Modal"
                   >
-                    <Eye className="h-2.5 w-2.5" />
+                    <Eye className="h-3 w-3" />
                     View
                   </button>
                 </div>
@@ -663,30 +707,33 @@ export default function ExamDetailPage() {
                 <button
                   type="button"
                   onClick={() => setUploadAkOpen(true)}
-                  className="font-bold text-primary hover:underline text-[11px]"
+                  className="font-semibold text-primary hover:underline text-xs shrink-0 cursor-pointer"
                 >
                   Upload →
                 </button>
               ) : (
-                <span className="text-[10px] font-medium text-ink-muted bg-canvas-soft border border-hairline px-1.5 py-0.5 rounded">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-muted shrink-0">
                   Pending Admin
                 </span>
               )}
             </div>
 
-            <div className={`p-2.5 rounded-lg border flex items-center justify-between ${isRubricApproved ? "bg-surface border-emerald-300 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300" : "bg-surface border-amber-200 dark:border-amber-800/40 text-amber-900 dark:text-amber-300"}`}>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className={`h-4 w-4 shrink-0 ${isRubricApproved ? "text-[#1e613b] dark:text-[#86d4a4]" : "text-[#7a4e18] dark:text-[#e5ad68]"}`} />
-                <span className="font-medium text-ink">3. Grading Rubric</span>
+            <div className="p-3 rounded-md border border-hairline bg-canvas-soft flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <CheckCircle2 className={`h-4 w-4 shrink-0 ${isRubricApproved ? "text-emerald-600" : "text-amber-600"}`} />
+                <span className="font-medium text-ink truncate">3. Grading Rubric</span>
               </div>
               {isRubricApproved ? (
-                <BadgePill label="Locked" color="green" />
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-secondary shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Locked
+                </span>
               ) : (
                 <Link
                   href={`/exams/${examId}/rubric`}
-                  className="font-bold text-primary hover:underline text-[11px]"
+                  className="font-semibold text-primary hover:underline text-xs shrink-0"
                 >
-                  Review & Lock →
+                  Review &amp; Lock →
                 </Link>
               )}
             </div>
@@ -695,23 +742,41 @@ export default function ExamDetailPage() {
       )}
 
       {/* 5. Submissions Ledger & Ranked Grid */}
-      <ExamSubmissionsGrid
-        examId={examId}
-        examTitle={exam?.title || "Exam"}
-        maxMarks={exam?.total_marks || 25}
-        submissions={submissions as any}
-        isRefreshing={isSubsRefetching}
-        isLoading={isSubsLoading}
-        onRefresh={() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.submissions.list(examId) });
-          refetchSubmissions();
-        }}
-        onExportRosterCsv={handleExportRosterCSV}
-        onExportRankedCsv={handleExportRankedCSV}
-        needsReviewCount={stats.needsReview}
-        onClearAllReviews={handleClearAllExamReviews}
-        isBulkClearing={isBulkClearing}
-      />
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+                Submissions &amp; Standings
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface border border-hairline text-ink-muted tabular-nums">
+                {stats.total}
+              </span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-ink-muted">
+              Inspect candidate scripts, marks, and class standings.
+            </p>
+          </div>
+        </div>
+
+        <ExamSubmissionsGrid
+          examId={examId}
+          examTitle={exam?.title || "Exam"}
+          maxMarks={exam?.total_marks || 25}
+          submissions={submissions as any}
+          isRefreshing={isSubsRefetching}
+          isLoading={isSubsLoading}
+          onRefresh={() => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.submissions.list(examId) });
+            refetchSubmissions();
+          }}
+          onExportRosterCsv={handleExportRosterCSV}
+          onExportRankedCsv={handleExportRankedCSV}
+          needsReviewCount={stats.needsReview}
+          onClearAllReviews={handleClearAllExamReviews}
+          isBulkClearing={isBulkClearing}
+        />
+      </section>
 
       {/* Extracted Modular Modals */}
       <ExamUploadQpModal

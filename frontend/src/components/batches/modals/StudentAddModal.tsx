@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckCircle2, GraduationCap } from "lucide-react";
-import { ModalCard, FormInput, ButtonPrimary, ButtonUtility } from "@/components/ui";
+import { CheckCircle2, GraduationCap, Loader2 } from "lucide-react";
+import { ModalCard, FormInput } from "@/components/ui";
 
 interface StudentAddModalProps {
   isOpen: boolean;
@@ -62,11 +62,11 @@ export function StudentAddModal({
     >
       {assignedRoll ? (
         <div className="text-center py-4 space-y-4">
-          <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-            <CheckCircle2 className="h-6 w-6" />
+          <div className="h-11 w-11 rounded-lg bg-canvas-soft border border-hairline text-emerald-600 flex items-center justify-center mx-auto">
+            <CheckCircle2 className="h-5 w-5" />
           </div>
           <div className="space-y-1">
-            <h4 className="text-sm font-bold text-ink">
+            <h4 className="text-sm font-semibold text-ink">
               Student Enrolled Successfully
             </h4>
             <p className="text-xs text-ink-muted">
@@ -76,21 +76,22 @@ export function StudentAddModal({
               {assignedRoll}
             </div>
           </div>
-          <ButtonPrimary
+          <button
+            type="button"
             onClick={handleClose}
-            className="w-full sm:w-auto justify-center"
+            className="notion-btn-primary w-full sm:w-auto justify-center"
           >
             Done
-          </ButtonPrimary>
+          </button>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs space-y-1">
-            <div className="font-semibold text-primary flex items-center gap-1.5">
-              <GraduationCap className="h-4 w-4" />
+          <div className="rounded-lg border border-hairline bg-canvas-soft p-3 text-xs space-y-1">
+            <div className="font-semibold text-ink flex items-center gap-1.5">
+              <GraduationCap className="h-4 w-4 text-primary shrink-0" />
               <span>Auto-Generated Roll Number</span>
             </div>
-            <p className="text-[11px] text-ink-muted leading-relaxed">
+            <p className="text-xs text-ink-muted leading-relaxed">
               Roll number is automatically assigned by PaperGrade upon enrollment (e.g.{" "}
               {branchCode ? `...-${branchCode}-...` : "auto-sequenced"}).
             </p>
@@ -109,23 +110,23 @@ export function StudentAddModal({
             value={stuEmail}
             onChange={(e) => setStuEmail(e.target.value)}
           />
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-            <ButtonUtility
+          <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-hairline">
+            <button
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="w-full sm:w-auto justify-center"
+              className="notion-btn-utility justify-center"
             >
               Cancel
-            </ButtonUtility>
-            <ButtonPrimary
+            </button>
+            <button
               type="submit"
-              isLoading={isSubmitting}
               disabled={isSubmitting || !stuName.trim()}
-              className="w-full sm:w-auto justify-center"
+              className="notion-btn-primary justify-center disabled:opacity-50"
             >
-              Enroll Student
-            </ButtonPrimary>
+              {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+              <span>{isSubmitting ? "Enrolling..." : "Enroll Student"}</span>
+            </button>
           </div>
         </form>
       )}

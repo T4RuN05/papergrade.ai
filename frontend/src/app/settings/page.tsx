@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   User,
-  CheckCircle2,
   AlertCircle,
   KeyRound,
   LogOut,
@@ -37,7 +36,7 @@ import {
 } from "@/lib/queries";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
-import { BadgePill, ButtonUtility, FeatureCard, Skeleton, useConfirm } from "@/components/ui";
+import { Skeleton, useConfirm } from "@/components/ui";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 
 function GoogleDriveIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -383,26 +382,36 @@ function SettingsContent() {
     !currentUser.has_changed_password;
 
   const containerClass = isStudent
-    ? "max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 pt-5 sm:pt-8 pb-16 space-y-5 sm:space-y-6 cascade-group"
-    : "w-full space-y-5 sm:space-y-6 cascade-group";
+    ? "max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-8 pb-20 space-y-6 cascade-group"
+    : "w-full space-y-6 pb-16 cascade-group";
+
+  const roleDisplayLabel =
+    currentUser?.role === "ROOT_ADMIN"
+      ? "Root Admin"
+      : currentUser?.role === "INSTITUTE_DIRECTOR"
+      ? "Institute Director"
+      : currentUser?.role === "BRANCH_MANAGER"
+      ? "Branch Manager"
+      : "Student";
 
   return (
     <div className={containerClass}>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-hairline">
-        <div className="space-y-1">
+      <header className="pb-4 border-b border-hairline flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div className="space-y-1.5 min-w-0">
           <Link
             href={dashboardHref}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink transition-colors"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
             <span>Back to {isStudent ? "Student Portal" : "Console"}</span>
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
-            Account & Profile Settings
+          <p className="notion-eyebrow text-ink-muted pt-0.5">Account Settings</p>
+          <h1 className="notion-heading-2 text-ink">
+            Account &amp; Profile Settings
           </h1>
-          <p className="text-xs text-ink-muted">
-            Manage your identity details, Google Sign-In linking, Drive storage quota, and session.
+          <p className="text-[13px] text-ink-muted leading-relaxed">
+            Manage your identity details, Google Sign-In linking, Drive storage quota, and active sessions.
           </p>
         </div>
 
@@ -410,18 +419,18 @@ function SettingsContent() {
           type="button"
           onClick={refreshAccountStatus}
           disabled={statusLoading}
-          className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink-secondary transition-colors cursor-pointer disabled:opacity-50"
+          className="notion-btn-utility w-full sm:w-auto justify-center text-xs shrink-0 disabled:opacity-50"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${statusLoading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 text-ink-muted shrink-0 ${statusLoading ? "animate-spin" : ""}`} />
           <span>Refresh Status</span>
         </button>
-      </div>
+      </header>
 
       {/* 1. Profile Identity Card */}
-      <FeatureCard className="p-5 sm:p-6 space-y-5">
+      <section className="notion-card p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="relative h-16 w-16 shrink-0">
-            <div className="h-full w-full rounded-full border border-hairline bg-canvas-soft flex items-center justify-center overflow-hidden shadow-xs">
+          <div className="relative h-14 w-14 sm:h-16 sm:w-16 shrink-0">
+            <div className="h-full w-full rounded-full border border-hairline bg-canvas-soft flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
@@ -429,14 +438,14 @@ function SettingsContent() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="text-xl font-bold text-ink select-none uppercase">
-                  {activeUser?.full_name ? activeUser.full_name.charAt(0) : <User className="h-6 w-6 text-ink-muted" />}
+                <span className="text-lg font-semibold text-ink select-none">
+                  {activeUser?.full_name ? activeUser.full_name.charAt(0).toUpperCase() : <User className="h-6 w-6 text-ink-muted" />}
                 </span>
               )}
             </div>
             {isDriveConnected && (
               <span
-                className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-emerald-500 ring-[2.5px] ring-surface shadow-xs z-10"
+                className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-accent-green ring-2 ring-surface z-10"
                 title="Google Drive Sync Active"
               />
             )}
@@ -444,35 +453,19 @@ function SettingsContent() {
 
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-ink truncate">
+              <h2 className="notion-heading-3 text-lg text-ink truncate">
                 {currentUser?.full_name || "Authenticated User"}
               </h2>
-              <BadgePill
-                label={
-                  currentUser?.role === "ROOT_ADMIN"
-                    ? "Root Admin"
-                    : currentUser?.role === "INSTITUTE_DIRECTOR"
-                    ? "Institute Director"
-                    : currentUser?.role === "BRANCH_MANAGER"
-                    ? "Branch Manager"
-                    : "Student"
-                }
-                color={
-                  currentUser?.role === "ROOT_ADMIN"
-                    ? "purple"
-                    : currentUser?.role === "INSTITUTE_DIRECTOR"
-                    ? "indigo"
-                    : currentUser?.role === "BRANCH_MANAGER"
-                    ? "teal"
-                    : "sky"
-                }
-              />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                <span>{roleDisplayLabel}</span>
+              </span>
             </div>
 
             {currentUser?.email && (
-              <p className="text-xs text-ink-secondary flex items-center gap-1.5 truncate">
-                <Mail className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                <span>{currentUser.email}</span>
+              <p className="text-xs text-ink-muted flex items-center gap-1.5 truncate">
+                <Mail className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                <span className="truncate">{currentUser.email}</span>
               </p>
             )}
           </div>
@@ -480,13 +473,14 @@ function SettingsContent() {
 
         {/* Role-specific Identity Grid */}
         {isStudent ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-hairline">
-            <div className="p-3.5 rounded-lg border border-hairline bg-canvas-soft/60 flex items-center justify-between gap-2">
-              <div>
-                <span className="text-[10.5px] font-medium text-ink-muted uppercase tracking-wider flex items-center gap-1">
-                  <Hash className="h-3 w-3" /> Roll Number
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-hairline">
+            <div className="p-3.5 rounded-md border border-hairline bg-canvas-soft flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-ink-muted flex items-center gap-1.5">
+                  <Hash className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                  <span>Roll Number</span>
                 </span>
-                <div className="text-sm font-bold text-ink font-mono mt-0.5">
+                <div className="text-sm font-semibold text-ink font-mono mt-0.5 truncate tabular-nums">
                   {rollNumber || "Not Assigned"}
                 </div>
               </div>
@@ -494,24 +488,25 @@ function SettingsContent() {
                 <button
                   type="button"
                   onClick={() => copyToClipboard(rollNumber, "Roll Number")}
-                  className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer"
+                  className="p-1.5 rounded-md border border-hairline bg-surface text-ink-muted hover:text-ink transition-colors cursor-pointer shrink-0"
                   title="Copy roll number"
                 >
                   {copiedField === "Roll Number" ? (
-                    <Check className="h-4 w-4 text-emerald-500" />
+                    <Check className="h-3.5 w-3.5 text-accent-green" />
                   ) : (
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-3.5 w-3.5" />
                   )}
                 </button>
               )}
             </div>
 
-            <div className="p-3.5 rounded-lg border border-hairline bg-canvas-soft/60 flex items-center justify-between gap-2">
-              <div>
-                <span className="text-[10.5px] font-medium text-ink-muted uppercase tracking-wider flex items-center gap-1">
-                  <GraduationCap className="h-3 w-3" /> Student ID
+            <div className="p-3.5 rounded-md border border-hairline bg-canvas-soft flex items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-ink-muted flex items-center gap-1.5">
+                  <GraduationCap className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                  <span>Student ID</span>
                 </span>
-                <div className="text-sm font-bold text-ink font-mono mt-0.5">
+                <div className="text-sm font-semibold text-ink font-mono mt-0.5 truncate tabular-nums">
                   {studentIdNum || "Enrolled"}
                 </div>
               </div>
@@ -519,62 +514,56 @@ function SettingsContent() {
                 <button
                   type="button"
                   onClick={() => copyToClipboard(studentIdNum, "Student ID")}
-                  className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer"
+                  className="p-1.5 rounded-md border border-hairline bg-surface text-ink-muted hover:text-ink transition-colors cursor-pointer shrink-0"
                   title="Copy student ID"
                 >
                   {copiedField === "Student ID" ? (
-                    <Check className="h-4 w-4 text-emerald-500" />
+                    <Check className="h-3.5 w-3.5 text-accent-green" />
                   ) : (
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-3.5 w-3.5" />
                   )}
                 </button>
               )}
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-hairline">
-            <div className="p-3.5 rounded-lg border border-hairline bg-canvas-soft/60">
-              <span className="text-[10.5px] font-medium text-ink-muted uppercase tracking-wider flex items-center gap-1">
-                <Building2 className="h-3 w-3" /> Assigned Institute
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-hairline">
+            <div className="p-3.5 rounded-md border border-hairline bg-canvas-soft min-w-0">
+              <span className="text-xs font-medium text-ink-muted flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                <span>Assigned Institute</span>
               </span>
-              <div className="text-xs font-bold text-ink mt-1 truncate">
+              <div className="text-[13px] font-semibold text-ink mt-1 truncate">
                 {selectedInstitute?.name || (currentUser?.role === "ROOT_ADMIN" ? "All Institutes (Global)" : "Assigned Institute")}
               </div>
             </div>
 
-            <div className="p-3.5 rounded-lg border border-hairline bg-canvas-soft/60">
-              <span className="text-[10.5px] font-medium text-ink-muted uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck className="h-3 w-3" /> Active Branch Scope
+            <div className="p-3.5 rounded-md border border-hairline bg-canvas-soft min-w-0">
+              <span className="text-xs font-medium text-ink-muted flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                <span>Active Branch Scope</span>
               </span>
-              <div className="text-xs font-bold text-ink mt-1 truncate">
+              <div className="text-[13px] font-semibold text-ink mt-1 truncate">
                 {selectedBranch?.name || (currentUser?.role === "ROOT_ADMIN" ? "Global Administrative Access" : "Assigned Branch")}
               </div>
             </div>
           </div>
         )}
-      </FeatureCard>
+      </section>
 
       {/* 2. Google Account & Cloud Archival Card */}
-      <FeatureCard className="p-4 sm:p-6 space-y-4">
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between gap-3">
+      <section className="notion-card p-5 sm:p-6 space-y-4">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  isDriveConnected
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                    : isGoogleLinked
-                    ? "bg-primary/10 text-primary border border-primary/20"
-                    : "bg-canvas-soft text-ink-muted border border-hairline"
-                }`}
-              >
+              <div className="h-9 w-9 rounded-md border border-hairline bg-canvas-soft flex items-center justify-center text-ink-secondary shrink-0">
                 {isStudent ? (
-                  <GoogleDriveIcon className="h-5 w-5" />
+                  <GoogleDriveIcon className="h-4 w-4" />
                 ) : (
-                  <GoogleLogoIcon className="h-5 w-5" />
+                  <GoogleLogoIcon className="h-4 w-4" />
                 )}
               </div>
-              <h3 className="text-sm font-bold text-ink leading-snug">
+              <h3 className="notion-section-title text-[15px] sm:text-base text-ink leading-snug">
                 {isStudent ? "Google Account & Drive Sync" : "Google Account Integration"}
               </h3>
             </div>
@@ -582,18 +571,19 @@ function SettingsContent() {
             {showStatusSkeleton ? (
               <Skeleton className="h-6 w-24 rounded-full shrink-0" />
             ) : isDriveConnected ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0 whitespace-nowrap">
-                <CheckCircle2 className="h-3 w-3" />
-                Drive Active
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-canvas-soft border border-hairline text-ink-secondary shrink-0 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-green shrink-0" />
+                <span>Drive Active</span>
               </span>
             ) : isGoogleLinked ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shrink-0 whitespace-nowrap">
-                <CheckCircle2 className="h-3 w-3" />
-                Google Linked
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-canvas-soft border border-hairline text-ink-secondary shrink-0 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                <span>Google Linked</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-canvas-soft text-ink-muted border border-hairline shrink-0 whitespace-nowrap">
-                Not Linked
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-canvas-soft border border-hairline text-ink-muted shrink-0 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-ink-faint shrink-0" />
+                <span>Not Linked</span>
               </span>
             )}
           </div>
@@ -607,7 +597,7 @@ function SettingsContent() {
 
         {/* Linked Google Identity Box */}
         {showStatusSkeleton ? (
-          <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex items-center justify-between gap-3">
+          <div className="p-3 rounded-md bg-canvas-soft border border-hairline flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <Skeleton className="h-7 w-7 rounded-full shrink-0" />
               <div className="space-y-1.5 flex-1">
@@ -615,10 +605,10 @@ function SettingsContent() {
                 <Skeleton className="h-3 w-52 max-w-full" />
               </div>
             </div>
-            <Skeleton className="h-7 w-24 rounded-md shrink-0" />
+            <Skeleton className="h-8 w-24 rounded-md shrink-0" />
           </div>
         ) : isGoogleLinked ? (
-          <div className="p-3 rounded-lg bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 rounded-md bg-canvas-soft border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full border border-hairline shrink-0 object-cover" />
@@ -628,7 +618,7 @@ function SettingsContent() {
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-ink truncate">{linkedEmail}</div>
                 <div className="text-[11px] text-ink-muted leading-snug">
-                  Linked Google Identity &bull; 1-Click Sign-In Enabled
+                  Linked Google Identity &middot; 1-Click Sign-In Enabled
                 </div>
               </div>
             </div>
@@ -637,12 +627,12 @@ function SettingsContent() {
               type="button"
               onClick={() => handleDisconnectGoogle(true)}
               disabled={disconnecting}
-              className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-hairline bg-surface hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-950/30 text-[11px] font-semibold text-ink-secondary transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              className="notion-btn-danger w-full sm:w-auto justify-center text-xs shrink-0 disabled:opacity-50"
             >
               {disconnecting ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
               ) : (
-                <Unlink className="h-3 w-3" />
+                <Unlink className="h-3.5 w-3.5 shrink-0" />
               )}
               <span>{disconnecting ? "Unlinking..." : "Unlink Account"}</span>
             </button>
@@ -651,7 +641,7 @@ function SettingsContent() {
 
         {/* Drive Storage Quota Meter (TanStack Query + In-Place Skeleton + Smooth Mount Animation) */}
         {showQuotaSkeleton ? (
-          <div className="space-y-2.5 p-3.5 rounded-lg bg-canvas-soft border border-hairline" aria-busy="true">
+          <div className="space-y-2.5 p-3.5 rounded-md bg-canvas-soft border border-hairline" aria-busy="true">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Skeleton className="h-3.5 w-44" />
               <Skeleton className="h-3.5 w-28" />
@@ -685,13 +675,13 @@ function SettingsContent() {
                 : `${quotaData.papergrade_mb ?? 0} MB`;
 
             return (
-              <div className="space-y-2.5 p-3.5 rounded-lg bg-canvas-soft border border-hairline">
+              <div className="space-y-2.5 p-3.5 rounded-md bg-canvas-soft border border-hairline">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
                   <span className="font-medium text-ink-secondary flex items-center gap-1.5">
                     <HardDrive className="h-3.5 w-3.5 text-ink-muted shrink-0" />
                     <span>Personal Google Drive Storage</span>
                   </span>
-                  <span className="font-mono font-bold text-ink whitespace-nowrap">
+                  <span className="font-mono font-semibold text-ink whitespace-nowrap tabular-nums">
                     {quotaData.usage_gb} GB /{" "}
                     {quotaData.limit_gb ? `${quotaData.limit_gb} GB` : "Unlimited"}{" "}
                     <span className="text-ink-muted font-normal">({quotaData.usage_percent}%)</span>
@@ -700,7 +690,7 @@ function SettingsContent() {
 
                 {/* Partitioned Stacked Progress Bar: Other Google Storage | PaperGrade AI */}
                 <div
-                  className="w-full h-2.5 rounded-full bg-ink/[0.08] dark:bg-white/[0.08] ring-1 ring-inset ring-hairline overflow-hidden flex items-stretch"
+                  className="w-full h-2.5 rounded-full bg-surface border border-hairline overflow-hidden flex items-stretch"
                   role="progressbar"
                   aria-valuenow={Math.round(quotaData.usage_percent)}
                   aria-valuemin={0}
@@ -714,7 +704,7 @@ function SettingsContent() {
                           ? "bg-red-500"
                           : quotaData.is_near_full
                           ? "bg-amber-500"
-                          : "bg-slate-400 dark:bg-slate-500"
+                          : "bg-ink-faint"
                       }`}
                       style={{ width: `${otherBarPct}%` }}
                       title={`Other Google Storage: ${quotaData.other_gb ?? quotaData.usage_gb} GB`}
@@ -741,12 +731,12 @@ function SettingsContent() {
                             ? "bg-red-500"
                             : quotaData.is_near_full
                             ? "bg-amber-500"
-                            : "bg-slate-400 dark:bg-slate-500"
+                            : "bg-ink-faint"
                         }`}
                       />
                       <span>
                         Other:{" "}
-                        <strong className="font-mono text-ink-secondary">
+                        <strong className="font-mono text-ink-secondary tabular-nums">
                           {quotaData.other_gb ?? quotaData.usage_gb} GB
                         </strong>
                       </span>
@@ -755,15 +745,15 @@ function SettingsContent() {
                       <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
                       <span>
                         PaperGrade:{" "}
-                        <strong className="font-mono text-primary">{pgLabel}</strong>
-                        <span className="opacity-75 ml-1">
+                        <strong className="font-mono text-primary tabular-nums">{pgLabel}</strong>
+                        <span className="text-ink-faint ml-1">
                           ({pgFiles} {pgFiles === 1 ? "file" : "files"})
                         </span>
                       </span>
                     </span>
                   </div>
                   {freeGb !== null && (
-                    <span className="font-mono text-[10.5px] text-ink-faint">
+                    <span className="font-mono text-[11px] text-ink-faint tabular-nums">
                       {freeGb} GB free
                     </span>
                   )}
@@ -771,10 +761,10 @@ function SettingsContent() {
 
                 {quotaData.is_near_full && (
                   <div
-                    className={`flex items-start gap-2 p-2.5 rounded-md text-xs leading-snug ${
+                    className={`flex items-start gap-2 p-2.5 rounded-md border text-xs leading-snug bg-surface ${
                       quotaData.is_critical
-                        ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40"
-                        : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40"
+                        ? "border-red-300/70 dark:border-red-500/30 text-red-700 dark:text-red-300"
+                        : "border-amber-300/70 dark:border-amber-500/30 text-amber-700 dark:text-amber-300"
                     }`}
                   >
                     <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -791,16 +781,16 @@ function SettingsContent() {
         ) : null}
 
         {/* Action Buttons for Linking / Disconnecting */}
-        <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2.5 pt-1">
           {isStudent ? (
             !isDriveConnected ? (
               <button
                 type="button"
                 onClick={() => handleLinkGoogle("byos")}
                 disabled={oauthConnecting}
-                className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                className="notion-btn-primary w-full sm:w-auto justify-center text-xs disabled:opacity-50"
               >
-                <GoogleDriveIcon className="h-4 w-4" />
+                <GoogleDriveIcon className="h-4 w-4 shrink-0" />
                 <span>
                   {oauthConnecting
                     ? "Connecting to Google..."
@@ -814,7 +804,7 @@ function SettingsContent() {
                 type="button"
                 onClick={() => handleDisconnectGoogle(false)}
                 disabled={disconnecting}
-                className="inline-flex items-center justify-center gap-2 py-2 px-3.5 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink-secondary transition-colors disabled:opacity-50 cursor-pointer"
+                className="notion-btn-utility w-full sm:w-auto justify-center text-xs disabled:opacity-50"
               >
                 <span>Pause Drive Auto-Sync</span>
               </button>
@@ -825,22 +815,24 @@ function SettingsContent() {
                 type="button"
                 onClick={() => handleLinkGoogle("link")}
                 disabled={oauthConnecting}
-                className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-hairline bg-surface hover:bg-canvas-soft text-xs font-semibold text-ink shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                className="notion-btn-utility w-full sm:w-auto justify-center text-xs disabled:opacity-50"
               >
-                <GoogleLogoIcon className="h-4 w-4" />
+                <GoogleLogoIcon className="h-4 w-4 shrink-0" />
                 <span>{oauthConnecting ? "Connecting to Google..." : "Link Google Account"}</span>
               </button>
             )
           )}
         </div>
-      </FeatureCard>
+      </section>
 
       {/* 3. Password Security */}
-      <FeatureCard className="p-5 sm:p-6 space-y-4">
+      <section className="notion-card p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-ink">Password & Security</h3>
-            <p className="text-xs text-ink-muted mt-0.5">
+          <div className="space-y-1">
+            <h3 className="notion-section-title text-[15px] sm:text-base text-ink">
+              Password &amp; Security
+            </h3>
+            <p className="text-xs text-ink-muted leading-relaxed">
               {canChangeInitialPassword
                 ? "You are using your initial administrator-issued password. Update it now to secure your account."
                 : "To reset a forgotten password, use Email OTP verification or administrator approval from the Sign-In page."}
@@ -850,26 +842,28 @@ function SettingsContent() {
             <button
               type="button"
               onClick={() => setChangePasswordOpen(true)}
-              className="self-start sm:self-center inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas text-xs font-semibold text-ink transition-colors cursor-pointer shrink-0"
+              className="notion-btn-utility w-full sm:w-auto justify-center text-xs shrink-0"
             >
-              <KeyRound className="h-3.5 w-3.5 text-ink-muted" />
+              <KeyRound className="h-3.5 w-3.5 text-ink-muted shrink-0" />
               <span>Set Personal Password</span>
             </button>
           )}
         </div>
-      </FeatureCard>
+      </section>
 
       {/* 4. Active Sessions & Devices */}
-      <FeatureCard className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
-          <div className="space-y-0.5">
+      <section className="notion-card p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-hairline">
+          <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-bold text-ink">Active Sessions & Devices</h3>
+              <h3 className="notion-section-title text-[15px] sm:text-base text-ink">
+                Active Sessions &amp; Devices
+              </h3>
               {!sessionsInitialLoading && (
-                <BadgePill
-                  label={`${sessions.length || 1} Active`}
-                  color="sky"
-                />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-canvas-soft border border-hairline text-ink-secondary tabular-nums">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-green shrink-0" />
+                  <span>{sessions.length || 1} Active</span>
+                </span>
               )}
             </div>
             <p className="text-xs text-ink-muted">
@@ -878,52 +872,58 @@ function SettingsContent() {
           </div>
 
           {otherSessionCount > 0 && (
-            <ButtonUtility
-              size="sm"
-              variant="danger"
+            <button
+              type="button"
               onClick={handleRevokeOtherSessions}
-              isLoading={revokingOthers}
-              className="self-start sm:self-center shrink-0 text-xs"
+              disabled={revokingOthers}
+              className="notion-btn-danger w-full sm:w-auto justify-center text-xs shrink-0 disabled:opacity-50"
             >
-              {revokingOthers ? "Signing Out..." : "Sign Out Other Devices"}
-            </ButtonUtility>
+              {revokingOthers && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+              <span>{revokingOthers ? "Signing Out..." : "Sign Out Other Devices"}</span>
+            </button>
           )}
         </div>
 
         {sessionsInitialLoading && sessions.length === 0 ? (
           <div className="space-y-2.5">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
           </div>
         ) : sessions.length === 0 ? (
-          <div className="p-3.5 rounded-lg border border-hairline bg-canvas-soft flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 rounded-md border border-hairline bg-canvas-soft flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="h-9 w-9 rounded-lg bg-surface border border-hairline flex items-center justify-center text-ink-muted shrink-0">
+              <div className="h-9 w-9 rounded-md bg-surface border border-hairline flex items-center justify-center text-ink-muted shrink-0">
                 <Monitor className="h-4 w-4" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-ink">Current Browser Session</span>
-                  <BadgePill label="This Device" color="green" />
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-ink">Current Browser Session</span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-ink-secondary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-green shrink-0" />
+                    <span>This Device</span>
+                  </span>
                 </div>
-                <p className="text-[11px] text-ink-muted mt-0.5">
+                <p className="text-[11px] text-ink-muted">
                   Authenticated session active on this device. Re-signing in upgrades this token with full device telemetry.
                 </p>
               </div>
             </div>
-            <ButtonUtility
-              size="sm"
-              variant="danger"
+            <button
+              type="button"
               onClick={handleSignOut}
-              isLoading={signingOut}
-              icon={<LogOut className="h-3.5 w-3.5" />}
-              className="self-end sm:self-center shrink-0 text-xs"
+              disabled={signingOut}
+              className="notion-btn-danger w-full sm:w-auto justify-center text-xs shrink-0 disabled:opacity-50"
             >
-              {signingOut ? "Signing Out..." : "Sign Out"}
-            </ButtonUtility>
+              {signingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5 shrink-0" />
+              )}
+              <span>{signingOut ? "Signing Out..." : "Sign Out"}</span>
+            </button>
           </div>
         ) : (
-          <div className="divide-y divide-hairline rounded-lg border border-hairline overflow-hidden bg-surface">
+          <div className="divide-y divide-hairline rounded-md border border-hairline overflow-hidden bg-surface">
             {sessions.map((sess) => {
               const lowerLabel = (sess.device_label || "").toLowerCase();
               const isPhone =
@@ -943,25 +943,22 @@ function SettingsContent() {
                   className="p-3.5 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-canvas-soft/40 transition-colors"
                 >
                   <div className="flex items-start sm:items-center gap-3 min-w-0">
-                    <div
-                      className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${
-                        sess.is_current
-                          ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400"
-                          : "bg-canvas-soft border-hairline text-ink-muted"
-                      }`}
-                    >
+                    <div className="h-9 w-9 rounded-md border border-hairline bg-canvas-soft flex items-center justify-center text-ink-secondary shrink-0">
                       <DeviceIcon className="h-4 w-4" />
                     </div>
 
-                    <div className="min-w-0 space-y-0.5">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-bold text-ink truncate">
+                        <span className="text-xs font-semibold text-ink truncate">
                           {sess.device_label}
                         </span>
                         {sess.is_current && (
-                          <BadgePill label="This Device" color="green" />
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary">
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent-green shrink-0" />
+                            <span>This Device</span>
+                          </span>
                         )}
-                        <span className="px-1.5 py-0.5 rounded bg-canvas-soft border border-hairline text-[10px] font-medium text-ink-secondary">
+                        <span className="px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-[11px] font-medium text-ink-secondary">
                           {formatAuthMethodLabel(sess.auth_method)}
                         </span>
                       </div>
@@ -972,16 +969,16 @@ function SettingsContent() {
                         </span>
                         {sess.ip_address && (
                           <>
-                            <span className="text-ink-faint">•</span>
-                            <span className="inline-flex items-center gap-1 font-mono text-[10.5px]">
-                              <Globe className="h-3 w-3 text-ink-faint" />
+                            <span className="text-ink-faint">&middot;</span>
+                            <span className="inline-flex items-center gap-1 font-mono text-[11px]">
+                              <Globe className="h-3 w-3 text-ink-faint shrink-0" />
                               {sess.ip_address}
                             </span>
                           </>
                         )}
                         {sess.created_at && (
                           <>
-                            <span className="text-ink-faint">•</span>
+                            <span className="text-ink-faint">&middot;</span>
                             <span>Signed in {formatShortDateTime(sess.created_at)}</span>
                           </>
                         )}
@@ -989,33 +986,39 @@ function SettingsContent() {
                     </div>
                   </div>
 
-                  <div className="self-end sm:self-center shrink-0">
-                    <ButtonUtility
-                      size="sm"
-                      variant={sess.is_current ? "danger" : "default"}
+                  <div className="w-full sm:w-auto shrink-0">
+                    <button
+                      type="button"
                       onClick={() =>
                         handleRevokeSession(sess.id, sess.device_label, sess.is_current)
                       }
-                      isLoading={sess.is_current ? signingOut : isRevokingThis}
-                      disabled={revokingOthers}
-                      icon={sess.is_current ? <LogOut className="h-3.5 w-3.5" /> : undefined}
-                      className="text-xs"
+                      disabled={revokingOthers || (sess.is_current ? signingOut : isRevokingThis)}
+                      className={`${
+                        sess.is_current ? "notion-btn-danger" : "notion-btn-utility"
+                      } w-full sm:w-auto justify-center text-xs disabled:opacity-50`}
                     >
-                      {sess.is_current
-                        ? signingOut
-                          ? "Signing Out..."
-                          : "Sign Out"
-                        : isRevokingThis
-                        ? "Revoking..."
-                        : "Revoke"}
-                    </ButtonUtility>
+                      {(sess.is_current ? signingOut : isRevokingThis) ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                      ) : sess.is_current ? (
+                        <LogOut className="h-3.5 w-3.5 shrink-0" />
+                      ) : null}
+                      <span>
+                        {sess.is_current
+                          ? signingOut
+                            ? "Signing Out..."
+                            : "Sign Out"
+                          : isRevokingThis
+                          ? "Revoking..."
+                          : "Revoke"}
+                      </span>
+                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </FeatureCard>
+      </section>
 
       {/* Initial Password Change Modal */}
       <ChangePasswordModal
@@ -1040,8 +1043,10 @@ export default function SettingsPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
-          <div className="h-40 rounded-xl bg-canvas-soft border border-hairline animate-pulse" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-8 space-y-5">
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-44 w-full rounded-lg" />
+          <Skeleton className="h-40 w-full rounded-lg" />
         </div>
       }
     >

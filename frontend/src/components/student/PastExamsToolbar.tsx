@@ -40,23 +40,23 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
     examStatusFilter !== "ALL";
 
   return (
-    <div className="p-2 sm:p-2.5 rounded-2xl bg-surface border border-hairline shadow-2xs space-y-2">
-      {/* Search Bar & Filter Toggle Row (Always Visible) */}
+    <div className="notion-card p-2.5 sm:p-3">
+      {/* Search Bar & Filter Toggle Row */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search exams by title or subject..."
-            className="w-full pl-8 pr-8 py-1.5 bg-canvas-soft/80 hover:bg-canvas-soft focus:bg-surface dark:bg-[#1a1a1a] dark:focus:bg-[#202020] text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xl border border-hairline/70 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-2xs"
+            className="w-full h-9 pl-8 pr-8 bg-canvas-soft focus:bg-surface dark:bg-[#1a1a1a] dark:focus:bg-[#202020] text-xs sm:text-sm text-ink placeholder:text-ink-muted rounded-xs border border-hairline focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => onSearchChange("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-md transition-colors cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink rounded-xs transition-colors cursor-pointer"
               title="Clear search"
             >
               <X className="h-3 w-3" />
@@ -68,10 +68,10 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
         <button
           type="button"
           onClick={onToggleFilterExpanded}
-          className={`btn-glass-utility inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 select-none ${
+          className={`notion-btn-utility px-2.5 text-xs shrink-0 select-none ${
             isFilterExpanded || examSubjectFilter !== "ALL" || examStatusFilter !== "ALL"
-              ? "border-primary text-primary font-bold shadow-2xs"
-              : "text-ink-muted hover:text-ink"
+              ? "border-primary text-primary"
+              : ""
           }`}
           title={isFilterExpanded ? "Collapse filters" : "Expand filters"}
           aria-expanded={isFilterExpanded}
@@ -79,7 +79,7 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
           <Sliders className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Filters</span>
           {(examSubjectFilter !== "ALL" || examStatusFilter !== "ALL") && (
-            <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+            <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
           )}
           <ChevronDown
             className={`h-3 w-3 transition-transform duration-200 ${
@@ -93,22 +93,22 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
       <div
         className={`grid transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
           isFilterExpanded
-            ? "grid-rows-[1fr] opacity-100 pt-2 border-t border-hairline/70"
-            : "grid-rows-[0fr] opacity-0"
+            ? "grid-rows-[1fr] opacity-100 mt-2.5 pt-2.5 border-t border-hairline"
+            : "grid-rows-[0fr] opacity-0 mt-0 pt-0"
         }`}
       >
         <div className="overflow-hidden space-y-2.5">
           {/* Quick Expand / Collapse All Controls & Paper Count */}
           {loadedCount > 0 && (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[11px] font-medium text-ink-muted">
+              <span className="text-[11px] font-medium text-ink-muted tabular-nums">
                 Showing {loadedCount} of {totalCount} {totalCount === 1 ? "paper" : "papers"}
               </span>
-              <div className="inline-flex items-center rounded-lg border border-hairline bg-canvas-soft/80 p-0.5 shadow-2xs">
+              <div className="inline-flex items-center rounded-md border border-hairline bg-canvas-soft p-0.5">
                 <button
                   type="button"
                   onClick={() => onToggleAllCards(true)}
-                  className="text-[10.5px] font-medium text-ink-secondary hover:text-ink px-2 py-1 rounded hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
+                  className="text-[11px] font-medium text-ink-secondary hover:text-ink px-2 py-0.5 rounded-[5px] hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
                   title="Expand all cards"
                 >
                   Expand All
@@ -117,7 +117,7 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
                 <button
                   type="button"
                   onClick={() => onToggleAllCards(false)}
-                  className="text-[10.5px] font-medium text-ink-secondary hover:text-ink px-2 py-1 rounded hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
+                  className="text-[11px] font-medium text-ink-secondary hover:text-ink px-2 py-0.5 rounded-[5px] hover:bg-surface transition-colors cursor-pointer whitespace-nowrap"
                   title="Collapse all cards"
                 >
                   Collapse All
@@ -128,16 +128,16 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
 
           {/* Subject Filters */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
-            <span className="text-[10px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
-              Subject:
+            <span className="text-[11px] font-medium text-ink-muted shrink-0 mr-1">
+              Subject
             </span>
             <button
               type="button"
               onClick={() => onSubjectFilterChange("ALL")}
-              className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0 cursor-pointer ${
                 examSubjectFilter === "ALL"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-surface border-hairline"
               }`}
             >
               All Subjects
@@ -147,10 +147,10 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
                 key={sub}
                 type="button"
                 onClick={() => onSubjectFilterChange(sub)}
-                className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0 cursor-pointer ${
                   examSubjectFilter === sub
-                    ? "bg-primary text-white font-semibold shadow-2xs"
-                    : "bg-canvas-soft/80 text-ink-secondary hover:text-ink hover:bg-canvas-soft border border-hairline font-medium"
+                    ? "bg-primary text-white border-primary"
+                    : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-surface border-hairline"
                 }`}
               >
                 {sub}
@@ -160,16 +160,16 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
 
           {/* Status Filters */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
-            <span className="text-[10px] font-mono text-ink-muted uppercase tracking-wider shrink-0 mr-0.5">
-              Status:
+            <span className="text-[11px] font-medium text-ink-muted shrink-0 mr-1">
+              Status
             </span>
             <button
               type="button"
               onClick={() => onStatusFilterChange("ALL")}
-              className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0 cursor-pointer ${
                 examStatusFilter === "ALL"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-surface border-hairline"
               }`}
             >
               All
@@ -177,10 +177,10 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
             <button
               type="button"
               onClick={() => onStatusFilterChange("PUBLISHED")}
-              className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0 cursor-pointer ${
                 examStatusFilter === "PUBLISHED"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-surface border-hairline"
               }`}
             >
               Published
@@ -188,10 +188,10 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
             <button
               type="button"
               onClick={() => onStatusFilterChange("IN_PROGRESS")}
-              className={`px-2 py-0.5 rounded-md text-[11px] transition-all shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0 cursor-pointer ${
                 examStatusFilter === "IN_PROGRESS"
-                  ? "bg-primary text-white font-semibold shadow-2xs"
-                  : "bg-canvas-soft/80 text-ink-muted hover:text-ink hover:bg-canvas-soft border border-hairline/60 font-medium"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-canvas-soft text-ink-secondary hover:text-ink hover:bg-surface border-hairline"
               }`}
             >
               In Progress
@@ -201,9 +201,9 @@ export const PastExamsToolbar = React.memo(function PastExamsToolbar({
               <button
                 type="button"
                 onClick={onResetFilters}
-                className="text-[10.5px] font-semibold text-primary hover:underline ml-1 cursor-pointer shrink-0 whitespace-nowrap"
+                className="text-[11px] font-medium text-primary hover:underline ml-1.5 cursor-pointer shrink-0 whitespace-nowrap"
               >
-                Reset Filters
+                Reset
               </button>
             )}
           </div>

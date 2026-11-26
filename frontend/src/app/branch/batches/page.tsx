@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, KeyRound } from "lucide-react";
+import { Plus, KeyRound, Layers, Users, CheckCircle2 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -13,14 +13,8 @@ import {
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
 import {
-  ButtonPrimary,
-  ButtonUtility,
-  FeatureCard,
-  BadgePill,
-  StatusWell,
   BatchesRosterSkeleton,
   MetricValue,
-  Skeleton,
   useConfirm,
 } from "@/components/ui";
 
@@ -36,7 +30,7 @@ export default function BranchBatchesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const { selectedBranch, currentUser, refreshTenancy, loading: tenantLoading } = useTenant();
+  const { selectedBranch, currentUser } = useTenant();
 
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [studentSearch, setStudentSearch] = useState<string>("");
@@ -55,7 +49,6 @@ export default function BranchBatchesPage() {
     setMounted(true);
   }, []);
 
-  // Determine effective branch id across context, currentUser, or localStorage
   const effectiveBranchId = useMemo(() => {
     return (
       selectedBranch?.id ||
@@ -256,177 +249,228 @@ export default function BranchBatchesPage() {
   const hasToken = mounted ? Boolean(getAuthToken()) : true;
   if (!mounted || !hasToken) {
     return (
-      <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      <div className="space-y-6 max-w-6xl mx-auto pb-16">
         <BatchesRosterSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 max-w-7xl mx-auto pb-16 px-1 sm:px-0 cascade-group">
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 cascade-group">
       {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-hairline">
-        <div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <BadgePill label="Academic Operations" color="purple" />
+      <header className="pb-4 border-b border-hairline flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <span className="notion-eyebrow text-ink-secondary">Academic Operations</span>
             {selectedBranch && (
-              <span className="text-xs font-semibold text-ink-secondary bg-canvas-soft border border-hairline px-2 py-0.5 rounded-md truncate max-w-[200px] sm:max-w-none">
-                {selectedBranch.name} • {selectedBranch.city}
-              </span>
+              <>
+                <span className="text-ink-faint">•</span>
+                <span className="font-medium text-ink-muted truncate max-w-[220px] sm:max-w-none">
+                  {selectedBranch.name}
+                  {selectedBranch.city ? ` (${selectedBranch.city})` : ""}
+                </span>
+              </>
             )}
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink mt-1.5">
+          <h1 className="notion-heading-2 text-2xl sm:text-[26px] text-ink">
             Batches &amp; Student Roster
           </h1>
-          <p className="text-xs sm:text-sm text-ink-muted mt-0.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-ink-muted leading-relaxed">
             Manage student batches and roster enrollments for{" "}
-            <span className="font-semibold text-ink">
+            <span className="font-medium text-ink">
               {selectedBranch?.name || "Active Branch"}
             </span>.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-          <ButtonUtility
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto shrink-0">
+          <button
+            type="button"
             onClick={() => setResetModalOpen(true)}
-            size="sm"
-            className="w-full sm:w-auto justify-center relative truncate"
+            className="notion-btn-utility w-full sm:w-auto justify-center"
           >
-            <KeyRound className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            <KeyRound className="h-3.5 w-3.5 text-ink-secondary shrink-0" />
             <span className="truncate">Password Resets</span>
             {pendingResets.length > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse shrink-0">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-canvas-soft border border-hairline text-ink tabular-nums shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 {pendingResets.length}
               </span>
             )}
-          </ButtonUtility>
+          </button>
 
-          <ButtonPrimary
+          <button
+            type="button"
             onClick={() => setCreateBatchOpen(true)}
-            size="sm"
-            className="w-full sm:w-auto justify-center truncate"
+            className="notion-btn-primary w-full sm:w-auto justify-center"
           >
-            <Plus className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            <Plus className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">Create Batch</span>
-          </ButtonPrimary>
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* 2. Pending Reset Requests Status Well */}
+      {/* 2. Pending Reset Requests Notice */}
       {pendingResets.length > 0 && (
-        <StatusWell
-          variant="amber"
-          icon={<KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
-          title={
-            <div className="flex items-center gap-2 flex-wrap">
-              <span>
-                {pendingResets.length} Student Password Reset Request
-                {pendingResets.length > 1 ? "s" : ""} Pending Approval
-              </span>
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+        <div className="notion-card rounded-lg p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center shrink-0 relative">
+              <KeyRound className="h-4 w-4 text-ink-secondary" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-surface" />
             </div>
-          }
-          description="Students are currently waiting live on their login screens for verification."
-          badge={
-            <button
-              type="button"
-              onClick={() => setResetModalOpen(true)}
-              className="btn-glass-amber px-3.5 py-1.5 rounded-md text-xs font-semibold shrink-0 cursor-pointer"
-            >
-              Review &amp; Approve
-            </button>
-          }
-        />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-ink">
+                {pendingResets.length} Student Password Reset Request{pendingResets.length > 1 ? "s" : ""} Pending Approval
+              </div>
+              <p className="text-xs text-ink-muted mt-0.5 leading-relaxed">
+                Students are waiting on their login screens for verification.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setResetModalOpen(true)}
+            className="notion-btn-utility w-full sm:w-auto justify-center shrink-0"
+          >
+            Review &amp; Approve
+          </button>
+        </div>
       )}
 
-      {/* 3. Branch Overview Stats (Responsive 3-Column Strip) */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 cascade-fast">
-        <FeatureCard className="p-3 sm:p-4 space-y-1">
-          <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
-            Active Batches
-          </div>
-          <MetricValue
-            isLoading={loadingBatches}
-            value={batchesData.length}
-            className="text-xl sm:text-2xl font-bold font-mono text-ink"
-            width="w-10"
-          />
-          <p className="hidden sm:block text-[11px] text-ink-faint truncate">
-            Academic batches in {selectedBranch?.name || "branch"}
+      {/* 3. Branch Overview Stats */}
+      <section className="space-y-3">
+        <div className="space-y-0.5">
+          <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+            Branch Snapshot
+          </h2>
+          <p className="text-xs sm:text-[13px] text-ink-muted">
+            Cohort counts and student portal activation status.
           </p>
-        </FeatureCard>
+        </div>
 
-        <FeatureCard className="p-3 sm:p-4 space-y-1">
-          <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
-            Enrolled Students
+        <div className="grid grid-cols-2 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2 sm:grid-cols-3 gap-3 cascade-fast">
+          <div className="notion-card rounded-lg p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">
+                Active Batches
+              </span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Layers className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={loadingBatches}
+                value={batchesData.length}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-10"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">
+              In {selectedBranch?.name || "branch"}
+            </div>
           </div>
-          <MetricValue
-            isLoading={loadingStudents}
-            value={students.length}
-            className="text-xl sm:text-2xl font-bold font-mono text-ink"
-            width="w-10"
-          />
-          <p className="hidden sm:block text-[11px] text-ink-faint truncate">
-            In currently selected batch
-          </p>
-        </FeatureCard>
 
-        <FeatureCard className="p-3 sm:p-4 space-y-1">
-          <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-ink-muted truncate">
-            PWA Claim Rate
+          <div className="notion-card rounded-lg p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">
+                Enrolled Students
+              </span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <Users className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={loadingStudents}
+                value={students.length}
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-10"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate">
+              Selected batch roster
+            </div>
           </div>
-          <MetricValue
-            isLoading={loadingStudents}
-            value={
-              students.length > 0
-                ? `${Math.round((claimedCount / students.length) * 100)}%`
-                : "0%"
-            }
-            className="text-xl sm:text-2xl font-bold font-mono text-emerald-600"
-            width="w-12"
-          />
-          <p className="hidden sm:block text-[11px] text-ink-faint truncate">
-            {claimedCount} of {students.length} claimed
-          </p>
-        </FeatureCard>
-      </div>
+
+          <div className="notion-card rounded-lg p-3.5 sm:p-4 flex flex-col justify-between min-h-[100px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted truncate">
+                PWA Claim Rate
+              </span>
+              <span className="h-6 w-6 rounded-md bg-canvas-soft border border-hairline flex items-center justify-center text-ink-secondary shrink-0">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className="mt-2">
+              <MetricValue
+                isLoading={loadingStudents}
+                value={
+                  students.length > 0
+                    ? `${Math.round((claimedCount / students.length) * 100)}%`
+                    : "0%"
+                }
+                className="notion-heading-3 text-[22px] text-ink tabular-nums"
+                width="w-12"
+              />
+            </div>
+            <div className="text-xs text-ink-muted mt-1 truncate tabular-nums">
+              {claimedCount} of {students.length} claimed
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* 4. Main Two-Column Roster Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 items-start">
-        {/* Left Column: Batches List */}
-        <BatchSidebarList
-          batches={batchesData}
-          selectedBatch={selectedBatch}
-          loadingBatches={loadingBatches}
-          onSelectBatch={(b) => setSelectedBatchId(b.id)}
-          onDeleteBatch={handleDeleteBatch}
-          onRefresh={() => refetchBatches()}
-        />
-
-        {/* Right Column: Selected Batch Roster Table */}
-        <div className="md:col-span-2 space-y-4">
-          <BatchRosterTable
-            selectedBatch={
-              selectedBatch ||
-              (loadingBatches
-                ? { id: "loading", name: "Loading batch...", academic_year: "..." }
-                : null)
-            }
-            students={students}
-            loadingStudents={loadingStudents}
-            studentSearch={studentSearch}
-            onSearchChange={setStudentSearch}
-            onAddStudentClick={() => setAddStudentOpen(true)}
-            onImportRosterClick={() => setImportRosterOpen(true)}
-            onDeleteBatchClick={() => {
-              if (selectedBatch) {
-                handleDeleteBatch(selectedBatch.id, selectedBatch.name);
-              }
-            }}
-            onDeleteStudent={handleDeleteStudent}
-          />
+      <section className="space-y-3">
+        <div className="space-y-0.5">
+          <h2 className="notion-section-title text-base sm:text-[18px] text-ink">
+            Batch Directory &amp; Roster
+          </h2>
+          <p className="text-xs sm:text-[13px] text-ink-muted">
+            Select a batch to manage enrolled students or import from Excel.
+          </p>
         </div>
-      </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 items-start">
+          {/* Left Column: Batches List */}
+          <div className="min-w-0">
+            <BatchSidebarList
+              batches={batchesData}
+              selectedBatch={selectedBatch}
+              loadingBatches={loadingBatches}
+              onSelectBatch={(b) => setSelectedBatchId(b.id)}
+              onDeleteBatch={handleDeleteBatch}
+              onRefresh={() => refetchBatches()}
+            />
+          </div>
+
+          {/* Right Column: Selected Batch Roster Table */}
+          <div className="md:col-span-2 min-w-0 space-y-4">
+            <BatchRosterTable
+              selectedBatch={
+                selectedBatch ||
+                (loadingBatches
+                  ? { id: "loading", name: "Loading batch...", academic_year: "..." }
+                  : null)
+              }
+              students={students}
+              loadingStudents={loadingStudents}
+              studentSearch={studentSearch}
+              onSearchChange={setStudentSearch}
+              onAddStudentClick={() => setAddStudentOpen(true)}
+              onImportRosterClick={() => setImportRosterOpen(true)}
+              onDeleteBatchClick={() => {
+                if (selectedBatch) {
+                  handleDeleteBatch(selectedBatch.id, selectedBatch.name);
+                }
+              }}
+              onDeleteStudent={handleDeleteStudent}
+            />
+          </div>
+        </div>
+      </section>
 
       {/* Extracted Modular Modals */}
       <BatchCreateModal

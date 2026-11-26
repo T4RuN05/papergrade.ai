@@ -33,7 +33,7 @@ export const PushNotificationPermissionBanner: React.FC<PushNotificationPermissi
             <button
               type="button"
               onClick={() => onRequestPermission()}
-              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-semibold hover:bg-primary-active transition-colors shadow-2xs cursor-pointer"
+              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-medium hover:bg-primary-active transition-colors cursor-pointer"
             >
               <BellRing className="h-3 w-3" />
               Allow Notifications
@@ -43,15 +43,15 @@ export const PushNotificationPermissionBanner: React.FC<PushNotificationPermissi
       )}
 
       {permission === "granted" && (
-        <div className="px-5 py-2 bg-emerald-50/70 border-b border-emerald-100 flex items-center justify-between text-[11px]">
-          <span className="flex items-center gap-1.5 text-emerald-800 font-medium">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+        <div className="px-5 py-2 bg-emerald-50/70 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-medium">
+            <span className="h-2 w-2 rounded-full bg-accent-green shrink-0" />
             Device Notifications Active
           </span>
           <button
             type="button"
             onClick={() => onSendTestNotification()}
-            className="text-emerald-700 hover:text-emerald-900 font-semibold hover:underline cursor-pointer"
+            className="text-emerald-700 dark:text-emerald-300 hover:underline font-semibold cursor-pointer"
           >
             Send Test Alert
           </button>
@@ -59,7 +59,7 @@ export const PushNotificationPermissionBanner: React.FC<PushNotificationPermissi
       )}
 
       {permission === "denied" && (
-        <div className="px-5 py-2 bg-amber-50/70 border-b border-amber-100 text-[11px] text-amber-800 flex items-center justify-between">
+        <div className="px-5 py-2 bg-amber-50/70 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 flex items-center justify-between">
           <span>Notifications are blocked in your browser site settings.</span>
         </div>
       )}
