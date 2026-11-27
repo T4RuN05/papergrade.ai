@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Pencil, Trash2 } from "lucide-react";
+import { StaffAvatar } from "./StaffAvatar";
 
 export interface BranchManagerRowProps {
   manager: {
@@ -10,6 +11,8 @@ export interface BranchManagerRowProps {
     email?: string;
     is_active?: number;
     branch_id?: string;
+    google_picture?: string | null;
+    google_email?: string | null;
   };
   onEdit: (manager: any) => void;
   onDelete: (manager: any) => void;
@@ -21,9 +24,12 @@ export const BranchManagerRow: React.FC<BranchManagerRowProps> = ({ manager, onE
   return (
     <div className="flex items-center justify-between gap-2 bg-surface p-2.5 rounded-md border border-hairline text-xs min-w-0">
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className="h-6 w-6 rounded-full bg-canvas-soft border border-hairline text-ink-secondary flex items-center justify-center font-medium text-[11px] shrink-0">
-          {manager.full_name?.charAt(0).toUpperCase() || "M"}
-        </div>
+        <StaffAvatar
+          name={manager.full_name}
+          pictureUrl={manager.google_picture}
+          fallback="M"
+          size="sm"
+        />
         <div className="min-w-0">
           <div className="font-semibold text-ink truncate">{manager.full_name}</div>
           <div className="text-[11px] text-ink-muted truncate">{manager.email}</div>

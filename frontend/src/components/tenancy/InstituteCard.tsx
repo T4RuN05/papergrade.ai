@@ -3,6 +3,7 @@
 import React from "react";
 import { Plus, Trash2, BookOpen, ShieldCheck, MapPin, Pencil } from "lucide-react";
 import { BranchCard } from "./BranchCard";
+import { StaffAvatar } from "./StaffAvatar";
 
 export interface InstituteCardProps {
   institute: {
@@ -149,9 +150,12 @@ export const InstituteCard: React.FC<InstituteCardProps> = ({
                   className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-surface border border-hairline text-xs min-w-0"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-canvas-soft border border-hairline text-ink-secondary font-medium text-xs">
-                      {dir.full_name?.charAt(0).toUpperCase() || "D"}
-                    </div>
+                    <StaffAvatar
+                      name={dir.full_name}
+                      pictureUrl={dir.google_picture}
+                      fallback="D"
+                      size="md"
+                    />
                     <div className="min-w-0">
                       <p className="font-semibold text-ink truncate">{dir.full_name}</p>
                       <p className="text-[11px] text-ink-muted truncate">{dir.email}</p>

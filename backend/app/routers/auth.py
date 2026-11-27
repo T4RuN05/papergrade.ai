@@ -650,6 +650,9 @@ def list_users(
             "is_active": u.is_active,
             "created_at": u.created_at,
             "last_login_at": u.last_login_at,
+            "google_email": u.google_email,
+            "google_picture": u.google_picture,
+            "google_linked_at": u.google_linked_at,
         }
         for u in users
     ]

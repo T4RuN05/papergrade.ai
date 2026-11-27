@@ -301,6 +301,8 @@ def _render_notion_email(
     heading: str,
     intro_html: str,
     body_html: str,
+    hero_gif_url: Optional[str] = None,
+    hero_gif_alt: str = "",
     cta_label: Optional[str] = None,
     cta_url: Optional[str] = None,
     footer_note: str = "PaperGrade AI • High-Integrity Academic Evaluation",
@@ -308,6 +310,17 @@ def _render_notion_email(
     base_url = getattr(settings, "FRONTEND_URL", "https://www.papergradeai.in").rstrip("/") or "https://www.papergradeai.in"
     logo_url = f"{base_url}/logo-icon.png"
     badge_html = _render_badge(badge_label, badge_tone)
+
+    hero_gif_block = ""
+    if hero_gif_url:
+        hero_gif_block = f"""
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 18px 0;">
+                <tr>
+                  <td align="center">
+                    <img src="{html.escape(hero_gif_url, quote=True)}" alt="{html.escape(hero_gif_alt or heading, quote=True)}" width="504" style="display:block; width:100%; max-width:504px; height:auto; border:0; border-radius:10px;" />
+                  </td>
+                </tr>
+              </table>"""
 
     cta_block = ""
     if cta_label and cta_url:
@@ -378,6 +391,7 @@ def _render_notion_email(
                 {intro_html}
               </p>
 
+              {hero_gif_block}
               {body_html}
               {cta_block}
             </td>
@@ -430,6 +444,7 @@ def format_otp_email_html(recipient_name: str, otp_code: str, expires_in_minutes
         Never share this code with anyone. If you did not request a verification or password reset, you can safely ignore this message.
       </p>
     """
+    base_url = getattr(settings, "FRONTEND_URL", "https://www.papergradeai.in").rstrip("/") or "https://www.papergradeai.in"
     return _render_notion_email(
         doc_title="Your PaperGrade AI Verification Code",
         preheader=f"Your verification code is {safe_otp} (valid for {expires_in_minutes} minutes).",
@@ -438,6 +453,8 @@ def format_otp_email_html(recipient_name: str, otp_code: str, expires_in_minutes
         eyebrow="Account Security",
         heading="Use this code to verify your account",
         intro_html=f"Hello <strong>{safe_name}</strong>, enter the 6-digit verification code below to finish resetting your password on PaperGrade AI.",
+        hero_gif_url=f"{base_url}/email/otp-verify.gif",
+        hero_gif_alt="PaperGrade AI single-use security code verification",
         body_html=body_html,
         footer_note="PaperGrade AI • Automated Security Verification",
     )
@@ -646,6 +663,8 @@ def format_issue_resolved_html(
         eyebrow="Support Update",
         heading="Your reported issue has been resolved",
         intro_html=f"Hi <strong>{safe_name}</strong>, our team has completed reviewing your technical report and marked it resolved.",
+        hero_gif_url=f"{base_url}/email/issue-resolved.gif",
+        hero_gif_alt="Support ticket status updated to Resolved",
         body_html=body_html,
         cta_label="Return to Your Portal →",
         cta_url=f"{base_url}{portal_path}",
@@ -850,6 +869,8 @@ def format_pilot_confirmation_html(
         eyebrow="Pilot Program",
         heading="We received your pilot walkthrough request",
         intro_html=f"Thanks for contacting PaperGrade AI regarding <strong>{html.escape(institute_name)}</strong>. Our team will reach out shortly to schedule your walkthrough.",
+        hero_gif_url=f"{base_url}/email/pilot-scanner.gif",
+        hero_gif_alt="Handwritten answer sheet scanned against locked PaperGrade rubric",
         body_html=_render_kv_table(kv_rows) + next_steps,
         cta_label="Explore User Manuals →",
         cta_url=f"{base_url}/help",
