@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   Search,
-  ExternalLink,
+  ArrowRight,
   ArrowUpDown,
   FileSpreadsheet,
   Lock,
@@ -241,8 +241,8 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                       href={`/grading/${sub.id}`}
                       className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                     >
-                      <span>Inspect Paper</span>
-                      <ExternalLink className="h-3 w-3" />
+                      <span>Inspect Sheet</span>
+                      <ArrowRight className="h-3 w-3 shrink-0" />
                     </Link>
                   )}
                 </div>
@@ -400,10 +400,10 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                           return (
                             <span
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-ink-muted opacity-50 bg-canvas-soft border border-hairline cursor-not-allowed select-none"
-                              title="Evaluation in progress. Paper inspection will unlock automatically once completed."
+                              title="Evaluation in progress. Sheet inspection will unlock automatically once completed."
                             >
                               <Lock className="h-3 w-3 text-ink-muted" />
-                              <span>Inspect Paper</span>
+                              <span>Inspect Sheet</span>
                             </span>
                           );
                         }
@@ -413,8 +413,8 @@ export function MarksTable({ examId, rubric, submissions, isFetching = false }: 
                             href={`/grading/${sub.id}`}
                             className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                           >
-                            <span>Inspect Paper</span>
-                            <ExternalLink className="h-3 w-3" />
+                            <span>Inspect Sheet</span>
+                            <ArrowRight className="h-3 w-3 shrink-0" />
                           </Link>
                         );
                       })()}

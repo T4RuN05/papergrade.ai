@@ -684,6 +684,12 @@ export type { AppleNumberStepperProps } from "./AppleNumberStepper";
 export { AppleSelect } from "./AppleSelect";
 export type { AppleSelectProps, AppleSelectOption } from "./AppleSelect";
 
+export { PageBackBar } from "./PageBackBar";
+export type { PageBackBarProps } from "./PageBackBar";
+
+export { AnimatedNumber, AnimatedMetricValue, NumberFlowGroup } from "./AnimatedNumber";
+export type { AnimatedNumberProps, AnimatedMetricValueProps } from "./AnimatedNumber";
+
 
 
 

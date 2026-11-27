@@ -1,5 +1,9 @@
 import React from "react";
 import { FeatureCard } from "./index";
+import { AnimatedMetricValue, AnimatedNumber, NumberFlowGroup } from "./AnimatedNumber";
+import type { Format, Trend } from "@number-flow/react";
+
+export { AnimatedNumber, NumberFlowGroup };
 
 // ==========================================
 // 1. Core Skeleton Primitives
@@ -40,17 +44,43 @@ export function MetricValue({
   width = "w-14",
   height = "h-7",
   className = "",
+  format,
+  locales,
+  prefix,
+  suffix,
+  trend,
+  animateOnMount = true,
+  useContinuous = false,
 }: {
   value?: string | number | null;
   isLoading?: boolean;
   width?: string;
   height?: string;
   className?: string;
+  format?: Format;
+  locales?: Intl.LocalesArgument;
+  prefix?: string;
+  suffix?: string;
+  trend?: Trend;
+  animateOnMount?: boolean;
+  useContinuous?: boolean;
 }) {
   if (isLoading || value === undefined || value === null) {
     return <Skeleton className={`${height} ${width} rounded-md font-mono inline-block ${className}`} />;
   }
-  return <span className={className}>{value}</span>;
+  return (
+    <AnimatedMetricValue
+      value={value}
+      className={className}
+      format={format}
+      locales={locales}
+      prefix={prefix}
+      suffix={suffix}
+      trend={trend}
+      animateOnMount={animateOnMount}
+      useContinuous={useContinuous}
+    />
+  );
 }
 
 export function TableSkeletonRows({

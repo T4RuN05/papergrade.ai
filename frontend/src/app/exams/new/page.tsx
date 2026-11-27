@@ -7,7 +7,6 @@ import {
   Upload,
   Sparkles,
   FileText,
-  ArrowLeft,
   X,
   Plus,
   FileCheck2,
@@ -22,7 +21,7 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { AppleSelect } from "@/components/ui";
+import { AppleSelect, PageBackBar } from "@/components/ui";
 import { useToast, queueToast } from "@/lib/ToastContext";
 import LogoLoader from "@/components/LogoLoader/LogoLoader";
 import { useTenant } from "@/lib/TenantContext";
@@ -361,17 +360,13 @@ export default function NewExamPage() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-16">
-      {/* Top Breadcrumb Bar */}
-      <div className="flex items-center justify-between pb-3 border-b border-hairline">
-        <Link
-          href="/exams"
-          className={`notion-btn-utility self-start ${isSubmitting ? "pointer-events-none opacity-50" : ""}`}
-        >
-          <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-          <span>Back to Examinations</span>
-        </Link>
-      </div>
+    <div className="max-w-6xl mx-auto space-y-6 pb-16">
+      {/* Fixed Backing Navigation */}
+      <PageBackBar
+        backHref="/exams"
+        backLabel="Back to Examinations"
+        disabled={isSubmitting}
+      />
 
       <div className="relative">
         {/* Differentiated Processing Overlays */}

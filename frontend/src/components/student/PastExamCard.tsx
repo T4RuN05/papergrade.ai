@@ -356,8 +356,8 @@ export const PastExamCard = React.memo(function PastExamCard({
                     {isPublished
                       ? sub.is_document_purged
                         ? "View Archived Marks →"
-                        : "Inspect in PDF Viewer →"
-                      : "View Submitted Script →"}
+                        : "Inspect Sheet →"
+                      : "View Submitted Sheet →"}
                   </span>
                 </Link>
               )}

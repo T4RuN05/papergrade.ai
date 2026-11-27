@@ -10,7 +10,13 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { UsageCards } from "@/components/UsageCards";
-import { AnalyticsSkeleton, AppleNumberStepper, AppleSelect } from "@/components/ui";
+import {
+  AnalyticsSkeleton,
+  AnimatedNumber,
+  AppleNumberStepper,
+  AppleSelect,
+  NumberFlowGroup,
+} from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -255,55 +261,77 @@ export default function AnalyticsPage() {
               <div className="notion-card p-4 sm:p-6 space-y-6">
                 {/* Benchmark Scorecards (2x3 on mobile, 3x2 on sm, 6-col on lg) */}
                 {benchmarks && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
-                      <span className="text-xs font-medium text-ink-muted block truncate">Evaluated</span>
-                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
-                        {benchmarks.sample_size}
-                      </span>
-                      <span className="text-[11px] text-ink-muted block truncate">Verified papers</span>
-                    </div>
+                  <NumberFlowGroup>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                      <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                        <span className="text-xs font-medium text-ink-muted block truncate">Evaluated</span>
+                        <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                          <AnimatedNumber value={benchmarks.sample_size} format={{ maximumFractionDigits: 0 }} />
+                        </span>
+                        <span className="text-[11px] text-ink-muted block truncate">Verified papers</span>
+                      </div>
 
-                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
-                      <span className="text-xs font-medium text-ink-muted block truncate">Transcription</span>
-                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
-                        {benchmarks.transcription_accuracy_pct}%
-                      </span>
-                      <span className="text-[11px] text-ink-muted block truncate">OCR acceptance</span>
-                    </div>
+                      <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                        <span className="text-xs font-medium text-ink-muted block truncate">Transcription</span>
+                        <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                          <AnimatedNumber
+                            value={benchmarks.transcription_accuracy_pct}
+                            suffix="%"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        </span>
+                        <span className="text-[11px] text-ink-muted block truncate">OCR acceptance</span>
+                      </div>
 
-                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
-                      <span className="text-xs font-medium text-ink-muted block truncate">Question Map</span>
-                      <span className="font-mono text-lg font-bold text-primary tabular-nums block">
-                        {benchmarks.question_mapping_accuracy_pct}%
-                      </span>
-                      <span className="text-[11px] text-ink-muted block truncate">Item matching</span>
-                    </div>
+                      <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                        <span className="text-xs font-medium text-ink-muted block truncate">Question Map</span>
+                        <span className="font-mono text-lg font-bold text-primary tabular-nums block">
+                          <AnimatedNumber
+                            value={benchmarks.question_mapping_accuracy_pct}
+                            suffix="%"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        </span>
+                        <span className="text-[11px] text-ink-muted block truncate">Item matching</span>
+                      </div>
 
-                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
-                      <span className="text-xs font-medium text-ink-muted block truncate">Boxes Accepted</span>
-                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
-                        {benchmarks.localization_acceptance_pct}%
-                      </span>
-                      <span className="text-[11px] text-ink-muted block truncate">Region overlap</span>
-                    </div>
+                      <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                        <span className="text-xs font-medium text-ink-muted block truncate">Boxes Accepted</span>
+                        <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                          <AnimatedNumber
+                            value={benchmarks.localization_acceptance_pct}
+                            suffix="%"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        </span>
+                        <span className="text-[11px] text-ink-muted block truncate">Region overlap</span>
+                      </div>
 
-                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
-                      <span className="text-xs font-medium text-ink-muted block truncate">Mark Agreement</span>
-                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
-                        {benchmarks.exact_score_agreement_pct}%
-                      </span>
-                      <span className="text-[11px] text-ink-muted block truncate">Exact key match</span>
-                    </div>
+                      <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                        <span className="text-xs font-medium text-ink-muted block truncate">Mark Agreement</span>
+                        <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                          <AnimatedNumber
+                            value={benchmarks.exact_score_agreement_pct}
+                            suffix="%"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        </span>
+                        <span className="text-[11px] text-ink-muted block truncate">Exact key match</span>
+                      </div>
 
-                    <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
-                      <span className="text-xs font-medium text-ink-muted block truncate">Intervention</span>
-                      <span className="font-mono text-lg font-bold text-ink tabular-nums block">
-                        {benchmarks.manual_intervention_rate_pct}%
-                      </span>
-                      <span className="text-[11px] text-ink-muted block truncate">Manual edits</span>
+                      <div className="rounded-lg border border-hairline bg-canvas-soft p-3.5 space-y-1">
+                        <span className="text-xs font-medium text-ink-muted block truncate">Intervention</span>
+                        <span className="font-mono text-lg font-bold text-ink tabular-nums block">
+                          <AnimatedNumber
+                            value={benchmarks.manual_intervention_rate_pct}
+                            suffix="%"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        </span>
+                        <span className="text-[11px] text-ink-muted block truncate">Manual edits</span>
+                      </div>
                     </div>
-                  </div>
+                  </NumberFlowGroup>
                 )}
 
                 {/* Record Benchmark Form */}

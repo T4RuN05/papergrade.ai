@@ -30,6 +30,7 @@ import {
   MetricValue,
   TableSkeletonRows,
   Skeleton,
+  PageBackBar,
 } from "@/components/ui";
 
 export default function SingleBatchPage() {
@@ -182,6 +183,9 @@ export default function SingleBatchPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
+      {/* Fixed Backing Navigation */}
+      <PageBackBar backHref="/branch/batches" backLabel="Back to Batches" />
+
       {/* Main Header Card */}
       <div className="notion-card rounded-lg p-4 sm:p-6 md:p-8 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-5 border-b border-hairline">

@@ -110,18 +110,28 @@ export function Navbar() {
 
   const isStudent = isMounted && currentUser?.role === "STUDENT";
   const isAdminUser = isMounted && (currentUser?.role === "ROOT_ADMIN" || currentUser?.role === "INSTITUTE_DIRECTOR" || currentUser?.role === "BRANCH_MANAGER");
+  const isMarketingPage = pathname === "/" || pathname === "/about";
+
+  const handleOpenContact = () => {
+    setMobileMenuOpen(false);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("papergrade:open-pilot"));
+    }
+  };
 
   return (
     <header
       className="sticky top-0 z-50 w-full border-b border-hairline bg-surface transition-colors"
     >
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8 gap-4">
         {/* Brand & Navigation Drawer Toggle */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer"
+            className={`p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-soft active:bg-canvas-soft transition-colors cursor-pointer ${
+              isMarketingPage ? "md:hidden" : ""
+            }`}
             aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileMenuOpen}
           >
@@ -169,8 +179,61 @@ export function Navbar() {
           </Link>
         </div>
 
+        {/* Desktop Public Landing Navigation Links (Restrained Horizontal Strip) */}
+        {isMarketingPage && (
+          <nav
+            aria-label="Primary landing navigation"
+            className="hidden md:flex items-center gap-5 lg:gap-7 text-xs font-medium text-ink-secondary"
+          >
+            <Link
+              href="/#evaluation-cycle"
+              className="hover:text-ink transition-colors whitespace-nowrap"
+            >
+              Workflow
+            </Link>
+            <Link
+              href="/#institutes"
+              className="hover:text-ink transition-colors whitespace-nowrap"
+            >
+              Institutes
+            </Link>
+            <Link
+              href="/#pilot"
+              className="hover:text-ink transition-colors whitespace-nowrap"
+            >
+              Pilot
+            </Link>
+            <Link
+              href="/about"
+              className={`hover:text-ink transition-colors whitespace-nowrap ${
+                pathname === "/about" ? "text-ink font-semibold" : ""
+              }`}
+            >
+              About
+            </Link>
+            <Link
+              href="/help"
+              className="hover:text-ink transition-colors whitespace-nowrap"
+            >
+              Manual
+            </Link>
+            <button
+              type="button"
+              onClick={handleOpenContact}
+              className="hover:text-ink transition-colors whitespace-nowrap cursor-pointer"
+            >
+              Contact
+            </button>
+          </nav>
+        )}
+
         {/* Minimal Header Right Desk: Bell + Profile Avatar (or Sign In when logged out) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 min-h-[32px]">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-h-[32px] shrink-0">
+          {isMarketingPage && (!isMounted || !currentUser) && (
+            <div className="hidden sm:flex items-center mr-1">
+              <ThemeToggle size="sm" />
+            </div>
+          )}
           {isMounted && currentUser ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Notification Bell Button (Triggers Right Slide-Over Drawer) */}
@@ -268,6 +331,80 @@ export function Navbar() {
       >
 
             {/* Navigation Links */}
+            {isMarketingPage && (!isMounted || !currentUser) ? (
+              <nav className="p-3 space-y-1">
+                <Link
+                  href="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                    pathname === "/"
+                      ? "bg-canvas-soft text-ink font-semibold"
+                      : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Home className={`h-4 w-4 ${pathname === "/" ? "text-primary" : "text-ink-muted"}`} />
+                    <span>Home</span>
+                  </div>
+                  {pathname === "/" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                </Link>
+                <Link
+                  href="/#evaluation-cycle"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Layers className="h-4 w-4 text-ink-muted" />
+                    <span>Workflow &amp; Evaluation</span>
+                  </div>
+                </Link>
+                <Link
+                  href="/#institutes"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="h-4 w-4 text-ink-muted" />
+                    <span>For Coaching Institutes</span>
+                  </div>
+                </Link>
+                <Link
+                  href="/#pilot"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="h-4 w-4 text-ink-muted" />
+                    <span>Pilot Program</span>
+                  </div>
+                </Link>
+                <Link
+                  href="/about"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                    pathname === "/about"
+                      ? "bg-canvas-soft text-ink font-semibold"
+                      : "text-ink-secondary hover:text-ink hover:bg-canvas-soft"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <BookOpen className={`h-4 w-4 ${pathname === "/about" ? "text-primary" : "text-ink-muted"}`} />
+                    <span>About PaperGrade</span>
+                  </div>
+                  {pathname === "/about" && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                </Link>
+                <Link
+                  href="/help"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium text-ink-secondary hover:text-ink hover:bg-canvas-soft transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <HelpCircle className="h-4 w-4 text-ink-muted" />
+                    <span>User Manual &amp; Guides</span>
+                  </div>
+                </Link>
+              </nav>
+            ) : (
             <nav className="p-3 space-y-1">
               {(!currentUser || currentUser.role !== "STUDENT") && (
                 <Link
@@ -387,6 +524,7 @@ export function Navbar() {
                 </Link>
               )}
             </nav>
+            )}
 
             {/* Quick Actions & Utilities */}
             <div className="px-3 pb-3 pt-1 border-t border-hairline space-y-1">
@@ -447,13 +585,23 @@ export function Navbar() {
                     >
                       Claim Student ID
                     </Link>
-                    <Link
-                      href="/revaluation"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="hover:text-primary transition-colors underline-offset-2 hover:underline"
-                    >
-                      Revaluation Desk
-                    </Link>
+                    {isMarketingPage ? (
+                      <button
+                        type="button"
+                        onClick={handleOpenContact}
+                        className="hover:text-primary transition-colors underline-offset-2 hover:underline cursor-pointer"
+                      >
+                        Request Pilot
+                      </button>
+                    ) : (
+                      <Link
+                        href="/help"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="hover:text-primary transition-colors underline-offset-2 hover:underline"
+                      >
+                        Help Center
+                      </Link>
+                    )}
                   </div>
                 </div>
               )}

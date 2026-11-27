@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Trash2,
   MoreHorizontal,
   FileSpreadsheet,
@@ -92,14 +91,6 @@ export function ExamActionHeader({
     <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-hairline">
       <div className="space-y-1.5 min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-          <Link
-            href="/exams"
-            className="text-xs text-ink-muted hover:text-ink inline-flex items-center gap-1 font-medium transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-            <span>Exams</span>
-          </Link>
-          <span className="text-ink-faint">•</span>
           {isLoading && !title ? (
             <>
               <Skeleton className="h-5 w-16 rounded-full" />

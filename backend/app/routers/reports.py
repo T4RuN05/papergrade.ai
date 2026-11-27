@@ -17,7 +17,11 @@ from backend.app.db.models import TechnicalReport, User, Student, Branch
 from backend.app.services.auth import get_current_user, require_root_admin
 from backend.app.services.notification_service import notify_root_admins, send_notification
 from backend.app.services.storage import get_storage_service
-from backend.app.services.email_service import send_admin_issue_email
+from backend.app.services.email_service import (
+    send_admin_issue_email,
+    send_issue_resolved_email,
+    is_valid_real_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -393,6 +397,7 @@ def get_report_image(
 def update_report_status(
     report_id: str,
     payload: ReportUpdatePayload,
+    background_tasks: BackgroundTasks = None,
     current_user: Dict[str, Any] = Depends(require_root_admin),
     db: Session = Depends(get_db)
 ):
@@ -447,6 +452,31 @@ def update_report_status(
     ).first()
 
     r, b, u_res = row
+    if new_status == "RESOLVED" and is_valid_real_email(r.user_email):
+        if background_tasks is not None:
+            background_tasks.add_task(
+                send_issue_resolved_email,
+                to_email=r.user_email,
+                reporter_name=r.user_name,
+                reporter_role=r.user_role,
+                report_id=r.id,
+                category=r.category,
+                subject=r.subject,
+                admin_notes=r.admin_notes,
+                resolved_by_name=u_res.full_name if u_res else None,
+            )
+        else:
+            send_issue_resolved_email(
+                to_email=r.user_email,
+                reporter_name=r.user_name,
+                reporter_role=r.user_role,
+                report_id=r.id,
+                category=r.category,
+                subject=r.subject,
+                admin_notes=r.admin_notes,
+                resolved_by_name=u_res.full_name if u_res else None,
+            )
+
     res_dict = {
         "id": r.id,
         "user_id": r.user_id,

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { UsageMetrics } from "@/lib/types";
 import { api } from "@/lib/api";
+import { AnimatedNumber, NumberFlowGroup } from "@/components/ui/AnimatedNumber";
 import { ButtonPrimary, FeatureCard, BadgePill, AppleNumberStepper } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 
@@ -273,109 +274,152 @@ export function UsageCards({
           {activeTab === "free_pool" && (
             <div className="space-y-6">
               {/* 1. Real-time KPI Metric Cards (2x2 on mobile, 4-col on desktop) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                {/* Total Calls */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
-                      Total Requests
-                    </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
-                      <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {summary.total_requests}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      {summary.successful_requests} ok / {summary.failed_requests} err
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span>Retry: <strong className="text-ink font-semibold">{summary.retry_rate_pct}%</strong></span>
-                    <span>Fail: <strong className="text-ink font-semibold">{summary.failure_rate_pct}%</strong></span>
-                  </div>
-                </FeatureCard>
-
-                {/* Latency Duration */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
-                      Avg Latency
-                    </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
-                      <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {latency.average_ms > 1000 ? `${(latency.average_ms / 1000).toFixed(1)}s` : `${latency.average_ms}ms`}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      Median: {latency.median_ms}ms
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span>P95: <strong className="text-ink font-semibold">{latency.p95_ms > 1000 ? `${(latency.p95_ms / 1000).toFixed(1)}s` : `${latency.p95_ms}ms`}</strong></span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">Healthy</span>
-                  </div>
-                </FeatureCard>
-
-                {/* Tokens Per Paper */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
-                      Tokens / Paper
-                    </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
-                      <Cpu className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {Math.round(per_paper_metrics.avg_total_tokens).toLocaleString()}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      In: {Math.round(per_paper_metrics.avg_input_tokens).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span>Out: <strong className="text-ink font-semibold">{Math.round(per_paper_metrics.avg_output_tokens).toLocaleString()}</strong></span>
-                    <span className="text-ink-muted text-[10px]">~4 pgs</span>
-                  </div>
-                </FeatureCard>
-
-                {/* Cost Estimation */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
-                      Est Value / Paper
-                    </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
-                      {currencyMode === "USD" ? <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {currencyMode === "USD"
-                        ? `$${per_paper_metrics.avg_cost_usd.toFixed(4)}`
-                        : `₹${(per_paper_metrics.avg_cost_usd * USD_TO_INR).toFixed(3)}`}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      Total: {currencyMode === "USD" ? `$${summary.total_estimated_cost_usd.toFixed(3)}` : `₹${(summary.total_estimated_cost_usd * USD_TO_INR).toFixed(2)}`}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Free Tier Value</span>
-                    {currencyMode === "DUAL" && (
-                      <span className="font-sans tabular-nums text-[9px] text-ink-muted">
-                        (${per_paper_metrics.avg_cost_usd.toFixed(4)})
+              <NumberFlowGroup>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                  {/* Total Calls */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
+                        Total Requests
                       </span>
-                    )}
-                  </div>
-                </FeatureCard>
-              </div>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
+                        <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        <AnimatedNumber value={summary.total_requests} format={{ useGrouping: true, maximumFractionDigits: 0 }} />
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        {summary.successful_requests} ok / {summary.failed_requests} err
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span>Retry: <strong className="text-ink font-semibold">{summary.retry_rate_pct}%</strong></span>
+                      <span>Fail: <strong className="text-ink font-semibold">{summary.failure_rate_pct}%</strong></span>
+                    </div>
+                  </FeatureCard>
+
+                  {/* Latency Duration */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
+                        Avg Latency
+                      </span>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        {latency.average_ms > 1000 ? (
+                          <AnimatedNumber
+                            value={latency.average_ms / 1000}
+                            suffix="s"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        ) : (
+                          <AnimatedNumber
+                            value={latency.average_ms}
+                            suffix="ms"
+                            format={{ maximumFractionDigits: 0 }}
+                          />
+                        )}
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        Median: {latency.median_ms}ms
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span>P95: <strong className="text-ink font-semibold">{latency.p95_ms > 1000 ? `${(latency.p95_ms / 1000).toFixed(1)}s` : `${latency.p95_ms}ms`}</strong></span>
+                      <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">Healthy</span>
+                    </div>
+                  </FeatureCard>
+
+                  {/* Tokens Per Paper */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
+                        Tokens / Paper
+                      </span>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                        <Cpu className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        <AnimatedNumber
+                          value={Math.round(per_paper_metrics.avg_total_tokens)}
+                          format={{ useGrouping: true, maximumFractionDigits: 0 }}
+                        />
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        In: {Math.round(per_paper_metrics.avg_input_tokens).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span>Out: <strong className="text-ink font-semibold">{Math.round(per_paper_metrics.avg_output_tokens).toLocaleString()}</strong></span>
+                      <span className="text-ink-muted text-[10px]">~4 pgs</span>
+                    </div>
+                  </FeatureCard>
+
+                  {/* Cost Estimation */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
+                        Est Value / Paper
+                      </span>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                        {currencyMode === "USD" ? <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        <AnimatedNumber
+                          value={
+                            currencyMode === "USD"
+                              ? per_paper_metrics.avg_cost_usd
+                              : per_paper_metrics.avg_cost_usd * USD_TO_INR
+                          }
+                          prefix={currencyMode === "USD" ? "$" : "₹"}
+                          locales={currencyMode === "USD" ? "en-US" : "en-IN"}
+                          format={
+                            currencyMode === "USD"
+                              ? { minimumFractionDigits: 4, maximumFractionDigits: 4 }
+                              : { minimumFractionDigits: 3, maximumFractionDigits: 3 }
+                          }
+                        />
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        Total:{" "}
+                        <AnimatedNumber
+                          value={
+                            currencyMode === "USD"
+                              ? summary.total_estimated_cost_usd
+                              : summary.total_estimated_cost_usd * USD_TO_INR
+                          }
+                          prefix={currencyMode === "USD" ? "$" : "₹"}
+                          locales={currencyMode === "USD" ? "en-US" : "en-IN"}
+                          format={
+                            currencyMode === "USD"
+                              ? { minimumFractionDigits: 3, maximumFractionDigits: 3 }
+                              : { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                          }
+                          animateOnMount={false}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Free Tier Value</span>
+                      {currencyMode === "DUAL" && (
+                        <span className="font-sans tabular-nums text-[9px] text-ink-muted">
+                          (${per_paper_metrics.avg_cost_usd.toFixed(4)})
+                        </span>
+                      )}
+                    </div>
+                  </FeatureCard>
+                </div>
+              </NumberFlowGroup>
 
               {/* 2. User Google AI Studio Project Limits (Editable) */}
               <FeatureCard className="p-4 sm:p-6 space-y-4">
@@ -728,7 +772,12 @@ export function UsageCards({
                     <div className="text-left sm:text-right font-sans tabular-nums text-xs">
                       <span className="text-ink-muted text-[10px] uppercase block">Remaining Balance</span>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                        ₹{(Math.max(0, totalCreditsInr - ((gcp_paid?.total_spent_usd || 0) * USD_TO_INR))).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <AnimatedNumber
+                          value={Math.max(0, totalCreditsInr - ((gcp_paid?.total_spent_usd || 0) * USD_TO_INR))}
+                          prefix="₹"
+                          locales="en-IN"
+                          format={{ minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }}
+                        />
                       </span>
                       <span className="text-[10px] text-ink-muted block">
                         of ₹{totalCreditsInr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Total Credits
@@ -770,105 +819,136 @@ export function UsageCards({
               </FeatureCard>
 
               {/* Paid KPI Scorecards (2x2 on mobile, 4-col on desktop) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                {/* Total Money Spent */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
-                      {currencyMode === "USD" ? "Total Billed (USD)" : currencyMode === "INR" ? "Total Billed (INR)" : "Total Billed"}
-                    </span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
-                      {currencyMode === "USD" ? <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {currencyMode === "USD"
-                        ? `$${(gcp_paid?.total_spent_usd || 0).toFixed(4)}`
-                        : `₹${((gcp_paid?.total_spent_usd || 0) * USD_TO_INR).toFixed(2)}`}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      Account Billing: Active
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span className="text-[10px] text-ink-secondary font-semibold truncate">
-                      {currencyMode === "INR" ? "Billed to Trial" : "Incurred Cost"}
-                    </span>
-                    {currencyMode === "DUAL" && (
-                      <span className="text-[9px] font-sans tabular-nums text-ink-muted">
-                        (${(gcp_paid?.total_spent_usd || 0).toFixed(4)})
+              <NumberFlowGroup>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                  {/* Total Money Spent */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">
+                        {currencyMode === "USD" ? "Total Billed (USD)" : currencyMode === "INR" ? "Total Billed (INR)" : "Total Billed"}
                       </span>
-                    )}
-                  </div>
-                </FeatureCard>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
+                        {currencyMode === "USD" ? <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        <AnimatedNumber
+                          value={
+                            currencyMode === "USD"
+                              ? gcp_paid?.total_spent_usd || 0
+                              : (gcp_paid?.total_spent_usd || 0) * USD_TO_INR
+                          }
+                          prefix={currencyMode === "USD" ? "$" : "₹"}
+                          locales={currencyMode === "USD" ? "en-US" : "en-IN"}
+                          format={
+                            currencyMode === "USD"
+                              ? { minimumFractionDigits: 4, maximumFractionDigits: 4 }
+                              : { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true }
+                          }
+                        />
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        Account Billing: Active
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span className="text-[10px] text-ink-secondary font-semibold truncate">
+                        {currencyMode === "INR" ? "Billed to Trial" : "Incurred Cost"}
+                      </span>
+                      {currencyMode === "DUAL" && (
+                        <span className="text-[9px] font-sans tabular-nums text-ink-muted">
+                          (${(gcp_paid?.total_spent_usd || 0).toFixed(4)})
+                        </span>
+                      )}
+                    </div>
+                  </FeatureCard>
 
-                {/* Total Paid Requests */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Paid API Calls</span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
-                      <Server className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  {/* Total Paid Requests */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Paid API Calls</span>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                        <Server className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {gcp_paid?.total_requests || 0}
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        <AnimatedNumber
+                          value={gcp_paid?.total_requests || 0}
+                          format={{ useGrouping: true, maximumFractionDigits: 0 }}
+                        />
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        {gcp_paid?.successful_requests || 0} ok / {gcp_paid?.failed_requests || 0} err
+                      </div>
                     </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      {gcp_paid?.successful_requests || 0} ok / {gcp_paid?.failed_requests || 0} err
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span>Success: <strong className="text-ink font-semibold">{gcp_paid?.success_rate_pct || 0}%</strong></span>
+                      <span>Err: <strong className="text-rose-500 font-semibold">{gcp_paid?.failed_requests || 0}</strong></span>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span>Success: <strong className="text-ink font-semibold">{gcp_paid?.success_rate_pct || 0}%</strong></span>
-                    <span>Err: <strong className="text-rose-500 font-semibold">{gcp_paid?.failed_requests || 0}</strong></span>
-                  </div>
-                </FeatureCard>
+                  </FeatureCard>
 
-                {/* Tokens Billed */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Tokens Incurred</span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
-                      <Cpu className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  {/* Tokens Billed */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Tokens Incurred</span>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                        <Cpu className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {((gcp_paid?.total_input_tokens || 0) + (gcp_paid?.total_output_tokens || 0)).toLocaleString()}
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        <AnimatedNumber
+                          value={(gcp_paid?.total_input_tokens || 0) + (gcp_paid?.total_output_tokens || 0)}
+                          format={{ useGrouping: true, maximumFractionDigits: 0 }}
+                        />
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        In: {(gcp_paid?.total_input_tokens || 0).toLocaleString()}
+                      </div>
                     </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      In: {(gcp_paid?.total_input_tokens || 0).toLocaleString()}
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span>Out: <strong className="text-ink font-semibold">{(gcp_paid?.total_output_tokens || 0).toLocaleString()}</strong></span>
+                      <span className="text-ink-muted text-[10px]">tokens</span>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span>Out: <strong className="text-ink font-semibold">{(gcp_paid?.total_output_tokens || 0).toLocaleString()}</strong></span>
-                    <span className="text-ink-muted text-[10px]">tokens</span>
-                  </div>
-                </FeatureCard>
+                  </FeatureCard>
 
-                {/* Average Latency */}
-                <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Avg Latency</span>
-                    <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
-                      <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  {/* Average Latency */}
+                  <FeatureCard className="p-3.5 sm:p-5 space-y-2 sm:space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] sm:text-xs font-semibold text-ink-muted truncate">Avg Latency</span>
+                      <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-md bg-canvas-soft border border-hairline text-ink-secondary shrink-0">
+                        <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
-                      {(gcp_paid?.avg_latency_ms || 0) > 1000 ? `${((gcp_paid?.avg_latency_ms || 0) / 1000).toFixed(1)}s` : `${gcp_paid?.avg_latency_ms || 0}ms`}
+                    <div>
+                      <div className="font-sans tabular-nums text-xl sm:text-2xl font-bold text-ink leading-tight">
+                        {(gcp_paid?.avg_latency_ms || 0) > 1000 ? (
+                          <AnimatedNumber
+                            value={(gcp_paid?.avg_latency_ms || 0) / 1000}
+                            suffix="s"
+                            format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                          />
+                        ) : (
+                          <AnimatedNumber
+                            value={gcp_paid?.avg_latency_ms || 0}
+                            suffix="ms"
+                            format={{ maximumFractionDigits: 0 }}
+                          />
+                        )}
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
+                        Cached: {(gcp_paid?.total_cached_tokens || 0).toLocaleString()}
+                      </div>
                     </div>
-                    <div className="text-[10px] sm:text-xs text-ink-muted truncate mt-0.5">
-                      Cached: {(gcp_paid?.total_cached_tokens || 0).toLocaleString()}
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
+                      <span>Thinking: <strong className="text-ink font-semibold">{(gcp_paid?.total_thinking_tokens || 0).toLocaleString()}</strong></span>
+                      <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">Vertex</span>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted border-t border-hairline pt-1.5 sm:pt-2">
-                    <span>Thinking: <strong className="text-ink font-semibold">{(gcp_paid?.total_thinking_tokens || 0).toLocaleString()}</strong></span>
-                    <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">Vertex</span>
-                  </div>
-                </FeatureCard>
-              </div>
+                  </FeatureCard>
+                </div>
+              </NumberFlowGroup>
 
               {/* GCP Configuration & Error Diagnostic Alert */}
               <FeatureCard className="p-4 sm:p-6 space-y-4">

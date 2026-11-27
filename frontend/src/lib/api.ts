@@ -1900,4 +1900,22 @@ export const api = {
     });
     return safeJson(res, "Failed to restore examination");
   },
+
+  // -------------------------------------------------------------
+  // Public Pilot Integration Contact
+  // -------------------------------------------------------------
+  async submitPilotInquiry(data: {
+    institute_name: string;
+    city?: string;
+    contact_info: string;
+    batch_size: string;
+    notes?: string;
+  }): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/api/contact/pilot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return safeJson(res, "Failed to send pilot request");
+  },
 };

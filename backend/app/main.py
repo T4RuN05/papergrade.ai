@@ -27,6 +27,7 @@ from backend.app.routers import (
     students,
     reports,
     oauth,
+    contact,
 )
 
 @asynccontextmanager
@@ -113,6 +114,7 @@ app.include_router(notifications.router)
 app.include_router(students.router)
 app.include_router(reports.router, prefix="/api/reports")
 app.include_router(oauth.router)
+app.include_router(contact.router)
 app.include_router(grading.router)
 app.include_router(analytics.router, prefix="/api/analytics")
 app.include_router(exports.router)

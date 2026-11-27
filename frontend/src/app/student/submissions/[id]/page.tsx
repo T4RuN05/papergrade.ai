@@ -36,6 +36,7 @@ import {
   RefetchProgressLine,
   Skeleton,
   EvaluationViewerSkeleton,
+  PageBackBar,
 } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { GradedAnswer, Submission } from "@/lib/types";
@@ -225,112 +226,107 @@ export default function StudentSubmissionViewerPage() {
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pt-4 sm:pt-6 pb-16 px-3 sm:px-6 cascade-group relative">
+    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pt-5 sm:pt-8 pb-20 px-4 sm:px-6 cascade-group relative">
       {/* Background Refetch Line */}
       <RefetchProgressLine isFetching={isFetching} />
 
-      {/* Top Breadcrumb & Actions Bar — Permanently Mounted (CLS = 0.00) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-hairline">
-        <Link
-          href="/student/portal"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline transition-colors py-1 px-1.5 -ml-1.5 rounded-md hover:bg-canvas-soft w-fit"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Back to Overview</span>
-        </Link>
-
-        {/* Actions Group */}
-        <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1 sm:flex sm:flex-wrap sm:items-center gap-2 w-full sm:w-auto">
-          {isPublished && (submission?.exam?.has_question_paper || submission?.exam?.has_answer_key || submission?.has_question_paper || submission?.has_answer_key) && (
-            <button
-              type="button"
-              onClick={() => setArtifactModalOpen(true)}
-              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs"
-              title="View Question Paper and Official Answer Key"
-            >
-              <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="sm:hidden truncate">QP & Key</span>
-              <span className="hidden sm:inline">Question Paper & Key</span>
-            </button>
-          )}
-
-          {/* Download Graded PDF Button */}
-          {isColdLoading || !submission ? (
-            <Skeleton className="h-9 w-48 rounded-md" />
-          ) : !isPublished ? (
-            <button
-              type="button"
-              disabled
-              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs opacity-55 cursor-not-allowed text-ink-muted"
-              title="Graded PDF copy with annotations will become available once results are officially published by faculty."
-            >
-              <Clock className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-              <span className="truncate">Graded PDF Pending</span>
-            </button>
-          ) : isPurged ? (
-            <button
-              type="button"
-              disabled
-              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs opacity-55 cursor-not-allowed text-ink-muted"
-              title="Scanned PDF was permanently deleted after retention period."
-            >
-              <AlertCircle className="h-3.5 w-3.5 text-ink-faint shrink-0" />
-              <span className="truncate">Document Expired</span>
-            </button>
-          ) : (
-            <a
-              href={api.getAnnotatedPdfUrl(submission.id)}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() =>
-                toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
-              }
-              className="notion-btn-utility min-w-0 px-3 py-1.5 text-xs"
-            >
-              <Download className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="sm:hidden truncate">Graded PDF</span>
-              <span className="hidden sm:inline">Download Graded PDF</span>
-              {submission.days_remaining !== undefined && submission.days_remaining !== null && (
-                <span className="text-[11px] text-ink-muted font-mono tabular-nums shrink-0">
-                  ({Math.max(0, Math.round(submission.days_remaining))}d)
-                </span>
-              )}
-            </a>
-          )}
-
-          {isPublished && !submission?.is_document_purged && (
-            driveArchive?.archive_status === "EXPORTED" && driveArchive.drive_web_view_link ? (
-              <a
-                href={driveArchive.drive_web_view_link}
-                target="_blank"
-                rel="noreferrer"
-                className="notion-btn-utility justify-center px-3 py-1.5 text-xs whitespace-nowrap"
-                title="Open backed up script in personal Google Drive"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
-                <span>In Drive</span>
-                <ExternalLink className="h-3 w-3 text-ink-muted shrink-0" />
-              </a>
-            ) : (
+      {/* Fixed Backing Navigation & Actions Bar — Permanently Mounted (CLS = 0.00) */}
+      <PageBackBar
+        backHref="/student/portal"
+        backLabel="Back to Student Portal"
+        actions={
+          <div className="grid grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1 sm:flex sm:flex-wrap sm:items-center gap-2 w-full sm:w-auto">
+            {isPublished && (submission?.exam?.has_question_paper || submission?.exam?.has_answer_key || submission?.has_question_paper || submission?.has_answer_key) && (
               <button
                 type="button"
-                onClick={handleManualDriveSync}
-                disabled={syncingDrive}
-                className="notion-btn-utility justify-center px-3 py-1.5 text-xs disabled:opacity-50 whitespace-nowrap"
-                title="Backup graded paper to personal Google Drive"
+                onClick={() => setArtifactModalOpen(true)}
+                className="notion-btn-utility !min-h-8 h-8 min-w-0 px-3 text-xs"
+                title="View Question Paper and Official Answer Key"
               >
-                {syncingDrive ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-ink-muted" />
-                ) : (
-                  <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
-                )}
-                <span>{syncingDrive ? "Syncing..." : "Backup to Drive"}</span>
+                <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="sm:hidden truncate">QP &amp; Key</span>
+                <span className="hidden sm:inline">Question Paper &amp; Key</span>
               </button>
-            )
-          )}
-        </div>
-      </div>
+            )}
+
+            {/* Download Graded PDF Button */}
+            {isColdLoading || !submission ? (
+              <Skeleton className="h-8 w-40 rounded-md" />
+            ) : !isPublished ? (
+              <button
+                type="button"
+                disabled
+                className="notion-btn-utility !min-h-8 h-8 min-w-0 px-3 text-xs opacity-55 cursor-not-allowed text-ink-muted"
+                title="Graded PDF copy with annotations will become available once results are officially published by faculty."
+              >
+                <Clock className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                <span className="truncate">Graded PDF Pending</span>
+              </button>
+            ) : isPurged ? (
+              <button
+                type="button"
+                disabled
+                className="notion-btn-utility !min-h-8 h-8 min-w-0 px-3 text-xs opacity-55 cursor-not-allowed text-ink-muted"
+                title="Scanned PDF was permanently deleted after retention period."
+              >
+                <AlertCircle className="h-3.5 w-3.5 text-ink-faint shrink-0" />
+                <span className="truncate">Document Expired</span>
+              </button>
+            ) : (
+              <a
+                href={api.getAnnotatedPdfUrl(submission.id)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() =>
+                  toast.info("Downloading official annotated PDF...", { title: "Graded Paper" })
+                }
+                className="notion-btn-utility !min-h-8 h-8 min-w-0 px-3 text-xs"
+              >
+                <Download className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="sm:hidden truncate">Graded PDF</span>
+                <span className="hidden sm:inline">Download Graded PDF</span>
+                {submission.days_remaining !== undefined && submission.days_remaining !== null && (
+                  <span className="text-[11px] text-ink-muted font-mono tabular-nums shrink-0">
+                    ({Math.max(0, Math.round(submission.days_remaining))}d)
+                  </span>
+                )}
+              </a>
+            )}
+
+            {isPublished && !submission?.is_document_purged && (
+              driveArchive?.archive_status === "EXPORTED" && driveArchive.drive_web_view_link ? (
+                <a
+                  href={driveArchive.drive_web_view_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="notion-btn-utility !min-h-8 h-8 justify-center px-3 text-xs whitespace-nowrap"
+                  title="Open backed up script in personal Google Drive"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span>In Drive</span>
+                  <ExternalLink className="h-3 w-3 text-ink-muted shrink-0" />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleManualDriveSync}
+                  disabled={syncingDrive}
+                  className="notion-btn-utility !min-h-8 h-8 justify-center px-3 text-xs disabled:opacity-50 whitespace-nowrap"
+                  title="Backup graded paper to personal Google Drive"
+                >
+                  {syncingDrive ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-ink-muted" />
+                  ) : (
+                    <GoogleDriveIcon className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span>{syncingDrive ? "Syncing..." : "Backup to Drive"}</span>
+                </button>
+              )
+            )}
+          </div>
+        }
+      />
 
       {/* Student & Examination Banner */}
       <FeatureCard className="p-4 sm:p-5 rounded-lg border-hairline bg-surface">

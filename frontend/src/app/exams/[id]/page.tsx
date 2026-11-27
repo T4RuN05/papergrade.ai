@@ -31,7 +31,7 @@ import {
   exportRosterCSV,
   computeRankedSubmissions,
 } from "@/components/ExamRankedTable";
-import { useConfirm } from "@/components/ui";
+import { useConfirm, PageBackBar } from "@/components/ui";
 
 // Extracted Microcomponents
 import { ExamActionHeader } from "@/components/exams/ExamActionHeader";
@@ -511,6 +511,9 @@ export default function ExamDetailPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 cascade-group">
+      {/* Fixed Backing Navigation */}
+      <PageBackBar backHref="/exams" backLabel="Back to Examinations" />
+
       {/* 1. Header Toolbar */}
       <ExamActionHeader
         title={exam?.title}

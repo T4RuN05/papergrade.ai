@@ -11,7 +11,7 @@ import {
   FileSpreadsheet,
   RefreshCw,
   CheckCircle2,
-  ExternalLink,
+  ArrowRight,
 } from "lucide-react";
 import { AppleSelect, TableSkeletonRows, RefetchProgressLine, Skeleton } from "@/components/ui";
 
@@ -368,10 +368,10 @@ export function ExamSubmissionsGrid({
 
                       <Link
                         href={`/grading/${sub.id}`}
-                        className="notion-btn-utility min-h-[30px] h-7 px-2.5 text-xs text-primary"
+                        className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                       >
-                        <span>Canvas</span>
-                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span>Inspect Sheet</span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
                       </Link>
                     </div>
                   </div>
@@ -467,10 +467,10 @@ export function ExamSubmissionsGrid({
                         <td className="py-3 px-4 text-right">
                           <Link
                             href={`/grading/${sub.id}`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-primary hover:bg-canvas-soft transition-colors"
+                            className="notion-btn-utility min-h-0 h-7 px-2.5 text-primary"
                           >
-                            <span>Canvas</span>
-                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            <span>Inspect Sheet</span>
+                            <ArrowRight className="h-3 w-3 shrink-0" />
                           </Link>
                         </td>
                       </tr>

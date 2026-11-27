@@ -585,7 +585,7 @@ export function ActiveExamSubmissionCard({
                 className="notion-btn-primary justify-center px-4 py-2 text-xs"
               >
                 <Eye className="h-3.5 w-3.5" />
-                <span>View Submitted Script →</span>
+                <span>View Submitted Sheet →</span>
               </Link>
 
               {windowStatus?.is_active && (

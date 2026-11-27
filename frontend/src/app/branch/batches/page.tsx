@@ -294,7 +294,7 @@ export default function BranchBatchesPage() {
             {pendingResets.length > 0 && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-canvas-soft border border-hairline text-ink tabular-nums shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                {pendingResets.length}
+                <MetricValue value={pendingResets.length} animateOnMount={false} />
               </span>
             )}
           </button>

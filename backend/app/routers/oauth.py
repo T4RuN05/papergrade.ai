@@ -34,6 +34,7 @@ from backend.app.services.google_drive_service import (
     encrypt_token,
     revoke_google_token_sync,
 )
+from backend.app.services.email_service import send_security_link_email
 
 logger = logging.getLogger(__name__)
 
@@ -379,6 +380,7 @@ def authorize_google(
 @router.get("/callback")
 async def google_oauth_callback(
     request: Request,
+    background_tasks: BackgroundTasks,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
@@ -506,6 +508,14 @@ async def google_oauth_callback(
 
             db.commit()
             invalidate_user_auth_cache(user.id)
+
+            background_tasks.add_task(
+                send_security_link_email,
+                to_email=user.email,
+                recipient_name=user.full_name or "User",
+                linked_google_email=google_email,
+                link_mode=mode,
+            )
 
             query_suffix = "byos=connected" if mode == "byos" else "google_linked=1"
             return RedirectResponse(url=f"{frontend_base}{return_to}?{query_suffix}")

@@ -29,6 +29,7 @@ import {
   RefetchProgressLine,
   Skeleton,
   EvaluationViewerSkeleton,
+  PageBackBar,
 } from "@/components/ui";
 
 const DocumentViewer = dynamic(
@@ -315,57 +316,56 @@ export default function GradingPage() {
   const missingAnswers = submission?.missing_answers || [];
   const pct = submission?.percentage || 0;
 
+  const backLabel = submission?.exam_id
+    ? "Back to Examination"
+    : submission?.batch_id
+    ? "Back to Batch"
+    : "Back to Batches";
+
   return (
     <div className="space-y-5 sm:space-y-6 max-w-7xl mx-auto pb-16 cascade-group relative">
       {/* Background Refetch Line */}
       <RefetchProgressLine isFetching={isFetching} />
 
-      {/* Page Actions — Permanently Mounted (CLS = 0.00) */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-hairline">
-        <Link
-          href={backHref}
-          className="notion-btn-utility min-h-0 h-8 px-3"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Back</span>
-        </Link>
-
-        {isColdLoading || !submission ? (
-          <Skeleton className="h-8 w-44 rounded-md" />
-        ) : isUploaded ? (
-          <a
-            href={api.getSubmissionPdfUrl(submission.id, true)}
-            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
-              }_Original.pdf`}
-            onClick={() =>
-              toast.info("Downloading raw uploaded student PDF...", { title: "PDF Export" })
-            }
-            className="notion-btn-primary min-h-0 h-8 px-3.5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="sm:hidden">Original PDF</span>
-            <span className="hidden sm:inline">Download Original Uploaded PDF</span>
-          </a>
-        ) : (
-          <a
-            href={api.getAnnotatedPdfUrl(
-              submission.id,
-              `${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
-              }_Graded.pdf`
-            )}
-            download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"
-              }_Graded.pdf`}
-            onClick={() =>
-              toast.info("Downloading annotated evaluation PDF...", { title: "PDF Export" })
-            }
-            className="notion-btn-primary min-h-0 h-8 px-3.5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="sm:hidden">Export PDF</span>
-            <span className="hidden sm:inline">Export Annotated PDF</span>
-          </a>
-        )}
-      </div>
+      {/* Fixed Backing Navigation — Permanently Mounted (CLS = 0.00) */}
+      <PageBackBar
+        backHref={backHref}
+        backLabel={backLabel}
+        actions={
+          isColdLoading || !submission ? (
+            <Skeleton className="h-8 w-40 rounded-md" />
+          ) : isUploaded ? (
+            <a
+              href={api.getSubmissionPdfUrl(submission.id, true)}
+              download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Original.pdf`}
+              onClick={() =>
+                toast.info("Downloading raw uploaded student PDF...", { title: "PDF Export" })
+              }
+              className="notion-btn-primary !min-h-8 h-8 px-3 text-xs"
+            >
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              <span className="sm:hidden">Original PDF</span>
+              <span className="hidden sm:inline">Download Original PDF</span>
+            </a>
+          ) : (
+            <a
+              href={api.getAnnotatedPdfUrl(
+                submission.id,
+                `${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Graded.pdf`
+              )}
+              download={`${(submission.student_name || "Student").replace(/\s+/g, "_")}_${submission.roll_number || "Roll"}_Graded.pdf`}
+              onClick={() =>
+                toast.info("Downloading annotated evaluation PDF...", { title: "PDF Export" })
+              }
+              className="notion-btn-primary !min-h-8 h-8 px-3 text-xs"
+            >
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              <span className="sm:hidden">Export PDF</span>
+              <span className="hidden sm:inline">Export Annotated PDF</span>
+            </a>
+          )
+        }
+      />
 
       {/* Student Overview Banner — Permanently Mounted (CLS = 0.00) */}
       <div className="notion-card p-4 sm:p-6">

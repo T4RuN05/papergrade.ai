@@ -28,6 +28,7 @@ import {
   StatusWell,
   MetricValue,
   RefetchProgressLine,
+  PageBackBar,
 } from "@/components/ui";
 
 interface StudentRevaluationItem {
@@ -203,16 +204,8 @@ export default function StudentRevaluationPage() {
       <RefetchProgressLine isFetching={isFetching} />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-8 space-y-6">
-        {/* Navigation Breadcrumb Bar */}
-        <div className="flex items-center justify-between pb-3 border-b border-hairline">
-          <Link
-            href="/student/portal"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline transition-colors py-1 px-1.5 -ml-1.5 rounded-md hover:bg-surface w-fit"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span>Back to Overview</span>
-          </Link>
-        </div>
+        {/* Fixed Backing Navigation */}
+        <PageBackBar backHref="/student/portal" backLabel="Back to Student Portal" />
 
         {/* Header Title Section */}
         <header className="space-y-1.5">

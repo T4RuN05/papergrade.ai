@@ -36,7 +36,7 @@ import {
 } from "@/lib/queries";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
-import { Skeleton, useConfirm } from "@/components/ui";
+import { Skeleton, useConfirm, PageBackBar } from "@/components/ui";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 
 function GoogleDriveIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -383,7 +383,7 @@ function SettingsContent() {
 
   const containerClass = isStudent
     ? "max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-8 pb-20 space-y-6 cascade-group"
-    : "w-full space-y-6 pb-16 cascade-group";
+    : "max-w-6xl mx-auto space-y-6 pb-16 cascade-group";
 
   const roleDisplayLabel =
     currentUser?.role === "ROOT_ADMIN"
@@ -396,17 +396,16 @@ function SettingsContent() {
 
   return (
     <div className={containerClass}>
+      {/* Fixed Backing Navigation */}
+      <PageBackBar
+        backHref={dashboardHref}
+        backLabel={isStudent ? "Back to Student Portal" : "Back to Console"}
+      />
+
       {/* Page Header */}
       <header className="pb-4 border-b border-hairline flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="space-y-1.5 min-w-0">
-          <Link
-            href={dashboardHref}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-            <span>Back to {isStudent ? "Student Portal" : "Console"}</span>
-          </Link>
-          <p className="notion-eyebrow text-ink-muted pt-0.5">Account Settings</p>
+          <p className="notion-eyebrow text-ink-muted">Account Settings</p>
           <h1 className="notion-heading-2 text-ink">
             Account &amp; Profile Settings
           </h1>

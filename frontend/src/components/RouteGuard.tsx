@@ -67,7 +67,14 @@ export function RouteGuard({ children }: RouteGuardProps) {
   }, [pathname]);
 
   const isPublicRoute = useMemo(() => {
-    return pathname === "/" || pathname.startsWith("/help") || isAuthRoute;
+    return (
+      pathname === "/" ||
+      pathname === "/about" ||
+      pathname === "/privacy" ||
+      pathname === "/terms" ||
+      pathname.startsWith("/help") ||
+      isAuthRoute
+    );
   }, [pathname, isAuthRoute]);
 
   const isAdminLayout = useMemo(() => {
@@ -254,7 +261,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
       <main className="flex-1 w-full max-w-full overflow-x-clip sm:overflow-x-visible">
         {children}
       </main>
-      {pathname !== "/" && (
+      {pathname !== "/" && pathname !== "/about" && (
         <footer className="border-t border-hairline bg-canvas-soft px-4 py-6 text-center text-xs text-ink-muted">
           <p className="max-w-xl mx-auto leading-relaxed">
             PaperGrade AI • High-Integrity Academic Evaluation

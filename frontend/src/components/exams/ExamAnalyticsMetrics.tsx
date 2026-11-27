@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Users, FileCheck2, BarChart3, AlertTriangle } from "lucide-react";
-import { MetricValue, Skeleton } from "@/components/ui";
+import { AnimatedNumber, MetricValue, NumberFlowGroup, Skeleton } from "@/components/ui";
 
 interface ExamAnalyticsMetricsProps {
   totalSubmissions?: number;
@@ -64,13 +64,23 @@ export function ExamAnalyticsMetrics({
             {isLoading ? (
               <Skeleton className="h-7 w-16 rounded-md" />
             ) : (
-              <div className="notion-heading-3 text-[22px] text-ink tabular-nums">
-                {evaluatedCount} / {totalSubmissions}
-              </div>
+              <NumberFlowGroup>
+                <div className="notion-heading-3 text-[22px] text-ink tabular-nums inline-flex items-baseline gap-1">
+                  <AnimatedNumber value={evaluatedCount} format={{ maximumFractionDigits: 0 }} />
+                  <span className="text-ink-faint font-normal">/</span>
+                  <AnimatedNumber value={totalSubmissions} format={{ maximumFractionDigits: 0 }} />
+                </div>
+              </NumberFlowGroup>
             )}
           </div>
           <div className="text-xs text-ink-muted mt-1 truncate">
-            {isLoading ? "Calculating..." : `${percentGraded}% evaluation rate`}
+            {isLoading ? (
+              "Calculating..."
+            ) : (
+              <>
+                <AnimatedNumber value={percentGraded} suffix="%" format={{ maximumFractionDigits: 0 }} /> evaluation rate
+              </>
+            )}
           </div>
         </div>
 

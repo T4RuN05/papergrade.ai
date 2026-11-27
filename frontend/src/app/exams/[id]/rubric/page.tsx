@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queryKeys";
 import { ExamRubric } from "@/lib/types";
 import { useSetBreadcrumbs } from "@/lib/BreadcrumbContext";
-import { RubricSkeleton } from "@/components/ui";
+import { RubricSkeleton, PageBackBar } from "@/components/ui";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useExamDetail } from "@/lib/queries";
@@ -92,7 +92,7 @@ export default function ExamRubricPage() {
 
   if (isLoading && !exam) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      <div className="space-y-6 max-w-6xl mx-auto pb-12">
         <RubricSkeleton />
       </div>
     );
@@ -146,21 +146,23 @@ export default function ExamRubricPage() {
   const showNoKeyBanner = !exam?.answer_key_path && !hasQuestions;
 
   return (
-    <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto pb-12">
-      {/* Top Navigation & Optional Next Step */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-hairline">
-        <Link href={`/exams/${examId}`} className="notion-btn-utility self-start">
-          <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-          <span>Back to Exam</span>
-        </Link>
-
-        {isApproved && (
-          <Link href="/branch/batches" className="notion-btn-primary w-full sm:w-auto justify-center">
-            <Upload className="h-3.5 w-3.5 shrink-0" />
-            <span>Proceed to Batches &amp; Submissions →</span>
-          </Link>
-        )}
-      </div>
+    <div className="space-y-5 sm:space-y-6 max-w-6xl mx-auto pb-12">
+      {/* Fixed Backing Navigation & Optional Next Step */}
+      <PageBackBar
+        backHref={`/exams/${examId}`}
+        backLabel="Back to Examination"
+        actions={
+          isApproved ? (
+            <Link
+              href="/branch/batches"
+              className="notion-btn-primary !min-h-8 h-8 px-3 text-xs"
+            >
+              <Upload className="h-3.5 w-3.5 shrink-0" />
+              <span>Batches &amp; Submissions</span>
+            </Link>
+          ) : undefined
+        }
+      />
 
       {showNoKeyBanner && (
         <div className="notion-card rounded-lg p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

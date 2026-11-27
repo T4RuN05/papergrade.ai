@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   darkMode: "class",
@@ -62,6 +63,10 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(({ matchVariant }) => {
+      matchVariant("part", (p) => `:root[data-supports-dsd] &::part(${p})`);
+    }),
+  ],
 };
 export default config;
