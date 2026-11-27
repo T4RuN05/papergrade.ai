@@ -161,7 +161,7 @@ export function Navbar() {
             <div className="relative flex h-7 w-7 items-center justify-center rounded-md overflow-hidden shrink-0">
               <Image
                 src="/logo-icon.png"
-                alt="PaperGrade AI"
+                alt=""
                 width={28}
                 height={28}
                 className="h-7 w-7 object-contain"

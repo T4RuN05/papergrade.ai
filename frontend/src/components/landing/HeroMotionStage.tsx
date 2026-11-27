@@ -402,20 +402,20 @@ export function HeroMotionStage() {
                         className={`flex items-center justify-between gap-2.5 px-3 py-2 rounded-md border transition-all duration-400 ${
                           lit
                             ? "border-[#2383e2]/45 bg-[#2383e2]/[0.1]"
-                            : "border-white/8 bg-[#161615] opacity-50"
+                            : "border-white/10 bg-[#161615]"
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span
                             className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 ${
-                              lit ? "bg-[#2383e2] text-white" : "border border-white/20 text-transparent"
+                              lit ? "bg-[#2383e2] text-white" : "border border-white/25 text-transparent"
                             }`}
                           >
                             <Check className="h-2.5 w-2.5" />
                           </span>
-                          <span className="text-xs text-white/90 truncate">{crit.desc}</span>
+                          <span className={`text-xs truncate ${lit ? "text-white/95" : "text-white/65"}`}>{crit.desc}</span>
                         </div>
-                        <span className="font-mono text-xs font-semibold text-[#6cb6ff] tabular-nums shrink-0">
+                        <span className={`font-mono text-xs font-semibold tabular-nums shrink-0 ${lit ? "text-[#6cb6ff]" : "text-[#7ec0ff]"}`}>
                           {crit.marks}
                         </span>
                       </div>
@@ -929,12 +929,12 @@ export function HeroMotionStage() {
                 className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   isActive
                     ? "bg-white/12 text-white border border-white/15"
-                    : "text-white/50 hover:text-white/85 border border-transparent"
+                    : "text-white/65 hover:text-white/90 border border-transparent"
                 }`}
               >
                 <span
                   className={`font-mono text-[10px] ${
-                    isActive ? "text-[#56a8f5]" : "text-white/35"
+                    isActive ? "text-[#56a8f5]" : "text-white/60"
                   }`}
                 >
                   {act.code}
