@@ -54,6 +54,15 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: '/(auth|admin|student|overview|exams|batches|branch|grading|marks|analytics|revaluation|settings|notifications|results)(.*)',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive',
+          },
+        ],
+      },
     ];
   },
 };

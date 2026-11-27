@@ -313,7 +313,7 @@ export function HeroMotionStage() {
               <div className="hidden md:block absolute top-0 bottom-14 left-0 w-[68%] z-10 landing-mask-left pointer-events-none select-none animate-landing-backplane-in">
                 <div className="h-full rounded-lg border border-white/10 bg-[#181817] p-4 space-y-2.5">
                   <div className="flex items-center justify-between pr-36 border-b border-white/10 pb-2 text-[11px]">
-                    <span className="font-semibold text-white/85">Overnight Evaluation Queue</span>
+                    <span className="font-semibold text-white/85">Batch Evaluation Queue</span>
                     <span
                       className={`font-mono transition-colors ${
                         subBeat >= 2 ? "text-[#6cb6ff]" : "text-white/45"

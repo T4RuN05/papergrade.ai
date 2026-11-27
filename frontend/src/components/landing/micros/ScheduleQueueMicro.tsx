@@ -5,9 +5,9 @@ import { Clock, Moon, CheckCircle2 } from "lucide-react";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 /**
- * Reflects PaperGrade's real operational cadence:
- * Daytime class hours open for uninterrupted student scans ->
- * Overnight batch queue processes queued scripts for next-day publication.
+ * Reflects PaperGrade's submission & batch cadence:
+ * Live exam window captures uninterrupted student scans ->
+ * Batch queue evaluates queued scripts for faculty publication.
  */
 export function ScheduleQueueMicro() {
   const [phase, setPhase] = useState<"day" | "night">("day");
@@ -46,7 +46,7 @@ export function ScheduleQueueMicro() {
           }`}
         >
           <Moon className="h-3 w-3 text-primary" />
-          <span>Overnight Queue</span>
+          <span>Batch Queue</span>
         </button>
       </div>
 
@@ -57,7 +57,7 @@ export function ScheduleQueueMicro() {
             {isDay ? "Submission Window Open" : "Batch Evaluation Active"}
           </span>
           <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-xs bg-surface border border-hairline text-ink tabular-nums">
-            {isDay ? "11:42 left" : "After 8:00 PM"}
+            {isDay ? "11:42 left" : "Queued Batch"}
           </span>
         </div>
 

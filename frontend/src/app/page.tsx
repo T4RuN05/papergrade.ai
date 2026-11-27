@@ -276,12 +276,12 @@ export default function LandingPage() {
                 </BlendedFeatureCard>
               </ScrollReveal>
 
-              {/* Card 3: Alternating Top-down lens blur over day/night queue */}
+              {/* Card 3: Alternating Top-down lens blur over collection/batch queue */}
               <ScrollReveal className="lg:col-span-5" delayMs={60}>
                 <BlendedFeatureCard
                   overlayPosition="top"
-                  title="Collect in class. Grade overnight."
-                  description="Timed submission windows capture student scans during test hours, while queued batches process overnight for next-day review."
+                  title="Collect in class. Grade in batch."
+                  description="Timed submission windows capture student scans during test hours, while queued batches process cleanly for faculty review."
                 >
                   <ScheduleQueueMicro />
                 </BlendedFeatureCard>

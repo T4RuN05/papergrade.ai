@@ -20,9 +20,11 @@ import {
   AlertCircle,
   Info,
   GripVertical,
+  Calendar,
 } from "lucide-react";
 import { FeatureCard, BadgePill, ButtonPrimary } from "@/components/ui";
 import { api } from "@/lib/api";
+import { formatExamDate, resolveExamDate } from "@/lib/dateFormat";
 import { useToast } from "@/lib/ToastContext";
 import { useWindowCountdown } from "@/hooks/useWindowCountdown";
 import type { AssemblyProgress } from "@/lib/pdfAssembler";
@@ -32,11 +34,14 @@ export interface ActiveExamSubmissionCardProps {
     id: string;
     title: string;
     subject?: string;
+    exam_date?: string | null;
+    created_at?: string | null;
   };
   windowStatus: {
     is_active?: boolean;
     is_in_grace?: boolean;
     seconds_remaining?: number;
+    opened_at?: string;
     deadline_at?: string;
     grace_deadline_at?: string;
     closed_at?: string;
@@ -483,6 +488,18 @@ export function ActiveExamSubmissionCard({
             </span>
             <span className="text-ink-faint">•</span>
             <span className="text-ink-muted font-medium">{activeExam.subject}</span>
+            {formatExamDate(resolveExamDate({ ...activeExam, window_status: windowStatus })) && (
+              <>
+                <span className="text-ink-faint">•</span>
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-ink-muted tabular-nums whitespace-nowrap"
+                  title="Exam Date"
+                >
+                  <Calendar className="h-3 w-3 text-ink-faint shrink-0" />
+                  <span>{formatExamDate(resolveExamDate({ ...activeExam, window_status: windowStatus }))}</span>
+                </span>
+              </>
+            )}
             {!windowStatus?.is_active && getRemainingCardTime() && (
               <>
                 <span className="text-ink-faint">•</span>

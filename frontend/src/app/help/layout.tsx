@@ -1,10 +1,21 @@
+import type { Metadata } from "next";
 import React from "react";
 import { HelpScrollToTopButton } from "@/components/help/HelpScrollToTopButton";
+import { SITE_URL } from "@/lib/seoSchema";
 
-export const metadata = {
-  title: "User Manual & Help Center • PaperGrade AI",
+export const metadata: Metadata = {
+  title: "User Manual & Help Center",
   description:
-    "Comprehensive step-by-step instructions and user manuals for students, teachers, and administrators.",
+    "Step-by-step documentation for students, coaching faculty, branch managers, and institute directors using PaperGrade AI for handwritten exam uploads, rubrics, grading, and revaluations.",
+  alternates: {
+    canonical: "/help",
+  },
+  openGraph: {
+    title: "User Manual & Help Center | PaperGrade AI",
+    description:
+      "Role-by-role operational guides for uploading handwritten answer sheets, locking rubrics, reviewing marks, and resolving appeals.",
+    url: `${SITE_URL}/help`,
+  },
 };
 
 export default function HelpLayout({ children }: { children: React.ReactNode }) {

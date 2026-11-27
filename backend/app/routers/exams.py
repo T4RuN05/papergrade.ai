@@ -134,9 +134,17 @@ def list_exams(
 
     exam_ids = [r[0].id for r in rows]
 
-    # Pre-fetch latest submission windows for all returned exams
+    # Pre-fetch latest submission windows & earliest conduct dates for all returned exams
     windows_by_exam: Dict[str, Dict[str, Any]] = {}
+    first_opened_by_exam: Dict[str, str] = {}
     if exam_ids:
+        first_open_rows = db.execute(
+            select(SubmissionWindow.exam_id, func.min(SubmissionWindow.opened_at))
+            .where(SubmissionWindow.exam_id.in_(exam_ids))
+            .group_by(SubmissionWindow.exam_id)
+        ).all()
+        first_opened_by_exam = {eid: opened for eid, opened in first_open_rows if opened}
+
         now_dt = datetime.now(timezone.utc)
         subq = (
             select(
@@ -231,6 +239,7 @@ def list_exams(
             "status": exam.status,
             "created_at": exam.created_at,
             "updated_at": exam.updated_at,
+            "exam_date": first_opened_by_exam.get(exam.id) or exam.created_at,
             "is_rubric_approved": is_approved,
             "has_approved_rubric": is_approved,
             "window_status": window_status,
@@ -366,7 +375,7 @@ def get_exam(
             allow_sample_read=True,
         )
 
-    # Attach latest window status in short closed session
+    # Attach latest window status & earliest conducted date in short closed session
     with get_session() as db:
         window = db.scalar(
             select(SubmissionWindow)
@@ -374,8 +383,13 @@ def get_exam(
             .order_by(SubmissionWindow.created_at.desc())
             .limit(1)
         )
+        first_opened_at = db.scalar(
+            select(func.min(SubmissionWindow.opened_at))
+            .where(SubmissionWindow.exam_id == exam_id)
+        )
         win_dict = _window_to_dict(window) if window else None
     exam["window_status"] = calculate_window_dict(win_dict)
+    exam["exam_date"] = first_opened_at or exam.get("created_at")
 
     return exam
 

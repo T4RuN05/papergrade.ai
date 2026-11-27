@@ -15,8 +15,10 @@ import {
   X,
   HelpCircle,
   BookOpen,
+  Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatExamDate } from "@/lib/dateFormat";
 import { PdfPageView } from "@/components/PdfPageView";
 import LogoLoader from "@/components/LogoLoader/LogoLoader";
 
@@ -26,6 +28,7 @@ export interface ArtifactViewerModalProps {
   examId: string;
   examTitle: string;
   examSubject?: string;
+  examDate?: string | null;
   initialArtifact?: "question-paper" | "answer-key";
   hasQuestionPaper?: boolean;
   hasAnswerKey?: boolean;
@@ -38,6 +41,7 @@ export function ArtifactViewerModal({
   examId,
   examTitle,
   examSubject,
+  examDate,
   initialArtifact = "question-paper",
   hasQuestionPaper = true,
   hasAnswerKey = true,
@@ -689,6 +693,15 @@ export function ArtifactViewerModal({
               {examSubject && (
                 <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-muted shrink-0">
                   {examSubject}
+                </span>
+              )}
+              {formatExamDate(examDate) && (
+                <span
+                  className="hidden xs:inline-flex items-center gap-1 text-[10px] sm:text-[11px] px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-secondary tabular-nums shrink-0"
+                  title="Exam Date"
+                >
+                  <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                  <span>{formatExamDate(examDate)}</span>
                 </span>
               )}
             </div>

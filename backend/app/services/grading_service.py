@@ -20,6 +20,7 @@ from backend.app.db.models import (
     AuditLog,
     RevaluationRequest,
     Exam,
+    SubmissionWindow,
 )
 from backend.app.schemas import (
     StudentGradingExtractionResult,
@@ -763,6 +764,17 @@ class GradingService:
                 return None
 
             exam = session.scalar(select(Exam).where(Exam.id == sub.exam_id)) if sub.exam_id else None
+            first_window_opened_at = (
+                session.scalar(
+                    select(SubmissionWindow.opened_at)
+                    .where(SubmissionWindow.exam_id == sub.exam_id)
+                    .order_by(SubmissionWindow.window_number.asc(), SubmissionWindow.created_at.asc())
+                    .limit(1)
+                )
+                if sub.exam_id
+                else None
+            )
+            exam_date_iso = first_window_opened_at or (exam.created_at if exam else sub.created_at)
 
             rub_row = session.scalar(
                 select(RubricVersion)
@@ -867,12 +879,15 @@ class GradingService:
                 "purged_at": sub.purged_at,
                 "ttl_days": sub.ttl_days,
                 "retention_expires_at": sub.retention_expires_at,
+                "exam_date": exam_date_iso,
                 "exam": {
                     "id": exam.id if exam else sub.exam_id,
                     "title": exam.title if exam else None,
                     "subject": exam.subject if exam else None,
                     "total_marks": exam.total_marks if exam else None,
                     "is_published": exam.is_published if exam else 0,
+                    "created_at": exam.created_at if exam else None,
+                    "exam_date": exam_date_iso,
                     "has_question_paper": bool(exam.question_paper_path) if exam else False,
                     "has_answer_key": bool(exam.answer_key_path) if exam else False,
                     "is_document_purged": bool(exam.is_document_purged) if exam else False,

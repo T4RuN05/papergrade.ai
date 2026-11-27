@@ -141,7 +141,7 @@ class RetentionService:
         if is_purged:
             storage_notice = "Document permanently purged after 15-day retention policy. Question marks and scores are permanently archived."
         elif is_expired:
-            storage_notice = "Retention period has elapsed. Document is queued for scheduled overnight purge."
+            storage_notice = "Retention period has elapsed. Document is queued for scheduled purge."
         else:
             storage_notice = f"Graded PDF document will be permanently deleted {days_remaining} days post-evaluation to optimize storage. Download your copy to avoid losing access."
 

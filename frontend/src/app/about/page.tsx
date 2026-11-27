@@ -62,7 +62,7 @@ export default function AboutPage() {
                 Yet checking stacks of 10-page answer booklets across dozens of students takes days of manual faculty time—often resulting in delayed scoreboards, brief single-number marks without explanation, and repetitive re-totaling requests.
               </p>
               <p className="text-ink font-medium">
-                PaperGrade bridges that gap: students write on paper as always, rubrics are locked per question step, and faculty receive mapped, verifiable evaluations overnight ready to review and publish.
+                PaperGrade bridges that gap: students write on paper as always, rubrics are locked per question step, and faculty receive mapped, verifiable evaluations ready to review and publish.
               </p>
             </div>
           </section>
@@ -91,8 +91,8 @@ export default function AboutPage() {
                   body: "Evaluations follow teacher-approved steps and point weights. Every mark awarded or deducted traces back to an annotated region on the script.",
                 },
                 {
-                  title: "Conduct by day, grade overnight",
-                  body: "Class hours stay dedicated to running tests smoothly; queued batches are processed overnight and held until faculty approves publication.",
+                  title: "Timed collection, batch evaluation",
+                  body: "Live test windows stay dedicated to smooth student submissions; queued batches are evaluated cleanly and held until faculty approves publication.",
                 },
                 {
                   title: "Human authority on appeals",
@@ -156,6 +156,9 @@ export default function AboutPage() {
             </Link>
             <Link href="/help" className="hover:text-ink transition-colors">
               Manual
+            </Link>
+            <Link href="/faq" className="hover:text-ink transition-colors">
+              FAQ
             </Link>
             <Link href="/privacy" className="hover:text-ink transition-colors">
               Privacy

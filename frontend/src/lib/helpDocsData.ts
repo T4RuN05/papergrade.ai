@@ -765,20 +765,20 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "batch-evaluation-and-overrides",
         role: "faculty",
         guideCode: "F-05",
-        title: "Overnight Evaluation, Reviewing Flagged Papers & Editing Marks",
+        title: "Batch Evaluation, Reviewing Flagged Papers & Editing Marks",
         summary:
-          "How overnight AI grading works after 8:00 PM IST, how to review NEEDS REVIEW papers, adjust answer regions on scanned sheets, and update marks.",
+          "How queued AI grading works, how to review NEEDS REVIEW papers, adjust answer regions on scanned sheets, and update marks.",
         readTimeMinutes: 5,
         lastUpdated: "November 2026",
         overview:
-          "PaperGrade runs AI grading overnight so student exam sessions stay completely fast during the day. Once papers are evaluated, Teachers review flagged answers and fine-tune marks directly on each scanned script.",
+          "PaperGrade runs AI grading asynchronously in queued batches so live exam submission sessions stay fast. Once papers are evaluated, Teachers review flagged answers and fine-tune marks directly on each scanned script.",
         steps: [
           {
-            title: "1. Daytime Uploads & Overnight Grading Schedule (8:00 PM IST)",
+            title: "1. Queued Submissions & Triggering Batch Grading",
             description:
-              "During daytime exam hours (before 8:00 PM IST), all student uploads are saved safely without running AI grading. After 8:00 PM IST—once the submission window is closed, Official Answer Key is uploaded, and the Rubric is 'Approved & Locked'—the Root Administrator triggers 'Start Evaluation' so papers are graded overnight for next-day or next-to-next-day review.",
+              "During active exam windows, all student uploads are saved safely in storage without running grading concurrently. Once the submission window is closed, Official Answer Key is uploaded, and the Rubric is 'Approved & Locked', the Root Administrator triggers 'Start Evaluation' so papers are graded in batches for faculty review.",
             uiPills: [{ label: "Start Evaluation", variant: "primary" }],
-            note: "Because evaluation runs overnight, teachers wake up to graded scripts ready for quick review before results are published.",
+            note: "Once batch evaluation finishes, graded scripts remain in draft for quick teacher review before results are published.",
             noteType: "important",
             screenshot: {
               suggestedPath: "/docs/faculty/batch-eval.png",
@@ -905,7 +905,7 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
     label: "Director & Root Admin Manual",
     badge: "Leadership & Admin",
     description:
-      "Multi-branch Director oversight, campus & staff setup, 15-day paper retention, overnight evaluation governance, and support reports.",
+      "Multi-branch Director oversight, campus & staff setup, 15-day paper retention, batch evaluation governance, and support reports.",
     iconName: "Building2",
     articles: [
       {
@@ -936,7 +936,7 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
             title: "2. Monitor Score Tiers & Revaluation Turnaround",
             description:
               "Inside each exam and standings view, filter results across 'Distinction (>=75%)', 'Passing (40% - 74%)', and 'Needs Attention (<40%)', and check the Revaluation Desk to ensure student appeals are resolved on time across branches.",
-            note: "System-wide administration (setting up new branches/staff, uploading Official Answer Keys, locking rubrics, starting overnight evaluation, and publishing final results) is managed by the Root Administrator.",
+            note: "System-wide administration (setting up new branches/staff, uploading Official Answer Keys, locking rubrics, starting batch evaluation, and publishing final results) is managed by the Root Administrator.",
             noteType: "important",
           },
         ],
@@ -1033,23 +1033,23 @@ export const HELP_ROLE_TRACKS: RoleTrack[] = [
         slug: "platform-governance-and-operations",
         role: "director",
         guideCode: "D-04",
-        title: "Overnight Evaluation, Result Publishing & Support Desk (Root Admin)",
+        title: "Batch Evaluation, Result Publishing & Support Desk (Root Admin)",
         summary:
-          "Root Administrator workflow for monitoring readiness, running overnight grading after 8:00 PM IST, publishing results, and resolving user-reported issues.",
+          "Root Administrator workflow for monitoring readiness, running batch grading, publishing results, and resolving user-reported issues.",
         readTimeMinutes: 4,
         lastUpdated: "November 2026",
         overview:
-          "Root Administrators oversee overall readiness, control final Official Answer Key and Publish steps, run overnight evaluations after daytime exams finish, and manage incoming support tickets.",
+          "Root Administrators oversee overall readiness, control final Official Answer Key and Publish steps, trigger batch evaluations once submission windows close, and manage incoming support tickets.",
         steps: [
           {
-            title: "1. Overview Checklist, Overnight Grading (>= 8:00 PM IST) & Publishing",
+            title: "1. Overview Checklist, Batch Grading & Publishing",
             description:
-              "Check 'Overview' to verify exam readiness. Daytime exam hours before 8:00 PM IST are kept strictly dedicated to smooth student submissions. From 8:00 PM IST onward—once submissions are closed, the Official Answer Key is uploaded, and the Rubric is 'Approved & Locked'—click 'Start Evaluation' on the exam page to process scripts overnight, then click 'Publish Results' once faculty verification is done.",
+              "Check 'Overview' to verify exam readiness. Live submission windows remain dedicated to smooth student uploads. Once submissions are closed, the Official Answer Key is uploaded, and the Rubric is 'Approved & Locked', click 'Start Evaluation' on the exam page to process scripts in batch, then click 'Publish Results' once faculty verification is done.",
             uiPills: [
               { label: "Start Evaluation", variant: "primary" },
               { label: "Publish Results", variant: "primary" },
             ],
-            note: "Standard result turnaround is next day or next-to-next day after overnight evaluation and teacher review.",
+            note: "Results remain unpublished until batch evaluation and teacher review are complete.",
             noteType: "important",
           },
           {

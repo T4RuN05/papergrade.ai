@@ -3,8 +3,11 @@ import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 
 export const metadata = {
-  title: "Terms of Service — PaperGrade AI",
+  title: "Terms of Service",
   description: "PaperGrade AI Terms of Service for educational institutes, faculty, and students.",
+  alternates: {
+    canonical: "/terms",
+  },
 };
 
 export default function TermsOfServicePage() {

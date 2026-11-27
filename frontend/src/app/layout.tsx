@@ -15,10 +15,69 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/lib/ThemeContext";
 import { QueryProvider } from "@/lib/QueryProvider";
+import { buildRootJsonLdGraph, SITE_NAME, SITE_URL } from "@/lib/seoSchema";
+
+const ROOT_DESCRIPTION =
+  "AI-assisted handwritten subjective answer sheet grading for coaching institutes. Lock step-marking rubrics, inspect bounding-box citations, publish ranked standings, and resolve student appeals cleanly.";
 
 export const metadata: Metadata = {
-  title: "PaperGrade AI — Academic Evaluation & Submissions",
-  description: "High-integrity AI assisted academic grading, instant submissions, and transparent revaluations.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "PaperGrade AI — Handwritten Exam Grading for Coaching Institutes",
+    template: "%s | PaperGrade AI",
+  },
+  description: ROOT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "PaperGrade AI",
+    "papergradeai",
+    "AI answer sheet grading",
+    "handwritten exam evaluation software",
+    "coaching institute test checking AI",
+    "rubric based subjective grading",
+    "step marking AI Physics Chemistry Maths",
+    "automated answer booklet checking India",
+    "student revaluation portal",
+  ],
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: "PaperGrade AI — Handwritten Exam Grading for Coaching Institutes",
+    description: ROOT_DESCRIPTION,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "PaperGrade AI — Handwritten Answer Sheet Evaluation & Rubric Grading",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PaperGrade AI — Handwritten Exam Grading for Coaching Institutes",
+    description: ROOT_DESCRIPTION,
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -84,6 +143,12 @@ export default function RootLayout({
                 } catch (e) {}
               })();
             `,
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildRootJsonLdGraph()),
           }}
         />
       </head>

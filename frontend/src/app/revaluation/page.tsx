@@ -786,6 +786,7 @@ export default function RevaluationDeskPage() {
                   maxMarks={submission.max_marks}
                   readOnly={false}
                   isDocumentPurged={Boolean(submission.is_document_purged)}
+                  examDate={submission.exam_date || submission.exam?.exam_date || submission.exam?.created_at || submission.created_at}
                 />
               )}
             </div>

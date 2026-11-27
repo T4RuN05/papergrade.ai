@@ -3,8 +3,11 @@ import Link from "next/link";
 import { Shield, ArrowLeft, Lock, FileCheck, Database, CheckCircle2, XCircle } from "lucide-react";
 
 export const metadata = {
-  title: "Privacy Policy — PaperGrade AI",
+  title: "Privacy Policy",
   description: "PaperGrade AI Privacy Policy and Google Drive BYOS Data Usage Terms.",
+  alternates: {
+    canonical: "/privacy",
+  },
 };
 
 export default function PrivacyPolicyPage() {

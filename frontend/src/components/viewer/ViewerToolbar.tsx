@@ -12,8 +12,10 @@ import {
   Sliders,
   Edit3,
   X,
+  Calendar,
 } from "lucide-react";
 import { GradedAnswer } from "@/lib/types";
+import { formatExamDate } from "@/lib/dateFormat";
 import { AddBoxDropdown } from "./AddBoxDropdown";
 
 interface ViewerToolbarProps {
@@ -31,6 +33,7 @@ interface ViewerToolbarProps {
   editingRegionId: string | null;
   onExitEditMode: () => void;
   onSpawnDraftBox: (ansId: string) => void;
+  examDate?: string | null;
 }
 
 export function ViewerToolbar({
@@ -48,7 +51,9 @@ export function ViewerToolbar({
   editingRegionId,
   onExitEditMode,
   onSpawnDraftBox,
+  examDate,
 }: ViewerToolbarProps) {
+  const formattedExamDate = formatExamDate(examDate);
   return (
     <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 border-b border-hairline bg-surface px-2.5 sm:px-3 py-2 text-xs select-none w-full max-w-full">
       {/* Left: Page Navigation Controls */}
@@ -97,6 +102,16 @@ export function ViewerToolbar({
               </button>
             ))}
           </div>
+        )}
+
+        {formattedExamDate && (
+          <span
+            className="hidden md:inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-[11px] font-medium text-ink-secondary tabular-nums whitespace-nowrap"
+            title="Exam Date"
+          >
+            <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+            <span>{formattedExamDate}</span>
+          </span>
         )}
       </div>
 

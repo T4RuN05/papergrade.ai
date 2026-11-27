@@ -46,6 +46,7 @@ export interface Exam {
   lifecycle_status?: string;
   is_published?: boolean | number;
   published_at?: string;
+  exam_date?: string | null;
   institute_id?: string;
   institute_name?: string;
   institute_code?: string;

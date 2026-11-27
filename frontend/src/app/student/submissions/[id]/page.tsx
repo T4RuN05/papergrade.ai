@@ -20,10 +20,12 @@ import {
   BookOpen,
   ExternalLink,
   Loader2,
+  Calendar,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken } from "@/lib/api";
+import { formatExamDate, resolveExamDate } from "@/lib/dateFormat";
 import { queryKeys } from "@/lib/queryKeys";
 import { useSubmissionDetail } from "@/lib/queries";
 import { GoogleDriveIcon } from "@/components/student/PastExamCard";
@@ -346,6 +348,15 @@ export default function StudentSubmissionViewerPage() {
                   <span className="font-mono text-xs font-medium rounded-xs bg-canvas-soft border border-hairline px-2 py-0.5 text-ink-secondary">
                     {submission.roll_number}
                   </span>
+                  {formatExamDate(resolveExamDate(submission)) && (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-medium rounded-xs bg-canvas-soft border border-hairline px-2 py-0.5 text-ink-secondary tabular-nums whitespace-nowrap"
+                      title="Exam Date"
+                    >
+                      <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                      <span>{formatExamDate(resolveExamDate(submission))}</span>
+                    </span>
+                  )}
                   <span className="text-xs text-ink-muted hidden sm:inline">
                     • {submission.student_name}
                   </span>
@@ -534,6 +545,7 @@ export default function StudentSubmissionViewerPage() {
                 readOnly={true}
                 hideScoreStamp={!isPublished}
                 isDocumentPurged={Boolean(submission.is_document_purged)}
+                examDate={resolveExamDate(submission)}
               />
             )}
           </div>
@@ -668,6 +680,8 @@ export default function StudentSubmissionViewerPage() {
         onClose={() => setArtifactModalOpen(false)}
         examId={submission?.exam_id || submission?.exam?.id || ""}
         examTitle={submission?.exam?.title || submission?.exam_title || "Examination"}
+        examSubject={submission?.exam?.subject || submission?.exam_subject}
+        examDate={resolveExamDate(submission)}
         hasQuestionPaper={Boolean(submission?.exam?.has_question_paper || submission?.has_question_paper)}
         hasAnswerKey={Boolean(submission?.exam?.has_answer_key || submission?.has_answer_key)}
       />

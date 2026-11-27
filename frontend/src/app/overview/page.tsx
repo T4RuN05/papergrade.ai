@@ -18,8 +18,10 @@ import {
   Lock,
   LogIn,
   CheckCircle2,
+  Calendar,
 } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
+import { formatExamDate, resolveExamDate } from "@/lib/dateFormat";
 import { Exam } from "@/lib/types";
 import { useToast } from "@/lib/ToastContext";
 import { useTenant } from "@/lib/TenantContext";
@@ -486,6 +488,15 @@ export default function RootAdminOverviewPage() {
                     <span className="tabular-nums">
                       Total: {exam.total_marks && exam.total_marks > 0 ? `${exam.total_marks} marks` : "N/A"}
                     </span>
+                    {formatExamDate(resolveExamDate(exam)) && (
+                      <>
+                        <span className="text-ink-faint">•</span>
+                        <span className="inline-flex items-center gap-1 tabular-nums whitespace-nowrap" title="Exam Date">
+                          <Calendar className="h-3 w-3 text-ink-faint shrink-0" />
+                          <span>{formatExamDate(resolveExamDate(exam))}</span>
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 

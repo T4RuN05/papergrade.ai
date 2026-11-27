@@ -10,14 +10,17 @@ import {
   Lock,
   Play,
   RefreshCw,
+  Calendar,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui";
+import { formatExamDate } from "@/lib/dateFormat";
 
 interface ExamActionHeaderProps {
   title?: string;
   subject?: string;
   totalMarks?: number;
   branchName?: string;
+  examDate?: string | null;
   isPublished?: boolean;
   isPublishing?: boolean;
   isRubricApproved?: boolean;
@@ -43,6 +46,7 @@ export function ExamActionHeader({
   subject,
   totalMarks,
   branchName,
+  examDate,
   isPublished = false,
   isPublishing = false,
   isRubricApproved = false,
@@ -112,6 +116,15 @@ export function ExamActionHeader({
               {branchName && (
                 <span className="text-xs text-ink-muted font-medium truncate max-w-[160px] sm:max-w-none">
                   {branchName}
+                </span>
+              )}
+              {formatExamDate(examDate) && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-xs font-medium text-ink-secondary tabular-nums whitespace-nowrap"
+                  title="Exam Date"
+                >
+                  <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                  <span>{formatExamDate(examDate)}</span>
                 </span>
               )}
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-soft border border-hairline text-ink-secondary whitespace-nowrap">

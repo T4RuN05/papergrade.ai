@@ -48,6 +48,7 @@ interface DocumentViewerProps {
   isDocumentPurged?: boolean;
   initialShowAnnotations?: boolean;
   pdfUrl?: string;
+  examDate?: string | null;
 }
 
 export function DocumentViewer({
@@ -70,6 +71,7 @@ export function DocumentViewer({
   isDocumentPurged = false,
   initialShowAnnotations = true,
   pdfUrl,
+  examDate,
 }: DocumentViewerProps) {
   const [internalPage, setInternalPage] = useState<number>(1);
   const [containerDims, setContainerDims] = useState<{ width: number; height: number }>(() => {
@@ -868,6 +870,7 @@ export function DocumentViewer({
         editingRegionId={editingRegionId}
         onExitEditMode={handleExitEditMode}
         onSpawnDraftBox={handleSpawnDraftBox}
+        examDate={examDate}
       />
 
       {/* 2. Vector Canvas Viewport Container (60 FPS Canvas Viewport Invariant preserved) */}

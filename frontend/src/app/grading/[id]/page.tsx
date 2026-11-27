@@ -11,10 +11,12 @@ import {
   RefreshCw,
   Lock,
   Clock,
+  Calendar,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, getAuthToken } from "@/lib/api";
+import { formatExamDate, resolveExamDate } from "@/lib/dateFormat";
 import { queryKeys } from "@/lib/queryKeys";
 import { useSubmissionDetail } from "@/lib/queries";
 import { Submission, GradedAnswer } from "@/lib/types";
@@ -403,6 +405,15 @@ export default function GradingPage() {
                   {submission.exam?.title || "Examination"}
                 </span>
               )}
+              {!isColdLoading && submission && formatExamDate(resolveExamDate(submission)) && (
+                <>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1 text-ink-secondary font-medium tabular-nums whitespace-nowrap" title="Exam Date">
+                    <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                    <span>{formatExamDate(resolveExamDate(submission))}</span>
+                  </span>
+                </>
+              )}
               <span>•</span>
               <span>Pages:</span>
               {isColdLoading || !submission ? (
@@ -523,6 +534,7 @@ export default function GradingPage() {
               totalAwardedMarks={submission.total_awarded_marks}
               maxMarks={submission.max_marks}
               isDocumentPurged={Boolean(submission.is_document_purged)}
+              examDate={resolveExamDate(submission)}
             />
           )}
         </div>

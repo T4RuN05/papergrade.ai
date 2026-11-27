@@ -19,8 +19,10 @@ import {
   X,
   Lock,
   Archive,
+  Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatExamDate, resolveExamDate } from "@/lib/dateFormat";
 import { Exam } from "@/lib/types";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast } from "@/lib/ToastContext";
@@ -632,7 +634,7 @@ export default function ExamsPage() {
                       </div>
                     </div>
 
-                    {/* Subject & Scoped Batch Meta */}
+                    {/* Subject, Scoped Batch & Exam Date Meta */}
                     <div className="flex items-center gap-2 flex-wrap text-xs text-ink-muted">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline font-medium text-ink-secondary">
                         {exam.subject}
@@ -647,6 +649,15 @@ export default function ExamsPage() {
                             : "Whole Branch"}
                         </span>
                       </span>
+                      {formatExamDate(resolveExamDate(exam)) && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xs bg-canvas-soft border border-hairline text-ink-secondary tabular-nums whitespace-nowrap"
+                          title="Exam Date"
+                        >
+                          <Calendar className="h-3 w-3 text-ink-muted shrink-0" />
+                          <span>{formatExamDate(resolveExamDate(exam))}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 

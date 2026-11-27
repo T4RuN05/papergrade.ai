@@ -501,6 +501,7 @@ export default function StudentPortalPage() {
       id: sub.exam_id,
       title: sub.exam_title,
       subject: sub.exam_subject || sub.subject,
+      exam_date: sub.exam_date || sub.exam_created_at || sub.created_at,
       has_question_paper: hasQP,
       has_answer_key: hasAK,
       is_document_purged: sub.exam_is_document_purged,
@@ -946,6 +947,7 @@ export default function StudentPortalPage() {
           examId={artifactModalExam.id}
           examTitle={artifactModalExam.title}
           examSubject={artifactModalExam.subject}
+          examDate={artifactModalExam.exam_date}
           initialArtifact={artifactModalInitialTab}
           hasQuestionPaper={artifactModalExam.has_question_paper}
           hasAnswerKey={artifactModalExam.has_answer_key}

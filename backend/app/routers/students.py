@@ -236,6 +236,17 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 if batch_id and str(batch_id) in allowed_bids:
                     exam_rows.append(ex)
 
+        first_opened_by_exam: Dict[str, str] = {}
+        if exam_rows:
+            first_open_rows = session.execute(
+                select(SubmissionWindow.exam_id, func.min(SubmissionWindow.opened_at))
+                .where(SubmissionWindow.exam_id.in_([ex["id"] for ex in exam_rows]))
+                .group_by(SubmissionWindow.exam_id)
+            ).all()
+            first_opened_by_exam = {eid: op for eid, op in first_open_rows if op}
+            for ex in exam_rows:
+                ex["exam_date"] = first_opened_by_exam.get(ex["id"]) or ex.get("created_at")
+
         # 3. Check Windows for these exams (keyed per exam to eliminate cross-cohort collisions)
         windows_by_exam = {}
         missing_exam_ids = []
@@ -400,6 +411,8 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                 "exam_title": ex.title,
                 "exam_subject": ex.subject,
                 "exam_total_marks": ex.total_marks,
+                "exam_created_at": ex.created_at,
+                "exam_date": first_opened_by_exam.get(s.exam_id) or ex.created_at,
                 "exam_is_published": 1 if bool(ex.is_published == 1 or ex.status == "PUBLISHED" or ex.lifecycle_status == "PUBLISHED") else 0,
                 "exam_status": ex.status,
                 "exam_lifecycle_status": ex.lifecycle_status,
@@ -474,6 +487,8 @@ def _fetch_portal_state_sync(user_id: str, user_role: str) -> Dict[str, Any]:
                         "exam_title": ex["title"],
                         "exam_subject": ex["subject"],
                         "exam_total_marks": ex["total_marks"],
+                        "exam_created_at": ex.get("created_at"),
+                        "exam_date": ex.get("exam_date") or ex.get("created_at"),
                         "exam_is_published": ex.get("is_published"),
                         "exam_question_paper_path": ex.get("question_paper_path"),
                         "exam_answer_key_path": ex.get("answer_key_path"),
@@ -716,6 +731,15 @@ def _fetch_past_submissions_sync(
         slice_reval_map: Dict[str, Dict[str, Any]] = {}
         slice_answers_map: Dict[str, List[Dict[str, Any]]] = {}
         slice_archive_map: Dict[str, Dict[str, Any]] = {}
+        slice_exam_ids = list({item["exam_id"] for item in page_slice if item.get("exam_id")})
+        slice_first_opened_map: Dict[str, str] = {}
+        if slice_exam_ids:
+            open_rows = session.execute(
+                select(SubmissionWindow.exam_id, func.min(SubmissionWindow.opened_at))
+                .where(SubmissionWindow.exam_id.in_(slice_exam_ids))
+                .group_by(SubmissionWindow.exam_id)
+            ).all()
+            slice_first_opened_map = {eid: op for eid, op in open_rows if op}
 
         if slice_published_sub_ids:
             archive_records = session.scalars(
@@ -814,6 +838,8 @@ def _fetch_past_submissions_sync(
                     "exam_title": item["exam_title"],
                     "exam_subject": item["exam_subject"],
                     "exam_total_marks": ex["total_marks"] if isinstance(ex, dict) else ex.total_marks,
+                    "exam_created_at": item.get("created_at"),
+                    "exam_date": slice_first_opened_map.get(item["exam_id"]) or item.get("created_at"),
                     "exam_is_published": 1 if item["is_published"] else 0,
                     "exam_question_paper_path": ex.get("question_paper_path") if isinstance(ex, dict) else ex.question_paper_path,
                     "exam_answer_key_path": ex.get("answer_key_path") if isinstance(ex, dict) else ex.answer_key_path,
@@ -854,6 +880,8 @@ def _fetch_past_submissions_sync(
                     "exam_title": ex.title,
                     "exam_subject": ex.subject,
                     "exam_total_marks": ex.total_marks,
+                    "exam_created_at": ex.created_at,
+                    "exam_date": slice_first_opened_map.get(s.exam_id) or ex.created_at,
                     "exam_is_published": exam_is_pub,
                     "exam_status": ex.status,
                     "exam_lifecycle_status": ex.lifecycle_status,

@@ -520,6 +520,7 @@ export default function ExamDetailPage() {
         subject={exam?.subject}
         totalMarks={exam?.total_marks}
         branchName={selectedBranch?.name}
+        examDate={exam?.exam_date || windowStatus?.opened_at || exam?.created_at}
         isPublished={isPublished}
         isPublishing={isPublishing}
         isRubricApproved={isRubricApproved}
@@ -820,6 +821,7 @@ export default function ExamDetailPage() {
         examId={examId}
         examTitle={exam?.title || "Exam"}
         examSubject={exam?.subject || ""}
+        examDate={exam?.exam_date || windowStatus?.opened_at || exam?.created_at}
         initialArtifact={viewerArtifactType === "QUESTION_PAPER" ? "question-paper" : "answer-key"}
         hasQuestionPaper={hasQp}
         hasAnswerKey={hasAk}

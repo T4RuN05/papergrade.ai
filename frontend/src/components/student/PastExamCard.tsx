@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { FeatureCard } from "@/components/ui";
 import { api } from "@/lib/api";
+import { formatExamDate, resolveExamDate } from "@/lib/dateFormat";
 import { useToast } from "@/lib/ToastContext";
 
 export function GoogleDriveIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
@@ -162,17 +163,10 @@ export const PastExamCard = React.memo(function PastExamCard({
                 <span className="text-ink-faint">•</span>
               </>
             )}
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums" title="Exam Date">
               <Calendar className="h-3 w-3 text-ink-faint shrink-0" />
               <span>
-                {isAbsent ? "Missed" : "Submitted"}{" "}
-                {sub.created_at
-                  ? new Date(sub.created_at).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "Recorded"}
+                {formatExamDate(resolveExamDate(sub), { fallback: "Recorded" })}
               </span>
             </span>
             <span className="text-ink-faint">•</span>

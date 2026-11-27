@@ -110,7 +110,7 @@ export default function HelpHubPage() {
         icon: FileSpreadsheet,
       },
       {
-        title: "Overnight Evaluation & Publishing Results",
+        title: "Batch Evaluation & Publishing Results",
         role: "director" as RoleId,
         slug: "platform-governance-and-operations",
         guideCode: "D-04",
