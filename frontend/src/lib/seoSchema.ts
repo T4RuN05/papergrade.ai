@@ -48,6 +48,7 @@ export function buildRootJsonLdGraph() {
         "@type": "Organization",
         "@id": `${SITE_URL}/#organization`,
         name: SITE_NAME,
+        alternateName: ["PaperGradeAI", "papergradeai.in"],
         url: SITE_URL,
         email: SITE_EMAIL,
         logo: {
@@ -64,6 +65,7 @@ export function buildRootJsonLdGraph() {
         "@id": `${SITE_URL}/#website`,
         url: SITE_URL,
         name: SITE_NAME,
+        alternateName: "PaperGradeAI",
         publisher: { "@id": `${SITE_URL}/#organization` },
         inLanguage: "en-IN",
       },
@@ -71,6 +73,7 @@ export function buildRootJsonLdGraph() {
         "@type": "SoftwareApplication",
         "@id": `${SITE_URL}/#software`,
         name: SITE_NAME,
+        alternateName: ["PaperGradeAI", "PaperGrade"],
         url: SITE_URL,
         applicationCategory: "EducationalApplication",
         operatingSystem: "Web, iOS PWA, Android PWA",
@@ -86,18 +89,22 @@ export function buildRootJsonLdGraph() {
           "Multi-branch coaching institute & batch roster management",
         ],
       },
-      {
-        "@type": "FAQPage",
-        "@id": `${SITE_URL}/#faq`,
-        mainEntity: PUBLIC_FAQ_ENTRIES.map((item) => ({
-          "@type": "Question",
-          name: item.question,
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: item.answer,
-          },
-        })),
-      },
     ],
+  };
+}
+
+export function buildFaqJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${SITE_URL}/faq#faq`,
+    mainEntity: PUBLIC_FAQ_ENTRIES.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
   };
 }

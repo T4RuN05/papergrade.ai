@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import React from "react";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, HelpCircle } from "lucide-react";
-import { PUBLIC_FAQ_ENTRIES, SITE_URL } from "@/lib/seoSchema";
+import { buildFaqJsonLd, PUBLIC_FAQ_ENTRIES, SITE_URL } from "@/lib/seoSchema";
 
 export const metadata: Metadata = {
   title: "Frequently Asked Questions (FAQ)",
@@ -22,6 +22,12 @@ export const metadata: Metadata = {
 export default function FaqPage() {
   return (
     <div className="min-h-screen bg-canvas-soft text-ink flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildFaqJsonLd()),
+        }}
+      />
       <header className="border-b border-hairline bg-surface sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           <Link href="/" className="notion-btn-utility !min-h-8 px-3 text-xs shrink-0">

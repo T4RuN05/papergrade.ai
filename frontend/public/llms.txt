@@ -1,0 +1,28 @@
+# PaperGrade AI (PaperGradeAI)
+
+> Handwritten subjective answer sheet evaluation and academic examination workflow platform for coaching institutes and schools.
+
+Canonical Website: https://www.papergradeai.in
+Support Email: support@papergradeai.in
+
+## Overview
+
+PaperGrade AI (also referred to as PaperGradeAI) helps coaching institutes keep subjective tests on physical handwritten paper while eliminating manual paper-checking bottlenecks. Teachers lock step-marking rubrics before evaluation, AI maps awarded marks directly onto scanned student script regions, and faculty retain final authority over review and publication.
+
+## Core Capabilities
+
+- **Handwritten Subjective Evaluation**: Grades multi-page handwritten answers across Physics, Chemistry, Mathematics, Biology, and board or competitive subjective exams, including derivations, equations, and labeled diagrams.
+- **Teacher-Locked Rubrics**: Faculty define step weights, model answers, accepted alternatives, and optional best-of-N question selection rules prior to grading.
+- **Visual Bounding-Box Citations**: Every mark awarded or deducted links directly to a highlighted bounding box on the student's scanned PDF page alongside criterion rationale.
+- **Timed Student Submission Windows**: Students capture paper pages or upload PDFs from mobile devices during instructor-controlled live submission windows with grace-period support.
+- **Audited Revaluation Workflow**: After publication, students can contest specific questions and teachers resolve appeals with cropped handwriting inspection and audit trails.
+- **Multi-Branch Institute & Batch Isolation**: Role-based access for Institute Directors, Branch Managers, and Students with CSV roster imports, ranked standings exports, and optional student Google Drive backup.
+
+## Key Public Pages
+
+- [Homepage](https://www.papergradeai.in/): Platform workflow overview and portal access
+- [About PaperGrade AI](https://www.papergradeai.in/about): Grading philosophy and coaching workflow principles
+- [Frequently Asked Questions](https://www.papergradeai.in/faq): Direct answers on handwritten grading, rubrics, and appeals
+- [User Manual & Help Center](https://www.papergradeai.in/help): Role-by-role operational guides for Students, Faculty, and Institute Directors
+- [Privacy Policy](https://www.papergradeai.in/privacy): Data privacy and Google Drive BYOS usage terms
+- [Terms of Service](https://www.papergradeai.in/terms): Platform terms for educational institutes and users
