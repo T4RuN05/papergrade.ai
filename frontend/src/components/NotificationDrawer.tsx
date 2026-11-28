@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useNotifications } from "@/lib/NotificationContext";
+import { useSlideDrawer } from "@/hooks/useSlideDrawer";
 import { NotificationDrawerSkeleton } from "./ui";
 import { useToast } from "@/lib/ToastContext";
 import { NotificationDrawerHeader } from "./notifications/NotificationDrawerHeader";
@@ -32,6 +33,7 @@ export function NotificationDrawer() {
   const [activeTab, setActiveTab] = useState<"unread" | "all">("unread");
   const [clearingIds, setClearingIds] = useState<Set<string>>(new Set());
   const [isClearingAll, setIsClearingAll] = useState(false);
+  const { isRendered: drawerRendered, isVisible: drawerVisible } = useSlideDrawer(isOpen, 300);
 
   useEffect(() => {
     if (isOpen) {
@@ -114,26 +116,26 @@ export function NotificationDrawer() {
     router.push(url);
   };
 
+  if (!drawerRendered) return null;
+
   return (
     <div
-      className={`fixed inset-0 z-[70] transition-all duration-300 ease-in-out ${
-        isOpen ? "visible pointer-events-auto" : "invisible pointer-events-none"
-      }`}
+      className="fixed inset-0 z-[70]"
       role="dialog"
+      aria-modal="true"
       aria-label="Notifications Drawer"
-      aria-hidden={!isOpen}
     >
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 transition-opacity duration-300 ease-in-out"
-          onClick={closeDrawer}
-          aria-hidden="true"
-        />
-      )}
+      <div
+        className={`fixed inset-0 bg-black/30 transition-opacity duration-300 ease-in-out ${
+          drawerVisible ? "opacity-100" : "opacity-0"
+        }`}
+        onClick={closeDrawer}
+        aria-hidden="true"
+      />
 
       <aside
-        className={`fixed inset-y-0 right-0 w-full max-w-md h-full h-[100dvh] bg-surface shadow-notion-modal border-l border-hairline flex flex-col transition-transform duration-300 ease-in-out transform ${
-          isOpen ? "translate-x-0" : "translate-x-full"
+        className={`fixed inset-y-0 right-0 w-full max-w-md h-full h-[100dvh] bg-surface shadow-notion-modal border-l border-hairline flex flex-col transition-transform duration-300 ease-in-out will-change-transform ${
+          drawerVisible ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <NotificationDrawerHeader

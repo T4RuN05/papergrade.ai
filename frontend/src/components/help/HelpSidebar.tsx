@@ -15,6 +15,7 @@ import {
   Menu,
 } from "lucide-react";
 import { HELP_ROLE_TRACKS } from "@/lib/helpDocsData";
+import { useSlideDrawer } from "@/hooks/useSlideDrawer";
 
 const iconMap = {
   GraduationCap,
@@ -31,6 +32,7 @@ export function HelpSidebar({ currentGuideCode, currentRoleBadge }: HelpSidebarP
   const pathname = usePathname();
   const [searchFilter, setSearchFilter] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isRendered: drawerRendered, isVisible: drawerVisible } = useSlideDrawer(mobileOpen, 300);
   const [collapsedTracks, setCollapsedTracks] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -196,25 +198,26 @@ export function HelpSidebar({ currentGuideCode, currentRoleBadge }: HelpSidebarP
       </div>
 
       {/* Mobile Drawer */}
-      <div
-        className={`fixed inset-0 z-50 md:hidden transition-all duration-300 ease-in-out ${
-          mobileOpen ? "visible pointer-events-auto" : "invisible pointer-events-none"
-        }`}
-        aria-hidden={!mobileOpen}
-      >
+      {drawerRendered && (
         <div
-          className={`fixed inset-0 bg-black/45 backdrop-blur-sm transition-opacity duration-300 ${
-            mobileOpen ? "opacity-100" : "opacity-0"
-          }`}
-          onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
-        />
-
-        <div
-          className={`fixed inset-y-0 left-0 w-[85vw] max-w-xs h-[100dvh] bg-surface border-r border-hairline shadow-notion-modal flex flex-col p-4 transition-transform duration-300 ease-out transform select-none ${
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          className="fixed inset-0 z-50 md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chapters Navigation"
         >
+          <div
+            className={`fixed inset-0 bg-black/45 transition-opacity duration-300 ease-in-out ${
+              drawerVisible ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+
+          <aside
+            className={`fixed inset-y-0 left-0 w-[85vw] max-w-xs h-[100dvh] bg-surface border-r border-hairline shadow-notion-modal flex flex-col p-4 transition-transform duration-300 ease-in-out will-change-transform select-none ${
+              drawerVisible ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
           <div className="flex items-center justify-between pb-3 border-b border-hairline shrink-0">
             <Link
               href="/help"
@@ -258,8 +261,9 @@ export function HelpSidebar({ currentGuideCode, currentRoleBadge }: HelpSidebarP
           <div className="flex-1 overflow-y-auto sleek-scrollbar pr-1">
             {renderTrackList(() => setMobileOpen(false))}
           </div>
+          </aside>
         </div>
-      </div>
+      )}
 
       {/* Desktop Sticky Left Sidebar */}
       <aside className="hidden md:flex flex-col w-64 xl:w-[272px] shrink-0 border-r border-hairline bg-surface h-[calc(100vh-3.5rem)] sticky top-14 overflow-y-auto sleek-scrollbar p-4 select-none">

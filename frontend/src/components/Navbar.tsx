@@ -25,6 +25,7 @@ import { getAuthToken, setStoredUser } from "@/lib/api";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useNotifications } from "@/lib/NotificationContext";
 import { useTenant } from "@/lib/TenantContext";
+import { useSlideDrawer } from "@/hooks/useSlideDrawer";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 
 export function Navbar() {
@@ -34,6 +35,7 @@ export function Navbar() {
   const { currentUser, isMounted, loading: tenantLoading, refreshTenancy, logout } = useTenant();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isRendered: menuRendered, isVisible: menuVisible } = useSlideDrawer(mobileMenuOpen, 300);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [activeStudentTab, setActiveStudentTab] = useState<"dashboard" | "exams">("dashboard");
@@ -306,29 +308,26 @@ export function Navbar() {
 
       {/* 
         ========================================================================
-        MOBILE OVERLAY NAVIGATION DRAWER
-        Positioned as an absolute overlay directly beneath the sticky header.
-        Does NOT push the main content down, preventing layout shifts.
-        Apple-style smooth spring slide and fade for both opening and closing.
+        MOBILE / COMPACT OVERLAY NAVIGATION DRAWER
+        Pure horizontal transform slide-in/slide-out without visibility cutoff
+        or opacity fade on the panel itself.
         ========================================================================
       */}
-      {/* Ambient Backdrop - Clicking closes the menu (only mounted while open) */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 top-14 bg-black/30 z-50 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100 pointer-events-auto"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+      {menuRendered && (
+        <div className="fixed inset-0 top-14 z-[55]">
+          <div
+            className={`fixed inset-0 top-14 bg-black/35 transition-opacity duration-300 ease-in-out ${
+              menuVisible ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
 
-      {/* Navigation Drawer Panel (Works on mobile & desktop, zero redundant profile displays) */}
-      <div
-        className={`absolute top-full left-0 right-0 md:right-auto md:w-80 w-full border-b md:border-r border-hairline bg-surface shadow-notion-modal z-[55] max-h-[calc(100vh-3.5rem)] overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top ${
-          mobileMenuOpen
-            ? "opacity-100 translate-y-0 scale-y-100 pointer-events-auto"
-            : "opacity-0 -translate-y-2 scale-y-98 pointer-events-none"
-        }`}
-      >
+          <aside
+            className={`fixed top-14 bottom-0 left-0 w-[85vw] max-w-xs md:w-80 border-r border-hairline bg-surface shadow-notion-modal flex flex-col justify-between overflow-y-auto transition-transform duration-300 ease-in-out will-change-transform ${
+              menuVisible ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
 
             {/* Navigation Links */}
             {isMarketingPage && (!isMounted || !currentUser) ? (
@@ -617,7 +616,9 @@ export function Navbar() {
               </div>
               <span className="font-mono text-[10px]">Academic Pilot</span>
             </div>
-          </div>
+          </aside>
+        </div>
+      )}
 
       {/* Change Password Modal */}
       <ChangePasswordModal

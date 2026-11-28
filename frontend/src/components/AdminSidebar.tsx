@@ -32,6 +32,7 @@ import { Skeleton } from "./ui";
 import { ThemeToggle } from "@/lib/ThemeContext";
 import { useTenant } from "@/lib/TenantContext";
 import { useToast, queueToast } from "@/lib/ToastContext";
+import { useSlideDrawer } from "@/hooks/useSlideDrawer";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 
 const ReportIssueModal = dynamic(
@@ -52,6 +53,7 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const { isRendered: drawerRendered, isVisible: drawerVisible } = useSlideDrawer(mobileOpen, 300);
 
   const handleLogout = () => {
     if (signingOut) return;
@@ -475,30 +477,30 @@ export function AdminSidebar({ mobileOpen = false, onCloseMobile }: AdminSidebar
         {sidebarContent}
       </aside>
 
-      {/* Mobile Drawer Sidebar with Tailwind slide animation */}
-      <div
-        className={`fixed inset-0 z-[60] md:hidden transition-all duration-300 ease-in-out ${
-          mobileOpen ? "visible pointer-events-auto" : "invisible pointer-events-none"
-        }`}
-        aria-hidden={!mobileOpen}
-      >
-        {/* Scrim — mounted only while open so an invisible backdrop-filter
-            layer never lingers over the page. */}
-        {mobileOpen && (
+      {/* Mobile Drawer Sidebar with synchronized slide-in/slide-out & scrim fade */}
+      {drawerRendered && (
+        <div
+          className="fixed inset-0 z-[60] md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile Navigation Sidebar"
+        >
           <div
-            className="fixed inset-0 bg-black/40 transition-opacity duration-300 ease-in-out opacity-100"
+            className={`fixed inset-0 bg-black/40 transition-opacity duration-300 ease-in-out ${
+              drawerVisible ? "opacity-100" : "opacity-0"
+            }`}
             onClick={onCloseMobile}
             aria-hidden="true"
           />
-        )}
-        <div
-          className={`fixed inset-y-0 left-0 w-64 max-w-[80vw] h-full h-[100dvh] bg-surface shadow-notion-modal border-r border-hairline transition-transform duration-300 ease-in-out transform ${
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          {sidebarContent}
+          <aside
+            className={`fixed inset-y-0 left-0 w-64 max-w-[80vw] h-full h-[100dvh] bg-surface shadow-notion-modal border-r border-hairline transition-transform duration-300 ease-in-out will-change-transform ${
+              drawerVisible ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            {sidebarContent}
+          </aside>
         </div>
-      </div>
+      )}
 
       {/* One-Time Password Setup Modal */}
       <ChangePasswordModal
