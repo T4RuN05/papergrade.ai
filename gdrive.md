@@ -101,12 +101,12 @@ Create a private root folder in the student's My Drive:
 ```text
 My Drive/
 └── PaperGrade AI/
-    └── 2026/
-        └── November/
-            └── Physics Test 01/
-                ├── Physics_Test_01_Graded_v1.pdf
-                └── Physics_Test_01_Graded_v2.pdf
+    └── Physics/
+        ├── 12A-014_Physics Test 01_3f9a2c_Graded.pdf
+        └── 12A-022_Physics Test 01_3f9a2c_Graded.pdf
 ```
+
+There are no year, month, or per-exam subfolders. Every graded PDF lives directly inside its subject folder. Filenames follow `<roll_number>_<exam_title>_<last-6-of-exam-id>_Graded.pdf`, so recurring titles such as "Weekly Test" cannot alias one another.
 
 Folder names should be deterministic and safe. Avoid unnecessary personal information in names.
 

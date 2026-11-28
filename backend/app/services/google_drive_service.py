@@ -6,7 +6,6 @@ import hashlib
 import logging
 import asyncio
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
 import httpx
 from cryptography.fernet import Fernet
 from sqlalchemy import select
@@ -465,7 +464,7 @@ async def sync_published_submission_to_google_drive(
     1. Checks if student has an active Google Drive connection.
     2. Checks if the annotated PDF is already synced in Google Drive (and not trashed).
     3. Downloads annotated PDF from storage (or generates it on demand via export_service).
-    4. Traverses/creates hierarchy: 'PaperGrade AI / <Year> / <Month> / <Exam Title>'.
+    4. Creates/resolves the flat hierarchy: 'PaperGrade AI / <Subject>' (no date or exam subfolders).
     5. Uploads PDF (without creating duplicates) and persists PublishedDocumentArchive record.
     """
     submission = db.scalar(select(Submission).where(Submission.id == submission_id))
@@ -491,7 +490,6 @@ async def sync_published_submission_to_google_drive(
     )
 
     now = get_iso_now()
-    now_dt = datetime.now(timezone.utc)
 
     # If student is NOT connected, create a pending/unlinked archive record for student portal display
     if not conn:
@@ -583,7 +581,12 @@ async def sync_published_submission_to_google_drive(
             or "Examination"
         )
         roll_clean = (student.roll_number or "Student").replace("/", "-")
-        target_filename = f"{roll_clean}_{clean_exam_title}_Graded.pdf"
+        exam_id_suffix = (exam.id or "")[-6:] if exam else ""
+        target_filename = (
+            f"{roll_clean}_{clean_exam_title}_{exam_id_suffix}_Graded.pdf"
+            if exam_id_suffix
+            else f"{roll_clean}_{clean_exam_title}_Graded.pdf"
+        )
 
         existing_drive_file = await find_drive_file_in_folder(access_token, subject_dir_id, target_filename)
         if existing_drive_file:
