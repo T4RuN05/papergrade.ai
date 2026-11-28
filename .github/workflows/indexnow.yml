@@ -1,0 +1,55 @@
+name: Submit URLs to IndexNow
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - 'scripts/submit_indexnow.py'
+      - '.github/workflows/indexnow.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indexnow
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    name: Notify IndexNow
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Wait for the Vercel production deployment
+        run: |
+          # Vercel deploys from main on push. Its build typically finishes in
+          # 60-120 seconds; wait before notifying engines so new URLs are live.
+          echo "Waiting 120s for the Vercel deployment..."
+          sleep 120
+
+          for attempt in {1..10}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://www.papergradeai.in/)
+            if [ "$code" = "200" ]; then
+              echo "Production site is responding (HTTP 200)."
+              exit 0
+            fi
+            echo "Site returned HTTP $code (attempt $attempt/10); retrying in 15s..."
+            sleep 15
+          done
+
+          echo "Production site did not become ready in time." >&2
+          exit 1
+
+      - name: Submit sitemap URLs
+        run: python scripts/submit_indexnow.py --apply
